@@ -18,8 +18,6 @@ type stmtContent struct {
 	query          string
 	paramCount     int
 	params         []*mysqlField
-	args           *[]driver.Value
-	newParamsBound bool
 }
 
 type mysqlStmt struct {
@@ -55,11 +53,13 @@ func (stmt mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	}
 
 	if resLen > 0 {
+		// Columns
 		_, e = stmt.mc.readUntilEOF()
 		if e != nil {
 			return nil, e
 		}
 
+		// Rows
 		stmt.mc.affectedRows, e = stmt.mc.readUntilEOF()
 		if e != nil {
 			return nil, e
