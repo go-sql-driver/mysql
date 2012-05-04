@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"time"
 )
 
@@ -61,7 +62,6 @@ func (mc *mysqlConn) writePacket(data []byte) (e error) {
 
 	pktLen := uint32(len(data))
 	if int(pktLen) == 0 {
-		debug("WRITE 0 Length; ABORTING!")
 		return
 	}
 
@@ -103,6 +103,10 @@ func (mc *mysqlConn) readNumber(n uint8) (num uint64, e error) {
 	return
 }
 
+/******************************************************************************
+*                           Initialisation Process                            *
+******************************************************************************/
+
 /* Handshake Initialization Packet 
  Bytes                        Name
  -----                        ----
@@ -121,8 +125,6 @@ func (mc *mysqlConn) readNumber(n uint8) (num uint64, e error) {
  1                            \0 byte, terminating the second part of a scramble
 */
 func (mc *mysqlConn) readInitPacket() (e error) {
-	debug("Reading handshake initialization packet from server")
-
 	data, e := mc.readPacket()
 	if e != nil {
 		return
@@ -188,11 +190,9 @@ n (Length Coded Binary)      scramble_buff (1 + x bytes)
 n (Null-Terminated String)   databasename (optional)
 */
 func (mc *mysqlConn) writeAuthPacket() (e error) {
-	debug("Sending authentication packet to server")
-
 	// Adjust client flags based on server support
 	clientFlags := uint32(CLIENT_MULTI_STATEMENTS |
-		CLIENT_MULTI_RESULTS |
+		// CLIENT_MULTI_RESULTS |
 		CLIENT_PROTOCOL_41 |
 		CLIENT_SECURE_CONN |
 		CLIENT_LONG_PASSWORD |
@@ -207,7 +207,7 @@ func (mc *mysqlConn) writeAuthPacket() (e error) {
 
 	// User Password
 	scrambleBuff := scramblePassword(mc.server.scrambleBuff, []byte(mc.cfg.passwd))
-	
+
 	// Calculate packet length and make buffer with that size
 	dataLen := 4 + 4 + 1 + 23 + len(mc.cfg.user) + 1 + 1 + len(scrambleBuff) + len(mc.cfg.dbname) + 1
 	data := make([]byte, 0, dataLen)
@@ -250,20 +250,69 @@ func (mc *mysqlConn) writeAuthPacket() (e error) {
 	return
 }
 
+/******************************************************************************
+*                             Command Packets                                 *
+******************************************************************************/
+
+/* Command Packet
+Bytes                        Name
+-----                        ----
+1                            command
+n                            arg
+*/
+func (mc *mysqlConn) writeCommandPacket(command commandType, args ...interface{}) (e error) {
+	// Reset Packet Sequence
+	mc.sequence = 0
+
+	// Make slice from command byte
+	data := []byte{byte(command)}
+
+	switch command {
+
+	// Commands without args
+	case COM_QUIT, COM_PING:
+		if len(args) > 0 {
+			return errors.New(fmt.Sprintf("Too much arguments (Got: %d Has:0)", len(args)))
+		}
+
+	// Commands with 1 arg unterminated string
+	case COM_QUERY, COM_STMT_PREPARE:
+		if len(args) != 1 {
+			return errors.New(fmt.Sprintf("Invalid arguments count (Got:%d Need: 1)", len(args)))
+		}
+		data = append(data, []byte(args[0].(string))...)
+
+	// Commands with 1 arg 32 bit uint
+	case COM_STMT_CLOSE:
+		if len(args) != 1 {
+			return errors.New(fmt.Sprintf("Invalid arguments count (Got:%d Need: 1)", len(args)))
+		}
+		data = append(data, uint32ToBytes(args[0].(uint32))...)
+	default:
+		return errors.New(fmt.Sprintf("Unknown command: %d", command))
+	}
+
+	// Send CMD packet
+	return mc.writePacket(data)
+}
+
+/******************************************************************************
+*                              Result Packets                                 *
+******************************************************************************/
+
 // Returns error if Packet is not an 'Result OK'-Packet
 func (mc *mysqlConn) readResultOK() (e error) {
-	debug("Read result from server")
 	data, e := mc.readPacket()
 	if e != nil {
 		return
 	}
 
 	switch data[0] {
+	// OK
 	case 0:
-		debug("OK Packet")
 		return mc.handleOkPacket(data)
+	// ERROR
 	case 255:
-		debug("Error Packet")
 		return mc.handleErrorPacket(data)
 	default:
 		e = errors.New("Invalid Result Packet-Type")
@@ -336,129 +385,13 @@ func (mc *mysqlConn) handleOkPacket(data []byte) (e error) {
 	if e != nil {
 		return
 	}
-	//pos += n
 
-	// Server status [16 bit uint]
-	//serverStatus := bytesToUint16(data[pos : pos+2])
-	//pos += 2
-
-	// Warning [16 bit uint]
-	//warningCount := bytesToUint16(data[pos : pos+2])
-	//pos += 2
-
-	//var message string
-	// Message (optional) [string]
-	//if pos < len(data) {
-	//	message = string(data[pos:])
-	//}
+	// Skip remaining data
 
 	mc.affectedRows = affectedRows
 	mc.insertId = insertID
-	
-	return
-}
-
-/* Prepare Result Packets 
- Type Of Result Packet       Hexadecimal Value Of First Byte (field_count)
- ---------------------       ---------------------------------------------
-
- Prepare OK Packet           00
- Error Packet                ff
-
-Prepare OK Packet 
- Bytes              Name
- -----              ----
- 1                  0 - marker for OK packet
- 4                  statement_handler_id
- 2                  number of columns in result set
- 2                  number of parameters in query
- 1                  filler (always 0)
- 2                  warning count
-
- It is made up of:
-
-    a PREPARE_OK packet
-    if "number of parameters" > 0
-        (field packets) as in a Result Set Header Packet
-        (EOF packet) 
-    if "number of columns" > 0
-        (field packets) as in a Result Set Header Packet
-        (EOF packet) 
-
-*/
-func (mc *mysqlConn) readPrepareResultPacket() (stmtID uint32, columnCount uint16, paramCount uint16, e error) {
-	debug("Read result from server")
-	data, e := mc.readPacket()
-	if e != nil {
-		return
-	}
-
-	// Position
-	pos := 0
-
-	if data[pos] != 0 {
-		e = mc.handleErrorPacket(data)
-		return
-	}
-	pos++
-
-	stmtID = bytesToUint32(data[pos : pos+4])
-	pos += 4
-
-	// Column count [16 bit uint]
-	columnCount = bytesToUint16(data[pos : pos+2])
-	pos += 2
-
-	// Param count [16 bit uint]
-	paramCount = bytesToUint16(data[pos : pos+2])
-	pos += 2
-
-	// Warning count [16 bit uint]
-	// bytesToUint16(data[pos : pos+2])
 
 	return
-}
-
-/* Command Packet
-Bytes                        Name
------                        ----
-1                            command
-n                            arg
-*/
-func (mc *mysqlConn) writeCommandPacket(command commandType, args ...interface{}) (e error) {
-	// Reset Packet Sequence
-	mc.sequence = 0
-
-	// Make slice from command byte
-	data := []byte{byte(command)}
-
-	switch command {
-
-	// Commands without args
-	case COM_QUIT, COM_PING:
-		if len(args) > 0 {
-			return errors.New(fmt.Sprintf("Too much arguments (Got: %d Has:0)", len(args)))
-		}
-
-	// Commands with 1 arg unterminated string
-	case COM_QUERY, COM_STMT_PREPARE:
-		if len(args) != 1 {
-			return errors.New(fmt.Sprintf("Invalid arguments count (Got:%d Need: 1)", len(args)))
-		}
-		data = append(data, []byte(args[0].(string))...)
-
-	// Commands with 1 arg 32 bit uint
-	case COM_STMT_CLOSE:
-		if len(args) != 1 {
-			return errors.New(fmt.Sprintf("Invalid arguments count (Got:%d Need: 1)", len(args)))
-		}
-		data = append(data, uint32ToBytes(args[0].(uint32))...)
-	default:
-		return errors.New(fmt.Sprintf("Unknown command: %d", command))
-	}
-
-	// Send CMD packet
-	return mc.writePacket(data)
 }
 
 /* Result Set Header Packet 
@@ -475,7 +408,6 @@ The order of packets for a result set is:
   (EOF Packet)                marker: end of Data Packets
 */
 func (mc *mysqlConn) readResultSetHeaderPacket() (fieldCount int, e error) {
-	debug("Read Result Set Header Packet from server")
 	data, e := mc.readPacket()
 	if e != nil {
 		e = driver.ErrBadConn
@@ -500,65 +432,8 @@ func (mc *mysqlConn) readResultSetHeaderPacket() (fieldCount int, e error) {
 	return
 }
 
-/* Parameter Packet
-Bytes                   Name
- -----                   ----
- 2                       type
- 2                       flags
- 1                       decimals
- 4                       length
-*/
-// Read Packets as Field Packets until EOF-Packet or an Error appears
-/*func (mc *mysqlConn) readParams(n int) (params []*mysqlField, e error) {
-	debug("Reading Params")
-
-	var data []byte
-
-	for {
-		data, e = mc.readPacket()
-		if e != nil {
-			return
-		}
-
-		// EOF Packet
-		if data[0] == 254 && len(data) == 5 {
-			if len(params) != n {
-				e = errors.New(fmt.Sprintf("ParamsCount mismatch n:%d len:%d", n, len(params)))
-			}
-			return
-		}
-
-		var pos int
-
-		// Field type [byte]
-		fieldType := data[pos : pos+2]
-		pos += 2
-
-		// Flags [16 bit uint]
-		flags := bytesToUint16(data[pos : pos+2])
-		pos += 2
-
-		// Decimals [8 bit uint]
-		decimals := data[pos]
-		pos++
-
-		// Length [32 bit uint]
-		length := bytesToUint32(data[pos : pos+4])
-		pos += 4
-
-		fmt.Printf("length=%d fieldType=%d flags=%d decimals=%d \n", length, fieldType, flags, decimals)
-
-		params = append(params, &mysqlField{})
-		//params = append(params, &mysqlField{name: name, fieldType: fieldType1})
-	}
-
-	return
-}*/
-
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 func (mc *mysqlConn) readColumns(n int) (columns []*mysqlField, e error) {
-	debug("Reading Columns")
-
 	var data []byte
 
 	for {
@@ -659,8 +534,6 @@ func (mc *mysqlConn) readColumns(n int) (columns []*mysqlField, e error) {
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 func (mc *mysqlConn) readRows(columnsCount int) (rows []*[]*[]byte, e error) {
-	debug("Reading Rows")
-
 	var data []byte
 	var i, pos, n int
 	var isNull bool
@@ -703,9 +576,237 @@ func (mc *mysqlConn) readRows(columnsCount int) (rows []*[]*[]byte, e error) {
 	return
 }
 
-func (mc *mysqlConn) readBinaryRows(rc *rowsContent) (e error) {
-	debug("Reading Rows")
+// Reads Packets Packets until EOF-Packet or an Error appears. Returns count of Packets read
+func (mc *mysqlConn) readUntilEOF() (count uint64, e error) {
+	var data []byte
 
+	for {
+		data, e = mc.readPacket()
+		if e != nil {
+			return
+		}
+
+		// EOF Packet
+		if data[0] == 254 && len(data) == 5 {
+			return
+		}
+
+		count++
+	}
+	return
+}
+
+/******************************************************************************
+*                           Prepared Statements                               *
+******************************************************************************/
+
+/* Prepare Result Packets 
+ Type Of Result Packet       Hexadecimal Value Of First Byte (field_count)
+ ---------------------       ---------------------------------------------
+
+ Prepare OK Packet           00
+ Error Packet                ff
+
+Prepare OK Packet 
+ Bytes              Name
+ -----              ----
+ 1                  0 - marker for OK packet
+ 4                  statement_handler_id
+ 2                  number of columns in result set
+ 2                  number of parameters in query
+ 1                  filler (always 0)
+ 2                  warning count
+
+ It is made up of:
+
+    a PREPARE_OK packet
+    if "number of parameters" > 0
+        (field packets) as in a Result Set Header Packet
+        (EOF packet) 
+    if "number of columns" > 0
+        (field packets) as in a Result Set Header Packet
+        (EOF packet) 
+
+*/
+func (mc *mysqlConn) readPrepareResultPacket() (stmtID uint32, columnCount uint16, paramCount uint16, e error) {
+	data, e := mc.readPacket()
+	if e != nil {
+		return
+	}
+
+	// Position
+	pos := 0
+
+	if data[pos] != 0 {
+		e = mc.handleErrorPacket(data)
+		return
+	}
+	pos++
+
+	stmtID = bytesToUint32(data[pos : pos+4])
+	pos += 4
+
+	// Column count [16 bit uint]
+	columnCount = bytesToUint16(data[pos : pos+2])
+	pos += 2
+
+	// Param count [16 bit uint]
+	paramCount = bytesToUint16(data[pos : pos+2])
+	pos += 2
+
+	// Warning count [16 bit uint]
+	// bytesToUint16(data[pos : pos+2])
+
+	return
+}
+
+/* Command Packet
+Bytes                Name
+-----                ----
+1                    code
+4                    statement_id
+1                    flags
+4                    iteration_count
+  if param_count > 0:
+(param_count+7)/8    null_bit_map
+1                    new_parameter_bound_flag
+  if new_params_bound == 1:
+n*2                  type of parameters
+n                    values for the parameters 
+*/
+func (stmt mysqlStmt) buildExecutePacket(args *[]driver.Value) (e error) {
+	if len(*args) < stmt.paramCount {
+		return fmt.Errorf(
+			"Not enough Arguments to call STMT_EXEC (Got: %d Has: %d",
+			len(*args),
+			stmt.paramCount)
+	}
+
+	// Reset packet-sequence
+	stmt.mc.sequence = 0
+
+	data := make([]byte, 0, 10)
+
+	// code [1 byte]
+	data = append(data, byte(COM_STMT_EXECUTE))
+
+	// statement_id [4 bytes]
+	data = append(data, uint32ToBytes(stmt.id)...)
+
+	// flags (0: CURSOR_TYPE_NO_CURSOR) [1 byte]
+	data = append(data, byte(0))
+
+	// iteration_count [4 bytes]
+	data = append(data, uint32ToBytes(1)...)
+
+	if stmt.paramCount > 0 {
+		var i int
+
+		// build nullBitMap
+		nullBitMap := make([]byte, (stmt.paramCount+7)/8)
+		bitMask := uint64(0)
+
+		// Check for NULL fields
+		for i = 0; i < stmt.paramCount; i++ {
+			if (*args)[i] == nil {
+				fmt.Println("nil", i, (*args)[i])
+				bitMask += 1 << uint(i)
+			}
+		}
+		// Convert bitMask to bytes
+		for i = 0; i < len(nullBitMap); i++ {
+			nullBitMap[i] = byte(bitMask >> uint(i*8))
+		}
+
+		// append nullBitMap [(param_count+7)/8 bytes]
+		data = append(data, nullBitMap...)
+
+		// Check for changed Params
+		newParamsBound := true
+		if stmt.args != nil {
+			for i := 0; i < len(*args); i++ {
+				if (*args)[i] != (*stmt.args)[i] {
+					fmt.Println((*args)[i], "!=", (*stmt.args)[i])
+					newParamsBound = false
+					break
+				}
+			}
+		}
+
+		// No (new) Parameters bound or rebound
+		if !newParamsBound {
+			//newParameterBoundFlag 0 [1 byte]
+			data = append(data, byte(0))
+		} else {
+			// newParameterBoundFlag 1 [1 byte]
+			data = append(data, byte(1))
+
+			// append types and cache values
+			paramValues := make([]byte, 0)
+			var pv reflect.Value
+			for i = 0; i < stmt.paramCount; i++ {
+				switch (*args)[i].(type) {
+				case nil:
+					data = append(data, []byte{
+						byte(FIELD_TYPE_NULL),
+						0x0}...)
+					continue
+				case []byte:
+					fmt.Println("[]byte", (*args)[i])
+				case time.Time:
+					fmt.Println("time.Time", (*args)[i])
+				}
+
+				pv = reflect.ValueOf((*args)[i])
+				switch pv.Kind() {
+				case reflect.Int64:
+					data = append(data, []byte{
+						byte(FIELD_TYPE_LONGLONG),
+						0x0}...)
+					paramValues = append(paramValues, int64ToBytes(pv.Int())...)
+					fmt.Println("int64", (*args)[i])
+
+				case reflect.Float64:
+					fmt.Println("float64", (*args)[i])
+
+				case reflect.Bool:
+					data = append(data, []byte{
+						byte(FIELD_TYPE_TINY),
+						0x0}...)
+					val := pv.Bool()
+					if val {
+						paramValues = append(paramValues, byte(1))
+					} else {
+						paramValues = append(paramValues, byte(0))
+					}
+					fmt.Println("bool", (*args)[i])
+
+				case reflect.String:
+					data = append(data, []byte{
+						byte(FIELD_TYPE_STRING),
+						0x0}...)
+					val := pv.String()
+					paramValues = append(paramValues, lengthCodedBinaryToBytes(uint64(len(val)))...)
+					paramValues = append(paramValues, []byte(val)...)
+					fmt.Println("string", string([]byte(val)))
+
+				default:
+					return fmt.Errorf("Invalid Value: %s", pv.Kind().String())
+				}
+			}
+
+			// append cached values
+			data = append(data, paramValues...)
+			fmt.Println("data", string(data))
+		}
+
+		// Save args
+		stmt.args = args
+	}
+	return stmt.mc.writePacket(data)
+}
+
+func (mc *mysqlConn) readBinaryRows(rc *rowsContent) (e error) {
 	var data, nullBitMap []byte
 	var i, pos, n int
 	var unsigned, isNull bool
@@ -740,7 +841,7 @@ func (mc *mysqlConn) readBinaryRows(rc *rowsContent) (e error) {
 			}
 
 			unsigned = rc.columns[i].flags&FLAG_UNSIGNED != 0
-			
+
 			// Convert to byte-coded string
 			switch rc.columns[i].fieldType {
 			case FIELD_TYPE_NULL:
@@ -858,7 +959,7 @@ func (mc *mysqlConn) readBinaryRows(rc *rowsContent) (e error) {
 				if e != nil {
 					return
 				}
-				
+
 				var tmp []byte
 				if num == 0 {
 					tmp = []byte("00:00:00")
@@ -896,7 +997,7 @@ func (mc *mysqlConn) readBinaryRows(rc *rowsContent) (e error) {
 				row[i] = &tmp
 				pos += int(num)
 				fmt.Println("DATE", string(*row[i]))
-			
+
 			// Please report if this happens!
 			default:
 				return fmt.Errorf("Unknown FieldType %d", rc.columns[i].fieldType)
@@ -906,26 +1007,5 @@ func (mc *mysqlConn) readBinaryRows(rc *rowsContent) (e error) {
 	}
 
 	mc.affectedRows = uint64(len(rc.rows))
-	return
-}
-
-// Reads Packets Packets until EOF-Packet or an Error appears. Returns count of Packets read
-func (mc *mysqlConn) readUntilEOF() (count uint64, e error) {
-	debug("Reading Until EOF")
-	var data []byte
-
-	for {
-		data, e = mc.readPacket()
-		if e != nil {
-			return
-		}
-
-		// EOF Packet
-		if data[0] == 254 && len(data) == 5 {
-			return
-		}
-
-		count++
-	}
 	return
 }

@@ -14,8 +14,8 @@ import (
 	"io"
 	"math"
 	"regexp"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 var dsnPattern *regexp.Regexp
@@ -288,4 +288,3 @@ func float64ToByteStr(f float64) (d *[]byte) {
 	tmp = strconv.AppendFloat(tmp, f, 'f', -1, 64)
 	return &tmp
 }
-

@@ -50,7 +50,7 @@ func (rows mysqlRows) Next(dest []driver.Value) error {
 		var value *[]byte
 		for i := 0; i < cap(dest); i++ {
 			value = (*rows.content.rows[0])[i]
-			
+
 			if value == nil {
 				dest[i] = nil
 			} else {
