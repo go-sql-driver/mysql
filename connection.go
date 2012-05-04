@@ -68,7 +68,7 @@ func (mc *mysqlConn) handleParams() (e error) {
 
 		// We don't want to set keepalive as system var
 		case "keepalive":
-			break
+			continue
 
 		// System Vars
 		default:

@@ -13,14 +13,12 @@ type mysqlTx struct {
 }
 
 func (tx *mysqlTx) Commit() (e error) {
-	debug("Tx Commit")
 	e = tx.mc.exec("COMMIT")
 	tx.mc = nil
 	return
 }
 
 func (tx *mysqlTx) Rollback() (e error) {
-	debug("Tx Rollback")
 	e = tx.mc.exec("ROLLBACK")
 	tx.mc = nil
 	return
