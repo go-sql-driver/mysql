@@ -145,6 +145,23 @@ func readLengthCodedBinary(data []byte) (b []byte, n int, isNull bool, e error) 
 	return
 }
 
+func readAndDropLengthCodedBinary(data []byte) (n int, e error) {
+	// Get length
+	num, n, e := bytesToLengthCodedBinary(data)
+	if e != nil {
+		return
+	}
+
+	// Check data length
+	if len(data) < n+int(num) {
+		e = io.EOF
+		return
+	}
+
+	n += int(num)
+	return
+}
+
 /******************************************************************************
 *                       Convert from and to bytes                             *
 ******************************************************************************/
@@ -208,6 +225,10 @@ func bytesToFloat32(b []byte) float32 {
 
 func bytesToFloat64(b []byte) float64 {
 	return math.Float64frombits(bytesToUint64(b))
+}
+
+func float64ToBytes(f float64) []byte {
+	return uint64ToBytes(math.Float64bits(f))
 }
 
 func bytesToLengthCodedBinary(b []byte) (length uint64, n int, e error) {

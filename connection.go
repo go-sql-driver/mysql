@@ -157,19 +157,18 @@ func (mc *mysqlConn) Prepare(query string) (ds driver.Stmt, e error) {
 	stmt.mc = mc
 
 	// Read Result
-	var columnCount, paramCount uint16
-	stmt.id, columnCount, paramCount, e = mc.readPrepareResultPacket()
+	var columnCount uint16
+	columnCount, e = stmt.readPrepareResultPacket()
 	if e != nil {
 		return
 	}
 
-	if paramCount > 0 {
-		stmt.params, e = stmt.mc.readColumns(int(paramCount))
+	if stmt.paramCount > 0 {
+		stmt.params, e = stmt.mc.readColumns(stmt.paramCount)
 		if e != nil {
 			return
 		}
 	}
-	stmt.paramCount = int(paramCount)
 
 	if columnCount > 0 {
 		_, e = stmt.mc.readColumns(int(columnCount))

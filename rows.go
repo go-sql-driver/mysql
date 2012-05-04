@@ -42,7 +42,7 @@ func (rows mysqlRows) Close() error {
 }
 
 // Next returns []driver.Value filled with either nil values for NULL entries
-// or []byte for every other entries. Type conversion is done on rows.scan(),
+// or []byte's for all other entries. Type conversion is done on rows.scan(),
 // when the dest. type is know, which makes type conversion easier and avoids 
 // unnecessary conversions.
 func (rows mysqlRows) Next(dest []driver.Value) error {

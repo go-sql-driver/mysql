@@ -10,7 +10,6 @@ package mysql
 
 import (
 	"database/sql/driver"
-	"fmt"
 )
 
 type stmtContent struct {
@@ -118,7 +117,7 @@ func (stmt mysqlStmt) Query(args []driver.Value) (dr driver.Rows, e error) {
 // column index.  If the type of a specific column isn't known
 // or shouldn't be handled specially, DefaultValueConverter
 // can be returned.
-func (stmt mysqlStmt) ColumnConverter(idx int) driver.ValueConverter {
-	debug(fmt.Sprintf("ColumnConverter(%d)", idx))
-	return driver.DefaultParameterConverter
-}
+//func (stmt mysqlStmt) ColumnConverter(idx int) driver.ValueConverter {
+//	debug(fmt.Sprintf("ColumnConverter(%d)", idx))
+//	return driver.DefaultParameterConverter
+//}
