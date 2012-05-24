@@ -12,21 +12,33 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"io"
+	"log"
 	"math"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
 )
 
-var dsnPattern *regexp.Regexp
+// Logger
+var (
+	errLog *log.Logger
+	dbgLog *log.Logger
+)
 
 func init() {
+	errLog = log.New(os.Stderr, "[MySQL] ", log.LstdFlags)
+	dbgLog = log.New(os.Stdout, "[MySQL] ", log.LstdFlags)
+	
 	dsnPattern = regexp.MustCompile(
 		`^(?:(?P<user>.*?)(?::(?P<passwd>.*))?@)?` + // [user[:password]@]
 			`(?:(?P<net>[^\(]*)(?:\((?P<addr>[^\)]*)\))?)?` + // [net[(addr)]]
 			`\/(?P<dbname>.*?)` + // /dbname
 			`(?:\?(?P<params>[^\?]*))?$`) // [?param1=value1&paramN=valueN]
 }
+
+// Data Source Name Parser
+var dsnPattern *regexp.Regexp
 
 func parseDSN(dsn string) *config {
 	cfg := new(config)

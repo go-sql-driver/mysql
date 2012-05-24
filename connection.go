@@ -60,11 +60,11 @@ func (mc *mysqlConn) handleParams() (e error) {
 
 		// TLS-Encryption
 		case "tls":
-			debug("TLS-Encryption not implemented yet")
+			dbgLog.Print("TLS-Encryption not implemented yet")
 
 		// Compression
 		case "compress":
-			debug("TLS-Encryption not implemented yet")
+			dbgLog.Print("Compression not implemented yet")
 
 		// We don't want to set keepalive as system var
 		case "keepalive":

@@ -12,13 +12,8 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
-	"fmt"
 	"net"
 )
-
-func debug(msg string) {
-	fmt.Println("DEBUG MySQL: " + msg)
-}
 
 type mysqlDriver struct{}
 

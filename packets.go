@@ -57,6 +57,7 @@ func (mc *mysqlConn) readPacket() (data []byte, e error) {
 	}
 	
 	if e != nil || n != int(pktLen) {
+		errLog.Print(e)
 		e = driver.ErrBadConn
 		return
 	}
@@ -84,6 +85,10 @@ func (mc *mysqlConn) writePacket(data []byte) (e error) {
 	// Write packet
 	n, e := mc.netConn.Write(pktData)
 	if e != nil || n != len(pktData) {
+		if e == nil {
+			e = errors.New("Length of send data does not match packet length")
+		}
+		errLog.Print(e)
 		e = driver.ErrBadConn
 		return
 	}
@@ -99,6 +104,10 @@ func (mc *mysqlConn) readNumber(n uint8) (num uint64, e error) {
 
 	nr, err := io.ReadFull(mc.netConn, buf)
 	if err != nil || nr != int(n) {
+		if e == nil {
+			e = errors.New("Length of read data does not match header length")
+		}
+		errLog.Print(e)
 		e = driver.ErrBadConn
 		return
 	}
@@ -289,14 +298,14 @@ func (mc *mysqlConn) writeCommandPacket(command commandType, args ...interface{}
 	// Commands with 1 arg unterminated string
 	case COM_QUERY, COM_STMT_PREPARE:
 		if len(args) != 1 {
-			return fmt.Errorf("Invalid arguments count (Got: %d Need: 1)", len(args))
+			return fmt.Errorf("Invalid arguments count (Got: %d Has: 1)", len(args))
 		}
 		data = append(data, []byte(args[0].(string))...)
 
 	// Commands with 1 arg 32 bit uint
 	case COM_STMT_CLOSE:
 		if len(args) != 1 {
-			return fmt.Errorf("Invalid arguments count (Got: %d Need: 1)", len(args))
+			return fmt.Errorf("Invalid arguments count (Got: %d Has: 1)", len(args))
 		}
 		data = append(data, uint32ToBytes(args[0].(uint32))...)
 	default:
@@ -421,6 +430,7 @@ The order of packets for a result set is:
 func (mc *mysqlConn) readResultSetHeaderPacket() (fieldCount int, e error) {
 	data, e := mc.readPacket()
 	if e != nil {
+		errLog.Print(e)
 		e = driver.ErrBadConn
 		return
 	}
