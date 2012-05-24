@@ -47,12 +47,20 @@ func (mc *mysqlConn) readPacket() (data []byte, e error) {
 
 	// Read rest of packet
 	data = make([]byte, pktLen)
-	n, e := mc.netConn.Read(data)
+	var n, add int
+	n, e = mc.netConn.Read(data)
+	
+	// Read conventionally returns what is available instead of waiting for more
+	for e == nil && n < int(pktLen) {
+		add, e = mc.netConn.Read(data[n:])
+		n += add
+	}
+	
 	if e != nil || n != int(pktLen) {
 		e = driver.ErrBadConn
 		return
 	}
-	return
+	return data[:pktLen], e // Return without scratch space
 }
 
 // Send Packet with given data
@@ -275,20 +283,20 @@ func (mc *mysqlConn) writeCommandPacket(command commandType, args ...interface{}
 	// Commands without args
 	case COM_QUIT, COM_PING:
 		if len(args) > 0 {
-			return fmt.Errorf("Too much arguments (Got: %d Has:0)", len(args))
+			return fmt.Errorf("Too much arguments (Got: %d Has: 0)", len(args))
 		}
 
 	// Commands with 1 arg unterminated string
 	case COM_QUERY, COM_STMT_PREPARE:
 		if len(args) != 1 {
-			return fmt.Errorf("Invalid arguments count (Got:%d Need: 1)", len(args))
+			return fmt.Errorf("Invalid arguments count (Got: %d Need: 1)", len(args))
 		}
 		data = append(data, []byte(args[0].(string))...)
 
 	// Commands with 1 arg 32 bit uint
 	case COM_STMT_CLOSE:
 		if len(args) != 1 {
-			return fmt.Errorf("Invalid arguments count (Got:%d Need: 1)", len(args))
+			return fmt.Errorf("Invalid arguments count (Got: %d Need: 1)", len(args))
 		}
 		data = append(data, uint32ToBytes(args[0].(uint32))...)
 	default:
