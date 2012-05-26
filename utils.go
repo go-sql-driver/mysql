@@ -29,7 +29,7 @@ var (
 func init() {
 	errLog = log.New(os.Stderr, "[MySQL] ", log.LstdFlags)
 	dbgLog = log.New(os.Stdout, "[MySQL] ", log.LstdFlags)
-	
+
 	dsnPattern = regexp.MustCompile(
 		`^(?:(?P<user>.*?)(?::(?P<passwd>.*))?@)?` + // [user[:password]@]
 			`(?:(?P<net>[^\(]*)(?:\((?P<addr>[^\)]*)\))?)?` + // [net[(addr)]]
@@ -307,7 +307,7 @@ func uintToByteStr(u uint64) (b []byte) {
 	return strconv.AppendUint(b, u, 10)
 }
 
-func float32ToByteStr(f float32) (b []byte) { 
+func float32ToByteStr(f float32) (b []byte) {
 	return strconv.AppendFloat(b, float64(f), 'f', -1, 32)
 }
 

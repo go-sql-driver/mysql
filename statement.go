@@ -14,10 +14,10 @@ import (
 )
 
 type stmtContent struct {
-	mc             *mysqlConn
-	id             uint32
-	paramCount     int
-	params         []mysqlField
+	mc         *mysqlConn
+	id         uint32
+	paramCount int
+	params     []mysqlField
 }
 
 type mysqlStmt struct {
@@ -85,7 +85,7 @@ func (stmt mysqlStmt) Query(args []driver.Value) (dr driver.Rows, e error) {
 	if stmt.mc == nil {
 		return nil, errors.New(`Invalid Statement`)
 	}
-	
+
 	// Send command
 	e = stmt.buildExecutePacket(&args)
 	if e != nil {

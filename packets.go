@@ -92,7 +92,7 @@ func (mc *mysqlConn) writePacket(data *[]byte) error {
 	if mc.server.keepalive > 0 {
 		mc.lastCmdTime = time.Now()
 	}
-	
+
 	// Write packet
 	n, e := mc.netConn.Write(*data)
 	if e != nil || n != len(*data) {
@@ -218,7 +218,7 @@ func (mc *mysqlConn) writeAuthPacket() (e error) {
 	// Calculate packet length and make buffer with that size
 	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.user) + 1 + 1 + len(scrambleBuff) + len(mc.cfg.dbname) + 1
 	data := make([]byte, 0, pktLen+4)
-	
+
 	// Add the packet header
 	data = append(data, uint24ToBytes(uint32(pktLen))...)
 	data = append(data, mc.sequence)
@@ -302,17 +302,17 @@ func (mc *mysqlConn) writeCommandPacket(command commandType, args ...interface{}
 	default:
 		return fmt.Errorf("Unknown command: %d", command)
 	}
-	
+
 	pktLen := 1 + len(arg)
-	data := make([]byte, 0, pktLen + 4)
-	
+	data := make([]byte, 0, pktLen+4)
+
 	// Add the packet header
 	data = append(data, uint24ToBytes(uint32(pktLen))...)
 	data = append(data, mc.sequence)
-	
+
 	// Add command byte
 	data = append(data, byte(command))
-	
+
 	// Add arg
 	data = append(data, arg...)
 
@@ -590,7 +590,7 @@ func (mc *mysqlConn) readRows(columnsCount int) (rows []*[][]byte, e error) {
 
 			// Append nil if field is NULL
 			if isNull {
-				 row[i] = nil
+				row[i] = nil
 			}
 			pos += n
 		}
@@ -710,7 +710,7 @@ func (stmt mysqlStmt) buildExecutePacket(args *[]driver.Value) (e error) {
 
 	// Reset packet-sequence
 	stmt.mc.sequence = 0
-	
+
 	pktLen := 1 + 4 + 1 + 4 + (stmt.paramCount+7)/8 + 1 + argsLen*2
 	paramValues := make([][]byte, 0, argsLen)
 	paramTypes := make([]byte, 0, argsLen*2)
@@ -722,7 +722,7 @@ func (stmt mysqlStmt) buildExecutePacket(args *[]driver.Value) (e error) {
 		if (*args)[i] == nil {
 			bitMask += 1 << uint(i)
 		}
-		
+
 		// cache types and values
 		switch (*args)[i].(type) {
 		case nil:
@@ -730,41 +730,41 @@ func (stmt mysqlStmt) buildExecutePacket(args *[]driver.Value) (e error) {
 				byte(FIELD_TYPE_NULL),
 				0x0}...)
 			continue
-		
+
 		case []byte:
-			paramTypes = append(paramTypes, []byte{byte(FIELD_TYPE_STRING),0x0}...)
+			paramTypes = append(paramTypes, []byte{byte(FIELD_TYPE_STRING), 0x0}...)
 			val := (*args)[i].([]byte)
 			valLen = len(val)
 			lcb := lengthCodedBinaryToBytes(uint64(valLen))
-			pktLen += len(lcb) + valLen 
+			pktLen += len(lcb) + valLen
 			paramValues = append(paramValues, lcb)
 			paramValues = append(paramValues, val)
 			continue
-		
+
 		case time.Time:
 			// Format to string for time+date Fields
 			// Data is packed in case reflect.String below
 			(*args)[i] = (*args)[i].(time.Time).Format(TIME_FORMAT)
 		}
-		
+
 		pv = reflect.ValueOf((*args)[i])
 		switch pv.Kind() {
 		case reflect.Int64:
-			paramTypes = append(paramTypes, []byte{byte(FIELD_TYPE_LONGLONG),0x0}...)
+			paramTypes = append(paramTypes, []byte{byte(FIELD_TYPE_LONGLONG), 0x0}...)
 			val := int64ToBytes(pv.Int())
 			pktLen += len(val)
 			paramValues = append(paramValues, val)
 			continue
-		
+
 		case reflect.Float64:
-			paramTypes = append(paramTypes, []byte{byte(FIELD_TYPE_DOUBLE),0x0}...)
+			paramTypes = append(paramTypes, []byte{byte(FIELD_TYPE_DOUBLE), 0x0}...)
 			val := float64ToBytes(pv.Float())
 			pktLen += len(val)
 			paramValues = append(paramValues, val)
 			continue
-		
+
 		case reflect.Bool:
-			paramTypes = append(paramTypes, []byte{byte(FIELD_TYPE_TINY),0x0}...)
+			paramTypes = append(paramTypes, []byte{byte(FIELD_TYPE_TINY), 0x0}...)
 			val := pv.Bool()
 			pktLen++
 			if val {
@@ -773,9 +773,9 @@ func (stmt mysqlStmt) buildExecutePacket(args *[]driver.Value) (e error) {
 				paramValues = append(paramValues, []byte{byte(0)})
 			}
 			continue
-		
+
 		case reflect.String:
-			paramTypes = append(paramTypes, []byte{byte(FIELD_TYPE_STRING),0x0}...)
+			paramTypes = append(paramTypes, []byte{byte(FIELD_TYPE_STRING), 0x0}...)
 			val := []byte(pv.String())
 			valLen = len(val)
 			lcb := lengthCodedBinaryToBytes(uint64(valLen))
@@ -783,18 +783,18 @@ func (stmt mysqlStmt) buildExecutePacket(args *[]driver.Value) (e error) {
 			paramValues = append(paramValues, lcb)
 			paramValues = append(paramValues, val)
 			continue
-		
+
 		default:
 			return fmt.Errorf("Invalid Value: %s", pv.Kind().String())
 		}
 	}
-	
+
 	data := make([]byte, 0, pktLen+4)
-	
+
 	// Add the packet header
 	data = append(data, uint24ToBytes(uint32(pktLen))...)
 	data = append(data, stmt.mc.sequence)
-	
+
 	// code [1 byte]
 	data = append(data, byte(COM_STMT_EXECUTE))
 
@@ -806,29 +806,29 @@ func (stmt mysqlStmt) buildExecutePacket(args *[]driver.Value) (e error) {
 
 	// iteration_count [4 bytes]
 	data = append(data, uint32ToBytes(1)...)
-	
+
 	// append nullBitMap [(param_count+7)/8 bytes]
-	if stmt.paramCount > 0 {	
+	if stmt.paramCount > 0 {
 		// Convert bitMask to bytes
 		nullBitMap := make([]byte, (stmt.paramCount+7)/8)
 		for i = 0; i < len(nullBitMap); i++ {
 			nullBitMap[i] = byte(bitMask >> uint(i*8))
 		}
-		
+
 		data = append(data, nullBitMap...)
 	}
 
 	// newParameterBoundFlag 1 [1 byte]
 	data = append(data, byte(1))
-	
+
 	// type of parameters [n*2 byte]
 	data = append(data, paramTypes...)
-	
+
 	// values for the parameters [n byte]
 	for _, paramValue := range paramValues {
 		data = append(data, paramValue...)
 	}
-	
+
 	return stmt.mc.writePacket(&data)
 }
 
