@@ -298,26 +298,19 @@ func lengthCodedBinaryToBytes(n uint64) (b []byte) {
 	return
 }
 
-func intToByteStr(i int64) (d *[]byte) {
-	tmp := make([]byte, 0)
-	tmp = strconv.AppendInt(tmp, i, 10)
-	return &tmp
+func intToByteStr(i int64) (b []byte) {
+	//tmp := make([]byte, 0)
+	return strconv.AppendInt(b, i, 10)
 }
 
-func uintToByteStr(u uint64) (d *[]byte) {
-	tmp := make([]byte, 0)
-	tmp = strconv.AppendUint(tmp, u, 10)
-	return &tmp
+func uintToByteStr(u uint64) (b []byte) {
+	return strconv.AppendUint(b, u, 10)
 }
 
-func float32ToByteStr(f float32) (d *[]byte) {
-	tmp := make([]byte, 0)
-	tmp = strconv.AppendFloat(tmp, float64(f), 'f', -1, 32)
-	return &tmp
+func float32ToByteStr(f float32) (b []byte) { 
+	return strconv.AppendFloat(b, float64(f), 'f', -1, 32)
 }
 
-func float64ToByteStr(f float64) (d *[]byte) {
-	tmp := make([]byte, 0)
-	tmp = strconv.AppendFloat(tmp, f, 'f', -1, 64)
-	return &tmp
+func float64ToByteStr(f float64) (b []byte) {
+	return strconv.AppendFloat(b, f, 'f', -1, 64)
 }

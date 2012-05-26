@@ -20,8 +20,8 @@ type mysqlField struct {
 }
 
 type rowsContent struct {
-	columns []*mysqlField
-	rows    []*[]*[]byte
+	columns []mysqlField
+	rows    []*[][]byte
 }
 
 type mysqlRows struct {
@@ -47,15 +47,8 @@ func (rows mysqlRows) Close() error {
 // unnecessary conversions.
 func (rows mysqlRows) Next(dest []driver.Value) error {
 	if len(rows.content.rows) > 0 {
-		var value *[]byte
 		for i := 0; i < cap(dest); i++ {
-			value = (*rows.content.rows[0])[i]
-
-			if value == nil {
-				dest[i] = nil
-			} else {
-				dest[i] = *value
-			}
+			dest[i] = (*rows.content.rows[0])[i]
 		}
 		rows.content.rows = rows.content.rows[1:]
 	} else {

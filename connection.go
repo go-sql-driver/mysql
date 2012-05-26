@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"bufio"
 	"database/sql/driver"
 	"errors"
 	"net"
@@ -20,6 +21,7 @@ type mysqlConn struct {
 	cfg            *config
 	server         *serverSettings
 	netConn        net.Conn
+	bufReader      *bufio.Reader
 	protocol       uint8
 	sequence       uint8
 	affectedRows   uint64
@@ -142,15 +144,17 @@ func (mc *mysqlConn) Close() (e error) {
 		mc.keepaliveTimer.Stop()
 	}
 	mc.writeCommandPacket(COM_QUIT)
+	mc.bufReader = nil
+	mc.netConn.Close()
 	mc.netConn = nil
 	return
 }
 
-func (mc *mysqlConn) Prepare(query string) (ds driver.Stmt, e error) {
+func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	// Send command
-	e = mc.writeCommandPacket(COM_STMT_PREPARE, query)
+	e := mc.writeCommandPacket(COM_STMT_PREPARE, query)
 	if e != nil {
-		return
+		return nil, e
 	}
 
 	stmt := mysqlStmt{new(stmtContent)}
@@ -160,26 +164,24 @@ func (mc *mysqlConn) Prepare(query string) (ds driver.Stmt, e error) {
 	var columnCount uint16
 	columnCount, e = stmt.readPrepareResultPacket()
 	if e != nil {
-		return
+		return nil, e
 	}
 
 	if stmt.paramCount > 0 {
 		stmt.params, e = stmt.mc.readColumns(stmt.paramCount)
 		if e != nil {
-			return
+			return nil, e
 		}
 	}
 
 	if columnCount > 0 {
-		_, e = stmt.mc.readColumns(int(columnCount))
+		_, e = stmt.mc.readUntilEOF()
 		if e != nil {
-			return
+			return nil, e
 		}
 	}
 
-	stmt.query = query
-	ds = stmt
-	return
+	return stmt, e
 }
 
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
@@ -258,13 +260,13 @@ func (mc *mysqlConn) getSystemVar(name string) (val string, e error) {
 			return
 		}
 
-		var rows []*[]*[]byte
+		var rows []*[][]byte
 		rows, e = mc.readRows(int(n))
 		if e != nil {
 			return
 		}
 
-		val = string(*(*rows[0])[0])
+		val = string((*rows[0])[0])
 	}
 
 	return
