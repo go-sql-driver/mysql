@@ -198,7 +198,7 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		return nil, e
 	}
 
-	if mc.affectedRows == 0 {
+	if mc.affectedRows == 0 && mc.insertId == 0 {
 		return driver.ResultNoRows, e
 	}
 
@@ -223,7 +223,6 @@ func (mc *mysqlConn) exec(query string) (e error) {
 	}
 
 	mc.affectedRows = 0
-	mc.insertId = 0
 
 	if resLen > 0 {
 		_, e = mc.readUntilEOF()
