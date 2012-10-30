@@ -222,8 +222,6 @@ func (mc *mysqlConn) exec(query string) (e error) {
 		return
 	}
 
-	mc.affectedRows = 0
-
 	if resLen > 0 {
 		_, e = mc.readUntilEOF()
 		if e != nil {
@@ -272,6 +270,7 @@ func (mc *mysqlConn) getSystemVar(name string) (val string, e error) {
 	return
 }
 
+// *** DEPRECATED ***
 // Executes a simple Ping-CMD to test or keepalive the connection
 func (mc *mysqlConn) Ping() (e error) {
 	// Send command
