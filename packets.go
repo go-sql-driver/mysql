@@ -336,6 +336,10 @@ func (mc *mysqlConn) readResultOK() (e error) {
 	// OK
 	case 0:
 		return mc.handleOkPacket(data)
+	// EOF, a galoot is using old_passwords
+	case 254:
+		e = errors.New("It seems like you are using old_passwords, which is unsupported. See http://code.google.com/p/go-mysql-driver/wiki/old_passwords")
+		return
 	// ERROR
 	case 255:
 		return mc.handleErrorPacket(data)
