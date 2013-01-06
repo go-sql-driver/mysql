@@ -7,6 +7,19 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
 **Current Version:** October 30, 2012 *(beta release)*
 
 ---------------------------------------
+  * [Features](#features)
+  * [Requirements](#requirements)
+  * [Installation](#installation)
+  * [Usage](#usage)
+  * [DSN (Data Source Name)](#dsn-data-source-name)
+    * [Password](#password)
+    * [Protocol](#protocol)
+    * [Address](#address)
+    * [Parameters](#parameters)
+    * [Examples](#examples)
+  * [License](#license)
+
+---------------------------------------
 
 ## Features
   * Lightweight and fast
