@@ -2,6 +2,8 @@
 
 A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) package
 
+![Go-MySQL-Driver logo](https://raw.github.com/wiki/Go-SQL-Driver/MySQL/go-mysql-driver_m.jpg)
+
 **Current Version:** October 30, 2012 *(beta release)*
 
 ---------------------------------------
