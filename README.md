@@ -33,10 +33,11 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
 ---------------------------------------
 
 ## Installation
+Simple install the package with the go tool from shell:
 ```bash
 $ go get github.com/Go-SQL-Driver/MySQL
 ```
-Make sure [Git is installed](http://git-scm.com/downloads) on your machine.
+Make sure [Git is installed](http://git-scm.com/downloads) on your machine and in your system's `PATH`.
 
 ## Usage
 _Go MySQL Driver_ is an implementation of Go's `database/sql/driver` interface, so all you need to do is import the driver and open a new Database-Connection with the given driver.
