@@ -112,16 +112,16 @@ user:password@tcp(localhost:5555)/dbname?charset=utf8
 ```
 
 ```
+user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname
+```
+
+```
 user:password@/dbname
 ```
 
 No Database preselected:
 ```
 user:password@/
-```
-
-```
-user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname
 ```
 
 ---------------------------------------
