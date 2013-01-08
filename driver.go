@@ -12,7 +12,6 @@ import (
 	"bufio"
 	"database/sql"
 	"database/sql/driver"
-	"errors"
 	"net"
 )
 
@@ -27,11 +26,6 @@ func (d *mysqlDriver) Open(dsn string) (driver.Conn, error) {
 	// New mysqlConn
 	mc := new(mysqlConn)
 	mc.cfg = parseDSN(dsn)
-
-	if mc.cfg.dbname == "" {
-		e = errors.New("Incomplete or invalid DSN")
-		return nil, e
-	}
 
 	// Connect to Server
 	mc.netConn, e = net.Dial(mc.cfg.net, mc.cfg.addr)
