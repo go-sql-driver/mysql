@@ -64,18 +64,18 @@ A DSN in its fullest form:
 username:password@protocol(address)/dbname?param=value
 ```
 
-Except the databasename all values are optional, so the minimal DSN is:
+Except of the databasename, all values are optional. So the minimal DSN is:
 ```
 /dbname
 ```
 
-If you don't want to preselect a database, leave `dbname` empty:
+If you do not want to preselect a database, leave `dbname` empty:
 ```
 /
 ```
 
 ### Password
-Passwords may consist of any char. No escaping necessary.
+Passwords can consist of any character. Escaping is not necessary.
 
 ### Protocol
 See [net.Dial](http://golang.org/pkg/net/#Dial) for more information which networks are available.
