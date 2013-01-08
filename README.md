@@ -64,9 +64,14 @@ A DSN in its fullest form:
 username:password@protocol(address)/dbname?param=value
 ```
 
-Except the databasename all values are optional, so the shortest possible DSN is:
+Except the databasename all values are optional, so the minimal DSN is:
 ```
 /dbname
+```
+
+If you don't want to preselect a database, leave `dbname` empty:
+```
+/
 ```
 
 ### Password
@@ -108,6 +113,11 @@ user:password@tcp(localhost:5555)/dbname?charset=utf8
 
 ```
 user:password@/dbname
+```
+
+No Database preselected:
+```
+user:password@/
 ```
 
 ```
