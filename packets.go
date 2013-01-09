@@ -208,16 +208,19 @@ func (mc *mysqlConn) writeAuthPacket() (e error) {
 	if mc.server.flags&CLIENT_LONG_FLAG > 0 {
 		clientFlags |= uint32(CLIENT_LONG_FLAG)
 	}
-	// To specify a db name
-	if len(mc.cfg.dbname) > 0 {
-		clientFlags |= uint32(CLIENT_CONNECT_WITH_DB)
-	}
 
 	// User Password
 	scrambleBuff := scramblePassword(mc.server.scrambleBuff, []byte(mc.cfg.passwd))
 
+	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.user) + 1 + 1 + len(scrambleBuff) 
+
+	// To specify a db name
+	if len(mc.cfg.dbname) > 0 {
+		clientFlags |= uint32(CLIENT_CONNECT_WITH_DB)
+		pktLen += len(mc.cfg.dbname) + 1 
+	}
+
 	// Calculate packet length and make buffer with that size
-	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.user) + 1 + 1 + len(scrambleBuff) + len(mc.cfg.dbname) + 1
 	data := make([]byte, 0, pktLen+4)
 
 	// Add the packet header
@@ -338,7 +341,7 @@ func (mc *mysqlConn) readResultOK() (e error) {
 		return mc.handleOkPacket(data)
 	// EOF, someone is using old_passwords
 	case 254:
-		e = errors.New("It seems like you are using old_passwords, which is unsupported. See https://github.com/Go-SQL-Driver/MySQL/wiki/old_passwords")
+		e = errors.New("It seems like you are using old_passwords, which is unsupported. See http://code.google.com/p/go-mysql-driver/wiki/old_passwords")
 		return
 	// ERROR
 	case 255:
