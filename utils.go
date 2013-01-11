@@ -132,20 +132,20 @@ func readSlice(data []byte, delim byte) (slice []byte, e error) {
 	return
 }
 
-func readLengthCodedBinary(data []byte) (b []byte, n int, isNull bool, e error) {
+func readLengthCodedBinary(data []byte) (*[]byte, int, bool, error) {
 	// Get length
 	num, n, e := bytesToLengthCodedBinary(data)
 	if e != nil {
-		return
+		return nil, n, true, e
 	}
 
 	// Check data length
 	if len(data) < n+int(num) {
-		e = io.EOF
-		return
+		return nil, n, true, io.EOF
 	}
 
 	// Check if null
+	var isNull bool
 	if data[0] == 251 {
 		isNull = true
 	} else {
@@ -153,9 +153,9 @@ func readLengthCodedBinary(data []byte) (b []byte, n int, isNull bool, e error) 
 	}
 
 	// Get bytes
-	b = data[n : n+int(num)]
+	b := data[n : n+int(num)]
 	n += int(num)
-	return
+	return &b, n, isNull, e
 }
 
 func readAndDropLengthCodedBinary(data []byte) (n int, e error) {
