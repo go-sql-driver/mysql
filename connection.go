@@ -258,13 +258,13 @@ func (mc *mysqlConn) getSystemVar(name string) (val string, e error) {
 			return
 		}
 
-		var rows []*[][]byte
+		var rows []*[]*[]byte
 		rows, e = mc.readRows(int(n))
 		if e != nil {
 			return
 		}
 
-		val = string((*rows[0])[0])
+		val = string(*(*rows[0])[0])
 	}
 
 	return
