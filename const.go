@@ -10,7 +10,7 @@
 package mysql
 
 // Constants documentation:
-// http://forge.mysql.com/wiki/MySQL_Internals_ClientServer_Protocol
+// http://dev.mysql.com/doc/internals/en/client-server-protocol.html
 
 const (
 	MIN_PROTOCOL_VERSION = 10
