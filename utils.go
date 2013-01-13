@@ -144,7 +144,7 @@ func readLengthCodedBinary(data []byte) (*[]byte, int, bool, error) {
 		return nil, n, true, io.EOF
 	}
 
-	// Check if null
+	// Check if value is NULL
 	var isNull bool
 	if data[0] == 251 {
 		isNull = true
@@ -193,14 +193,14 @@ func bytesToUint16(b []byte) (n uint16) {
 func uint24ToBytes(n uint32) (b []byte) {
 	b = make([]byte, 3)
 	for i := uint8(0); i < 3; i++ {
-		b[i] = byte(n >> (i * 8))
+		b[i] = byte(n >> (i << 3))
 	}
 	return
 }
 
 func bytesToUint32(b []byte) (n uint32) {
 	for i := uint8(0); i < 4; i++ {
-		n |= uint32(b[i]) << (i * 8)
+		n |= uint32(b[i]) << (i << 3)
 	}
 	return
 }
@@ -208,14 +208,14 @@ func bytesToUint32(b []byte) (n uint32) {
 func uint32ToBytes(n uint32) (b []byte) {
 	b = make([]byte, 4)
 	for i := uint8(0); i < 4; i++ {
-		b[i] = byte(n >> (i * 8))
+		b[i] = byte(n >> (i << 3))
 	}
 	return
 }
 
 func bytesToUint64(b []byte) (n uint64) {
 	for i := uint8(0); i < 8; i++ {
-		n |= uint64(b[i]) << (i * 8)
+		n |= uint64(b[i]) << (i << 3)
 	}
 	return
 }
@@ -223,7 +223,7 @@ func bytesToUint64(b []byte) (n uint64) {
 func uint64ToBytes(n uint64) (b []byte) {
 	b = make([]byte, 8)
 	for i := uint8(0); i < 8; i++ {
-		b[i] = byte(n >> (i * 8))
+		b[i] = byte(n >> (i << 3))
 	}
 	return
 }
@@ -286,7 +286,6 @@ func bytesToLengthCodedBinary(b []byte) (length uint64, n int, e error) {
 
 func lengthCodedBinaryToBytes(n uint64) (b []byte) {
 	switch {
-
 	case n <= 250:
 		b = []byte{byte(n)}
 
@@ -300,7 +299,6 @@ func lengthCodedBinaryToBytes(n uint64) (b []byte) {
 }
 
 func intToByteStr(i int64) (b []byte) {
-	//tmp := make([]byte, 0)
 	return strconv.AppendInt(b, i, 10)
 }
 
