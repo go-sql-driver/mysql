@@ -208,7 +208,7 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		e
 }
 
-// Internal function to execute statements
+// Internal function to execute commands
 func (mc *mysqlConn) exec(query string) (e error) {
 	// Send command
 	e = mc.writeCommandPacket(COM_QUERY, query)
@@ -217,7 +217,8 @@ func (mc *mysqlConn) exec(query string) (e error) {
 	}
 
 	// Read Result
-	resLen, e := mc.readResultSetHeaderPacket()
+	var resLen int
+	resLen, e = mc.readResultSetHeaderPacket()
 	if e != nil {
 		return
 	}
@@ -258,13 +259,18 @@ func (mc *mysqlConn) getSystemVar(name string) (val string, e error) {
 			return
 		}
 
-		var rows []*[]*[]byte
-		rows, e = mc.readRows(int(n))
+		var row *[]*[]byte
+		row, e = mc.readRow(int(n))
 		if e != nil {
 			return
 		}
 
-		val = string(*(*rows[0])[0])
+		_, e = mc.readUntilEOF()
+		if e != nil {
+			return
+		}
+
+		val = string(*(*row)[0])
 	}
 
 	return

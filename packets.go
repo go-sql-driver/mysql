@@ -13,6 +13,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"io"
 	"reflect"
 	"time"
 )
@@ -56,7 +57,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		if e == nil {
 			e = fmt.Errorf("Length of read data (%d) does not match body length (%d)", n, pktLen)
 		}
-		errLog.Print(`packets:58 `, e)
+		errLog.Print(`packets:60 `, e)
 		return nil, driver.ErrBadConn
 	}
 	return data, e
@@ -76,7 +77,7 @@ func (mc *mysqlConn) readNumber(nr uint8) (uint64, error) {
 		if e == nil {
 			e = fmt.Errorf("Length of read data (%d) does not match header length (%d)", n, nr)
 		}
-		errLog.Print(`packets:78 `, e)
+		errLog.Print(`packets:80 `, e)
 		return 0, driver.ErrBadConn
 	}
 
@@ -100,7 +101,7 @@ func (mc *mysqlConn) writePacket(data *[]byte) error {
 		if e == nil {
 			e = errors.New("Length of send data does not match packet length")
 		}
-		errLog.Print(`packets:102 `, e)
+		errLog.Print(`packets:104 `, e)
 		return driver.ErrBadConn
 	}
 
@@ -442,7 +443,7 @@ The order of packets for a result set is:
 func (mc *mysqlConn) readResultSetHeaderPacket() (fieldCount int, e error) {
 	data, e := mc.readPacket()
 	if e != nil {
-		errLog.Print(`packets:437 `, e)
+		errLog.Print(`packets:446 `, e)
 		e = driver.ErrBadConn
 		return
 	}
@@ -570,43 +571,39 @@ func (mc *mysqlConn) readColumns(n int) (columns []mysqlField, e error) {
 }
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
-func (mc *mysqlConn) readRows(columnsCount int) (rows []*[]*[]byte, e error) {
-	var data []byte
-	var i, pos, n int
-	var isNull bool
-
-	for {
-		data, e = mc.readPacket()
-		if e != nil {
-			return
-		}
-
-		// EOF Packet
-		if data[0] == 254 && len(data) == 5 {
-			return
-		}
-
-		// RowSet Packet
-		row := make([]*[]byte, columnsCount)
-		pos = 0
-		for i = 0; i < columnsCount; i++ {
-			// Read bytes and convert to string
-			row[i], n, isNull, e = readLengthCodedBinary(data[pos:])
-			if e != nil {
-				return
-			}
-
-			// Append nil if field is NULL
-			if isNull {
-				row[i] = nil
-			}
-			pos += n
-		}
-		rows = append(rows, &row)
+func (mc *mysqlConn) readRow(columnsCount int) (*[]*[]byte, error) {
+	data, e := mc.readPacket()
+	if e != nil {
+		return nil, e
 	}
 
-	mc.affectedRows = uint64(len(rows))
-	return
+	// EOF Packet
+	if data[0] == 254 && len(data) == 5 {
+		return nil, io.EOF
+	}
+
+	// RowSet Packet
+	row := make([]*[]byte, columnsCount)
+	var n int
+	var isNull bool
+	pos := 0
+
+	for i := 0; i < columnsCount; i++ {
+		// Read bytes and convert to string
+		row[i], n, isNull, e = readLengthCodedBinary(data[pos:])
+		if e != nil {
+			return nil, e
+		}
+
+		// nil if field is NULL
+		if isNull {
+			row[i] = nil
+		}
+		pos += n
+	}
+
+	mc.affectedRows++
+	return &row, nil
 }
 
 // Reads Packets Packets until EOF-Packet or an Error appears. Returns count of Packets read
@@ -719,9 +716,9 @@ func (stmt mysqlStmt) buildExecutePacket(args *[]driver.Value) (e error) {
 	// Reset packet-sequence
 	stmt.mc.sequence = 0
 
-	pktLen := 1 + 4 + 1 + 4 + (stmt.paramCount+7)/8 + 1 + argsLen*2
+	pktLen := 1 + 4 + 1 + 4 + ((stmt.paramCount + 7) >> 3) + 1 + (argsLen << 1)
 	paramValues := make([][]byte, 0, argsLen)
-	paramTypes := make([]byte, 0, argsLen*2)
+	paramTypes := make([]byte, 0, (argsLen << 1))
 	bitMask := uint64(0)
 	var i, valLen int
 	var pv reflect.Value
@@ -840,209 +837,204 @@ func (stmt mysqlStmt) buildExecutePacket(args *[]driver.Value) (e error) {
 	return stmt.mc.writePacket(&data)
 }
 
-func (mc *mysqlConn) readBinaryRows(rc *rowsContent) (e error) {
-	var data, nullBitMap []byte
-	var i, pos, n int
-	var unsigned, isNull bool
-	columnsCount := len(rc.columns)
-
-	for {
-		data, e = mc.readPacket()
-		if e != nil {
-			return
-		}
-
-		pos = 0
-
-		// EOF Packet
-		if data[pos] == 254 && len(data) == 5 {
-			return
-		}
-
-		pos++
-
-		// BinaryRowSet Packet
-		row := make([]*[]byte, columnsCount)
-
-		nullBitMap = data[pos : pos+(columnsCount+7+2)/8]
-		pos += (columnsCount + 7 + 2) / 8
-
-		for i = 0; i < columnsCount; i++ {
-			// Field is NULL
-			if (nullBitMap[(i+2)/8] >> uint((i+2)%8) & 1) == 1 {
-				row[i] = nil
-				continue
-			}
-
-			unsigned = rc.columns[i].flags&FLAG_UNSIGNED != 0
-
-			// Convert to byte-coded string
-			switch rc.columns[i].fieldType {
-			case FIELD_TYPE_NULL:
-				row[i] = nil
-
-			// Numeric Typs
-			case FIELD_TYPE_TINY:
-				var val []byte
-				if unsigned {
-					val = uintToByteStr(uint64(byteToUint8(data[pos])))
-				} else {
-					val = intToByteStr(int64(int8(byteToUint8(data[pos]))))
-				}
-				row[i] = &val
-				pos++
-
-			case FIELD_TYPE_SHORT, FIELD_TYPE_YEAR:
-				var val []byte
-				if unsigned {
-					val = uintToByteStr(uint64(bytesToUint16(data[pos : pos+2])))
-				} else {
-					val = intToByteStr(int64(int16(bytesToUint16(data[pos : pos+2]))))
-				}
-				row[i] = &val
-				pos += 2
-
-			case FIELD_TYPE_INT24, FIELD_TYPE_LONG:
-				var val []byte
-				if unsigned {
-					val = uintToByteStr(uint64(bytesToUint32(data[pos : pos+4])))
-				} else {
-					val = intToByteStr(int64(int32(bytesToUint32(data[pos : pos+4]))))
-				}
-				row[i] = &val
-				pos += 4
-
-			case FIELD_TYPE_LONGLONG:
-				var val []byte
-				if unsigned {
-					val = uintToByteStr(bytesToUint64(data[pos : pos+8]))
-				} else {
-					val = intToByteStr(int64(bytesToUint64(data[pos : pos+8])))
-				}
-				row[i] = &val
-				pos += 8
-
-			case FIELD_TYPE_FLOAT:
-				var val []byte
-				val = float32ToByteStr(bytesToFloat32(data[pos : pos+4]))
-				row[i] = &val
-				pos += 4
-
-			case FIELD_TYPE_DOUBLE:
-				var val []byte
-				val = float64ToByteStr(bytesToFloat64(data[pos : pos+8]))
-				row[i] = &val
-				pos += 8
-
-			case FIELD_TYPE_DECIMAL, FIELD_TYPE_NEWDECIMAL:
-				row[i], n, isNull, e = readLengthCodedBinary(data[pos:])
-
-				if e != nil {
-					return
-				}
-
-				if isNull && rc.columns[i].flags&FLAG_NOT_NULL == 0 {
-					row[i] = nil
-				}
-				pos += n
-
-			// Length coded Binary Strings
-			case FIELD_TYPE_VARCHAR, FIELD_TYPE_BIT, FIELD_TYPE_ENUM,
-				FIELD_TYPE_SET, FIELD_TYPE_TINY_BLOB, FIELD_TYPE_MEDIUM_BLOB,
-				FIELD_TYPE_LONG_BLOB, FIELD_TYPE_BLOB, FIELD_TYPE_VAR_STRING,
-				FIELD_TYPE_STRING, FIELD_TYPE_GEOMETRY:
-				row[i], n, isNull, e = readLengthCodedBinary(data[pos:])
-				if e != nil {
-					return
-				}
-
-				if isNull && rc.columns[i].flags&FLAG_NOT_NULL == 0 {
-					row[i] = nil
-				}
-				pos += n
-
-			// Date YYYY-MM-DD
-			case FIELD_TYPE_DATE, FIELD_TYPE_NEWDATE:
-				var num uint64
-				num, n, e = bytesToLengthCodedBinary(data[pos:])
-				if e != nil {
-					return
-				}
-				pos += n
-
-				var val []byte
-				if num == 0 {
-					val = []byte("0000-00-00")
-				} else {
-					val = []byte(fmt.Sprintf("%04d-%02d-%02d",
-						bytesToUint16(data[pos:pos+2]),
-						data[pos+2],
-						data[pos+3]))
-				}
-				row[i] = &val
-				pos += int(num)
-
-			// Time HH:MM:SS
-			case FIELD_TYPE_TIME:
-				var num uint64
-				num, n, e = bytesToLengthCodedBinary(data[pos:])
-				if e != nil {
-					return
-				}
-
-				var val []byte
-				if num == 0 {
-					val = []byte("00:00:00")
-				} else {
-					val = []byte(fmt.Sprintf("%02d:%02d:%02d",
-						data[pos+6],
-						data[pos+7],
-						data[pos+8]))
-				}
-				row[i] = &val
-				pos += n + int(num)
-
-			// Timestamp YYYY-MM-DD HH:MM:SS
-			case FIELD_TYPE_TIMESTAMP, FIELD_TYPE_DATETIME:
-				var num uint64
-				num, n, e = bytesToLengthCodedBinary(data[pos:])
-				if e != nil {
-					return
-				}
-				pos += n
-
-				var val []byte
-				switch num {
-				case 0:
-					val = []byte("0000-00-00 00:00:00")
-				case 4:
-					val = []byte(fmt.Sprintf("%04d-%02d-%02d 00:00:00",
-						bytesToUint16(data[pos:pos+2]),
-						data[pos+2],
-						data[pos+3]))
-				default:
-					if num < 7 {
-						return fmt.Errorf("Invalid datetime-packet length %d", num)
-					}
-					val = []byte(fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d",
-						bytesToUint16(data[pos:pos+2]),
-						data[pos+2],
-						data[pos+3],
-						data[pos+4],
-						data[pos+5],
-						data[pos+6]))
-				}
-				row[i] = &val
-				pos += int(num)
-
-			// Please report if this happens!
-			default:
-				return fmt.Errorf("Unknown FieldType %d", rc.columns[i].fieldType)
-			}
-		}
-		rc.rows = append(rc.rows, &row)
+// http://dev.mysql.com/doc/internals/en/prepared-statements.html#packet-ProtocolBinary::ResultsetRow
+func (mc *mysqlConn) readBinaryRow(rc *rowsContent) (*[]*[]byte, error) {
+	data, e := mc.readPacket()
+	if e != nil {
+		return nil, e
 	}
 
-	mc.affectedRows = uint64(len(rc.rows))
-	return
+	pos := 0
+
+	// EOF Packet
+	if data[pos] == 254 && len(data) == 5 {
+		return nil, io.EOF
+	}
+	pos++
+
+	// BinaryRowSet Packet
+	columnsCount := len(rc.columns)
+	row := make([]*[]byte, columnsCount)
+
+	nullBitMap := data[pos : pos+(columnsCount+7+2)>>3]
+	pos += (columnsCount + 7 + 2) >> 3
+
+	var n int
+	var unsigned, isNull bool
+	for i := 0; i < columnsCount; i++ {
+		// Field is NULL
+		if (nullBitMap[(i+2)>>3] >> uint((i+2)&7) & 1) == 1 {
+			row[i] = nil
+			continue
+		}
+
+		unsigned = rc.columns[i].flags&FLAG_UNSIGNED != 0
+
+		// Convert to byte-coded string
+		switch rc.columns[i].fieldType {
+		case FIELD_TYPE_NULL:
+			row[i] = nil
+
+		// Numeric Typs
+		case FIELD_TYPE_TINY:
+			var val []byte
+			if unsigned {
+				val = uintToByteStr(uint64(byteToUint8(data[pos])))
+			} else {
+				val = intToByteStr(int64(int8(byteToUint8(data[pos]))))
+			}
+			row[i] = &val
+			pos++
+
+		case FIELD_TYPE_SHORT, FIELD_TYPE_YEAR:
+			var val []byte
+			if unsigned {
+				val = uintToByteStr(uint64(bytesToUint16(data[pos : pos+2])))
+			} else {
+				val = intToByteStr(int64(int16(bytesToUint16(data[pos : pos+2]))))
+			}
+			row[i] = &val
+			pos += 2
+
+		case FIELD_TYPE_INT24, FIELD_TYPE_LONG:
+			var val []byte
+			if unsigned {
+				val = uintToByteStr(uint64(bytesToUint32(data[pos : pos+4])))
+			} else {
+				val = intToByteStr(int64(int32(bytesToUint32(data[pos : pos+4]))))
+			}
+			row[i] = &val
+			pos += 4
+
+		case FIELD_TYPE_LONGLONG:
+			var val []byte
+			if unsigned {
+				val = uintToByteStr(bytesToUint64(data[pos : pos+8]))
+			} else {
+				val = intToByteStr(int64(bytesToUint64(data[pos : pos+8])))
+			}
+			row[i] = &val
+			pos += 8
+
+		case FIELD_TYPE_FLOAT:
+			var val []byte
+			val = float32ToByteStr(bytesToFloat32(data[pos : pos+4]))
+			row[i] = &val
+			pos += 4
+
+		case FIELD_TYPE_DOUBLE:
+			var val []byte
+			val = float64ToByteStr(bytesToFloat64(data[pos : pos+8]))
+			row[i] = &val
+			pos += 8
+
+		case FIELD_TYPE_DECIMAL, FIELD_TYPE_NEWDECIMAL:
+			row[i], n, isNull, e = readLengthCodedBinary(data[pos:])
+
+			if e != nil {
+				return nil, e
+			}
+
+			if isNull && rc.columns[i].flags&FLAG_NOT_NULL == 0 {
+				row[i] = nil
+			}
+			pos += n
+
+		// Length coded Binary Strings
+		case FIELD_TYPE_VARCHAR, FIELD_TYPE_BIT, FIELD_TYPE_ENUM,
+			FIELD_TYPE_SET, FIELD_TYPE_TINY_BLOB, FIELD_TYPE_MEDIUM_BLOB,
+			FIELD_TYPE_LONG_BLOB, FIELD_TYPE_BLOB, FIELD_TYPE_VAR_STRING,
+			FIELD_TYPE_STRING, FIELD_TYPE_GEOMETRY:
+			row[i], n, isNull, e = readLengthCodedBinary(data[pos:])
+			if e != nil {
+				return nil, e
+			}
+
+			if isNull && rc.columns[i].flags&FLAG_NOT_NULL == 0 {
+				row[i] = nil
+			}
+			pos += n
+
+		// Date YYYY-MM-DD
+		case FIELD_TYPE_DATE, FIELD_TYPE_NEWDATE:
+			var num uint64
+			num, n, e = bytesToLengthCodedBinary(data[pos:])
+			if e != nil {
+				return nil, e
+			}
+			pos += n
+
+			var val []byte
+			if num == 0 {
+				val = []byte("0000-00-00")
+			} else {
+				val = []byte(fmt.Sprintf("%04d-%02d-%02d",
+					bytesToUint16(data[pos:pos+2]),
+					data[pos+2],
+					data[pos+3]))
+			}
+			row[i] = &val
+			pos += int(num)
+
+		// Time HH:MM:SS
+		case FIELD_TYPE_TIME:
+			var num uint64
+			num, n, e = bytesToLengthCodedBinary(data[pos:])
+			if e != nil {
+				return nil, e
+			}
+
+			var val []byte
+			if num == 0 {
+				val = []byte("00:00:00")
+			} else {
+				val = []byte(fmt.Sprintf("%02d:%02d:%02d",
+					data[pos+6],
+					data[pos+7],
+					data[pos+8]))
+			}
+			row[i] = &val
+			pos += n + int(num)
+
+		// Timestamp YYYY-MM-DD HH:MM:SS
+		case FIELD_TYPE_TIMESTAMP, FIELD_TYPE_DATETIME:
+			var num uint64
+			num, n, e = bytesToLengthCodedBinary(data[pos:])
+			if e != nil {
+				return nil, e
+			}
+			pos += n
+
+			var val []byte
+			switch num {
+			case 0:
+				val = []byte("0000-00-00 00:00:00")
+			case 4:
+				val = []byte(fmt.Sprintf("%04d-%02d-%02d 00:00:00",
+					bytesToUint16(data[pos:pos+2]),
+					data[pos+2],
+					data[pos+3]))
+			default:
+				if num < 7 {
+					return nil, fmt.Errorf("Invalid datetime-packet length %d", num)
+				}
+				val = []byte(fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+					bytesToUint16(data[pos:pos+2]),
+					data[pos+2],
+					data[pos+3],
+					data[pos+4],
+					data[pos+5],
+					data[pos+6]))
+			}
+			row[i] = &val
+			pos += int(num)
+
+		// Please report if this happens!
+		default:
+			return nil, fmt.Errorf("Unknown FieldType %d", rc.columns[i].fieldType)
+		}
+	}
+
+	mc.affectedRows++
+	return &row, nil
 }
