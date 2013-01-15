@@ -256,7 +256,7 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 		return nil, e
 	}
 
-	rows := mysqlRows{&rowsContent{mc, false, resLen, nil}}
+	rows := mysqlRows{&rowsContent{mc, false, nil, false}}
 
 	if resLen > 0 {
 		// Columns
