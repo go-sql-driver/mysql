@@ -22,18 +22,19 @@ func getEnv() bool {
 		if user == "" {
 			user = "root"
 		}
+
 		pass := os.Getenv("MYSQL_TEST_PASS")
-		if pass == "" {
-			pass = "root"
-		}
+
 		prot := os.Getenv("MYSQL_TEST_PROT")
 		if prot == "" {
 			prot = "tcp"
 		}
+
 		addr := os.Getenv("MYSQL_TEST_ADDR")
 		if addr == "" {
 			addr = "localhost:3306"
 		}
+
 		dbname := os.Getenv("MYSQL_TEST_DBNAME")
 		if dbname == "" {
 			dbname = "gotest"
