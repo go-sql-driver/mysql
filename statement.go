@@ -25,10 +25,10 @@ type mysqlStmt struct {
 	*stmtContent
 }
 
-func (stmt mysqlStmt) Close() error {
-	e := stmt.mc.writeCommandPacket(COM_STMT_CLOSE, stmt.id)
+func (stmt mysqlStmt) Close() (e error) {
+	e = stmt.mc.writeCommandPacket(COM_STMT_CLOSE, stmt.id)
 	stmt.mc = nil
-	return e
+	return
 }
 
 func (stmt mysqlStmt) NumInput() int {
@@ -82,48 +82,33 @@ func (stmt mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 		nil
 }
 
-func (stmt mysqlStmt) Query(args []driver.Value) (dr driver.Rows, e error) {
+func (stmt mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 	if stmt.mc == nil {
 		return nil, errors.New(`Invalid Statement`)
 	}
 
 	// Send command
-	e = stmt.buildExecutePacket(&args)
+	e := stmt.buildExecutePacket(&args)
 	if e != nil {
 		return nil, e
 	}
 
-	// Get Result
+	// Read Result
 	var resLen int
-	rows := mysqlRows{new(rowsContent)}
 	resLen, e = stmt.mc.readResultSetHeaderPacket()
 	if e != nil {
 		return nil, e
 	}
 
+	rows := mysqlRows{&rowsContent{stmt.mc, true, nil, false}}
+
 	if resLen > 0 {
 		// Columns
 		rows.content.columns, e = stmt.mc.readColumns(resLen)
 		if e != nil {
-			return
-		}
-
-		// Rows
-		e = stmt.mc.readBinaryRows(rows.content)
-		if e != nil {
-			return
+			return nil, e
 		}
 	}
 
-	dr = rows
-	return
+	return rows, e
 }
-
-// ColumnConverter returns a ValueConverter for the provided
-// column index.  If the type of a specific column isn't known
-// or shouldn't be handled specially, DefaultValueConverter
-// can be returned.
-//func (stmt mysqlStmt) ColumnConverter(idx int) driver.ValueConverter {
-//	debug(fmt.Sprintf("ColumnConverter(%d)", idx))
-//	return driver.DefaultParameterConverter
-//}

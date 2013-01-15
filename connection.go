@@ -208,7 +208,7 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		e
 }
 
-// Internal function to execute statements
+// Internal function to execute commands
 func (mc *mysqlConn) exec(query string) (e error) {
 	// Send command
 	e = mc.writeCommandPacket(COM_QUERY, query)
@@ -217,7 +217,8 @@ func (mc *mysqlConn) exec(query string) (e error) {
 	}
 
 	// Read Result
-	resLen, e := mc.readResultSetHeaderPacket()
+	var resLen int
+	resLen, e = mc.readResultSetHeaderPacket()
 	if e != nil {
 		return
 	}
@@ -235,6 +236,37 @@ func (mc *mysqlConn) exec(query string) (e error) {
 	}
 
 	return
+}
+
+func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, error) {
+	if len(args) > 0 {
+		return nil, driver.ErrSkip
+	}
+
+	// Send command
+	e := mc.writeCommandPacket(COM_QUERY, query)
+	if e != nil {
+		return nil, e
+	}
+
+	// Read Result
+	var resLen int
+	resLen, e = mc.readResultSetHeaderPacket()
+	if e != nil {
+		return nil, e
+	}
+
+	rows := mysqlRows{&rowsContent{mc, false, nil, false}}
+
+	if resLen > 0 {
+		// Columns
+		rows.content.columns, e = mc.readColumns(resLen)
+		if e != nil {
+			return nil, e
+		}
+	}
+
+	return rows, e
 }
 
 // Gets the value of the given MySQL System Variable
@@ -258,13 +290,18 @@ func (mc *mysqlConn) getSystemVar(name string) (val string, e error) {
 			return
 		}
 
-		var rows []*[][]byte
-		rows, e = mc.readRows(int(n))
+		var row *[]*[]byte
+		row, e = mc.readRow(int(n))
 		if e != nil {
 			return
 		}
 
-		val = string((*rows[0])[0])
+		_, e = mc.readUntilEOF()
+		if e != nil {
+			return
+		}
+
+		val = string(*(*row)[0])
 	}
 
 	return
