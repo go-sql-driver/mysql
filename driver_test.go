@@ -16,6 +16,7 @@ var (
 	once    sync.Once
 )
 
+// See https://github.com/Go-SQL-Driver/MySQL/wiki/Testing
 func getEnv() bool {
 	once.Do(func() {
 		user := os.Getenv("MYSQL_TEST_USER")
@@ -277,7 +278,7 @@ func TestString(t *testing.T) {
 	mustExec(t, db, "DROP TABLE IF EXISTS test")
 
 	types := [6]string{"CHAR(255)", "VARCHAR(255)", "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT"}
-	in := "κόσμε üöäßñóùéàâÿœ'îë Árvíztűrő いろはにほへとちりぬるを イロハニホヘト דג סקרן чащах  น่าฟังเอย"
+	in := "κόσμε üöäßñóùéàâÿœ'îë Árvíztűrő いろはにほへとちりぬるを イロハニホヘト דג סקרן чащах  น่าฟังเอย"
 	var out string
 	var rows *sql.Rows
 
