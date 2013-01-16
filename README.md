@@ -21,6 +21,7 @@ Note: `go get` doesn't install the `master` branch, but the tag `go1`, which bui
     * [Address](#address)
     * [Parameters](#parameters)
     * [Examples](#examples)
+  * [Testing / Development](#testing--development)
   * [License](#license)
 
 ---------------------------------------
