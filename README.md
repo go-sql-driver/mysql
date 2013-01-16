@@ -8,7 +8,7 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
 
 [![Build Status](https://travis-ci.org/Go-SQL-Driver/MySQL.png?branch=master)](https://travis-ci.org/Go-SQL-Driver/MySQL) *(master branch)*
 
-Note: `go get` doesn't install the master branch, but the tag `go1`, which is always checked before tagging!
+Note: `go get` doesn't install the `master` branch, but the tag `go1`, which build status is always checked before tagging!
 
 ---------------------------------------
   * [Features](#features)
@@ -28,7 +28,10 @@ Note: `go get` doesn't install the master branch, but the tag `go1`, which is al
 ## Features
   * Lightweight and fast
   * Native Go implementation. No C-bindings, just pure Go
-  * No unsafe operations *(type-conversions etc.)*
+  * No unsafe operations *(e.g. type-conversions)*
+  * Connections over TCP/IPv4, TCP/IPv6 or Unix Sockets
+  * Automatic handling of broken connections
+  * Automatic Connection-Pooling *(by database/sql package)*
 
 ## Requirements
   * Go 1 or higher (Go 1.0.3 or higher recommended)
@@ -37,16 +40,16 @@ Note: `go get` doesn't install the master branch, but the tag `go1`, which is al
 ---------------------------------------
 
 ## Installation
-Simple install the package with the go tool from shell:
+Simple install the package to your [$GOPATH](http://code.google.com/p/go-wiki/wiki/GOPATH "GOPATH") with the [go tool](http://golang.org/cmd/go/ go command) from shell:
 ```bash
 $ go get github.com/Go-SQL-Driver/MySQL
 ```
 Make sure [Git is installed](http://git-scm.com/downloads) on your machine and in your system's `PATH`.
 
 ## Usage
-_Go MySQL Driver_ is an implementation of Go's `database/sql/driver` interface, so all you need to do is import the driver and open a new Database-Connection with the given driver.
+_Go MySQL Driver_ is an implementation of Go's `database/sql/driver` interface, so all you need to do is to import the driver and open a new database connection with the given driver.
 
-Use `"mysql"` as `driverName` and a valid [DSN](#dsn-data-source-name)  as `dataSourceName`
+Use `mysql` as `driverName` and a valid [DSN](#dsn-data-source-name)  as `dataSourceName`
 ```go
 import "database/sql"
 import _ "code.google.com/p/go-mysql-driver/mysql"
@@ -56,10 +59,12 @@ db, e := sql.Open("mysql", "user:password@/dbname?charset=utf8")
 
 All further methods are listed here: http://golang.org/pkg/database/sql
 
+[Examples are available in our Wiki](https://github.com/Go-SQL-Driver/MySQL/wiki/Examples "Go-MySQL-Driver Examples").
+
 
 ## DSN (Data Source Name)
 
-The Data Source Name has a common format, like e.g. [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php) uses it, but without type-prefix:
+The Data Source Name has a common format, like e.g. [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php) uses it, but without type-prefix (optional parts marked by squared brackets):
 ```
 [username[:password]@][protocol[(address)]]/dbname[?param1=value1&paramN=valueN]
 ```
@@ -80,7 +85,7 @@ If you do not want to preselect a database, leave `dbname` empty:
 ```
 
 ### Password
-Passwords can consist of any character. Escaping is not necessary.
+Passwords can consist of any character. Escaping is **not** necessary.
 
 ### Protocol
 See [net.Dial](http://golang.org/pkg/net/#Dial) for more information which networks are available.
@@ -128,6 +133,9 @@ No Database preselected:
 ```
 user:password@/
 ```
+
+## Testing / Development
+To run the driver tests you may need to adjust the configuration. See [this Wiki-Page](https://github.com/Go-SQL-Driver/MySQL/wiki/Testing "Testing") for details.
 
 ---------------------------------------
 
