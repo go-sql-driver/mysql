@@ -103,7 +103,7 @@ For Unix-sockets the address is the absolute path to the MySQL-Server-socket, e.
 **Parameters are case-sensitive!**
 
 Possible Parameters are:
-  * `charset`: *"SET NAMES `value`"*
+  * `charset`: *"SET NAMES `value`"*. If multiple charsets are set (seperated by a comma), the following charset is used if setting the charset failes. This enables support for `utf8mb4` ([introduced in MySQL 5.5.3](http://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)) with fallback to `utf8` for older servers.
   * _(deprecated)_ <s>`keepalive`: If `value` equals 1, the keepalive-time is set to [wait_timeout](https://dev.mysql.com/doc/refman/5.5/en/server-system-variables.html#sysvar_wait_timeout)-60, which pings the Server 60 seconds before the MySQL server would close the connection to avoid timeout. If the value is greater than 1, the server gets pinged every `value` seconds without a command. System variables are executed **before**, so it may be possible to change the *wait_timeout* value.</s> **With Go 1.0.3 this is not necessary anymore. Now closed connections can be automatically detected and handled.**
   * _(pending)_ <s>`tls`</s>: will enable SSL/TLS-Encryption 
   * _(pending)_ <s>`compress`</s>: will enable Compression 
@@ -119,7 +119,7 @@ user@unix(/path/to/socket)/dbname?charset=utf8
 ```
 
 ```
-user:password@tcp(localhost:5555)/dbname?charset=utf8
+user:password@tcp(localhost:5555)/dbname?charset=utf8mb4,utf8
 ```
 
 ```
