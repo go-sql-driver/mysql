@@ -15,6 +15,7 @@ import (
 	"errors"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -56,7 +57,13 @@ func (mc *mysqlConn) handleParams() (e error) {
 		switch param {
 		// Charset
 		case "charset":
-			e = mc.exec("SET NAMES " + val)
+			charsets := strings.Split(val, ",")
+			for _, charset := range charsets {
+				e = mc.exec("SET NAMES " + charset)
+				if e == nil {
+					break
+				}
+			}
 			if e != nil {
 				return
 			}
