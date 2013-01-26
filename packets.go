@@ -2,7 +2,7 @@
 //
 // Copyright 2012 Julien Schmidt. All rights reserved.
 // http://www.julienschmidt.com
-// 
+//
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -41,7 +41,11 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 
 	// Check Packet Sync
 	if uint8(pktSeq) != mc.sequence {
-		e = errors.New("Commands out of sync; you can't run this command now")
+		if uint8(pktSeq) > mc.sequence {
+			e = errors.New("Commands out of sync. Did you run multiple statements at once?")
+		} else {
+			e = errors.New("Commands out of sync; you can't run this command now")
+		}
 		return nil, e
 	}
 	mc.sequence++
@@ -113,7 +117,7 @@ func (mc *mysqlConn) writePacket(data *[]byte) error {
 *                           Initialisation Process                            *
 ******************************************************************************/
 
-/* Handshake Initialization Packet 
+/* Handshake Initialization Packet
  Bytes                        Name
  -----                        ----
  1                            protocol_version
@@ -127,7 +131,7 @@ func (mc *mysqlConn) writePacket(data *[]byte) error {
  2                            server capabilities (two upper bytes)
  1                            length of the scramble
 10                            (filler)  always 0
- n                            rest of the plugin provided data (at least 12 bytes) 
+ n                            rest of the plugin provided data (at least 12 bytes)
  1                            \0 byte, terminating the second part of a scramble
 */
 func (mc *mysqlConn) readInitPacket() (e error) {
@@ -187,7 +191,7 @@ func (mc *mysqlConn) readInitPacket() (e error) {
 	return
 }
 
-/* Client Authentication Packet 
+/* Client Authentication Packet
 Bytes                        Name
 -----                        ----
 4                            client_flags
@@ -355,7 +359,7 @@ func (mc *mysqlConn) readResultOK() (e error) {
 	return
 }
 
-/* Error Packet 
+/* Error Packet
 Bytes                       Name
 -----                       ----
 1                           field_count, always = 0xff
@@ -387,7 +391,7 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) (e error) {
 	return
 }
 
-/* Ok Packet 
+/* Ok Packet
 Bytes                       Name
 -----                       ----
 1   (Length Coded Binary)   field_count, always = 0
@@ -427,13 +431,13 @@ func (mc *mysqlConn) handleOkPacket(data []byte) (e error) {
 	return
 }
 
-/* Result Set Header Packet 
+/* Result Set Header Packet
  Bytes                        Name
  -----                        ----
  1-9   (Length-Coded-Binary)  field_count
  1-9   (Length-Coded-Binary)  extra
 
-The order of packets for a result set is: 
+The order of packets for a result set is:
   (Result Set Header Packet)  the number of columns
   (Field Packets)             column descriptors
   (EOF Packet)                marker: end of Field Packets
@@ -630,14 +634,14 @@ func (mc *mysqlConn) readUntilEOF() (count uint64, e error) {
 *                           Prepared Statements                               *
 ******************************************************************************/
 
-/* Prepare Result Packets 
+/* Prepare Result Packets
  Type Of Result Packet       Hexadecimal Value Of First Byte (field_count)
  ---------------------       ---------------------------------------------
 
  Prepare OK Packet           00
  Error Packet                ff
 
-Prepare OK Packet 
+Prepare OK Packet
  Bytes              Name
  -----              ----
  1                  0 - marker for OK packet
@@ -652,10 +656,10 @@ Prepare OK Packet
     a PREPARE_OK packet
     if "number of parameters" > 0
         (field packets) as in a Result Set Header Packet
-        (EOF packet) 
+        (EOF packet)
     if "number of columns" > 0
         (field packets) as in a Result Set Header Packet
-        (EOF packet) 
+        (EOF packet)
 
 */
 func (stmt mysqlStmt) readPrepareResultPacket() (columnCount uint16, e error) {
@@ -702,7 +706,7 @@ Bytes                Name
 1                    new_parameter_bound_flag
   if new_params_bound == 1:
 n*2                  type of parameters
-n                    values for the parameters 
+n                    values for the parameters
 */
 func (stmt mysqlStmt) buildExecutePacket(args *[]driver.Value) (e error) {
 	argsLen := len(*args)
@@ -723,7 +727,7 @@ func (stmt mysqlStmt) buildExecutePacket(args *[]driver.Value) (e error) {
 	var i, valLen int
 	var pv reflect.Value
 	for i = 0; i < stmt.paramCount; i++ {
-		// build nullBitMap	
+		// build nullBitMap
 		if (*args)[i] == nil {
 			bitMask += 1 << uint(i)
 		}
