@@ -314,19 +314,100 @@ func TestNULL(t *testing.T) {
 
 	defer db.Close()
 
-	stmt, err := db.Prepare("SELECT NULL")
+	nullStmt, err := db.Prepare("SELECT NULL")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer stmt.Close()
+	defer nullStmt.Close()
 
+	nonNullStmt, err := db.Prepare("SELECT 1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nonNullStmt.Close()
+
+	// NullBool
+	var nb sql.NullBool
+	// Invalid
+	err = nullStmt.QueryRow().Scan(&nb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nb.Valid {
+		t.Error("Valid NullBool which should be invalid")
+	}
+	// Valid
+	err = nonNullStmt.QueryRow().Scan(&nb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !nb.Valid {
+		t.Error("Invalid NullBool which should be valid")
+	} else if nb.Bool != true {
+		t.Errorf("Unexpected NullBool value: %t (should be true)", nb.Bool)
+	}
+
+	// NullFloat64
+	var nf sql.NullFloat64
+	// Invalid
+	err = nullStmt.QueryRow().Scan(&nf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nf.Valid {
+		t.Error("Valid NullFloat64 which should be invalid")
+	}
+	// Valid
+	err = nonNullStmt.QueryRow().Scan(&nf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !nf.Valid {
+		t.Error("Invalid NullFloat64 which should be valid")
+	} else if nf.Float64 != float64(1) {
+		t.Errorf("Unexpected NullFloat64 value: %f (should be 1.0)", nf.Float64)
+	}
+
+	// NullInt64
+	var ni sql.NullInt64
+	// Invalid
+	err = nullStmt.QueryRow().Scan(&ni)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ni.Valid {
+		t.Error("Valid NullInt64 which should be invalid")
+	}
+	// Valid
+	err = nonNullStmt.QueryRow().Scan(&ni)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ni.Valid {
+		t.Error("Invalid NullInt64 which should be valid")
+	} else if ni.Int64 != int64(1) {
+		t.Errorf("Unexpected NullInt64 value: %d (should be 1)", ni.Int64)
+	}
+
+	// NullString
 	var ns sql.NullString
-	err = stmt.QueryRow().Scan(&ns)
+	// Invalid
+	err = nullStmt.QueryRow().Scan(&ns)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if ns.Valid {
 		t.Error("Valid NullString which should be invalid")
+	}
+	// Valid
+	err = nonNullStmt.QueryRow().Scan(&ns)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ns.Valid {
+		t.Error("Invalid NullString which should be valid")
+	} else if ns.String != `1` {
+		t.Error("Unexpected NullString value:" + ns.String + " (should be `1`)")
 	}
 }
 
