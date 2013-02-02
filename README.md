@@ -53,7 +53,7 @@ _Go MySQL Driver_ is an implementation of Go's `database/sql/driver` interface, 
 Use `mysql` as `driverName` and a valid [DSN](#dsn-data-source-name)  as `dataSourceName`
 ```go
 import "database/sql"
-import _ "code.google.com/p/go-mysql-driver/mysql"
+import _ "github.com/Go-SQL-Driver/MySQL"
 
 db, e := sql.Open("mysql", "user:password@/dbname?charset=utf8")
 ```
