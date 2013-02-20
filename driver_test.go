@@ -129,7 +129,7 @@ func TestCRUD(t *testing.T) {
 	}
 
 	// Update
-	mustExec(t, db, "UPDATE test SET value = ? WHERE value = ?", false, true)
+	res = mustExec(t, db, "UPDATE test SET value = ? WHERE value = ?", false, true)
 	count, err = res.RowsAffected()
 	if err != nil {
 		t.Fatalf("res.RowsAffected() returned error: %v", err)
@@ -154,13 +154,23 @@ func TestCRUD(t *testing.T) {
 	}
 
 	// Delete
-	mustExec(t, db, "DELETE FROM test WHERE value = ?", false)
+	res = mustExec(t, db, "DELETE FROM test WHERE value = ?", false)
 	count, err = res.RowsAffected()
 	if err != nil {
 		t.Fatalf("res.RowsAffected() returned error: %v", err)
 	}
 	if count != 1 {
 		t.Fatalf("Expected 1 affected row, got %d", count)
+	}
+
+	// Check for unexpected rows
+	res = mustExec(t, db, "DELETE FROM test")
+	count, err = res.RowsAffected()
+	if err != nil {
+		t.Fatalf("res.RowsAffected() returned error: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("Expected 0 affected row, got %d", count)
 	}
 }
 
