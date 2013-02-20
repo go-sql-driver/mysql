@@ -94,18 +94,13 @@ func (mc *mysqlConn) readNumber(nr uint8) (uint64, error) {
 }
 
 func (mc *mysqlConn) writePacket(data *[]byte) error {
-	// Set time BEFORE to avoid possible collisions
-	if mc.server.keepalive > 0 {
-		mc.lastCmdTime = time.Now()
-	}
-
 	// Write packet
 	n, e := mc.netConn.Write(*data)
 	if e != nil || n != len(*data) {
 		if e == nil {
 			e = errors.New("Length of send data does not match packet length")
 		}
-		errLog.Print(`packets:104 `, e)
+		errLog.Print(`packets:103 `, e)
 		return driver.ErrBadConn
 	}
 

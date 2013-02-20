@@ -12,24 +12,19 @@ package mysql
 import (
 	"bufio"
 	"database/sql/driver"
-	"errors"
 	"net"
-	"strconv"
 	"strings"
-	"time"
 )
 
 type mysqlConn struct {
-	cfg            *config
-	server         *serverSettings
-	netConn        net.Conn
-	bufReader      *bufio.Reader
-	protocol       uint8
-	sequence       uint8
-	affectedRows   uint64
-	insertId       uint64
-	lastCmdTime    time.Time
-	keepaliveTimer *time.Timer
+	cfg          *config
+	server       *serverSettings
+	netConn      net.Conn
+	bufReader    *bufio.Reader
+	protocol     uint8
+	sequence     uint8
+	affectedRows uint64
+	insertId     uint64
 }
 
 type config struct {
@@ -48,7 +43,6 @@ type serverSettings struct {
 	charset      uint8
 	scrambleBuff []byte
 	threadID     uint32
-	keepalive    int64
 }
 
 // Handles parameters set in DSN
@@ -76,10 +70,6 @@ func (mc *mysqlConn) handleParams() (e error) {
 		case "compress":
 			dbgLog.Print("Compression not implemented yet")
 
-		// We don't want to set keepalive as system var
-		case "keepalive":
-			continue
-
 		// System Vars
 		default:
 			e = mc.exec("SET " + param + "=" + val + "")
@@ -89,52 +79,6 @@ func (mc *mysqlConn) handleParams() (e error) {
 		}
 	}
 
-	// KeepAlive
-	if val, param := mc.cfg.params["keepalive"]; param {
-		mc.server.keepalive, e = strconv.ParseInt(val, 10, 64)
-		if e != nil {
-			return errors.New("Invalid keepalive time")
-		}
-
-		// Get keepalive time by MySQL system var wait_timeout
-		if mc.server.keepalive == 1 {
-			val, e = mc.getSystemVar("wait_timeout")
-			mc.server.keepalive, e = strconv.ParseInt(val, 10, 64)
-			if e != nil {
-				return errors.New("Error getting wait_timeout")
-			}
-
-			// Trigger 1min BEFORE wait_timeout
-			if mc.server.keepalive > 60 {
-				mc.server.keepalive -= 60
-			}
-		}
-
-		if mc.server.keepalive > 0 {
-			mc.lastCmdTime = time.Now()
-
-			// Ping-Timer to avoid timeout
-			mc.keepaliveTimer = time.AfterFunc(
-				time.Duration(mc.server.keepalive)*time.Second, func() {
-					var diff time.Duration
-					for {
-						// Fires only if diff > keepalive. Makes it collision safe
-						for mc.netConn != nil &&
-							mc.lastCmdTime.Unix()+mc.server.keepalive > time.Now().Unix() {
-							diff = mc.lastCmdTime.Sub(time.Unix(time.Now().Unix()-mc.server.keepalive, 0))
-							time.Sleep(diff)
-						}
-						if mc.netConn != nil {
-							if e := mc.Ping(); e != nil {
-								break
-							}
-						} else {
-							return
-						}
-					}
-				})
-		}
-	}
 	return
 }
 
@@ -148,9 +92,6 @@ func (mc *mysqlConn) Begin() (driver.Tx, error) {
 }
 
 func (mc *mysqlConn) Close() (e error) {
-	if mc.server.keepalive > 0 {
-		mc.keepaliveTimer.Stop()
-	}
 	mc.writeCommandPacket(COM_QUIT)
 	mc.bufReader = nil
 	mc.netConn.Close()
@@ -270,56 +211,4 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 	}
 
 	return rows, e
-}
-
-// Gets the value of the given MySQL System Variable
-func (mc *mysqlConn) getSystemVar(name string) (val string, e error) {
-	// Send command
-	e = mc.writeCommandPacket(COM_QUERY, "SELECT @@"+name)
-	if e != nil {
-		return
-	}
-
-	// Read Result
-	resLen, e := mc.readResultSetHeaderPacket()
-	if e != nil {
-		return
-	}
-
-	if resLen > 0 {
-		var n uint64
-		n, e = mc.readUntilEOF()
-		if e != nil {
-			return
-		}
-
-		var row *[]*[]byte
-		row, e = mc.readRow(int(n))
-		if e != nil {
-			return
-		}
-
-		_, e = mc.readUntilEOF()
-		if e != nil {
-			return
-		}
-
-		val = string(*(*row)[0])
-	}
-
-	return
-}
-
-// *** DEPRECATED ***
-// Executes a simple Ping-CMD to test or keepalive the connection
-func (mc *mysqlConn) Ping() (e error) {
-	// Send command
-	e = mc.writeCommandPacket(COM_PING)
-	if e != nil {
-		return
-	}
-
-	// Read Result
-	e = mc.readResultOK()
-	return
 }

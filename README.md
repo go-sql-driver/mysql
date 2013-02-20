@@ -35,7 +35,7 @@ Note: `go get` doesn't install the `master` branch, but the tag `go1`, which bui
   * Automatic Connection-Pooling *(by database/sql package)*
 
 ## Requirements
-  * Go 1 or higher (Go 1.0.3 or higher recommended)
+  * Go 1.0.3 or higher
   * MySQL (Version 4.1 or higher), MariaDB or Percona Server
 
 ---------------------------------------
@@ -104,9 +104,8 @@ For Unix-sockets the address is the absolute path to the MySQL-Server-socket, e.
 
 Possible Parameters are:
   * `charset`: *"SET NAMES `value`"*. If multiple charsets are set (seperated by a comma), the following charset is used if setting the charset failes. This enables support for `utf8mb4` ([introduced in MySQL 5.5.3](http://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)) with fallback to `utf8` for older servers.
-  * _(deprecated)_ <s>`keepalive`: If `value` equals 1, the keepalive-time is set to [wait_timeout](https://dev.mysql.com/doc/refman/5.5/en/server-system-variables.html#sysvar_wait_timeout)-60, which pings the Server 60 seconds before the MySQL server would close the connection to avoid timeout. If the value is greater than 1, the server gets pinged every `value` seconds without a command. System variables are executed **before**, so it may be possible to change the *wait_timeout* value.</s> **With Go 1.0.3 this is not necessary anymore. Now closed connections can be automatically detected and handled.**
-  * _(pending)_ <s>`tls`</s>: will enable SSL/TLS-Encryption 
-  * _(pending)_ <s>`compress`</s>: will enable Compression 
+  * _(pending)_ <s>`tls`</s>: will enable SSL/TLS-Encryption
+  * _(pending)_ <s>`compress`</s>: will enable Compression
 
 All other parameters are interpreted as system variables:
   * `time_zone`: *"SET time_zone='`value`'"*
@@ -152,6 +151,6 @@ That means:
   * You **needn't publish** the source code of your library as long the files licensed under the MPL 2.0 are **unchanged**
   * You **must publish** the source code of any **changed files** licensed under the MPL 2.0 under a) the MPL 2.0 itself or b) a compatible license (e.g. GPL 3.0 or Apache License 2.0)
 
-Please read the [MPL 2.0 FAQ](http://www.mozilla.org/MPL/2.0/FAQ.html) if you have further questions regarding the license. 
+Please read the [MPL 2.0 FAQ](http://www.mozilla.org/MPL/2.0/FAQ.html) if you have further questions regarding the license.
 
 You can read the full terms here: [LICENSE](https://raw.github.com/Go-SQL-Driver/MySQL/master/LICENSE)
