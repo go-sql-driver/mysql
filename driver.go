@@ -1,6 +1,6 @@
 // Copyright 2012 Julien Schmidt. All rights reserved.
 // http://www.julienschmidt.com
-// 
+//
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -21,44 +21,44 @@ type mysqlDriver struct{}
 // See https://github.com/Go-SQL-Driver/MySQL#dsn-data-source-name for how
 // the DSN string is formated
 func (d *mysqlDriver) Open(dsn string) (driver.Conn, error) {
-	var e error
+	var err error
 
 	// New mysqlConn
 	mc := new(mysqlConn)
 	mc.cfg = parseDSN(dsn)
 
 	// Connect to Server
-	mc.netConn, e = net.Dial(mc.cfg.net, mc.cfg.addr)
-	if e != nil {
-		return nil, e
+	mc.netConn, err = net.Dial(mc.cfg.net, mc.cfg.addr)
+	if err != nil {
+		return nil, err
 	}
 	mc.bufReader = bufio.NewReader(mc.netConn)
 
-	// Reading Handshake Initialization Packet 
-	e = mc.readInitPacket()
-	if e != nil {
-		return nil, e
+	// Reading Handshake Initialization Packet
+	err = mc.readInitPacket()
+	if err != nil {
+		return nil, err
 	}
 
 	// Send Client Authentication Packet
-	e = mc.writeAuthPacket()
-	if e != nil {
-		return nil, e
+	err = mc.writeAuthPacket()
+	if err != nil {
+		return nil, err
 	}
 
 	// Read Result Packet
-	e = mc.readResultOK()
-	if e != nil {
-		return nil, e
+	err = mc.readResultOK()
+	if err != nil {
+		return nil, err
 	}
 
 	// Handle DSN Params
-	e = mc.handleParams()
-	if e != nil {
-		return nil, e
+	err = mc.handleParams()
+	if err != nil {
+		return nil, err
 	}
 
-	return mc, e
+	return mc, err
 }
 
 func init() {

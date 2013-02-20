@@ -2,7 +2,7 @@
 //
 // Copyright 2012 Julien Schmidt. All rights reserved.
 // http://www.julienschmidt.com
-// 
+//
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -121,22 +121,22 @@ func scramblePassword(scramble, password []byte) (result []byte) {
 ******************************************************************************/
 
 // Read a slice from the data slice
-func readSlice(data []byte, delim byte) (slice []byte, e error) {
+func readSlice(data []byte, delim byte) (slice []byte, err error) {
 	pos := bytes.IndexByte(data, delim)
 	if pos > -1 {
 		slice = data[:pos]
 	} else {
 		slice = data
-		e = io.EOF
+		err = io.EOF
 	}
 	return
 }
 
 func readLengthCodedBinary(data []byte) (*[]byte, int, bool, error) {
 	// Get length
-	num, n, e := bytesToLengthCodedBinary(data)
-	if e != nil {
-		return nil, n, true, e
+	num, n, err := bytesToLengthCodedBinary(data)
+	if err != nil {
+		return nil, n, true, err
 	}
 
 	// Check data length
@@ -155,19 +155,19 @@ func readLengthCodedBinary(data []byte) (*[]byte, int, bool, error) {
 	// Get bytes
 	b := data[n : n+int(num)]
 	n += int(num)
-	return &b, n, isNull, e
+	return &b, n, isNull, err
 }
 
-func readAndDropLengthCodedBinary(data []byte) (n int, e error) {
+func readAndDropLengthCodedBinary(data []byte) (n int, err error) {
 	// Get length
-	num, n, e := bytesToLengthCodedBinary(data)
-	if e != nil {
+	num, n, err := bytesToLengthCodedBinary(data)
+	if err != nil {
 		return
 	}
 
 	// Check data length
 	if len(data) < n+int(num) {
-		e = io.EOF
+		err = io.EOF
 		return
 	}
 
@@ -244,7 +244,7 @@ func float64ToBytes(f float64) []byte {
 	return uint64ToBytes(math.Float64bits(f))
 }
 
-func bytesToLengthCodedBinary(b []byte) (length uint64, n int, e error) {
+func bytesToLengthCodedBinary(b []byte) (length uint64, n int, err error) {
 	switch {
 
 	// 0-250: value of first byte
@@ -273,7 +273,7 @@ func bytesToLengthCodedBinary(b []byte) (length uint64, n int, e error) {
 	}
 
 	if len(b) < n {
-		e = io.EOF
+		err = io.EOF
 		return
 	}
 

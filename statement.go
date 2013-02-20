@@ -25,8 +25,8 @@ type mysqlStmt struct {
 	*stmtContent
 }
 
-func (stmt mysqlStmt) Close() (e error) {
-	e = stmt.mc.writeCommandPacket(COM_STMT_CLOSE, stmt.id)
+func (stmt mysqlStmt) Close() (err error) {
+	err = stmt.mc.writeCommandPacket(COM_STMT_CLOSE, stmt.id)
 	stmt.mc = nil
 	return
 }
@@ -43,33 +43,33 @@ func (stmt mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	stmt.mc.insertId = 0
 
 	// Send command
-	e := stmt.buildExecutePacket(&args)
-	if e != nil {
-		return nil, e
+	err := stmt.buildExecutePacket(&args)
+	if err != nil {
+		return nil, err
 	}
 
 	// Read Result
 	var resLen int
-	resLen, e = stmt.mc.readResultSetHeaderPacket()
-	if e != nil {
-		return nil, e
+	resLen, err = stmt.mc.readResultSetHeaderPacket()
+	if err != nil {
+		return nil, err
 	}
 
 	if resLen > 0 {
 		// Columns
-		_, e = stmt.mc.readUntilEOF()
-		if e != nil {
-			return nil, e
+		_, err = stmt.mc.readUntilEOF()
+		if err != nil {
+			return nil, err
 		}
 
 		// Rows
-		stmt.mc.affectedRows, e = stmt.mc.readUntilEOF()
-		if e != nil {
-			return nil, e
+		stmt.mc.affectedRows, err = stmt.mc.readUntilEOF()
+		if err != nil {
+			return nil, err
 		}
 	}
-	if e != nil {
-		return nil, e
+	if err != nil {
+		return nil, err
 	}
 
 	return mysqlResult{
@@ -84,27 +84,27 @@ func (stmt mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 	}
 
 	// Send command
-	e := stmt.buildExecutePacket(&args)
-	if e != nil {
-		return nil, e
+	err := stmt.buildExecutePacket(&args)
+	if err != nil {
+		return nil, err
 	}
 
 	// Read Result
 	var resLen int
-	resLen, e = stmt.mc.readResultSetHeaderPacket()
-	if e != nil {
-		return nil, e
+	resLen, err = stmt.mc.readResultSetHeaderPacket()
+	if err != nil {
+		return nil, err
 	}
 
 	rows := mysqlRows{&rowsContent{stmt.mc, true, nil, false}}
 
 	if resLen > 0 {
 		// Columns
-		rows.content.columns, e = stmt.mc.readColumns(resLen)
-		if e != nil {
-			return nil, e
+		rows.content.columns, err = stmt.mc.readColumns(resLen)
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	return rows, e
+	return rows, err
 }

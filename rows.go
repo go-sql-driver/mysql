@@ -2,7 +2,7 @@
 //
 // Copyright 2012 Julien Schmidt. All rights reserved.
 // http://www.julienschmidt.com
-// 
+//
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -40,7 +40,7 @@ func (rows mysqlRows) Columns() (columns []string) {
 	return
 }
 
-func (rows mysqlRows) Close() (e error) {
+func (rows mysqlRows) Close() (err error) {
 	defer func() {
 		rows.content.mc = nil
 		rows.content = nil
@@ -52,8 +52,8 @@ func (rows mysqlRows) Close() (e error) {
 			return errors.New("Invalid Connection")
 		}
 
-		_, e = rows.content.mc.readUntilEOF()
-		if e != nil {
+		_, err = rows.content.mc.readUntilEOF()
+		if err != nil {
 			return
 		}
 	}
@@ -63,7 +63,7 @@ func (rows mysqlRows) Close() (e error) {
 
 // Next returns []driver.Value filled with either nil values for NULL entries
 // or []byte's for all other entries. Type conversion is done on rows.scan(),
-// when the dest type is know, which makes type conversion easier and avoids 
+// when the dest type is know, which makes type conversion easier and avoids
 // unnecessary conversions.
 func (rows mysqlRows) Next(dest []driver.Value) error {
 	if rows.content.eof {
@@ -78,18 +78,18 @@ func (rows mysqlRows) Next(dest []driver.Value) error {
 
 	// Fetch next row from stream
 	var row *[]*[]byte
-	var e error
+	var err error
 	if rows.content.binary {
-		row, e = rows.content.mc.readBinaryRow(rows.content)
+		row, err = rows.content.mc.readBinaryRow(rows.content)
 	} else {
-		row, e = rows.content.mc.readRow(columnsCount)
+		row, err = rows.content.mc.readRow(columnsCount)
 	}
 
-	if e != nil {
-		if e == io.EOF {
+	if err != nil {
+		if err == io.EOF {
 			rows.content.eof = true
 		}
-		return e
+		return err
 	}
 
 	for i := 0; i < columnsCount; i++ {

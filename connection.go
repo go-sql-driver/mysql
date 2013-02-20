@@ -46,19 +46,19 @@ type serverSettings struct {
 }
 
 // Handles parameters set in DSN
-func (mc *mysqlConn) handleParams() (e error) {
+func (mc *mysqlConn) handleParams() (err error) {
 	for param, val := range mc.cfg.params {
 		switch param {
 		// Charset
 		case "charset":
 			charsets := strings.Split(val, ",")
 			for _, charset := range charsets {
-				e = mc.exec("SET NAMES " + charset)
-				if e == nil {
+				err = mc.exec("SET NAMES " + charset)
+				if err == nil {
 					break
 				}
 			}
-			if e != nil {
+			if err != nil {
 				return
 			}
 
@@ -72,8 +72,8 @@ func (mc *mysqlConn) handleParams() (e error) {
 
 		// System Vars
 		default:
-			e = mc.exec("SET " + param + "=" + val + "")
-			if e != nil {
+			err = mc.exec("SET " + param + "=" + val + "")
+			if err != nil {
 				return
 			}
 		}
@@ -83,15 +83,15 @@ func (mc *mysqlConn) handleParams() (e error) {
 }
 
 func (mc *mysqlConn) Begin() (driver.Tx, error) {
-	e := mc.exec("START TRANSACTION")
-	if e != nil {
-		return nil, e
+	err := mc.exec("START TRANSACTION")
+	if err != nil {
+		return nil, err
 	}
 
-	return &mysqlTx{mc}, e
+	return &mysqlTx{mc}, err
 }
 
-func (mc *mysqlConn) Close() (e error) {
+func (mc *mysqlConn) Close() (err error) {
 	mc.writeCommandPacket(COM_QUIT)
 	mc.bufReader = nil
 	mc.netConn.Close()
@@ -101,9 +101,9 @@ func (mc *mysqlConn) Close() (e error) {
 
 func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	// Send command
-	e := mc.writeCommandPacket(COM_STMT_PREPARE, query)
-	if e != nil {
-		return nil, e
+	err := mc.writeCommandPacket(COM_STMT_PREPARE, query)
+	if err != nil {
+		return nil, err
 	}
 
 	stmt := mysqlStmt{new(stmtContent)}
@@ -111,26 +111,26 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 
 	// Read Result
 	var columnCount uint16
-	columnCount, e = stmt.readPrepareResultPacket()
-	if e != nil {
-		return nil, e
+	columnCount, err = stmt.readPrepareResultPacket()
+	if err != nil {
+		return nil, err
 	}
 
 	if stmt.paramCount > 0 {
-		stmt.params, e = stmt.mc.readColumns(stmt.paramCount)
-		if e != nil {
-			return nil, e
+		stmt.params, err = stmt.mc.readColumns(stmt.paramCount)
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	if columnCount > 0 {
-		_, e = stmt.mc.readUntilEOF()
-		if e != nil {
-			return nil, e
+		_, err = stmt.mc.readUntilEOF()
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	return stmt, e
+	return stmt, err
 }
 
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
@@ -141,40 +141,40 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 	mc.affectedRows = 0
 	mc.insertId = 0
 
-	e := mc.exec(query)
-	if e != nil {
-		return nil, e
+	err := mc.exec(query)
+	if err != nil {
+		return nil, err
 	}
 
 	return &mysqlResult{
 			affectedRows: int64(mc.affectedRows),
 			insertId:     int64(mc.insertId)},
-		e
+		err
 }
 
 // Internal function to execute commands
-func (mc *mysqlConn) exec(query string) (e error) {
+func (mc *mysqlConn) exec(query string) (err error) {
 	// Send command
-	e = mc.writeCommandPacket(COM_QUERY, query)
-	if e != nil {
+	err = mc.writeCommandPacket(COM_QUERY, query)
+	if err != nil {
 		return
 	}
 
 	// Read Result
 	var resLen int
-	resLen, e = mc.readResultSetHeaderPacket()
-	if e != nil {
+	resLen, err = mc.readResultSetHeaderPacket()
+	if err != nil {
 		return
 	}
 
 	if resLen > 0 {
-		_, e = mc.readUntilEOF()
-		if e != nil {
+		_, err = mc.readUntilEOF()
+		if err != nil {
 			return
 		}
 
-		mc.affectedRows, e = mc.readUntilEOF()
-		if e != nil {
+		mc.affectedRows, err = mc.readUntilEOF()
+		if err != nil {
 			return
 		}
 	}
@@ -188,27 +188,27 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 	}
 
 	// Send command
-	e := mc.writeCommandPacket(COM_QUERY, query)
-	if e != nil {
-		return nil, e
+	err := mc.writeCommandPacket(COM_QUERY, query)
+	if err != nil {
+		return nil, err
 	}
 
 	// Read Result
 	var resLen int
-	resLen, e = mc.readResultSetHeaderPacket()
-	if e != nil {
-		return nil, e
+	resLen, err = mc.readResultSetHeaderPacket()
+	if err != nil {
+		return nil, err
 	}
 
 	rows := mysqlRows{&rowsContent{mc, false, nil, false}}
 
 	if resLen > 0 {
 		// Columns
-		rows.content.columns, e = mc.readColumns(resLen)
-		if e != nil {
-			return nil, e
+		rows.content.columns, err = mc.readColumns(resLen)
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	return rows, e
+	return rows, err
 }
