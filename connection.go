@@ -2,7 +2,7 @@
 //
 // Copyright 2012 Julien Schmidt. All rights reserved.
 // http://www.julienschmidt.com
-// 
+//
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -203,10 +203,6 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 	e := mc.exec(query)
 	if e != nil {
 		return nil, e
-	}
-
-	if mc.affectedRows == 0 && mc.insertId == 0 {
-		return driver.ResultNoRows, e
 	}
 
 	return &mysqlResult{
