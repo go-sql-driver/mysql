@@ -24,12 +24,10 @@ import (
 // Logger
 var (
 	errLog *log.Logger
-	dbgLog *log.Logger
 )
 
 func init() {
-	errLog = log.New(os.Stderr, "[MySQL] ", log.LstdFlags)
-	dbgLog = log.New(os.Stdout, "[MySQL] ", log.LstdFlags)
+	errLog = log.New(os.Stderr, "[MySQL] ", log.Ldate|log.Ltime|log.Lshortfile)
 
 	dsnPattern = regexp.MustCompile(
 		`^(?:(?P<user>.*?)(?::(?P<passwd>.*))?@)?` + // [user[:password]@]

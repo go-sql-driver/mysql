@@ -61,9 +61,10 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		if err == nil {
 			err = fmt.Errorf("Length of read data (%d) does not match body length (%d)", n, pktLen)
 		}
-		errLog.Print(`packets:64 `, err)
+		errLog.Print(err)
 		return nil, driver.ErrBadConn
 	}
+
 	return data, err
 }
 
@@ -81,7 +82,7 @@ func (mc *mysqlConn) readNumber(nr uint8) (uint64, error) {
 		if err == nil {
 			err = fmt.Errorf("Length of read data (%d) does not match header length (%d)", n, nr)
 		}
-		errLog.Print(`packets:84 `, err)
+		errLog.Print(err)
 		return 0, driver.ErrBadConn
 	}
 
@@ -100,7 +101,7 @@ func (mc *mysqlConn) writePacket(data *[]byte) error {
 		if err == nil {
 			err = errors.New("Length of send data does not match packet length")
 		}
-		errLog.Print(`packets:103 `, err)
+		errLog.Print(err)
 		return driver.ErrBadConn
 	}
 
@@ -442,7 +443,7 @@ The order of packets for a result set is:
 func (mc *mysqlConn) readResultSetHeaderPacket() (fieldCount int, err error) {
 	data, err := mc.readPacket()
 	if err != nil {
-		errLog.Print(`packets:446 `, err)
+		errLog.Print(err)
 		err = driver.ErrBadConn
 		return
 	}
