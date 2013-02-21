@@ -12,6 +12,7 @@ package mysql
 import (
 	"bufio"
 	"database/sql/driver"
+	"errors"
 	"net"
 	"strings"
 )
@@ -64,11 +65,12 @@ func (mc *mysqlConn) handleParams() (err error) {
 
 		// TLS-Encryption
 		case "tls":
-			dbgLog.Print("TLS-Encryption not implemented yet")
+			err = errors.New("TLS-Encryption not implemented yet")
+			return
 
 		// Compression
 		case "compress":
-			dbgLog.Print("Compression not implemented yet")
+			err = errors.New("Compression not implemented yet")
 
 		// System Vars
 		default:
