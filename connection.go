@@ -108,8 +108,9 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 		return nil, err
 	}
 
-	stmt := mysqlStmt{new(stmtContent)}
-	stmt.mc = mc
+	stmt := &mysqlStmt{
+		mc: mc,
+	}
 
 	// Read Result
 	var columnCount uint16
@@ -202,11 +203,11 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 		return nil, err
 	}
 
-	rows := mysqlRows{&rowsContent{mc, false, nil, false}}
+	rows := &mysqlRows{mc, false, nil, false}
 
 	if resLen > 0 {
 		// Columns
-		rows.content.columns, err = mc.readColumns(resLen)
+		rows.columns, err = mc.readColumns(resLen)
 		if err != nil {
 			return nil, err
 		}

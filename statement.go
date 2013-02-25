@@ -14,28 +14,24 @@ import (
 	"errors"
 )
 
-type stmtContent struct {
+type mysqlStmt struct {
 	mc         *mysqlConn
 	id         uint32
 	paramCount int
 	params     []mysqlField
 }
 
-type mysqlStmt struct {
-	*stmtContent
-}
-
-func (stmt mysqlStmt) Close() (err error) {
+func (stmt *mysqlStmt) Close() (err error) {
 	err = stmt.mc.writeCommandPacket(COM_STMT_CLOSE, stmt.id)
 	stmt.mc = nil
 	return
 }
 
-func (stmt mysqlStmt) NumInput() int {
+func (stmt *mysqlStmt) NumInput() int {
 	return stmt.paramCount
 }
 
-func (stmt mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
+func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	if stmt.mc == nil {
 		return nil, errors.New(`Invalid Statement`)
 	}
@@ -72,13 +68,13 @@ func (stmt mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 		return nil, err
 	}
 
-	return mysqlResult{
+	return &mysqlResult{
 			affectedRows: int64(stmt.mc.affectedRows),
 			insertId:     int64(stmt.mc.insertId)},
 		nil
 }
 
-func (stmt mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
+func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 	if stmt.mc == nil {
 		return nil, errors.New(`Invalid Statement`)
 	}
@@ -96,11 +92,11 @@ func (stmt mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 		return nil, err
 	}
 
-	rows := mysqlRows{&rowsContent{stmt.mc, true, nil, false}}
+	rows := &mysqlRows{stmt.mc, true, nil, false}
 
 	if resLen > 0 {
 		// Columns
-		rows.content.columns, err = stmt.mc.readColumns(resLen)
+		rows.columns, err = stmt.mc.readColumns(resLen)
 		if err != nil {
 			return nil, err
 		}

@@ -21,38 +21,33 @@ type mysqlField struct {
 	flags     FieldFlag
 }
 
-type rowsContent struct {
+type mysqlRows struct {
 	mc      *mysqlConn
 	binary  bool
 	columns []mysqlField
 	eof     bool
 }
 
-type mysqlRows struct {
-	content *rowsContent
-}
-
-func (rows mysqlRows) Columns() (columns []string) {
-	columns = make([]string, len(rows.content.columns))
+func (rows *mysqlRows) Columns() (columns []string) {
+	columns = make([]string, len(rows.columns))
 	for i := 0; i < cap(columns); i++ {
-		columns[i] = rows.content.columns[i].name
+		columns[i] = rows.columns[i].name
 	}
 	return
 }
 
-func (rows mysqlRows) Close() (err error) {
+func (rows *mysqlRows) Close() (err error) {
 	defer func() {
-		rows.content.mc = nil
-		rows.content = nil
+		rows.mc = nil
 	}()
 
 	// Remove unread packets from stream
-	if !rows.content.eof {
-		if rows.content.mc == nil {
+	if !rows.eof {
+		if rows.mc == nil {
 			return errors.New("Invalid Connection")
 		}
 
-		_, err = rows.content.mc.readUntilEOF()
+		_, err = rows.mc.readUntilEOF()
 		if err != nil {
 			return
 		}
@@ -65,12 +60,12 @@ func (rows mysqlRows) Close() (err error) {
 // or []byte's for all other entries. Type conversion is done on rows.scan(),
 // when the dest type is know, which makes type conversion easier and avoids
 // unnecessary conversions.
-func (rows mysqlRows) Next(dest []driver.Value) error {
-	if rows.content.eof {
+func (rows *mysqlRows) Next(dest []driver.Value) error {
+	if rows.eof {
 		return io.EOF
 	}
 
-	if rows.content.mc == nil {
+	if rows.mc == nil {
 		return errors.New("Invalid Connection")
 	}
 
@@ -79,15 +74,15 @@ func (rows mysqlRows) Next(dest []driver.Value) error {
 	// Fetch next row from stream
 	var row *[]*[]byte
 	var err error
-	if rows.content.binary {
-		row, err = rows.content.mc.readBinaryRow(rows.content)
+	if rows.binary {
+		row, err = rows.mc.readBinaryRow(rows)
 	} else {
-		row, err = rows.content.mc.readRow(columnsCount)
+		row, err = rows.mc.readRow(columnsCount)
 	}
 
 	if err != nil {
 		if err == io.EOF {
-			rows.content.eof = true
+			rows.eof = true
 		}
 		return err
 	}

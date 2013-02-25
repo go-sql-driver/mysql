@@ -658,7 +658,7 @@ Prepare OK Packet
         (EOF packet)
 
 */
-func (stmt mysqlStmt) readPrepareResultPacket() (columnCount uint16, err error) {
+func (stmt *mysqlStmt) readPrepareResultPacket() (columnCount uint16, err error) {
 	data, err := stmt.mc.readPacket()
 	if err != nil {
 		return
@@ -704,7 +704,7 @@ Bytes                Name
 n*2                  type of parameters
 n                    values for the parameters
 */
-func (stmt mysqlStmt) buildExecutePacket(args *[]driver.Value) error {
+func (stmt *mysqlStmt) buildExecutePacket(args *[]driver.Value) error {
 	argsLen := len(*args)
 	if argsLen < stmt.paramCount {
 		return fmt.Errorf(
@@ -838,7 +838,7 @@ func (stmt mysqlStmt) buildExecutePacket(args *[]driver.Value) error {
 }
 
 // http://dev.mysql.com/doc/internals/en/prepared-statements.html#packet-ProtocolBinary::ResultsetRow
-func (mc *mysqlConn) readBinaryRow(rc *rowsContent) (*[]*[]byte, error) {
+func (mc *mysqlConn) readBinaryRow(rc *mysqlRows) (*[]*[]byte, error) {
 	data, err := mc.readPacket()
 	if err != nil {
 		return nil, err
