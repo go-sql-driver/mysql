@@ -4,11 +4,9 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
 
 ![Go-MySQL-Driver logo](https://raw.github.com/wiki/Go-SQL-Driver/MySQL/go-mysql-driver_m.jpg "Golang Gopher transporting the MySQL Dolphin in a wheelbarrow")
 
-**Current tagged Release:** February 25, 2013 *(beta 3 [stable])*
+**Current tagged Release:** February 25, 2013 *(**stable** beta 3)*
 
 [![Build Status](https://travis-ci.org/Go-SQL-Driver/MySQL.png?branch=master)](https://travis-ci.org/Go-SQL-Driver/MySQL) *(master branch)*
-
-Note: `go get` doesn't install the `master` branch, but the tag `go1`, which build status is always checked before tagging!
 
 ---------------------------------------
   * [Features](#features)
