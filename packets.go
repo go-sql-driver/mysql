@@ -406,23 +406,22 @@ func (mc *mysqlConn) handleOkPacket(data []byte) (err error) {
 	// Position
 	pos := 1
 
+	var n int
+
 	// Affected rows [Length Coded Binary]
-	affectedRows, n, err := bytesToLengthCodedBinary(data[pos:])
+	mc.affectedRows, n, err = bytesToLengthCodedBinary(data[pos:])
 	if err != nil {
 		return
 	}
 	pos += n
 
 	// Insert id [Length Coded Binary]
-	insertID, n, err := bytesToLengthCodedBinary(data[pos:])
+	mc.insertId, n, err = bytesToLengthCodedBinary(data[pos:])
 	if err != nil {
 		return
 	}
 
 	// Skip remaining data
-
-	mc.affectedRows = affectedRows
-	mc.insertId = insertID
 
 	return
 }
@@ -602,7 +601,6 @@ func (mc *mysqlConn) readRow(columnsCount int) (*[]*[]byte, error) {
 		pos += n
 	}
 
-	mc.affectedRows++
 	return &row, nil
 }
 
@@ -1035,6 +1033,5 @@ func (mc *mysqlConn) readBinaryRow(rc *mysqlRows) (*[]*[]byte, error) {
 		}
 	}
 
-	mc.affectedRows++
 	return &row, nil
 }

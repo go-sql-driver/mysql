@@ -176,10 +176,13 @@ func (mc *mysqlConn) exec(query string) (err error) {
 			return
 		}
 
-		mc.affectedRows, err = mc.readUntilEOF()
-		if err != nil {
+		if mc.affectedRows > 0 {
+			_, err = mc.readUntilEOF()
 			return
 		}
+
+		mc.affectedRows, err = mc.readUntilEOF()
+		return
 	}
 
 	return
