@@ -2,21 +2,21 @@
 //
 // Copyright 2012 Julien Schmidt. All rights reserved.
 // http://www.julienschmidt.com
-// 
+//
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
 
 package mysql
 
-// Constants documentation:
-// http://dev.mysql.com/doc/internals/en/client-server-protocol.html
-
 const (
 	MIN_PROTOCOL_VERSION = 10
 	MAX_PACKET_SIZE      = 1<<24 - 1
 	TIME_FORMAT          = "2006-01-02 15:04:05"
 )
+
+// MySQL constants documentation:
+// http://dev.mysql.com/doc/internals/en/client-server-protocol.html
 
 type ClientFlag uint32
 

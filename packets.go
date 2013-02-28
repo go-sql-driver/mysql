@@ -330,10 +330,10 @@ func (mc *mysqlConn) writeCommandPacket(command commandType, args ...interface{}
 ******************************************************************************/
 
 // Returns error if Packet is not an 'Result OK'-Packet
-func (mc *mysqlConn) readResultOK() (err error) {
+func (mc *mysqlConn) readResultOK() error {
 	data, err := mc.readPacket()
 	if err != nil {
-		return
+		return err
 	}
 
 	switch data[0] {
@@ -342,17 +342,13 @@ func (mc *mysqlConn) readResultOK() (err error) {
 		return mc.handleOkPacket(data)
 	// EOF, someone is using old_passwords
 	case 254:
-		err = errors.New("It seems like you are using old_passwords, which is unsupported. See https://github.com/Go-SQL-Driver/MySQL/wiki/old_passwords")
-		return
+		return errors.New("It seems like you are using old_passwords, which is unsupported. See https://github.com/Go-SQL-Driver/MySQL/wiki/old_passwords")
 	// ERROR
 	case 255:
 		return mc.handleErrorPacket(data)
-	default:
-		err = errors.New("Invalid Result Packet-Type")
-		return
 	}
 
-	return
+	return errors.New("Invalid Result Packet-Type")
 }
 
 /* Error Packet
@@ -364,10 +360,9 @@ Bytes                       Name
 5                           sqlstate (5 characters)
 n                           message
 */
-func (mc *mysqlConn) handleErrorPacket(data []byte) (err error) {
+func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 	if data[0] != 255 {
-		err = errors.New("Wrong Packet-Type: Not an Error-Packet")
-		return
+		return errors.New("Wrong Packet-Type: Not an Error-Packet")
 	}
 
 	pos := 1
@@ -383,8 +378,7 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) (err error) {
 	// Error Message [string]
 	message := string(data[pos:])
 
-	err = fmt.Errorf("Error %d: %s", errno, message)
-	return
+	return fmt.Errorf("Error %d: %s", errno, message)
 }
 
 /* Ok Packet
@@ -604,7 +598,7 @@ func (mc *mysqlConn) readRow(columnsCount int) (*[]*[]byte, error) {
 	return &row, nil
 }
 
-// Reads Packets Packets until EOF-Packet or an Error appears. Returns count of Packets read
+// Reads Packets until EOF-Packet or an Error appears. Returns count of Packets read
 func (mc *mysqlConn) readUntilEOF() (count uint64, err error) {
 	var data []byte
 

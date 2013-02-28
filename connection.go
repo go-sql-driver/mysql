@@ -95,6 +95,7 @@ func (mc *mysqlConn) Begin() (driver.Tx, error) {
 
 func (mc *mysqlConn) Close() (err error) {
 	mc.writeCommandPacket(COM_QUIT)
+	mc.cfg = nil
 	mc.bufReader = nil
 	mc.netConn.Close()
 	mc.netConn = nil
@@ -150,9 +151,9 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 	}
 
 	return &mysqlResult{
-			affectedRows: int64(mc.affectedRows),
-			insertId:     int64(mc.insertId)},
-		err
+		affectedRows: int64(mc.affectedRows),
+		insertId:     int64(mc.insertId),
+	}, err
 }
 
 // Internal function to execute commands
