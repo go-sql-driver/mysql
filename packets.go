@@ -26,10 +26,10 @@ import (
 func (mc *mysqlConn) readPacket() (data []byte, err error) {
 	// Read header
 	data = make([]byte, 4)
-	var n, add int
-	for err == nil && n < 4 {
-		add, err = mc.bufReader.Read(data[n:])
-		n += add
+	err = mc.buf.read(data)
+	if err != nil {
+		errLog.Print(err)
+		return nil, driver.ErrBadConn
 	}
 
 	// Packet Length
@@ -55,15 +55,8 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 
 	// Read rest of packet
 	data = make([]byte, pktLen)
-	n = 0
-	for err == nil && n < int(pktLen) {
-		add, err = mc.bufReader.Read(data[n:])
-		n += add
-	}
-	if err != nil || n < int(pktLen) {
-		if err == nil {
-			err = fmt.Errorf("Length of read data (%d) does not match body length (%d)", n, pktLen)
-		}
+	err = mc.buf.read(data)
+	if err != nil {
 		errLog.Print(err)
 		return nil, driver.ErrBadConn
 	}

@@ -10,7 +10,6 @@
 package mysql
 
 import (
-	"bufio"
 	"database/sql/driver"
 	"errors"
 	"net"
@@ -21,7 +20,7 @@ type mysqlConn struct {
 	cfg          *config
 	server       *serverSettings
 	netConn      net.Conn
-	bufReader    *bufio.Reader
+	buf          *buffer
 	protocol     uint8
 	sequence     uint8
 	affectedRows uint64
@@ -96,7 +95,7 @@ func (mc *mysqlConn) Begin() (driver.Tx, error) {
 func (mc *mysqlConn) Close() (err error) {
 	mc.writeCommandPacket(COM_QUIT)
 	mc.cfg = nil
-	mc.bufReader = nil
+	mc.buf = nil
 	mc.netConn.Close()
 	mc.netConn = nil
 	return

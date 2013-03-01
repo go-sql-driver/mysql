@@ -9,7 +9,6 @@
 package mysql
 
 import (
-	"bufio"
 	"database/sql"
 	"database/sql/driver"
 	"net"
@@ -32,7 +31,7 @@ func (d *mysqlDriver) Open(dsn string) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	mc.bufReader = bufio.NewReader(mc.netConn)
+	mc.buf = newBuffer(mc.netConn)
 
 	// Reading Handshake Initialization Packet
 	err = mc.readInitPacket()
