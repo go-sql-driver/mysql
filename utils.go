@@ -12,6 +12,7 @@ package mysql
 import (
 	"bytes"
 	"crypto/sha1"
+	"encoding/binary"
 	"io"
 	"log"
 	"math"
@@ -130,63 +131,39 @@ func readSlice(data []byte, delim byte) (slice []byte, err error) {
 	return
 }
 
-func readLengthCodedBinary(data []byte) (*[]byte, int, bool, error) {
+func readLengthEnodedString(data []byte) ([]byte, bool, int, error) {
 	// Get length
-	num, n, err := bytesToLengthCodedBinary(data)
-	if err != nil {
-		return nil, n, true, err
+	num, isNull, n, err := bytesToLengthEncodedInteger(data)
+	if err != nil || isNull {
+		return nil, isNull, n, err
 	}
 
 	// Check data length
 	if len(data) < n+int(num) {
-		return nil, n, true, io.EOF
+		return nil, true, n, io.EOF
 	}
 
-	// Check if value is NULL
-	var isNull bool
-	if data[0] == 251 {
-		isNull = true
-	} else {
-		isNull = false
-	}
-
-	// Get bytes
-	b := data[n : n+int(num)]
-	n += int(num)
-	return &b, n, isNull, err
+	return data[n : n+int(num)], isNull, n + int(num), err
 }
 
-func readAndDropLengthCodedBinary(data []byte) (n int, err error) {
+func readAndDropLengthEnodedString(data []byte) (n int, err error) {
 	// Get length
-	num, n, err := bytesToLengthCodedBinary(data)
-	if err != nil {
-		return
+	num, _, n, err := bytesToLengthEncodedInteger(data)
+	if err != nil || num < 1 {
+		return n, err
 	}
 
 	// Check data length
 	if len(data) < n+int(num) {
-		err = io.EOF
-		return
+		return n, io.EOF
 	}
 
-	n += int(num)
-	return
+	return n + int(num), err
 }
 
 /******************************************************************************
 *                       Convert from and to bytes                             *
 ******************************************************************************/
-
-func byteToUint8(b byte) (n uint8) {
-	n |= uint8(b)
-	return
-}
-
-func bytesToUint16(b []byte) (n uint16) {
-	n |= uint16(b[0])
-	n |= uint16(b[1]) << 8
-	return
-}
 
 func uint24ToBytes(n uint32) (b []byte) {
 	b = make([]byte, 3)
@@ -196,24 +173,10 @@ func uint24ToBytes(n uint32) (b []byte) {
 	return
 }
 
-func bytesToUint32(b []byte) (n uint32) {
-	for i := uint8(0); i < 4; i++ {
-		n |= uint32(b[i]) << (i << 3)
-	}
-	return
-}
-
 func uint32ToBytes(n uint32) (b []byte) {
 	b = make([]byte, 4)
 	for i := uint8(0); i < 4; i++ {
 		b[i] = byte(n >> (i << 3))
-	}
-	return
-}
-
-func bytesToUint64(b []byte) (n uint64) {
-	for i := uint8(0); i < 8; i++ {
-		n |= uint64(b[i]) << (i << 3)
 	}
 	return
 }
@@ -231,58 +194,61 @@ func int64ToBytes(n int64) []byte {
 }
 
 func bytesToFloat32(b []byte) float32 {
-	return math.Float32frombits(bytesToUint32(b))
+	return math.Float32frombits(binary.LittleEndian.Uint32(b))
 }
 
 func bytesToFloat64(b []byte) float64 {
-	return math.Float64frombits(bytesToUint64(b))
+	return math.Float64frombits(binary.LittleEndian.Uint64(b))
 }
 
 func float64ToBytes(f float64) []byte {
 	return uint64ToBytes(math.Float64bits(f))
 }
 
-func bytesToLengthCodedBinary(b []byte) (length uint64, n int, err error) {
-	switch {
-
-	// 0-250: value of first byte
-	case b[0] <= 250:
-		length = uint64(b[0])
-		n = 1
-		return
+func bytesToLengthEncodedInteger(b []byte) (num uint64, isNull bool, n int, err error) {
+	switch b[0] {
 
 	// 251: NULL
-	case b[0] == 251:
-		length = 0
+	case 0xfb:
 		n = 1
+		isNull = true
 		return
 
 	// 252: value of following 2
-	case b[0] == 252:
+	case 0xfc:
 		n = 3
 
 	// 253: value of following 3
-	case b[0] == 253:
+	case 0xfd:
 		n = 4
 
 	// 254: value of following 8
-	case b[0] == 254:
+	case 0xfe:
 		n = 9
-	}
 
-	if len(b) < n {
-		err = io.EOF
+	// 0-250: value of first byte
+	default:
+		num = uint64(b[0])
+		n = 1
 		return
 	}
 
-	// get Length
-	tmp := make([]byte, 8)
-	copy(tmp, b[1:n])
-	length = bytesToUint64(tmp)
+	switch n - 1 {
+	case 2:
+		num = uint64(b[0]) | uint64(b[1])<<8
+		return
+	case 3:
+		num = uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16
+		return
+	default:
+		num = uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 |
+			uint64(b[3])<<24 | uint64(b[4])<<32 | uint64(b[5])<<40 |
+			uint64(b[6])<<48 | uint64(b[7])<<54
+	}
 	return
 }
 
-func lengthCodedBinaryToBytes(n uint64) (b []byte) {
+func lengthEncodedIntegerToBytes(n uint64) (b []byte) {
 	switch {
 	case n <= 250:
 		b = []byte{byte(n)}

@@ -56,10 +56,6 @@ func (rows *mysqlRows) Close() (err error) {
 	return nil
 }
 
-// Next returns []driver.Value filled with either nil values for NULL entries
-// or []byte's for all other entries. Type conversion is done on rows.scan(),
-// when the dest type is know, which makes type conversion easier and avoids
-// unnecessary conversions.
 func (rows *mysqlRows) Next(dest []driver.Value) error {
 	if rows.eof {
 		return io.EOF
