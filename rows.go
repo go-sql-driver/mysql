@@ -69,31 +69,16 @@ func (rows *mysqlRows) Next(dest []driver.Value) error {
 		return errors.New("Invalid Connection")
 	}
 
-	columnsCount := cap(dest)
-
 	// Fetch next row from stream
-	var row *[]*[]byte
 	var err error
 	if rows.binary {
-		row, err = rows.mc.readBinaryRow(rows)
+		err = rows.readBinaryRow(&dest)
 	} else {
-		row, err = rows.mc.readRow(columnsCount)
+		err = rows.readRow(&dest)
 	}
 
-	if err != nil {
-		if err == io.EOF {
-			rows.eof = true
-		}
-		return err
+	if err == io.EOF {
+		rows.eof = true
 	}
-
-	for i := 0; i < columnsCount; i++ {
-		if (*row)[i] == nil {
-			dest[i] = nil
-		} else {
-			dest[i] = *(*row)[i]
-		}
-	}
-
-	return nil
+	return err
 }
