@@ -25,7 +25,7 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
 ---------------------------------------
 
 ## Features
-  * Lightweight and fast
+  * Lightweight and [fast](https://github.com/Go-SQL-Driver/SQL-Benchmark golang MySQL-Driver performance)
   * Native Go implementation. No C-bindings, just pure Go
   * No unsafe operations *(e.g. type-conversions)*
   * Connections over TCP/IPv4, TCP/IPv6 or Unix Sockets
