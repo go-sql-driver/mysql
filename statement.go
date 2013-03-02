@@ -39,7 +39,7 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	stmt.mc.insertId = 0
 
 	// Send command
-	err := stmt.buildExecutePacket(&args)
+	err := stmt.buildExecutePacket(args)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 	}
 
 	// Send command
-	err := stmt.buildExecutePacket(&args)
+	err := stmt.buildExecutePacket(args)
 	if err != nil {
 		return nil, err
 	}

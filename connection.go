@@ -18,7 +18,9 @@ import (
 
 type mysqlConn struct {
 	cfg          *config
-	server       *serverSettings
+	flags        ClientFlag
+	charset      byte
+	scrambleBuff []byte
 	netConn      net.Conn
 	buf          *buffer
 	protocol     uint8
@@ -34,15 +36,6 @@ type config struct {
 	addr   string
 	dbname string
 	params map[string]string
-}
-
-type serverSettings struct {
-	protocol     byte
-	version      string
-	flags        ClientFlag
-	charset      uint8
-	scrambleBuff []byte
-	threadID     uint32
 }
 
 // Handles parameters set in DSN

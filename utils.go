@@ -10,15 +10,11 @@
 package mysql
 
 import (
-	"bytes"
 	"crypto/sha1"
-	"encoding/binary"
 	"io"
 	"log"
-	"math"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -85,9 +81,9 @@ func parseDSN(dsn string) *config {
 
 // Encrypt password using 4.1+ method
 // http://forge.mysql.com/wiki/MySQL_Internals_ClientServer_Protocol#4.1_and_later
-func scramblePassword(scramble, password []byte) (result []byte) {
+func scramblePassword(scramble, password []byte) []byte {
 	if len(password) == 0 {
-		return
+		return nil
 	}
 
 	// stage1Hash = SHA1(password)
@@ -108,105 +104,81 @@ func scramblePassword(scramble, password []byte) (result []byte) {
 	scrambleHash = crypt.Sum(nil)
 
 	// token = scrambleHash XOR stage1Hash
-	result = make([]byte, 20)
+	result := make([]byte, 20)
 	for i := range result {
 		result[i] = scrambleHash[i] ^ stage1Hash[i]
 	}
-	return
-}
-
-/******************************************************************************
-*                       Read data-types from bytes                            *
-******************************************************************************/
-
-// Read a slice from the data slice
-func readSlice(data []byte, delim byte) (slice []byte, err error) {
-	pos := bytes.IndexByte(data, delim)
-	if pos > -1 {
-		slice = data[:pos]
-	} else {
-		slice = data
-		err = io.EOF
-	}
-	return
-}
-
-func readLengthEnodedString(data []byte) ([]byte, bool, int, error) {
-	// Get length
-	num, isNull, n, err := bytesToLengthEncodedInteger(data)
-	if err != nil || isNull {
-		return nil, isNull, n, err
-	}
-
-	// Check data length
-	if len(data) < n+int(num) {
-		return nil, true, n, io.EOF
-	}
-
-	return data[n : n+int(num)], isNull, n + int(num), err
-}
-
-func readAndDropLengthEnodedString(data []byte) (n int, err error) {
-	// Get length
-	num, _, n, err := bytesToLengthEncodedInteger(data)
-	if err != nil || num < 1 {
-		return n, err
-	}
-
-	// Check data length
-	if len(data) < n+int(num) {
-		return n, io.EOF
-	}
-
-	return n + int(num), err
+	return result[0:]
 }
 
 /******************************************************************************
 *                       Convert from and to bytes                             *
 ******************************************************************************/
 
-func uint24ToBytes(n uint32) (b []byte) {
-	b = make([]byte, 3)
-	for i := uint8(0); i < 3; i++ {
-		b[i] = byte(n >> (i << 3))
+func uint24ToBytes(n uint32) []byte {
+	return []byte{
+		byte(n),
+		byte(n >> 8),
+		byte(n >> 16),
 	}
-	return
 }
 
-func uint32ToBytes(n uint32) (b []byte) {
-	b = make([]byte, 4)
-	for i := uint8(0); i < 4; i++ {
-		b[i] = byte(n >> (i << 3))
+func uint32ToBytes(n uint32) []byte {
+	return []byte{
+		byte(n),
+		byte(n >> 8),
+		byte(n >> 16),
+		byte(n >> 24),
 	}
-	return
 }
 
-func uint64ToBytes(n uint64) (b []byte) {
-	b = make([]byte, 8)
-	for i := uint8(0); i < 8; i++ {
-		b[i] = byte(n >> (i << 3))
+func uint64ToBytes(n uint64) []byte {
+	return []byte{
+		byte(n),
+		byte(n >> 8),
+		byte(n >> 16),
+		byte(n >> 24),
+		byte(n >> 32),
+		byte(n >> 40),
+		byte(n >> 48),
+		byte(n >> 56),
 	}
-	return
 }
 
-func int64ToBytes(n int64) []byte {
-	return uint64ToBytes(uint64(n))
+func readLengthEnodedString(b []byte) ([]byte, int, error) {
+	// Get length
+	num, _, n, err := readLengthEncodedInteger(b)
+	if err != nil || num < 1 {
+		return nil, n, err
+	}
+
+	n += int(num)
+
+	// Check data length
+	if len(b) >= n {
+		return b[n-int(num) : n], n, err
+	}
+	return nil, n, io.EOF
 }
 
-func bytesToFloat32(b []byte) float32 {
-	return math.Float32frombits(binary.LittleEndian.Uint32(b))
+func readAndDropLengthEnodedString(b []byte) (n int, err error) {
+	// Get length
+	num, _, n, err := readLengthEncodedInteger(b)
+	if err != nil || num < 1 {
+		return
+	}
+
+	n += int(num)
+
+	// Check data length
+	if len(b) >= n {
+		return
+	}
+	return n, io.EOF
 }
 
-func bytesToFloat64(b []byte) float64 {
-	return math.Float64frombits(binary.LittleEndian.Uint64(b))
-}
-
-func float64ToBytes(f float64) []byte {
-	return uint64ToBytes(math.Float64bits(f))
-}
-
-func bytesToLengthEncodedInteger(b []byte) (num uint64, isNull bool, n int, err error) {
-	switch b[0] {
+func readLengthEncodedInteger(b []byte) (num uint64, isNull bool, n int, err error) {
+	switch (b)[0] {
 
 	// 251: NULL
 	case 0xfb:
@@ -248,32 +220,16 @@ func bytesToLengthEncodedInteger(b []byte) (num uint64, isNull bool, n int, err 
 	return
 }
 
-func lengthEncodedIntegerToBytes(n uint64) (b []byte) {
+func lengthEncodedIntegerToBytes(n uint64) []byte {
 	switch {
 	case n <= 250:
-		b = []byte{byte(n)}
+		return []byte{byte(n)}
 
 	case n <= 0xffff:
-		b = []byte{0xfc, byte(n), byte(n >> 8)}
+		return []byte{0xfc, byte(n), byte(n >> 8)}
 
 	case n <= 0xffffff:
-		b = []byte{0xfd, byte(n), byte(n >> 8), byte(n >> 16)}
+		return []byte{0xfd, byte(n), byte(n >> 8), byte(n >> 16)}
 	}
-	return
-}
-
-func intToByteStr(i int64) (b []byte) {
-	return strconv.AppendInt(b, i, 10)
-}
-
-func uintToByteStr(u uint64) (b []byte) {
-	return strconv.AppendUint(b, u, 10)
-}
-
-func float32ToByteStr(f float32) (b []byte) {
-	return strconv.AppendFloat(b, float64(f), 'f', -1, 32)
-}
-
-func float64ToByteStr(f float64) (b []byte) {
-	return strconv.AppendFloat(b, f, 'f', -1, 64)
+	return nil
 }

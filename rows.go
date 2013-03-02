@@ -30,7 +30,7 @@ type mysqlRows struct {
 
 func (rows *mysqlRows) Columns() (columns []string) {
 	columns = make([]string, len(rows.columns))
-	for i := 0; i < cap(columns); i++ {
+	for i := range columns {
 		columns[i] = rows.columns[i].name
 	}
 	return
@@ -48,12 +48,9 @@ func (rows *mysqlRows) Close() (err error) {
 		}
 
 		_, err = rows.mc.readUntilEOF()
-		if err != nil {
-			return
-		}
 	}
 
-	return nil
+	return
 }
 
 func (rows *mysqlRows) Next(dest []driver.Value) error {
@@ -68,9 +65,9 @@ func (rows *mysqlRows) Next(dest []driver.Value) error {
 	// Fetch next row from stream
 	var err error
 	if rows.binary {
-		err = rows.readBinaryRow(&dest)
+		err = rows.readBinaryRow(dest)
 	} else {
-		err = rows.readRow(&dest)
+		err = rows.readRow(dest)
 	}
 
 	if err == io.EOF {

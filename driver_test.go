@@ -301,7 +301,7 @@ func TestString(t *testing.T) {
 		if rows.Next() {
 			rows.Scan(&out)
 			if in != out {
-				t.Errorf("%s: %d != %d", v, in, out)
+				t.Errorf("%s: %s != %s", v, in, out)
 			}
 		} else {
 			t.Errorf("%s: no data", v)
