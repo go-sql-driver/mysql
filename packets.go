@@ -828,16 +828,22 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 		// Date YYYY-MM-DD
 		case FIELD_TYPE_DATE, FIELD_TYPE_NEWDATE:
 			var num uint64
-			// TODO(js): allow nil values
-			num, _, n, err = readLengthEncodedInteger(data[pos:])
+			var isNull bool
+			num, isNull, n, err = readLengthEncodedInteger(data[pos:])
 			if err != nil {
 				return
 			}
 
 			if num == 0 {
-				dest[i] = []byte("0000-00-00")
-				pos += n
-				continue
+				if isNull {
+					dest[i] = nil
+					pos++ // n = 1
+					continue
+				} else {
+					dest[i] = []byte("0000-00-00")
+					pos++ // n = 1
+					continue
+				}
 			} else {
 				dest[i] = []byte(fmt.Sprintf("%04d-%02d-%02d",
 					binary.LittleEndian.Uint16(data[pos:pos+2]),
@@ -847,62 +853,120 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 				continue
 			}
 
-		// Time HH:MM:SS
+		// Time [-][H]HH:MM:SS[.fractal]
 		case FIELD_TYPE_TIME:
 			var num uint64
-			// TODO(js): allow nil values
-			num, _, n, err = readLengthEncodedInteger(data[pos:])
+			var isNull bool
+			num, isNull, n, err = readLengthEncodedInteger(data[pos:])
 			if err != nil {
 				return
 			}
 
 			if num == 0 {
-				dest[i] = []byte("00:00:00")
-				pos += n
-				continue
-			} else {
-				dest[i] = []byte(fmt.Sprintf("%02d:%02d:%02d",
-					data[pos+6],
-					data[pos+7],
-					data[pos+8]))
-				pos += n + int(num)
-				continue
+				if isNull {
+					dest[i] = nil
+					pos++ // n = 1
+					continue
+				} else {
+					dest[i] = []byte("00:00:00")
+					pos++ // n = 1
+					continue
+				}
 			}
 
-		// Timestamp YYYY-MM-DD HH:MM:SS
+			pos += n
+
+			var sign byte
+			if data[pos] == 1 {
+				sign = byte('-')
+			}
+
+			switch num {
+			case 8:
+				dest[i] = []byte(fmt.Sprintf(
+					"%c%02d:%02d:%02d",
+					sign,
+					uint16(data[pos+1])*24+uint16(data[pos+5]),
+					data[pos+6],
+					data[pos+7],
+				))
+				pos += 8
+				continue
+			case 12:
+				dest[i] = []byte(fmt.Sprintf(
+					"%c%02d:%02d:%02d.%06d",
+					sign,
+					uint16(data[pos+1])*24+uint16(data[pos+5]),
+					data[pos+6],
+					data[pos+7],
+					binary.LittleEndian.Uint32(data[pos+8:pos+12]),
+				))
+				pos += 12
+				continue
+			default:
+				return fmt.Errorf("Invalid TIME-packet length %d", num)
+			}
+
+		// Timestamp YYYY-MM-DD HH:MM:SS[.fractal]
 		case FIELD_TYPE_TIMESTAMP, FIELD_TYPE_DATETIME:
 			var num uint64
-			// TODO(js): allow nil values
-			num, _, n, err = readLengthEncodedInteger(data[pos:])
+			var isNull bool
+			num, isNull, n, err = readLengthEncodedInteger(data[pos:])
 			if err != nil {
 				return
 			}
 
+			if num == 0 {
+				if isNull {
+					dest[i] = nil
+					pos++ // n = 1
+					continue
+				} else {
+					dest[i] = []byte("0000-00-00 00:00:00")
+					pos++ // n = 1
+					continue
+				}
+			}
+
+			pos += n
+
 			switch num {
-			case 0:
-				dest[i] = []byte("0000-00-00 00:00:00")
-				pos += n
-				continue
 			case 4:
-				dest[i] = []byte(fmt.Sprintf("%04d-%02d-%02d 00:00:00",
+				dest[i] = []byte(fmt.Sprintf(
+					"%04d-%02d-%02d 00:00:00",
 					binary.LittleEndian.Uint16(data[pos:pos+2]),
 					data[pos+2],
-					data[pos+3]))
-				pos += n + int(num)
+					data[pos+3],
+				))
+				pos += 5
 				continue
-			default:
-				if num < 7 {
-					return fmt.Errorf("Invalid datetime-packet length %d", num)
-				}
-				dest[i] = []byte(fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+			case 7:
+				dest[i] = []byte(fmt.Sprintf(
+					"%04d-%02d-%02d %02d:%02d:%02d",
 					binary.LittleEndian.Uint16(data[pos:pos+2]),
 					data[pos+2],
 					data[pos+3],
 					data[pos+4],
 					data[pos+5],
-					data[pos+6]))
-				pos += n + int(num)
+					data[pos+6],
+				))
+				pos += 7
 				continue
+			case 11:
+				dest[i] = []byte(fmt.Sprintf(
+					"%04d-%02d-%02d %02d:%02d:%02d.%06d",
+					binary.LittleEndian.Uint16(data[pos:pos+2]),
+					data[pos+2],
+					data[pos+3],
+					data[pos+4],
+					data[pos+5],
+					data[pos+6],
+					binary.LittleEndian.Uint32(data[pos+7:pos+11]),
+				))
+				pos += 11
+				continue
+			default:
+				return fmt.Errorf("Invalid DATETIME-packet length %d", num)
 			}
 
 		// Please report if this happens!
