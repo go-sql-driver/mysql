@@ -66,16 +66,17 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 func (mc *mysqlConn) writePacket(data []byte) error {
 	// Write packet
 	n, err := mc.netConn.Write(data)
-	if err != nil || n != len(data) {
-		if err == nil {
-			errLog.Print(errMalformPkt)
-		}
-		errLog.Print(err)
-		return driver.ErrBadConn
+	if err == nil || n == len(data) {
+		mc.sequence++
+		return nil
 	}
 
-	mc.sequence++
-	return nil
+	if err == nil { // n != len(data)
+		errLog.Print(errMalformPkt)
+	} else {
+		errLog.Print(err)
+	}
+	return driver.ErrBadConn
 }
 
 /******************************************************************************
