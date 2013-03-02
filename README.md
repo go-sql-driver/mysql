@@ -27,7 +27,6 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
 ## Features
   * Lightweight and [fast](https://github.com/Go-SQL-Driver/SQL-Benchmark "golang MySQL-Driver performance")
   * Native Go implementation. No C-bindings, just pure Go
-  * No unsafe operations *(e.g. type-conversions)*
   * Connections over TCP/IPv4, TCP/IPv6 or Unix Sockets
   * Automatic handling of broken connections
   * Automatic Connection-Pooling *(by database/sql package)*
@@ -106,21 +105,22 @@ Possible Parameters are:
   * _(pending)_ <s>`compress`</s>: will enable Compression
 
 All other parameters are interpreted as system variables:
+  * `autocommit`: *"SET autocommit='`value`'"*
   * `time_zone`: *"SET time_zone='`value`'"*
   * `tx_isolation`: *"SET [tx_isolation](https://dev.mysql.com/doc/refman/5.5/en/server-system-variables.html#sysvar_tx_isolation)='`value`'"*
   * `param`: *"SET `param`=`value`"*
 
 ### Examples
 ```
-user@unix(/path/to/socket)/dbname?charset=utf8
+user@unix(/path/to/socket)/dbname
 ```
 
 ```
-user:password@tcp(localhost:5555)/dbname?charset=utf8mb4,utf8
+user:password@tcp(localhost:5555)/dbname?charset=utf8&autocommit=true
 ```
 
 ```
-user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname
+user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname?charset=utf8mb4,utf8
 ```
 
 ```
