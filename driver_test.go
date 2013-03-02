@@ -118,7 +118,7 @@ func TestCRUD(t *testing.T) {
 	if rows.Next() {
 		rows.Scan(&out)
 		if true != out {
-			t.Errorf("true != %d", out)
+			t.Errorf("true != %t", out)
 		}
 
 		if rows.Next() {
@@ -143,7 +143,7 @@ func TestCRUD(t *testing.T) {
 	if rows.Next() {
 		rows.Scan(&out)
 		if false != out {
-			t.Errorf("false != %d", out)
+			t.Errorf("false != %t", out)
 		}
 
 		if rows.Next() {
@@ -262,7 +262,7 @@ func TestFloat(t *testing.T) {
 		if rows.Next() {
 			rows.Scan(&out)
 			if in != out {
-				t.Errorf("%s: %d != %d", v, in, out)
+				t.Errorf("%s: %g != %g", v, in, out)
 			}
 		} else {
 			t.Errorf("%s: no data", v)
@@ -502,7 +502,7 @@ func TestCloseStmtBeforeRows(t *testing.T) {
 			t.Fatalf("Error on rows.Scan(): %v", err)
 		}
 		if out != true {
-			t.Errorf("true != %d", out)
+			t.Errorf("true != %t", out)
 		}
 	}
 }
@@ -557,7 +557,7 @@ func TestStmtMultiRows(t *testing.T) {
 			t.Fatalf("Error on rows.Scan(): %v", err)
 		}
 		if out != true {
-			t.Errorf("true != %d", out)
+			t.Errorf("true != %t", out)
 		}
 	}
 
@@ -574,7 +574,7 @@ func TestStmtMultiRows(t *testing.T) {
 			t.Fatalf("Error on rows.Scan(): %v", err)
 		}
 		if out != true {
-			t.Errorf("true != %d", out)
+			t.Errorf("true != %t", out)
 		}
 	}
 
@@ -592,7 +592,7 @@ func TestStmtMultiRows(t *testing.T) {
 			t.Fatalf("Error on rows.Scan(): %v", err)
 		}
 		if out != false {
-			t.Errorf("false != %d", out)
+			t.Errorf("false != %t", out)
 		}
 
 		if rows1.Next() {
@@ -617,7 +617,7 @@ func TestStmtMultiRows(t *testing.T) {
 			t.Fatalf("Error on rows.Scan(): %v", err)
 		}
 		if out != false {
-			t.Errorf("false != %d", out)
+			t.Errorf("false != %t", out)
 		}
 
 		if rows2.Next() {
