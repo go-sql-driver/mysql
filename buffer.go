@@ -38,9 +38,14 @@ func (b *buffer) fill(need int) (err error) {
 	b.length = 0
 
 	n := 0
-	for err == nil && b.length < need {
+	for b.length < need {
 		n, err = b.rd.Read(b.buf[b.length:])
 		b.length += n
+
+		if err == nil {
+			continue
+		}
+		return // err
 	}
 
 	return

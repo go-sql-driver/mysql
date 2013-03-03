@@ -46,13 +46,13 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	if err == nil {
 		if resLen > 0 {
 			// Columns
-			_, err = stmt.mc.readUntilEOF()
+			err = stmt.mc.readUntilEOF()
 			if err != nil {
 				return nil, err
 			}
 
 			// Rows
-			_, err = stmt.mc.readUntilEOF()
+			err = stmt.mc.readUntilEOF()
 		}
 		if err == nil {
 			return &mysqlResult{

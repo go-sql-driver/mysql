@@ -113,7 +113,7 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 		}
 
 		if columnCount > 0 {
-			_, err = stmt.mc.readUntilEOF()
+			err = stmt.mc.readUntilEOF()
 		}
 	}
 
@@ -159,12 +159,12 @@ func (mc *mysqlConn) exec(query string) (err error) {
 	var resLen int
 	resLen, err = mc.readResultSetHeaderPacket()
 	if err == nil && resLen > 0 {
-		_, err = mc.readUntilEOF()
+		err = mc.readUntilEOF()
 		if err != nil {
 			return
 		}
 
-		_, err = mc.readUntilEOF()
+		err = mc.readUntilEOF()
 	}
 
 	return

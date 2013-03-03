@@ -47,7 +47,7 @@ func (rows *mysqlRows) Close() (err error) {
 			return errors.New("Invalid Connection")
 		}
 
-		_, err = rows.mc.readUntilEOF()
+		err = rows.mc.readUntilEOF()
 	}
 
 	return
