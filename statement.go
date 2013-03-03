@@ -43,31 +43,26 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	// Read Result
 	var resLen int
 	resLen, err = stmt.mc.readResultSetHeaderPacket()
-	if err != nil {
-		return nil, err
-	}
+	if err == nil {
+		if resLen > 0 {
+			// Columns
+			_, err = stmt.mc.readUntilEOF()
+			if err != nil {
+				return nil, err
+			}
 
-	if resLen > 0 {
-		// Columns
-		_, err = stmt.mc.readUntilEOF()
-		if err != nil {
-			return nil, err
+			// Rows
+			_, err = stmt.mc.readUntilEOF()
 		}
-
-		// Rows
-		stmt.mc.affectedRows, err = stmt.mc.readUntilEOF()
-		if err != nil {
-			return nil, err
+		if err == nil {
+			return &mysqlResult{
+				affectedRows: int64(stmt.mc.affectedRows),
+				insertId:     int64(stmt.mc.insertId),
+			}, nil
 		}
 	}
-	if err != nil {
-		return nil, err
-	}
 
-	return &mysqlResult{
-		affectedRows: int64(stmt.mc.affectedRows),
-		insertId:     int64(stmt.mc.insertId),
-	}, nil
+	return nil, err
 }
 
 func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {

@@ -158,22 +158,13 @@ func (mc *mysqlConn) exec(query string) (err error) {
 	// Read Result
 	var resLen int
 	resLen, err = mc.readResultSetHeaderPacket()
-	if err != nil {
-		return
-	}
-
-	if resLen > 0 {
+	if err == nil && resLen > 0 {
 		_, err = mc.readUntilEOF()
 		if err != nil {
 			return
 		}
 
-		if mc.affectedRows > 0 {
-			_, err = mc.readUntilEOF()
-			return
-		}
-
-		mc.affectedRows, err = mc.readUntilEOF()
+		_, err = mc.readUntilEOF()
 	}
 
 	return
