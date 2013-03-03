@@ -115,23 +115,6 @@ func scramblePassword(scramble, password []byte) []byte {
 *                       Convert from and to bytes                             *
 ******************************************************************************/
 
-func uint24ToBytes(n uint32) []byte {
-	return []byte{
-		byte(n),
-		byte(n >> 8),
-		byte(n >> 16),
-	}
-}
-
-func uint32ToBytes(n uint32) []byte {
-	return []byte{
-		byte(n),
-		byte(n >> 8),
-		byte(n >> 16),
-		byte(n >> 24),
-	}
-}
-
 func uint64ToBytes(n uint64) []byte {
 	return []byte{
 		byte(n),
@@ -147,37 +130,37 @@ func uint64ToBytes(n uint64) []byte {
 
 func readLengthEnodedString(b []byte) ([]byte, int, error) {
 	// Get length
-	num, _, n, err := readLengthEncodedInteger(b)
-	if err != nil || num < 1 {
-		return nil, n, err
+	num, _, n := readLengthEncodedInteger(b)
+	if num < 1 {
+		return nil, n, nil
 	}
 
 	n += int(num)
 
 	// Check data length
 	if len(b) >= n {
-		return b[n-int(num) : n], n, err
+		return b[n-int(num) : n], n, nil
 	}
 	return nil, n, io.EOF
 }
 
-func readAndDropLengthEnodedString(b []byte) (n int, err error) {
+func skipLengthEnodedString(b []byte) (int, error) {
 	// Get length
-	num, _, n, err := readLengthEncodedInteger(b)
-	if err != nil || num < 1 {
-		return
+	num, _, n := readLengthEncodedInteger(b)
+	if num < 1 {
+		return n, nil
 	}
 
 	n += int(num)
 
 	// Check data length
 	if len(b) >= n {
-		return
+		return n, nil
 	}
 	return n, io.EOF
 }
 
-func readLengthEncodedInteger(b []byte) (num uint64, isNull bool, n int, err error) {
+func readLengthEncodedInteger(b []byte) (num uint64, isNull bool, n int) {
 	switch (b)[0] {
 
 	// 251: NULL

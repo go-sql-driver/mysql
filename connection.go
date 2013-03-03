@@ -47,12 +47,9 @@ func (mc *mysqlConn) handleParams() (err error) {
 			charsets := strings.Split(val, ",")
 			for _, charset := range charsets {
 				err = mc.exec("SET NAMES " + charset)
-				if err == nil {
-					break
+				if err != nil {
+					return
 				}
-			}
-			if err != nil {
-				return
 			}
 
 		// TLS-Encryption
@@ -78,11 +75,11 @@ func (mc *mysqlConn) handleParams() (err error) {
 
 func (mc *mysqlConn) Begin() (driver.Tx, error) {
 	err := mc.exec("START TRANSACTION")
-	if err != nil {
-		return nil, err
+	if err == nil {
+		return &mysqlTx{mc}, err
 	}
 
-	return &mysqlTx{mc}, err
+	return nil, err
 }
 
 func (mc *mysqlConn) Close() (err error) {
@@ -96,7 +93,7 @@ func (mc *mysqlConn) Close() (err error) {
 
 func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	// Send command
-	err := mc.writeCommandPacket(COM_STMT_PREPARE, query)
+	err := mc.writeCommandPacketStr(COM_STMT_PREPARE, query)
 	if err != nil {
 		return nil, err
 	}
@@ -106,52 +103,54 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	}
 
 	// Read Result
-	var columnCount uint16
-	columnCount, err = stmt.readPrepareResultPacket()
-	if err != nil {
-		return nil, err
-	}
-
-	if stmt.paramCount > 0 {
-		stmt.params, err = stmt.mc.readColumns(stmt.paramCount)
-		if err != nil {
-			return nil, err
+	columnCount, err := stmt.readPrepareResultPacket()
+	if err == nil {
+		if stmt.paramCount > 0 {
+			stmt.params, err = stmt.mc.readColumns(stmt.paramCount)
+			if err != nil {
+				return nil, err
+			}
 		}
-	}
 
-	if columnCount > 0 {
-		_, err = stmt.mc.readUntilEOF()
-		if err != nil {
-			return nil, err
+		if columnCount > 0 {
+			_, err = stmt.mc.readUntilEOF()
 		}
 	}
 
 	return stmt, err
 }
 
-func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
-	if len(args) > 0 {
-		return nil, driver.ErrSkip
+func (mc *mysqlConn) Exec(query string, args []driver.Value) (_ driver.Result, err error) {
+	if len(args) > 0 { // with args, must use prepared stmt
+		var res driver.Result
+		var stmt driver.Stmt
+		stmt, err = mc.Prepare(query)
+		if err == nil {
+			res, err = stmt.Exec(args)
+			if err == nil {
+				return res, stmt.Close()
+			}
+		}
+	} else { // no args, fastpath
+		mc.affectedRows = 0
+		mc.insertId = 0
+
+		err = mc.exec(query)
+		if err == nil {
+			return &mysqlResult{
+				affectedRows: int64(mc.affectedRows),
+				insertId:     int64(mc.insertId),
+			}, err
+		}
 	}
+	return nil, err
 
-	mc.affectedRows = 0
-	mc.insertId = 0
-
-	err := mc.exec(query)
-	if err != nil {
-		return nil, err
-	}
-
-	return &mysqlResult{
-		affectedRows: int64(mc.affectedRows),
-		insertId:     int64(mc.insertId),
-	}, err
 }
 
 // Internal function to execute commands
 func (mc *mysqlConn) exec(query string) (err error) {
 	// Send command
-	err = mc.writeCommandPacket(COM_QUERY, query)
+	err = mc.writeCommandPacketStr(COM_QUERY, query)
 	if err != nil {
 		return
 	}
@@ -175,39 +174,42 @@ func (mc *mysqlConn) exec(query string) (err error) {
 		}
 
 		mc.affectedRows, err = mc.readUntilEOF()
-		return
 	}
 
 	return
 }
 
-func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, error) {
-	if len(args) > 0 {
-		return nil, driver.ErrSkip
-	}
+func (mc *mysqlConn) Query(query string, args []driver.Value) (_ driver.Rows, err error) {
+	if len(args) > 0 { // with args, must use prepared stmt
+		var rows driver.Rows
+		var stmt driver.Stmt
+		stmt, err = mc.Prepare(query)
+		if err == nil {
+			rows, err = stmt.Query(args)
+			if err == nil {
+				return rows, stmt.Close()
+			}
+		}
+		return
+	} else { // no args, fastpath
+		var rows *mysqlRows
+		// Send command
+		err = mc.writeCommandPacketStr(COM_QUERY, query)
+		if err == nil {
+			// Read Result
+			var resLen int
+			resLen, err = mc.readResultSetHeaderPacket()
+			if err == nil {
+				rows = &mysqlRows{mc, false, nil, false}
 
-	// Send command
-	err := mc.writeCommandPacket(COM_QUERY, query)
-	if err != nil {
-		return nil, err
-	}
-
-	// Read Result
-	var resLen int
-	resLen, err = mc.readResultSetHeaderPacket()
-	if err != nil {
-		return nil, err
-	}
-
-	rows := &mysqlRows{mc, false, nil, false}
-
-	if resLen > 0 {
-		// Columns
-		rows.columns, err = mc.readColumns(resLen)
-		if err != nil {
-			return nil, err
+				if resLen > 0 {
+					// Columns
+					rows.columns, err = mc.readColumns(resLen)
+				}
+				return rows, err
+			}
 		}
 	}
 
-	return rows, err
+	return nil, err
 }

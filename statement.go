@@ -11,7 +11,6 @@ package mysql
 
 import (
 	"database/sql/driver"
-	"errors"
 )
 
 type mysqlStmt struct {
@@ -22,7 +21,7 @@ type mysqlStmt struct {
 }
 
 func (stmt *mysqlStmt) Close() (err error) {
-	err = stmt.mc.writeCommandPacket(COM_STMT_CLOSE, stmt.id)
+	err = stmt.mc.writeCommandPacketUint32(COM_STMT_CLOSE, stmt.id)
 	stmt.mc = nil
 	return
 }
@@ -32,14 +31,11 @@ func (stmt *mysqlStmt) NumInput() int {
 }
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
-	if stmt.mc == nil {
-		return nil, errors.New(`Invalid Statement`)
-	}
 	stmt.mc.affectedRows = 0
 	stmt.mc.insertId = 0
 
 	// Send command
-	err := stmt.buildExecutePacket(args)
+	err := stmt.writeExecutePacket(args)
 	if err != nil {
 		return nil, err
 	}
@@ -69,18 +65,14 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	}
 
 	return &mysqlResult{
-			affectedRows: int64(stmt.mc.affectedRows),
-			insertId:     int64(stmt.mc.insertId)},
-		nil
+		affectedRows: int64(stmt.mc.affectedRows),
+		insertId:     int64(stmt.mc.insertId),
+	}, nil
 }
 
 func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
-	if stmt.mc == nil {
-		return nil, errors.New(`Invalid Statement`)
-	}
-
 	// Send command
-	err := stmt.buildExecutePacket(args)
+	err := stmt.writeExecutePacket(args)
 	if err != nil {
 		return nil, err
 	}
