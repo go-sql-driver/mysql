@@ -249,8 +249,8 @@ func TestFloat(t *testing.T) {
 	mustExec(t, db, "DROP TABLE IF EXISTS test")
 
 	types := [2]string{"FLOAT", "DOUBLE"}
-	in := float64(42.23)
-	var out float64
+	in := float32(42.23)
+	var out float32
 	var rows *sql.Rows
 
 	for _, v := range types {

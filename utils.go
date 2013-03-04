@@ -128,6 +128,28 @@ func uint64ToBytes(n uint64) []byte {
 	}
 }
 
+func uint64ToString(n uint64) []byte {
+	var a [20]byte
+	i := 20
+
+	// U+0030 = 0
+	// ...
+	// U+0039 = 9
+
+	var q uint64
+	for n >= 10 {
+		i--
+		q = n / 10
+		a[i] = uint8(n-q*10) + 0x30
+		n = q
+	}
+
+	i--
+	a[i] = uint8(n) + 0x30
+
+	return a[i:]
+}
+
 func readLengthEnodedString(b []byte) ([]byte, int, error) {
 	// Get length
 	num, _, n := readLengthEncodedInteger(b)

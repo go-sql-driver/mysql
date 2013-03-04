@@ -74,10 +74,8 @@ const (
 	COM_STMT_FETCH
 )
 
-type FieldType byte
-
 const (
-	FIELD_TYPE_DECIMAL FieldType = iota
+	FIELD_TYPE_DECIMAL byte = iota
 	FIELD_TYPE_TINY
 	FIELD_TYPE_SHORT
 	FIELD_TYPE_LONG
@@ -96,7 +94,7 @@ const (
 	FIELD_TYPE_BIT
 )
 const (
-	FIELD_TYPE_NEWDECIMAL FieldType = iota + 0xf6
+	FIELD_TYPE_NEWDECIMAL byte = iota + 0xf6
 	FIELD_TYPE_ENUM
 	FIELD_TYPE_SET
 	FIELD_TYPE_TINY_BLOB
