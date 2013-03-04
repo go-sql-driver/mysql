@@ -34,10 +34,7 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 	}
 
 	// Packet Length
-	var pktLen uint32
-	pktLen |= uint32(data[0])
-	pktLen |= uint32(data[1]) << 8
-	pktLen |= uint32(data[2]) << 16
+	pktLen := uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16
 
 	if pktLen == 0 {
 		errLog.Print(errMalformPkt.Error())
@@ -69,7 +66,7 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 func (mc *mysqlConn) writePacket(data []byte) error {
 	// Write packet
 	n, err := mc.netConn.Write(data)
-	if err == nil || n == len(data) {
+	if err == nil && n == len(data) {
 		mc.sequence++
 		return nil
 	}
