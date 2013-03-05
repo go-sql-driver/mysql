@@ -52,6 +52,10 @@ func (mc *mysqlConn) handleParams() (err error) {
 				}
 			}
 
+		// Timeout - already handled on connecting
+		case "timeout":
+			continue
+
 		// TLS-Encryption
 		case "tls":
 			err = errors.New("TLS-Encryption not implemented yet")

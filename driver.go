@@ -12,6 +12,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"net"
+	"time"
 )
 
 type mysqlDriver struct{}
@@ -27,7 +28,15 @@ func (d *mysqlDriver) Open(dsn string) (driver.Conn, error) {
 	mc.cfg = parseDSN(dsn)
 
 	// Connect to Server
-	mc.netConn, err = net.Dial(mc.cfg.net, mc.cfg.addr)
+	if _, ok := mc.cfg.params["timeout"]; ok { // with timeout
+		var timeout time.Duration
+		timeout, err = time.ParseDuration(mc.cfg.params["timeout"])
+		if err == nil {
+			mc.netConn, err = net.DialTimeout(mc.cfg.net, mc.cfg.addr, timeout)
+		}
+	} else { // no timeout
+		mc.netConn, err = net.Dial(mc.cfg.net, mc.cfg.addr)
+	}
 	if err != nil {
 		return nil, err
 	}

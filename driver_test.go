@@ -42,7 +42,7 @@ func getEnv() bool {
 		}
 
 		netAddr = fmt.Sprintf("%s(%s)", prot, addr)
-		dsn = fmt.Sprintf("%s:%s@%s/%s?charset=utf8", user, pass, netAddr, dbname)
+		dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&charset=utf8", user, pass, netAddr, dbname)
 
 		c, err := net.Dial(prot, addr)
 		if err == nil {
