@@ -150,20 +150,20 @@ func uint64ToString(n uint64) []byte {
 	return a[i:]
 }
 
-func readLengthEnodedString(b []byte) ([]byte, int, error) {
+func readLengthEnodedString(b []byte) ([]byte, bool, int, error) {
 	// Get length
-	num, _, n := readLengthEncodedInteger(b)
+	num, isNull, n := readLengthEncodedInteger(b)
 	if num < 1 {
-		return nil, n, nil
+		return nil, isNull, n, nil
 	}
 
 	n += int(num)
 
 	// Check data length
 	if len(b) >= n {
-		return b[n-int(num) : n], n, nil
+		return b[n-int(num) : n], false, n, nil
 	}
-	return nil, n, io.EOF
+	return nil, false, n, io.EOF
 }
 
 func skipLengthEnodedString(b []byte) (int, error) {

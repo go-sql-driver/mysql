@@ -416,7 +416,7 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 		pos += n
 
 		// Name [len coded string]
-		name, n, err = readLengthEnodedString(data[pos:])
+		name, _, n, err = readLengthEnodedString(data[pos:])
 		if err != nil {
 			return
 		}
@@ -471,14 +471,19 @@ func (rows *mysqlRows) readRow(dest []driver.Value) (err error) {
 
 	// RowSet Packet
 	var n int
+	var isNull bool
 	pos := 0
 
 	for i := range dest {
 		// Read bytes and convert to string
-		dest[i], n, err = readLengthEnodedString(data[pos:])
+		dest[i], isNull, n, err = readLengthEnodedString(data[pos:])
 		pos += n
 		if err == nil {
-			continue
+			if !isNull {
+				continue
+			} else {
+				dest[i] = nil
+			}
 		}
 		return // err
 	}
@@ -700,6 +705,7 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 	// values [rest]
 	var n int
 	var unsigned bool
+
 	for i := range dest {
 		// Field is NULL
 		// (byte >> bit-pos) % 2 == 1
@@ -774,10 +780,15 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			FIELD_TYPE_TINY_BLOB, FIELD_TYPE_MEDIUM_BLOB, FIELD_TYPE_LONG_BLOB,
 			FIELD_TYPE_BLOB, FIELD_TYPE_VAR_STRING, FIELD_TYPE_STRING,
 			FIELD_TYPE_GEOMETRY:
-			dest[i], n, err = readLengthEnodedString(data[pos:])
+			var isNull bool
+			dest[i], isNull, n, err = readLengthEnodedString(data[pos:])
 			pos += n
 			if err == nil {
-				continue
+				if !isNull {
+					continue
+				} else {
+					dest[i] = nil
+				}
 			}
 			return // err
 
