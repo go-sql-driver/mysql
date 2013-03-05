@@ -108,7 +108,7 @@ func scramblePassword(scramble, password []byte) []byte {
 	for i := range result {
 		result[i] = scrambleHash[i] ^ stage1Hash[i]
 	}
-	return result[0:]
+	return result
 }
 
 /******************************************************************************

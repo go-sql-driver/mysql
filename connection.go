@@ -20,7 +20,7 @@ type mysqlConn struct {
 	cfg          *config
 	flags        ClientFlag
 	charset      byte
-	scrambleBuff []byte
+	cipher       []byte
 	netConn      net.Conn
 	buf          *buffer
 	protocol     uint8

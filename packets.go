@@ -33,15 +33,15 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 		return nil, driver.ErrBadConn
 	}
 
-	// Packet Length
+	// Packet Length [24 bit]
 	pktLen := uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16
 
-	if pktLen == 0 {
+	if pktLen < 1 {
 		errLog.Print(errMalformPkt.Error())
 		return nil, driver.ErrBadConn
 	}
 
-	// Check Packet Sync
+	// Check Packet Sync [8 bit]
 	if data[3] != mc.sequence {
 		if data[3] > mc.sequence {
 			return nil, errPktSyncMul
@@ -51,7 +51,7 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 	}
 	mc.sequence++
 
-	// Read packet body
+	// Read packet body [pktLen bytes]
 	data = make([]byte, pktLen)
 	err = mc.buf.read(data)
 	if err == nil {
@@ -103,8 +103,8 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 	// connection id [4 bytes]
 	pos := 1 + bytes.IndexByte(data[1:], 0x00) + 1 + 4
 
-	// first part of scramble buffer [8 bytes]
-	mc.scrambleBuff = data[pos : pos+8]
+	// first part of the password cipher [8 bytes]
+	mc.cipher = append(mc.cipher, data[pos:pos+8]...)
 
 	// (filler) always 0x00 [1 byte]
 	pos += 8 + 1
@@ -126,7 +126,11 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 		// reserved (all [00]) [10 byte]
 		pos += 1 + 2 + 2 + 1 + 10
 
-		mc.scrambleBuff = append(mc.scrambleBuff, data[pos:len(data)-1]...)
+		// second part of the password cipher [12? bytes]
+		// The documentation is ambiguous about the length.
+		// The official Python library uses the fixed length 12
+		// which is not documented but seems to work.
+		mc.cipher = append(mc.cipher, data[pos:pos+12]...)
 
 		if data[len(data)-1] == 0 {
 			return
@@ -152,8 +156,8 @@ func (mc *mysqlConn) writeAuthPacket() error {
 	}
 
 	// User Password
-	scrambleBuff := scramblePassword(mc.scrambleBuff, []byte(mc.cfg.passwd))
-	mc.scrambleBuff = nil
+	scrambleBuff := scramblePassword(mc.cipher, []byte(mc.cfg.passwd))
+	mc.cipher = nil
 
 	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.user) + 1 + 1 + len(scrambleBuff)
 
