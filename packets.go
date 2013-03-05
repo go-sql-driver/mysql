@@ -483,6 +483,7 @@ func (rows *mysqlRows) readRow(dest []driver.Value) (err error) {
 				continue
 			} else {
 				dest[i] = nil
+				continue
 			}
 		}
 		return // err
@@ -788,6 +789,7 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 					continue
 				} else {
 					dest[i] = nil
+					continue
 				}
 			}
 			return // err
