@@ -91,6 +91,10 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 		return
 	}
 
+	if data[0] == 255 {
+		return mc.handleErrorPacket(data)
+	}
+
 	// protocol version [1 byte]
 	if data[0] < minProtocolVersion {
 		err = fmt.Errorf(
@@ -340,11 +344,16 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 	// Error Number [16 bit uint]
 	errno := binary.LittleEndian.Uint16(data[1:3])
 
-	// SQL State [# + 5bytes string]
+	pos := 3
+
+	// SQL State [optional: # + 5bytes string]
 	//sqlstate := string(data[pos : pos+6])
+	if data[pos] == 0x23 {
+		pos = 9
+	}
 
 	// Error Message [string]
-	return fmt.Errorf("Error %d: %s", errno, string(data[9:]))
+	return fmt.Errorf("Error %d: %s", errno, string(data[pos:]))
 }
 
 // Ok Packet
