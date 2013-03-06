@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 )
 
 var (
@@ -629,4 +630,44 @@ func TestStmtMultiRows(t *testing.T) {
 		}
 	}
 
+}
+
+var canStop bool
+
+func doStuff(t *testing.T) {
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		t.Fatalf("Error connecting: %v", err)
+	}
+
+	defer db.Close()
+
+	for !canStop {
+		_, err := db.Exec("SELECT 1")
+		if err != nil {
+			canStop = true
+			t.Fatalf(err.Error())
+		}
+	}
+}
+
+func TestConcurrent(t *testing.T) {
+	if os.Getenv("MYSQL_TEST_CONCURRENT") != "1" {
+		t.Log("CONCURRENT env var not set. Skipping TestConcurrent")
+		return
+	}
+	if !getEnv() {
+		t.Logf("MySQL-Server not running on %s. Skipping TestConcurrent", netAddr)
+		return
+	}
+
+	fmt.Println("Run")
+
+	canStop = false
+	for i := 0; i < 500; i++ {
+		go doStuff(t)
+	}
+
+	time.Sleep(3 * time.Second)
+	canStop = true
 }
