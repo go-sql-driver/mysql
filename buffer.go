@@ -37,7 +37,7 @@ func (b *buffer) fill(need int) (err error) {
 	b.idx = 0
 	b.length = 0
 
-	n := 0
+	var n int
 	for b.length < need {
 		n, err = b.rd.Read(b.buf[b.length:])
 		b.length += n

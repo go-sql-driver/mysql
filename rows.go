@@ -18,7 +18,7 @@ import (
 type mysqlField struct {
 	name      string
 	fieldType byte
-	flags     FieldFlag
+	flags     fieldFlag
 }
 
 type mysqlRows struct {

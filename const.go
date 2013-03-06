@@ -10,119 +10,119 @@
 package mysql
 
 const (
-	MIN_PROTOCOL_VERSION byte = 10
-	//MAX_PACKET_SIZE      = 1<<24 - 1
-	TIME_FORMAT = "2006-01-02 15:04:05"
+	minProtocolVersion byte = 10
+	//maxPacketSize      = 1<<24 - 1
+	timeFormat = "2006-01-02 15:04:05"
 )
 
 // MySQL constants documentation:
 // http://dev.mysql.com/doc/internals/en/client-server-protocol.html
 
-type ClientFlag uint32
+type clientFlag uint32
 
 const (
-	CLIENT_LONG_PASSWORD ClientFlag = 1 << iota
-	CLIENT_FOUND_ROWS
-	CLIENT_LONG_FLAG
-	CLIENT_CONNECT_WITH_DB
-	CLIENT_NO_SCHEMA
-	CLIENT_COMPRESS
-	CLIENT_ODBC
-	CLIENT_LOCAL_FILES
-	CLIENT_IGNORE_SPACE
-	CLIENT_PROTOCOL_41
-	CLIENT_INTERACTIVE
-	CLIENT_SSL
-	CLIENT_IGNORE_SIGPIPE
-	CLIENT_TRANSACTIONS
-	CLIENT_RESERVED
-	CLIENT_SECURE_CONN
-	CLIENT_MULTI_STATEMENTS
-	CLIENT_MULTI_RESULTS
+	clientLongPassword clientFlag = 1 << iota
+	clientFoundRows
+	clientLongFlag
+	clientConnectWithDB
+	clientNoSchema
+	clientCompress
+	clientODBC
+	clientLocalFiles
+	clientIgnoreSpace
+	clientProtocol41
+	clientInteractive
+	clientSSL
+	clientIgnoreSIGPIPE
+	clientTransactions
+	clientReserved
+	clientSecureConn
+	clientMultiStatements
+	clientMultiResults
 )
 
 type commandType byte
 
 const (
-	COM_QUIT commandType = iota + 1
-	COM_INIT_DB
-	COM_QUERY
-	COM_FIELD_LIST
-	COM_CREATE_DB
-	COM_DROP_DB
-	COM_REFRESH
-	COM_SHUTDOWN
-	COM_STATISTICS
-	COM_PROCESS_INFO
-	COM_CONNECT
-	COM_PROCESS_KILL
-	COM_DEBUG
-	COM_PING
-	COM_TIME
-	COM_DELAYED_INSERT
-	COM_CHANGE_USER
-	COM_BINLOG_DUMP
-	COM_TABLE_DUMP
-	COM_CONNECT_OUT
-	COM_REGISTER_SLAVE
-	COM_STMT_PREPARE
-	COM_STMT_EXECUTE
-	COM_STMT_SEND_LONG_DATA
-	COM_STMT_CLOSE
-	COM_STMT_RESET
-	COM_SET_OPTION
-	COM_STMT_FETCH
+	comQuit commandType = iota + 1
+	comInitDB
+	comQuery
+	comFieldList
+	comCreateDB
+	comDropDB
+	comRefresh
+	comShutdown
+	comStatistics
+	comProcessInfo
+	comConnect
+	comProcessKill
+	comDebug
+	comPing
+	comTime
+	comDelayedInsert
+	comChangeUser
+	comBinlogDump
+	comTableDump
+	comConnectOut
+	comRegiserSlave
+	comStmtPrepare
+	comStmtExecute
+	comStmtSendLongData
+	comStmtClose
+	comStmtReset
+	comSetOption
+	comStmtFetch
 )
 
 const (
-	FIELD_TYPE_DECIMAL byte = iota
-	FIELD_TYPE_TINY
-	FIELD_TYPE_SHORT
-	FIELD_TYPE_LONG
-	FIELD_TYPE_FLOAT
-	FIELD_TYPE_DOUBLE
-	FIELD_TYPE_NULL
-	FIELD_TYPE_TIMESTAMP
-	FIELD_TYPE_LONGLONG
-	FIELD_TYPE_INT24
-	FIELD_TYPE_DATE
-	FIELD_TYPE_TIME
-	FIELD_TYPE_DATETIME
-	FIELD_TYPE_YEAR
-	FIELD_TYPE_NEWDATE
-	FIELD_TYPE_VARCHAR
-	FIELD_TYPE_BIT
+	fieldTypeDecimal byte = iota
+	fieldTypeTiny
+	fieldTypeShort
+	fieldTypeLong
+	fieldTypeFloat
+	fieldTypeDouble
+	fieldTypeNULL
+	fieldTypeTimestamp
+	fieldTypeLongLong
+	fieldTypeInt24
+	fieldTypeDate
+	fieldTypeTime
+	fieldTypeDateTime
+	fieldTypeYear
+	fieldTypeNewDate
+	fieldTypeVarChar
+	fieldTypeBit
 )
 const (
-	FIELD_TYPE_NEWDECIMAL byte = iota + 0xf6
-	FIELD_TYPE_ENUM
-	FIELD_TYPE_SET
-	FIELD_TYPE_TINY_BLOB
-	FIELD_TYPE_MEDIUM_BLOB
-	FIELD_TYPE_LONG_BLOB
-	FIELD_TYPE_BLOB
-	FIELD_TYPE_VAR_STRING
-	FIELD_TYPE_STRING
-	FIELD_TYPE_GEOMETRY
+	fieldTypeNewDecimal byte = iota + 0xf6
+	fieldTypeEnum
+	fieldTypeSet
+	fieldTypeTinyBLOB
+	fieldTypeMediumBLOB
+	fieldTypeLongBLOB
+	fieldTypeBLOB
+	fieldTypeVarString
+	fieldTypeString
+	fieldTypeGeometry
 )
 
-type FieldFlag uint16
+type fieldFlag uint16
 
 const (
-	FLAG_NOT_NULL FieldFlag = 1 << iota
-	FLAG_PRI_KEY
-	FLAG_UNIQUE_KEY
-	FLAG_MULTIPLE_KEY
-	FLAG_BLOB
-	FLAG_UNSIGNED
-	FLAG_ZEROFILL
-	FLAG_BINARY
-	FLAG_ENUM
-	FLAG_AUTO_INCREMENT
-	FLAG_TIMESTAMP
-	FLAG_SET
-	FLAG_UNKNOWN_1
-	FLAG_UNKNOWN_2
-	FLAG_UNKNOWN_3
-	FLAG_UNKNOWN_4
+	flagNotNULL fieldFlag = 1 << iota
+	flagPriKey
+	flagUniqueKey
+	flagMultipleKey
+	flagBLOB
+	flagUnsigned
+	flagZeroFill
+	flagBinary
+	flagEnum
+	flagAutoIncrement
+	flagTimestamp
+	flagSet
+	flagUnknown1
+	flagUnknown2
+	flagUnknown3
+	flagUnknown4
 )

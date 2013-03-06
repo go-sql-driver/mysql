@@ -21,7 +21,7 @@ type mysqlStmt struct {
 }
 
 func (stmt *mysqlStmt) Close() (err error) {
-	err = stmt.mc.writeCommandPacketUint32(COM_STMT_CLOSE, stmt.id)
+	err = stmt.mc.writeCommandPacketUint32(comStmtClose, stmt.id)
 	stmt.mc = nil
 	return
 }

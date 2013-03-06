@@ -92,11 +92,11 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 	}
 
 	// protocol version [1 byte]
-	if data[0] < MIN_PROTOCOL_VERSION {
+	if data[0] < minProtocolVersion {
 		err = fmt.Errorf(
 			"Unsupported MySQL Protocol Version %d. Protocol Version %d or higher is required",
 			data[0],
-			MIN_PROTOCOL_VERSION)
+			minProtocolVersion)
 	}
 
 	// server version [null terminated string]
@@ -110,8 +110,8 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 	pos += 8 + 1
 
 	// capability flags (lower 2 bytes) [2 bytes]
-	mc.flags = ClientFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
-	if mc.flags&CLIENT_PROTOCOL_41 == 0 {
+	mc.flags = clientFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
+	if mc.flags&clientProtocol41 == 0 {
 		err = errors.New("MySQL-Server does not support required Protocol 41+")
 	}
 	pos += 2
@@ -146,13 +146,13 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 func (mc *mysqlConn) writeAuthPacket() error {
 	// Adjust client flags based on server support
 	clientFlags := uint32(
-		CLIENT_PROTOCOL_41 |
-			CLIENT_SECURE_CONN |
-			CLIENT_LONG_PASSWORD |
-			CLIENT_TRANSACTIONS,
+		clientProtocol41 |
+			clientSecureConn |
+			clientLongPassword |
+			clientTransactions,
 	)
-	if mc.flags&CLIENT_LONG_FLAG > 0 {
-		clientFlags |= uint32(CLIENT_LONG_FLAG)
+	if mc.flags&clientLongFlag > 0 {
+		clientFlags |= uint32(clientLongFlag)
 	}
 
 	// User Password
@@ -163,7 +163,7 @@ func (mc *mysqlConn) writeAuthPacket() error {
 
 	// To specify a db name
 	if len(mc.cfg.dbname) > 0 {
-		clientFlags |= uint32(CLIENT_CONNECT_WITH_DB)
+		clientFlags |= uint32(clientConnectWithDB)
 		pktLen += len(mc.cfg.dbname) + 1
 	}
 
@@ -439,7 +439,7 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 		pos++
 
 		// Flags [16 bit uint]
-		columns[i].flags = FieldFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
+		columns[i].flags = fieldFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
 		//pos += 2
 
 		// Decimals [8 bit uint]
@@ -503,7 +503,7 @@ func (mc *mysqlConn) readUntilEOF() (err error) {
 		if err == nil && (data[0] != 254 || len(data) != 5) {
 			continue
 		}
-		return
+		return // Err or EOF
 	}
 	return
 }
@@ -568,26 +568,26 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		// build NULL-bitmap
 		if args[i] == nil {
 			bitMask += 1 << uint(i)
-			paramTypes[i<<1] = FIELD_TYPE_NULL
+			paramTypes[i<<1] = fieldTypeNULL
 			continue
 		}
 
 		// cache types and values
 		switch args[i].(type) {
 		case int64:
-			paramTypes[i<<1] = FIELD_TYPE_LONGLONG
+			paramTypes[i<<1] = fieldTypeLongLong
 			paramValues[i] = uint64ToBytes(uint64(args[i].(int64)))
 			pktLen += 8
 			continue
 
 		case float64:
-			paramTypes[i<<1] = FIELD_TYPE_DOUBLE
+			paramTypes[i<<1] = fieldTypeDouble
 			paramValues[i] = uint64ToBytes(math.Float64bits(args[i].(float64)))
 			pktLen += 8
 			continue
 
 		case bool:
-			paramTypes[i<<1] = FIELD_TYPE_TINY
+			paramTypes[i<<1] = fieldTypeTiny
 			pktLen++
 			if args[i].(bool) {
 				paramValues[i] = []byte{0x01}
@@ -597,7 +597,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			continue
 
 		case []byte:
-			paramTypes[i<<1] = FIELD_TYPE_STRING
+			paramTypes[i<<1] = fieldTypeString
 			val := args[i].([]byte)
 			paramValues[i] = append(
 				lengthEncodedIntegerToBytes(uint64(len(val))),
@@ -607,7 +607,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			continue
 
 		case string:
-			paramTypes[i<<1] = FIELD_TYPE_STRING
+			paramTypes[i<<1] = fieldTypeString
 			val := []byte(args[i].(string))
 			paramValues[i] = append(
 				lengthEncodedIntegerToBytes(uint64(len(val))),
@@ -617,8 +617,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			continue
 
 		case time.Time:
-			paramTypes[i<<1] = FIELD_TYPE_STRING
-			val := []byte(args[i].(time.Time).Format(TIME_FORMAT))
+			paramTypes[i<<1] = fieldTypeString
+			val := []byte(args[i].(time.Time).Format(timeFormat))
 			paramValues[i] = append(
 				lengthEncodedIntegerToBytes(uint64(len(val))),
 				val...,
@@ -640,7 +640,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	data[3] = stmt.mc.sequence
 
 	// command [1 byte]
-	data[4] = byte(COM_STMT_EXECUTE)
+	data[4] = byte(comStmtExecute)
 
 	// statement_id [4 bytes]
 	data[5] = byte(stmt.id)
@@ -715,16 +715,16 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			continue
 		}
 
-		unsigned = rc.columns[i].flags&FLAG_UNSIGNED != 0
+		unsigned = rc.columns[i].flags&flagUnsigned != 0
 
 		// Convert to byte-coded string
 		switch rc.columns[i].fieldType {
-		case FIELD_TYPE_NULL:
+		case fieldTypeNULL:
 			dest[i] = nil
 			continue
 
 		// Numeric Typs
-		case FIELD_TYPE_TINY:
+		case fieldTypeTiny:
 			if unsigned {
 				dest[i] = int64(data[pos])
 			} else {
@@ -733,7 +733,7 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			pos++
 			continue
 
-		case FIELD_TYPE_SHORT, FIELD_TYPE_YEAR:
+		case fieldTypeShort, fieldTypeYear:
 			if unsigned {
 				dest[i] = int64(binary.LittleEndian.Uint16(data[pos : pos+2]))
 			} else {
@@ -742,7 +742,7 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			pos += 2
 			continue
 
-		case FIELD_TYPE_INT24, FIELD_TYPE_LONG:
+		case fieldTypeInt24, fieldTypeLong:
 			if unsigned {
 				dest[i] = int64(binary.LittleEndian.Uint32(data[pos : pos+4]))
 			} else {
@@ -751,7 +751,7 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			pos += 4
 			continue
 
-		case FIELD_TYPE_LONGLONG:
+		case fieldTypeLongLong:
 			if unsigned {
 				val := binary.LittleEndian.Uint64(data[pos : pos+8])
 				if val > math.MaxInt64 {
@@ -765,22 +765,21 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			pos += 8
 			continue
 
-		case FIELD_TYPE_FLOAT:
+		case fieldTypeFloat:
 			dest[i] = float64(math.Float32frombits(binary.LittleEndian.Uint32(data[pos : pos+4])))
 			pos += 4
 			continue
 
-		case FIELD_TYPE_DOUBLE:
+		case fieldTypeDouble:
 			dest[i] = math.Float64frombits(binary.LittleEndian.Uint64(data[pos : pos+8]))
 			pos += 8
 			continue
 
 		// Length coded Binary Strings
-		case FIELD_TYPE_DECIMAL, FIELD_TYPE_NEWDECIMAL, FIELD_TYPE_VARCHAR,
-			FIELD_TYPE_BIT, FIELD_TYPE_ENUM, FIELD_TYPE_SET,
-			FIELD_TYPE_TINY_BLOB, FIELD_TYPE_MEDIUM_BLOB, FIELD_TYPE_LONG_BLOB,
-			FIELD_TYPE_BLOB, FIELD_TYPE_VAR_STRING, FIELD_TYPE_STRING,
-			FIELD_TYPE_GEOMETRY:
+		case fieldTypeDecimal, fieldTypeNewDecimal, fieldTypeVarChar,
+			fieldTypeBit, fieldTypeEnum, fieldTypeSet, fieldTypeTinyBLOB,
+			fieldTypeMediumBLOB, fieldTypeLongBLOB, fieldTypeBLOB,
+			fieldTypeVarString, fieldTypeString, fieldTypeGeometry:
 			var isNull bool
 			dest[i], isNull, n, err = readLengthEnodedString(data[pos:])
 			pos += n
@@ -795,7 +794,7 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			return // err
 
 		// Date YYYY-MM-DD
-		case FIELD_TYPE_DATE, FIELD_TYPE_NEWDATE:
+		case fieldTypeDate, fieldTypeNewDate:
 			var num uint64
 			var isNull bool
 			num, isNull, n = readLengthEncodedInteger(data[pos:])
@@ -820,7 +819,7 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			}
 
 		// Time [-][H]HH:MM:SS[.fractal]
-		case FIELD_TYPE_TIME:
+		case fieldTypeTime:
 			var num uint64
 			var isNull bool
 			num, isNull, n = readLengthEncodedInteger(data[pos:])
@@ -871,7 +870,7 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			}
 
 		// Timestamp YYYY-MM-DD HH:MM:SS[.fractal]
-		case FIELD_TYPE_TIMESTAMP, FIELD_TYPE_DATETIME:
+		case fieldTypeTimestamp, fieldTypeDateTime:
 			var num uint64
 			var isNull bool
 			num, isNull, n = readLengthEncodedInteger(data[pos:])

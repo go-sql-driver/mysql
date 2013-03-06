@@ -18,7 +18,7 @@ import (
 
 type mysqlConn struct {
 	cfg          *config
-	flags        ClientFlag
+	flags        clientFlag
 	charset      byte
 	cipher       []byte
 	netConn      net.Conn
@@ -87,7 +87,7 @@ func (mc *mysqlConn) Begin() (driver.Tx, error) {
 }
 
 func (mc *mysqlConn) Close() (err error) {
-	mc.writeCommandPacket(COM_QUIT)
+	mc.writeCommandPacket(comQuit)
 	mc.cfg = nil
 	mc.buf = nil
 	mc.netConn.Close()
@@ -97,7 +97,7 @@ func (mc *mysqlConn) Close() (err error) {
 
 func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	// Send command
-	err := mc.writeCommandPacketStr(COM_STMT_PREPARE, query)
+	err := mc.writeCommandPacketStr(comStmtPrepare, query)
 	if err != nil {
 		return nil, err
 	}
@@ -124,37 +124,30 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	return stmt, err
 }
 
-func (mc *mysqlConn) Exec(query string, args []driver.Value) (_ driver.Result, err error) {
-	if len(args) > 0 { // with args, must use prepared stmt
-		var res driver.Result
-		var stmt driver.Stmt
-		stmt, err = mc.Prepare(query)
-		if err == nil {
-			res, err = stmt.Exec(args)
-			if err == nil {
-				return res, stmt.Close()
-			}
-		}
-	} else { // no args, fastpath
+func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
+	if len(args) == 0 { // no args, fastpath
 		mc.affectedRows = 0
 		mc.insertId = 0
 
-		err = mc.exec(query)
+		err := mc.exec(query)
 		if err == nil {
 			return &mysqlResult{
 				affectedRows: int64(mc.affectedRows),
 				insertId:     int64(mc.insertId),
 			}, err
 		}
+		return nil, err
 	}
-	return nil, err
+
+	// with args, must use prepared stmt
+	return nil, driver.ErrSkip
 
 }
 
 // Internal function to execute commands
 func (mc *mysqlConn) exec(query string) (err error) {
 	// Send command
-	err = mc.writeCommandPacketStr(COM_QUERY, query)
+	err = mc.writeCommandPacketStr(comQuery, query)
 	if err != nil {
 		return
 	}
@@ -174,28 +167,16 @@ func (mc *mysqlConn) exec(query string) (err error) {
 	return
 }
 
-func (mc *mysqlConn) Query(query string, args []driver.Value) (_ driver.Rows, err error) {
-	if len(args) > 0 { // with args, must use prepared stmt
-		var rows driver.Rows
-		var stmt driver.Stmt
-		stmt, err = mc.Prepare(query)
-		if err == nil {
-			rows, err = stmt.Query(args)
-			if err == nil {
-				return rows, stmt.Close()
-			}
-		}
-		return
-	} else { // no args, fastpath
-		var rows *mysqlRows
+func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, error) {
+	if len(args) == 0 { // no args, fastpath
 		// Send command
-		err = mc.writeCommandPacketStr(COM_QUERY, query)
+		err := mc.writeCommandPacketStr(comQuery, query)
 		if err == nil {
 			// Read Result
 			var resLen int
 			resLen, err = mc.readResultSetHeaderPacket()
 			if err == nil {
-				rows = &mysqlRows{mc, false, nil, false}
+				rows := &mysqlRows{mc, false, nil, false}
 
 				if resLen > 0 {
 					// Columns
@@ -204,7 +185,10 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (_ driver.Rows, er
 				return rows, err
 			}
 		}
+
+		return nil, err
 	}
 
-	return nil, err
+	// with args, must use prepared stmt
+	return nil, driver.ErrSkip
 }
