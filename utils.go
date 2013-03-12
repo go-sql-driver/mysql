@@ -183,7 +183,7 @@ func skipLengthEnodedString(b []byte) (int, error) {
 }
 
 func readLengthEncodedInteger(b []byte) (num uint64, isNull bool, n int) {
-	switch (b)[0] {
+	switch b[0] {
 
 	// 251: NULL
 	case 0xfb:
@@ -212,15 +212,15 @@ func readLengthEncodedInteger(b []byte) (num uint64, isNull bool, n int) {
 
 	switch n - 1 {
 	case 2:
-		num = uint64(b[0]) | uint64(b[1])<<8
+		num = uint64(b[1]) | uint64(b[2])<<8
 		return
 	case 3:
-		num = uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16
+		num = uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16
 		return
 	default:
-		num = uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 |
-			uint64(b[3])<<24 | uint64(b[4])<<32 | uint64(b[5])<<40 |
-			uint64(b[6])<<48 | uint64(b[7])<<54
+		num = uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16 |
+			uint64(b[4])<<24 | uint64(b[5])<<32 | uint64(b[6])<<40 |
+			uint64(b[7])<<48 | uint64(b[8])<<54
 	}
 	return
 }
