@@ -310,6 +310,29 @@ func TestString(t *testing.T) {
 
 		mustExec(t, db, "DROP TABLE IF EXISTS test")
 	}
+
+	// BLOB
+	mustExec(t, db, "CREATE TABLE test (id int, value BLOB) CHARACTER SET utf8 COLLATE utf8_unicode_ci")
+
+	id := 2
+	in = "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, " +
+		"sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, " +
+		"sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. " +
+		"Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. " +
+		"Lorem ipsum dolor sit amet, consetetur sadipscing elitr, " +
+		"sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, " +
+		"sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. " +
+		"Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet."
+	mustExec(t, db, ("INSERT INTO test VALUES (?, ?)"), id, in)
+
+	err = db.QueryRow("SELECT value FROM test WHERE id = ?", id).Scan(&out)
+	if err != nil {
+		t.Fatalf("Error on BLOB-Query: %v", err)
+	} else if out != in {
+		t.Errorf("BLOB: %s != %s", in, out)
+	}
+
+	return
 }
 
 func TestNULL(t *testing.T) {
