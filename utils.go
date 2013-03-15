@@ -192,35 +192,28 @@ func readLengthEncodedInteger(b []byte) (num uint64, isNull bool, n int) {
 
 	// 252: value of following 2
 	case 0xfc:
+		num = uint64(b[1]) | uint64(b[2])<<8
 		n = 3
+		return
 
 	// 253: value of following 3
 	case 0xfd:
+		num = uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16
 		n = 4
+		return
 
 	// 254: value of following 8
 	case 0xfe:
-		n = 9
-
-	// 0-250: value of first byte
-	default:
-		num = uint64(b[0])
-		n = 1
-		return
-	}
-
-	switch n - 1 {
-	case 2:
-		num = uint64(b[1]) | uint64(b[2])<<8
-		return
-	case 3:
-		num = uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16
-		return
-	default:
 		num = uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16 |
 			uint64(b[4])<<24 | uint64(b[5])<<32 | uint64(b[6])<<40 |
 			uint64(b[7])<<48 | uint64(b[8])<<54
+		n = 9
+		return
 	}
+
+	// 0-250: value of first byte
+	num = uint64(b[0])
+	n = 1
 	return
 }
 
