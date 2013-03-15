@@ -808,14 +808,14 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			var isNull bool
 			num, isNull, n = readLengthEncodedInteger(data[pos:])
 
+			pos += n
+
 			if num == 0 {
 				if isNull {
 					dest[i] = nil
-					pos++ // always n=1
 					continue
 				} else {
 					dest[i] = []byte("0000-00-00")
-					pos += n
 					continue
 				}
 			} else {
@@ -823,7 +823,7 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 					binary.LittleEndian.Uint16(data[pos:pos+2]),
 					data[pos+2],
 					data[pos+3]))
-				pos += n + int(num)
+				pos += int(num)
 				continue
 			}
 
@@ -833,19 +833,17 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			var isNull bool
 			num, isNull, n = readLengthEncodedInteger(data[pos:])
 
+			pos += n
+
 			if num == 0 {
 				if isNull {
 					dest[i] = nil
-					pos++ // always n=1
 					continue
 				} else {
 					dest[i] = []byte("00:00:00")
-					pos += n
 					continue
 				}
 			}
-
-			pos += n
 
 			var sign byte
 			if data[pos] == 1 {
@@ -884,19 +882,17 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			var isNull bool
 			num, isNull, n = readLengthEncodedInteger(data[pos:])
 
+			pos += n
+
 			if num == 0 {
 				if isNull {
 					dest[i] = nil
-					pos++ // always n=1
 					continue
 				} else {
 					dest[i] = []byte("0000-00-00 00:00:00")
-					pos += n
 					continue
 				}
 			}
-
-			pos += n
 
 			switch num {
 			case 4:

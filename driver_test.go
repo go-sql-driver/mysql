@@ -335,6 +335,45 @@ func TestString(t *testing.T) {
 	return
 }
 
+func TestDateTime(t *testing.T) {
+	if !getEnv() {
+		t.Logf("MySQL-Server not running on %s. Skipping TestString", netAddr)
+		return
+	}
+
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		t.Fatalf("Error connecting: %v", err)
+	}
+
+	defer db.Close()
+
+	mustExec(t, db, "DROP TABLE IF EXISTS test")
+
+	types := [...]string{"DATE", "DATETIME"}
+	in := [...]string{"2012-06-14", "2011-11-20 21:27:37"}
+	var out string
+	var rows *sql.Rows
+
+	for i, v := range types {
+		mustExec(t, db, "CREATE TABLE test (value "+v+") CHARACTER SET utf8 COLLATE utf8_unicode_ci")
+
+		mustExec(t, db, ("INSERT INTO test VALUES (?)"), in[i])
+
+		rows = mustQuery(t, db, ("SELECT value FROM test"))
+		if rows.Next() {
+			rows.Scan(&out)
+			if in[i] != out {
+				t.Errorf("%s: %s != %s", v, in[i], out)
+			}
+		} else {
+			t.Errorf("%s: no data", v)
+		}
+
+		mustExec(t, db, "DROP TABLE IF EXISTS test")
+	}
+}
+
 func TestNULL(t *testing.T) {
 	if !getEnv() {
 		t.Logf("MySQL-Server not running on %s. Skipping TestNULL", netAddr)
