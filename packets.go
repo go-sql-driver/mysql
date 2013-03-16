@@ -582,23 +582,23 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		}
 
 		// cache types and values
-		switch args[i].(type) {
+		switch v := args[i].(type) {
 		case int64:
 			paramTypes[i<<1] = fieldTypeLongLong
-			paramValues[i] = uint64ToBytes(uint64(args[i].(int64)))
+			paramValues[i] = uint64ToBytes(uint64(v))
 			pktLen += 8
 			continue
 
 		case float64:
 			paramTypes[i<<1] = fieldTypeDouble
-			paramValues[i] = uint64ToBytes(math.Float64bits(args[i].(float64)))
+			paramValues[i] = uint64ToBytes(math.Float64bits(v))
 			pktLen += 8
 			continue
 
 		case bool:
 			paramTypes[i<<1] = fieldTypeTiny
 			pktLen++
-			if args[i].(bool) {
+			if v {
 				paramValues[i] = []byte{0x01}
 			} else {
 				paramValues[i] = []byte{0x00}
@@ -607,27 +607,25 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 		case []byte:
 			paramTypes[i<<1] = fieldTypeString
-			val := args[i].([]byte)
 			paramValues[i] = append(
-				lengthEncodedIntegerToBytes(uint64(len(val))),
-				val...,
+				lengthEncodedIntegerToBytes(uint64(len(v))),
+				v...,
 			)
 			pktLen += len(paramValues[i])
 			continue
 
 		case string:
 			paramTypes[i<<1] = fieldTypeString
-			val := []byte(args[i].(string))
 			paramValues[i] = append(
-				lengthEncodedIntegerToBytes(uint64(len(val))),
-				val...,
+				lengthEncodedIntegerToBytes(uint64(len(v))),
+				[]byte(v)...,
 			)
 			pktLen += len(paramValues[i])
 			continue
 
 		case time.Time:
 			paramTypes[i<<1] = fieldTypeString
-			val := []byte(args[i].(time.Time).Format(timeFormat))
+			val := []byte(v.Format(timeFormat))
 			paramValues[i] = append(
 				lengthEncodedIntegerToBytes(uint64(len(val))),
 				val...,
