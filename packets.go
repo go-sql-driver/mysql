@@ -671,17 +671,17 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		pos := 14 + ((stmt.paramCount + 7) >> 3)
 		// Convert bitMask to bytes
 		for i = 14; i < pos; i++ {
-			data[i] = byte(bitMask >> uint(i<<3))
+			data[i] = byte(bitMask >> uint((i-14)<<3))
 		}
 
 		// newParameterBoundFlag 1 [1 byte]
 		data[pos] = 0x01
 		pos++
 
-		// type of parameters [param_count*2 byte]
+		// type of parameters [param_count*2 bytes]
 		pos += copy(data[pos:], paramTypes)
 
-		// values for the parameters [n byte]
+		// values for the parameters [n bytes]
 		for i = range paramValues {
 			pos += copy(data[pos:], paramValues[i])
 		}

@@ -481,6 +481,24 @@ func TestNULL(t *testing.T) {
 	} else if ns.String != `1` {
 		t.Error("Unexpected NullString value:" + ns.String + " (should be `1`)")
 	}
+
+	// Insert NULL
+	mustExec(t, db, "CREATE TABLE test (dummmy1 int, value int, dummy2 int)")
+
+	mustExec(t, db, ("INSERT INTO test VALUES (?, ?, ?)"), 1, nil, 2)
+
+	var out interface{}
+	rows := mustQuery(t, db, ("SELECT * FROM test"))
+	if rows.Next() {
+		rows.Scan(&out)
+		if out != nil {
+			t.Errorf("%v != nil", out)
+		}
+	} else {
+		t.Error("no data")
+	}
+
+	mustExec(t, db, "DROP TABLE IF EXISTS test")
 }
 
 // Special cases
