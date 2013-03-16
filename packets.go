@@ -127,7 +127,7 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 		// status flags [2 bytes]
 		// capability flags (upper 2 bytes) [2 bytes]
 		// length of auth-plugin-data [1 byte]
-		// reserved (all [00]) [10 byte]
+		// reserved (all [00]) [10 bytes]
 		pos += 1 + 2 + 2 + 1 + 10
 
 		// second part of the password cipher [12? bytes]
@@ -195,7 +195,7 @@ func (mc *mysqlConn) writeAuthPacket() error {
 	// Charset [1 byte]
 	data[12] = mc.charset
 
-	// Filler [23 byte] (all 0x00)
+	// Filler [23 bytes] (all 0x00)
 	pos := 13 + 23
 
 	// User [null terminated string]
@@ -304,7 +304,7 @@ func (mc *mysqlConn) readResultOK() error {
 		case iEOF: // someone is using old_passwords
 			return errOldPassword
 
-		default: // ERROR otherwise
+		default: // Error otherwise
 			return mc.handleErrorPacket(data)
 		}
 	}
@@ -732,7 +732,7 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			dest[i] = nil
 			continue
 
-		// Numeric Typs
+		// Numeric Types
 		case fieldTypeTiny:
 			if unsigned {
 				dest[i] = int64(data[pos])
