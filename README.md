@@ -136,6 +136,8 @@ user:password@/
 ## Testing / Development
 To run the driver tests you may need to adjust the configuration. See [this Wiki-Page](https://github.com/Go-SQL-Driver/MySQL/wiki/Testing "Testing") for details.
 
+Go-MySQL-Driver is not feature-complete yet. Your help is very appreciated. If you want to contribute, you can work on an [open issue](https://github.com/Go-SQL-Driver/MySQL/issues?state=open).
+
 ---------------------------------------
 
 ## License
