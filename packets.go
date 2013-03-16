@@ -91,7 +91,7 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 		return
 	}
 
-	if data[0] == 255 {
+	if data[0] == iERR {
 		return mc.handleErrorPacket(data)
 	}
 
@@ -294,17 +294,19 @@ func (mc *mysqlConn) writeCommandPacketUint32(command commandType, arg uint32) e
 func (mc *mysqlConn) readResultOK() error {
 	data, err := mc.readPacket()
 	if err == nil {
+		// packet indicator
 		switch data[0] {
-		// OK
-		case 0:
+
+		case iOK:
 			mc.handleOkPacket(data)
 			return nil
-		// EOF, someone is using old_passwords
-		case 254:
+
+		case iEOF: // someone is using old_passwords
 			return errOldPassword
+
+		default: // ERROR otherwise
+			return mc.handleErrorPacket(data)
 		}
-		// ERROR
-		return mc.handleErrorPacket(data)
 	}
 	return err
 }
@@ -314,10 +316,10 @@ func (mc *mysqlConn) readResultOK() error {
 func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
 	data, err := mc.readPacket()
 	if err == nil {
-		if data[0] == 0 {
+		if data[0] == iOK {
 			mc.handleOkPacket(data)
 			return 0, nil
-		} else if data[0] == 255 {
+		} else if data[0] == iERR {
 			return 0, mc.handleErrorPacket(data)
 		}
 
@@ -335,7 +337,7 @@ func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
 // Error Packet
 // http://dev.mysql.com/doc/internals/en/overview.html#packet-ERR_Packet
 func (mc *mysqlConn) handleErrorPacket(data []byte) error {
-	if data[0] != 255 {
+	if data[0] != iERR {
 		return errMalformPkt
 	}
 
@@ -390,7 +392,7 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 		}
 
 		// EOF Packet
-		if data[0] == 254 && len(data) == 5 {
+		if data[0] == iEOF && len(data) == 5 {
 			if i != count {
 				err = fmt.Errorf("ColumnsCount mismatch n:%d len:%d", count, len(columns))
 			}
@@ -474,7 +476,7 @@ func (rows *mysqlRows) readRow(dest []driver.Value) (err error) {
 	}
 
 	// EOF Packet
-	if data[0] == 254 && len(data) == 5 {
+	if data[0] == iEOF && len(data) == 5 {
 		return io.EOF
 	}
 
@@ -509,7 +511,7 @@ func (mc *mysqlConn) readUntilEOF() (err error) {
 		data, err = mc.readPacket()
 
 		// No Err and no EOF Packet
-		if err == nil && (data[0] != 254 || len(data) != 5) {
+		if err == nil && (data[0] != iEOF || len(data) != 5) {
 			continue
 		}
 		return // Err or EOF
@@ -529,8 +531,8 @@ func (stmt *mysqlStmt) readPrepareResultPacket() (columnCount uint16, err error)
 		// Position
 		pos := 0
 
-		// packet marker [1 byte]
-		if data[pos] != 0 { // not OK (0) ?
+		// packet indicator [1 byte]
+		if data[pos] != iOK {
 			err = stmt.mc.handleErrorPacket(data)
 			return
 		}
@@ -695,10 +697,10 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 		return
 	}
 
-	// packet header [1 byte]
-	if data[0] != 0x00 {
+	// packet indicator [1 byte]
+	if data[0] != iOK {
 		// EOF Packet
-		if data[0] == 254 && len(data) == 5 {
+		if data[0] == iEOF && len(data) == 5 {
 			return io.EOF
 		} else {
 			// Error otherwise

@@ -18,6 +18,12 @@ const (
 // MySQL constants documentation:
 // http://dev.mysql.com/doc/internals/en/client-server-protocol.html
 
+const (
+	iOK  byte = 0x00
+	iEOF byte = 0xfe
+	iERR byte = 0xff
+)
+
 type clientFlag uint32
 
 const (
