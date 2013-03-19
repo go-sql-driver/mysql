@@ -2,11 +2,11 @@
 
 A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) package
 
-![Go-MySQL-Driver logo](https://raw.github.com/wiki/Go-SQL-Driver/MySQL/go-mysql-driver_m.jpg "Golang Gopher transporting the MySQL Dolphin in a wheelbarrow")
+![Go-MySQL-Driver logo](https://raw.github.com/wiki/go-sql-driver/mysql/go-mysql-driver_m.jpg "Golang Gopher transporting the MySQL Dolphin in a wheelbarrow")
 
 **Current tagged Release:** March 2, 2013 (stable beta 4)
 
-[![Build Status](https://travis-ci.org/Go-SQL-Driver/MySQL.png?branch=master)](https://travis-ci.org/Go-SQL-Driver/MySQL) *(master branch)*
+[![Build Status](https://travis-ci.org/go-sql-driver/mysql.png?branch=master)](https://travis-ci.org/go-sql-driver/mysql) *(master branch)*
 
 ---------------------------------------
   * [Features](#features)
@@ -25,7 +25,7 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
 ---------------------------------------
 
 ## Features
-  * Lightweight and [fast](https://github.com/Go-SQL-Driver/SQL-Benchmark "golang MySQL-Driver performance")
+  * Lightweight and [fast](https://github.com/go-sql-driver/sql-benchmark "golang MySQL-Driver performance")
   * Native Go implementation. No C-bindings, just pure Go
   * Connections over TCP/IPv4, TCP/IPv6 or Unix Sockets
   * Automatic handling of broken connections
@@ -42,7 +42,7 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
 ## Installation
 Simple install the package to your [$GOPATH](http://code.google.com/p/go-wiki/wiki/GOPATH "GOPATH") with the [go tool](http://golang.org/cmd/go/ "go command") from shell:
 ```bash
-$ go get github.com/Go-SQL-Driver/MySQL
+$ go get github.com/go-sql-driver/mysql
 ```
 Make sure [Git is installed](http://git-scm.com/downloads) on your machine and in your system's `PATH`.
 
@@ -52,14 +52,14 @@ _Go MySQL Driver_ is an implementation of Go's `database/sql/driver` interface, 
 Use `mysql` as `driverName` and a valid [DSN](#dsn-data-source-name)  as `dataSourceName`
 ```go
 import "database/sql"
-import _ "github.com/Go-SQL-Driver/MySQL"
+import _ "github.com/go-sql-driver/mysql"
 
 db, e := sql.Open("mysql", "user:password@/dbname?charset=utf8")
 ```
 
 All further methods are listed here: http://golang.org/pkg/database/sql
 
-[Examples are available in our Wiki](https://github.com/Go-SQL-Driver/MySQL/wiki/Examples "Go-MySQL-Driver Examples").
+[Examples are available in our Wiki](https://github.com/go-sql-driver/mysql/wiki/Examples "Go-MySQL-Driver Examples").
 
 
 ## DSN (Data Source Name)
@@ -136,14 +136,14 @@ user:password@/
 ```
 
 ## Testing / Development
-To run the driver tests you may need to adjust the configuration. See [this Wiki-Page](https://github.com/Go-SQL-Driver/MySQL/wiki/Testing "Testing") for details.
+To run the driver tests you may need to adjust the configuration. See [this Wiki-Page](https://github.com/go-sql-driver/mysql/wiki/Testing "Testing") for details.
 
-Go-MySQL-Driver is not feature-complete yet. Your help is very appreciated. If you want to contribute, you can work on an [open issue](https://github.com/Go-SQL-Driver/MySQL/issues?state=open).
+Go-MySQL-Driver is not feature-complete yet. Your help is very appreciated. If you want to contribute, you can work on an [open issue](https://github.com/go-sql-driver/mysql/issues?state=open).
 
 ---------------------------------------
 
 ## License
-Go-MySQL-Driver is licensed under the [Mozilla Public License Version 2.0](https://raw.github.com/Go-SQL-Driver/MySQL/master/LICENSE)
+Go-MySQL-Driver is licensed under the [Mozilla Public License Version 2.0](https://raw.github.com/go-sql-driver/mysql/master/LICENSE)
 
 Mozilla summarizes the license scope as follows:
 > MPL: The copyleft applies to any files containing MPLed code.
@@ -156,4 +156,4 @@ That means:
 
 Please read the [MPL 2.0 FAQ](http://www.mozilla.org/MPL/2.0/FAQ.html) if you have further questions regarding the license.
 
-You can read the full terms here: [LICENSE](https://raw.github.com/Go-SQL-Driver/MySQL/master/LICENSE)
+You can read the full terms here: [LICENSE](https://raw.github.com/go-sql-driver/mysql/master/LICENSE)
