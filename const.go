@@ -11,8 +11,8 @@ package mysql
 
 const (
 	minProtocolVersion byte = 10
-	//maxPacketSize      = 1<<24 - 1
-	timeFormat = "2006-01-02 15:04:05"
+	maxPacketSize           = 1<<24 - 1
+	timeFormat              = "2006-01-02 15:04:05"
 )
 
 // MySQL constants documentation:
@@ -47,10 +47,8 @@ const (
 	clientMultiResults
 )
 
-type commandType byte
-
 const (
-	comQuit commandType = iota + 1
+	comQuit byte = iota + 1
 	comInitDB
 	comQuery
 	comFieldList

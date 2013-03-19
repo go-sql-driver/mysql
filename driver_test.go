@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -57,6 +58,9 @@ func getEnv() bool {
 func mustExec(t *testing.T, db *sql.DB, query string, args ...interface{}) (res sql.Result) {
 	res, err := db.Exec(query, args...)
 	if err != nil {
+		if len(query) > 300 {
+			query = "[query too large to print]"
+		}
 		t.Fatalf("Error on Exec %q: %v", query, err)
 	}
 	return
@@ -65,6 +69,9 @@ func mustExec(t *testing.T, db *sql.DB, query string, args ...interface{}) (res 
 func mustQuery(t *testing.T, db *sql.DB, query string, args ...interface{}) (rows *sql.Rows) {
 	rows, err := db.Query(query, args...)
 	if err != nil {
+		if len(query) > 300 {
+			query = "[query too large to print]"
+		}
 		t.Fatalf("Error on Query %q: %v", query, err)
 	}
 	return
@@ -496,6 +503,76 @@ func TestNULL(t *testing.T) {
 		}
 	} else {
 		t.Error("no data")
+	}
+
+	mustExec(t, db, "DROP TABLE IF EXISTS test")
+}
+
+func TestLongData(t *testing.T) {
+	if !getEnv() {
+		t.Logf("MySQL-Server not running on %s. Skipping TestLongData", netAddr)
+		return
+	}
+
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		t.Fatalf("Error connecting: %v", err)
+	}
+	defer db.Close()
+
+	var maxAllowedPacketSize int
+	err = db.QueryRow("select @@max_allowed_packet").Scan(&maxAllowedPacketSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxAllowedPacketSize--
+
+	// don't get too ambitious
+	if maxAllowedPacketSize > 1<<25 {
+		maxAllowedPacketSize = 1 << 25
+	}
+
+	mustExec(t, db, "DROP TABLE IF EXISTS test")
+	mustExec(t, db, "CREATE TABLE test (value LONGBLOB) CHARACTER SET utf8 COLLATE utf8_unicode_ci")
+
+	in := strings.Repeat(`0`, maxAllowedPacketSize+1)
+	var out string
+	var rows *sql.Rows
+
+	// Long text data
+	const nonDataQueryLen = 28 // length query w/o value
+	inS := in[:maxAllowedPacketSize-nonDataQueryLen]
+	mustExec(t, db, "INSERT INTO test VALUES('"+inS+"')")
+	rows = mustQuery(t, db, "SELECT value FROM test")
+	if rows.Next() {
+		rows.Scan(&out)
+		if inS != out {
+			t.Fatalf("LONGBLOB: length in: %d, length out: %d", len(inS), len(out))
+		}
+		if rows.Next() {
+			t.Error("LONGBLOB: unexpexted row")
+		}
+	} else {
+		t.Fatalf("LONGBLOB: no data")
+	}
+
+	// Empty table
+	mustExec(t, db, "TRUNCATE TABLE test")
+
+	// Long binary data
+	mustExec(t, db, "INSERT INTO test VALUES(?)", in)
+	rows = mustQuery(t, db, "SELECT value FROM test WHERE 1=?", 1)
+	if rows.Next() {
+		rows.Scan(&out)
+		if in != out {
+			t.Fatalf("LONGBLOB: length in: %d, length out: %d", len(in), len(out))
+		}
+		if rows.Next() {
+			t.Error("LONGBLOB: unexpexted row")
+		}
+		//t.Fatalf("%d %d %d", len(in)+nonDataQueryLen, len(out)+nonDataQueryLen, maxAllowedPacketSize)
+	} else {
+		t.Fatalf("LONGBLOB: no data")
 	}
 
 	mustExec(t, db, "DROP TABLE IF EXISTS test")

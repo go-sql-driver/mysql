@@ -30,6 +30,8 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
   * Connections over TCP/IPv4, TCP/IPv6 or Unix Sockets
   * Automatic handling of broken connections
   * Automatic Connection-Pooling *(by database/sql package)*
+  * Supports queries larger than 16MB
+  * Intelligent `LONG DATA` handling in prepared statements
 
 ## Requirements
   * Go 1.0.3 or higher

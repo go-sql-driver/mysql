@@ -17,16 +17,18 @@ import (
 )
 
 type mysqlConn struct {
-	cfg          *config
-	flags        clientFlag
-	charset      byte
-	cipher       []byte
-	netConn      net.Conn
-	buf          *buffer
-	protocol     uint8
-	sequence     uint8
-	affectedRows uint64
-	insertId     uint64
+	cfg              *config
+	flags            clientFlag
+	charset          byte
+	cipher           []byte
+	netConn          net.Conn
+	buf              *buffer
+	protocol         uint8
+	sequence         uint8
+	affectedRows     uint64
+	insertId         uint64
+	maxPacketAllowed int
+	maxWriteSize     int
 }
 
 type config struct {
@@ -191,4 +193,32 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 
 	// with args, must use prepared stmt
 	return nil, driver.ErrSkip
+}
+
+// Gets the value of the given MySQL System Variable
+func (mc *mysqlConn) getSystemVar(name string) (val []byte, err error) {
+	// Send command
+	err = mc.writeCommandPacketStr(comQuery, "SELECT @@"+name)
+	if err == nil {
+		// Read Result
+		var resLen int
+		resLen, err = mc.readResultSetHeaderPacket()
+		if err == nil {
+			rows := &mysqlRows{mc, false, nil, false}
+
+			if resLen > 0 {
+				// Columns
+				rows.columns, err = mc.readColumns(resLen)
+			}
+
+			dest := make([]driver.Value, resLen)
+			err = rows.readRow(dest)
+			if err == nil {
+				val = dest[0].([]byte)
+				err = mc.readUntilEOF()
+			}
+		}
+	}
+
+	return
 }

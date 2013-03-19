@@ -24,8 +24,11 @@ func (d *mysqlDriver) Open(dsn string) (driver.Conn, error) {
 	var err error
 
 	// New mysqlConn
-	mc := new(mysqlConn)
-	mc.cfg = parseDSN(dsn)
+	mc := &mysqlConn{
+		cfg:              parseDSN(dsn),
+		maxPacketAllowed: maxPacketSize,
+		maxWriteSize:     maxPacketSize - 1,
+	}
 
 	// Connect to Server
 	if _, ok := mc.cfg.params["timeout"]; ok { // with timeout
@@ -58,6 +61,16 @@ func (d *mysqlDriver) Open(dsn string) (driver.Conn, error) {
 	err = mc.readResultOK()
 	if err != nil {
 		return nil, err
+	}
+
+	// Get max allowed packet size
+	maxap, err := mc.getSystemVar("max_allowed_packet")
+	if err != nil {
+		return nil, err
+	}
+	mc.maxPacketAllowed = stringToInt(maxap) - 1
+	if mc.maxPacketAllowed < maxPacketSize {
+		mc.maxWriteSize = mc.maxPacketAllowed
 	}
 
 	// Handle DSN Params
