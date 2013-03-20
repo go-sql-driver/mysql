@@ -80,10 +80,10 @@ func mustQuery(t *testing.T, db *sql.DB, query string, args ...interface{}) (row
 	return
 }
 
-func mustSetCharset(t *testing.T, charsetParam, expected string) {
+func mustSetCharset(t *testing.T, charsetParam, expected string) error {
 	db, err := sql.Open("mysql", strings.Replace(dsn, charset, charsetParam, 1))
 	if err != nil {
-		t.Fatalf("Error connecting: %v", err)
+		return err
 	}
 
 	rows := mustQuery(t, db, ("SELECT @@character_set_connection"))
@@ -107,7 +107,9 @@ func TestCharset(t *testing.T) {
 	}
 
 	// non utf8 test
-	mustSetCharset(t, "charset=ascii", "ascii")
+	if err := mustSetCharset(t, "charset=ascii", "ascii"); err != nil {
+		t.Fatalf("Error connecting: %v", err)
+	}
 }
 
 func TestFallbackCharset(t *testing.T) {
@@ -117,14 +119,22 @@ func TestFallbackCharset(t *testing.T) {
 	}
 
 	// when the first charset is invalid, use the second
-	mustSetCharset(t, "charset=none,utf8", "utf8")
+	if err := mustSetCharset(t, "charset=none,utf8", "utf8")
+		t.Fatalf("Error connecting: %v", err)
+	}
 
 	// when the first charset is valid, use it
 	charsets := []string{"ascii", "utf8"}
 	for i := range charsets {
 		expected := charsets[i]
 		other := charsets[1-i]
-		mustSetCharset(t, "charset="+expected+","+other, expected)
+		if err = mustSetCharset(t, "charset="+expected+","+other, expected); err != nil {
+			t.Fatalf("Error connecting: %v", err)
+		}
+	}
+
+	if err = mustSetCharset(t, "charset=none1,none2", "utf8"); err == nil {
+		t.Fatalf("Must throw an error if no charsets are supported")
 	}
 }
 
