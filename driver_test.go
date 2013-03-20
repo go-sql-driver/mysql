@@ -3,6 +3,7 @@ package mysql
 import (
 	"database/sql"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -657,11 +658,13 @@ func TestLoadData(t *testing.T) {
 	mustExec(t, db, "TRUNCATE TABLE test")
 
 	// Reader
-	file, err = os.Open(file.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	RegisterReader("test", file)
+	RegisterReaderHandler("test", func() io.Reader {
+		file, err = os.Open(file.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return file
+	})
 	mustExec(t, db, "LOAD DATA LOCAL INFILE 'Reader::test' INTO TABLE test")
 	verifyLoadDataResult(t, db)
 	// negative test
@@ -671,7 +674,6 @@ func TestLoadData(t *testing.T) {
 	} else if err.Error() != "Reader 'doesnotexist' is not registered" {
 		t.Fatal(err.Error())
 	}
-	file.Close()
 
 	mustExec(t, db, "DROP TABLE IF EXISTS test")
 }
