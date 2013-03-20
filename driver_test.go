@@ -128,12 +128,12 @@ func TestFallbackCharset(t *testing.T) {
 	for i := range charsets {
 		expected := charsets[i]
 		other := charsets[1-i]
-		if err = mustSetCharset(t, "charset="+expected+","+other, expected); err != nil {
+		if err := mustSetCharset(t, "charset="+expected+","+other, expected); err != nil {
 			t.Fatalf("Error connecting: %v", err)
 		}
 	}
 
-	if err = mustSetCharset(t, "charset=none1,none2", "utf8"); err == nil {
+	if err := mustSetCharset(t, "charset=none1,none2", "utf8"); err == nil {
 		t.Fatalf("Must throw an error if no charsets are supported")
 	}
 }
