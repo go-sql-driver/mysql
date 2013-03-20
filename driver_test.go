@@ -119,7 +119,7 @@ func TestFallbackCharset(t *testing.T) {
 	}
 
 	// when the first charset is invalid, use the second
-	if err := mustSetCharset(t, "charset=none,utf8", "utf8")
+	if err := mustSetCharset(t, "charset=none,utf8", "utf8"); err != nil {
 		t.Fatalf("Error connecting: %v", err)
 	}
 
