@@ -18,7 +18,7 @@ import (
 type mysqlDriver struct{}
 
 // Open new Connection.
-// See https://github.com/Go-SQL-Driver/MySQL#dsn-data-source-name for how
+// See https://github.com/go-sql-driver/mysql#dsn-data-source-name for how
 // the DSN string is formated
 func (d *mysqlDriver) Open(dsn string) (driver.Conn, error) {
 	var err error

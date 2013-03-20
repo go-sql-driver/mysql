@@ -18,7 +18,7 @@ var (
 	once    sync.Once
 )
 
-// See https://github.com/Go-SQL-Driver/MySQL/wiki/Testing
+// See https://github.com/go-sql-driver/mysql/wiki/Testing
 func getEnv() bool {
 	once.Do(func() {
 		user := os.Getenv("MYSQL_TEST_USER")
