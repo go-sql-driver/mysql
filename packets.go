@@ -206,7 +206,8 @@ func (mc *mysqlConn) writeAuthPacket() error {
 		clientProtocol41 |
 			clientSecureConn |
 			clientLongPassword |
-			clientTransactions,
+			clientTransactions |
+			clientLocalFiles,
 	)
 	if mc.flags&clientLongFlag > 0 {
 		clientFlags |= uint32(clientLongFlag)
@@ -369,11 +370,17 @@ func (mc *mysqlConn) readResultOK() error {
 func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
 	data, err := mc.readPacket()
 	if err == nil {
-		if data[0] == iOK {
+		switch data[0] {
+
+		case iOK:
 			mc.handleOkPacket(data)
 			return 0, nil
-		} else if data[0] == iERR {
+
+		case iERR:
 			return 0, mc.handleErrorPacket(data)
+
+		case iLocalInFile:
+			return 0, mc.handleInFileRequest(string(data[1:]))
 		}
 
 		// column count

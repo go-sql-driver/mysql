@@ -13,12 +13,13 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
   * [Requirements](#requirements)
   * [Installation](#installation)
   * [Usage](#usage)
-  * [DSN (Data Source Name)](#dsn-data-source-name)
-    * [Password](#password)
-    * [Protocol](#protocol)
-    * [Address](#address)
-    * [Parameters](#parameters)
-    * [Examples](#examples)
+    * [DSN (Data Source Name)](#dsn-data-source-name)
+      * [Password](#password)
+      * [Protocol](#protocol)
+      * [Address](#address)
+      * [Parameters](#parameters)
+      * [Examples](#examples)
+    * [LOAD DATA LOCAL INFILE support](#load-data-local-infile-support) 
   * [Testing / Development](#testing--development)
   * [License](#license)
 
@@ -32,6 +33,7 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
   * Automatic Connection-Pooling *(by database/sql package)*
   * Supports queries larger than 16MB
   * Intelligent `LONG DATA` handling in prepared statements
+  * Secure `LOAD DATA LOCAL INFILE` support with file Whitelisting and `io.Reader` support
 
 ## Requirements
   * Go 1.0.3 or higher
@@ -62,7 +64,7 @@ All further methods are listed here: http://golang.org/pkg/database/sql
 [Examples are available in our Wiki](https://github.com/go-sql-driver/mysql/wiki/Examples "Go-MySQL-Driver Examples").
 
 
-## DSN (Data Source Name)
+### DSN (Data Source Name)
 
 The Data Source Name has a common format, like e.g. [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php) uses it, but without type-prefix (optional parts marked by squared brackets):
 ```
@@ -84,21 +86,21 @@ If you do not want to preselect a database, leave `dbname` empty:
 /
 ```
 
-### Password
+#### Password
 Passwords can consist of any character. Escaping is **not** necessary.
 
-### Protocol
+#### Protocol
 See [net.Dial](http://golang.org/pkg/net/#Dial) for more information which networks are available.
 In general you should use an Unix-socket if available and TCP otherwise for best performance.
 
-### Address
+#### Address
 For TCP and UDP networks, addresses have the form `host:port`.
 If `host` is a literal IPv6 address, it must be enclosed in square brackets.
 The functions [net.JoinHostPort](http://golang.org/pkg/net/#JoinHostPort) and [net.SplitHostPort](http://golang.org/pkg/net/#SplitHostPort) manipulate addresses in this form.
 
 For Unix-sockets the address is the absolute path to the MySQL-Server-socket, e.g. `/var/run/mysqld/mysqld.sock` or `/tmp/mysql.sock`.
 
-### Parameters
+#### Parameters
 **Parameters are case-sensitive!**
 
 Possible Parameters are:
@@ -113,7 +115,7 @@ All other parameters are interpreted as system variables:
   * `tx_isolation`: *"SET [tx_isolation](https://dev.mysql.com/doc/refman/5.5/en/server-system-variables.html#sysvar_tx_isolation)='`value`'"*
   * `param`: *"SET `param`=`value`"*
 
-### Examples
+#### Examples
 ```
 user@unix(/path/to/socket)/dbname
 ```
@@ -134,6 +136,19 @@ No Database preselected:
 ```
 user:password@/
 ```
+
+### `LOAD DATA LOCAL INFILE` support
+For this feature you need direct access to the package. Therefore you must change the import path (no `_`):
+```go
+import "github.com/go-sql-driver/mysql"
+```
+
+Files must be whitelisted by registering them with `mysql.RegisterLocalFile(filepath)` (reccommended) or the whitelist check must be deactivated by using the DSN parameter `allowAllFiles=true` (might be insecure).
+
+`io.Reader`s must be registered with `mysql.RegisterReader(name, reader)`. They are available with the filepath `Reader::<name>` then.
+
+See also the [godoc of Go-MySQL-Driver](http://godoc.org/github.com/go-sql-driver/mysql "golang mysql driver documentation")
+
 
 ## Testing / Development
 To run the driver tests you may need to adjust the configuration. See [this Wiki-Page](https://github.com/go-sql-driver/mysql/wiki/Testing "Testing") for details.

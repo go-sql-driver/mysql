@@ -3,6 +3,7 @@ package mysql
 import (
 	"database/sql"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"strings"
@@ -570,10 +571,107 @@ func TestLongData(t *testing.T) {
 		if rows.Next() {
 			t.Error("LONGBLOB: unexpexted row")
 		}
-		//t.Fatalf("%d %d %d", len(in)+nonDataQueryLen, len(out)+nonDataQueryLen, maxAllowedPacketSize)
 	} else {
 		t.Fatalf("LONGBLOB: no data")
 	}
+
+	mustExec(t, db, "DROP TABLE IF EXISTS test")
+}
+
+func verifyLoadDataResult(t *testing.T, db *sql.DB) {
+	rows, err := db.Query("SELECT * FROM test")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	i := 0
+	values := [4]string{
+		"a string",
+		"a string containing a \t",
+		"a string containing a \n",
+		"a string containing both \t\n",
+	}
+
+	var id int
+	var value string
+
+	for rows.Next() {
+		i++
+		err = rows.Scan(&id, &value)
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+		if i != id {
+			t.Fatalf("%d != %d", i, id)
+		}
+		if values[i-1] != value {
+			t.Fatalf("%s != %s", values[i-1], value)
+		}
+	}
+	err = rows.Err()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if i != 4 {
+		t.Fatalf("Rows count mismatch. Got %d, want 4", i)
+	}
+}
+
+func TestLoadData(t *testing.T) {
+	if !getEnv() {
+		t.Logf("MySQL-Server not running on %s. Skipping TestLoadData", netAddr)
+		return
+	}
+
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		t.Fatalf("Error connecting: %v", err)
+	}
+	defer db.Close()
+
+	file, err := ioutil.TempFile("", "gotest")
+	defer os.Remove(file.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	file.WriteString("1\ta string\n2\ta string containing a \\t\n3\ta string containing a \\n\n4\ta string containing both \\t\\n\n")
+	file.Close()
+
+	mustExec(t, db, "DROP TABLE IF EXISTS test")
+	mustExec(t, db, "CREATE TABLE test (id INT NOT NULL PRIMARY KEY, value TEXT NOT NULL) CHARACTER SET utf8 COLLATE utf8_unicode_ci")
+
+	// Local File
+	RegisterLocalFile(file.Name())
+	mustExec(t, db, "LOAD DATA LOCAL INFILE '"+file.Name()+"' INTO TABLE test")
+	verifyLoadDataResult(t, db)
+	// negative test
+	_, err = db.Exec("LOAD DATA LOCAL INFILE 'doesnotexist' INTO TABLE test")
+	if err == nil {
+		t.Fatal("Load non-existent file didn't fail")
+	} else if err.Error() != "Local File 'doesnotexist' is not registered. Use the DSN parameter 'allowAllFiles=true' to allow all files" {
+		t.Fatal(err.Error())
+	}
+
+	// Empty table
+	mustExec(t, db, "TRUNCATE TABLE test")
+
+	// Reader
+	file, err = os.Open(file.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	RegisterReader("test", file)
+	mustExec(t, db, "LOAD DATA LOCAL INFILE 'Reader::test' INTO TABLE test")
+	verifyLoadDataResult(t, db)
+	// negative test
+	_, err = db.Exec("LOAD DATA LOCAL INFILE 'Reader::doesnotexist' INTO TABLE test")
+	if err == nil {
+		t.Fatal("Load non-existent Reader didn't fail")
+	} else if err.Error() != "Reader 'doesnotexist' is not registered" {
+		t.Fatal(err.Error())
+	}
+	file.Close()
 
 	mustExec(t, db, "DROP TABLE IF EXISTS test")
 }

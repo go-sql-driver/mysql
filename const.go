@@ -19,9 +19,10 @@ const (
 // http://dev.mysql.com/doc/internals/en/client-server-protocol.html
 
 const (
-	iOK  byte = 0x00
-	iEOF byte = 0xfe
-	iERR byte = 0xff
+	iOK          byte = 0x00
+	iLocalInFile byte = 0xfb
+	iEOF         byte = 0xfe
+	iERR         byte = 0xff
 )
 
 type clientFlag uint32
