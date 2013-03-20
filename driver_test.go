@@ -112,7 +112,7 @@ func TestCharset(t *testing.T) {
 
 func TestFallbackCharset(t *testing.T) {
 	if !getEnv() {
-		t.Logf("MySQL-Server not running on %s. Skipping TestCharsets", netAddr)
+		t.Logf("MySQL-Server not running on %s. Skipping TestFallbackCharset", netAddr)
 		return
 	}
 
