@@ -144,9 +144,9 @@ For this feature you need direct access to the package. Therefore you must chang
 import "github.com/go-sql-driver/mysql"
 ```
 
-Files must be whitelisted by registering them with `mysql.RegisterLocalFile(filepath)` (reccommended) or the whitelist check must be deactivated by using the DSN parameter `allowAllFiles=true` (might be insecure).
+Files must be whitelisted by registering them with `mysql.RegisterLocalFile(filepath)` (reccommended) or the Whitelist check must be deactivated by using the DSN parameter `allowAllFiles=true` (might be insecure).
 
-`io.Reader`s must be registered with `mysql.RegisterReader(name, reader)`. They are available with the filepath `Reader::<name>` then.
+To use a `io.Reader` a handler function must be registered with `mysql.RegisterReaderHandler(name, handler)` which returns a `io.Reader` or `io.ReadCloser`. The Reader is available with the filepath `Reader::<name>` then.
 
 See also the [godoc of Go-MySQL-Driver](http://godoc.org/github.com/go-sql-driver/mysql "golang mysql driver documentation")
 
