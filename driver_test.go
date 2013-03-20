@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	charset string
 	dsn     string
 	netAddr string
 	run     bool
@@ -43,8 +44,9 @@ func getEnv() bool {
 			dbname = "gotest"
 		}
 
+		charset = "charset=utf8"
 		netAddr = fmt.Sprintf("%s(%s)", prot, addr)
-		dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&charset=utf8", user, pass, netAddr, dbname)
+		dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&"+charset, user, pass, netAddr, dbname)
 
 		c, err := net.Dial(prot, addr)
 		if err == nil {
@@ -76,6 +78,54 @@ func mustQuery(t *testing.T, db *sql.DB, query string, args ...interface{}) (row
 		t.Fatalf("Error on Query %q: %v", query, err)
 	}
 	return
+}
+
+func mustSetCharset(t *testing.T, charsetParam, expected string) {
+	db, err := sql.Open("mysql", strings.Replace(dsn, charset, charsetParam, 1))
+	if err != nil {
+		t.Fatalf("Error connecting: %v", err)
+	}
+
+	rows := mustQuery(t, db, ("SELECT @@character_set_connection"))
+	if !rows.Next() {
+		t.Fatalf("Error getting connection charset: %v", err)
+	}
+
+	var got string
+	rows.Scan(&got)
+
+	if got != expected {
+		t.Fatalf("Expected connection charset %s but got %s", expected, got)
+	}
+	db.Close()
+}
+
+func TestCharset(t *testing.T) {
+	if !getEnv() {
+		t.Logf("MySQL-Server not running on %s. Skipping TestCharset", netAddr)
+		return
+	}
+
+	// non utf8 test
+	mustSetCharset(t, "charset=ascii", "ascii")
+}
+
+func TestFallbackCharset(t *testing.T) {
+	if !getEnv() {
+		t.Logf("MySQL-Server not running on %s. Skipping TestCharsets", netAddr)
+		return
+	}
+
+	// when the first charset is invalid, use the second
+	mustSetCharset(t, "charset=none,utf8", "utf8")
+
+	// when the first charset is valid, use it
+	charsets := []string{"ascii", "utf8"}
+	for i := range charsets {
+		expected := charsets[i]
+		other := charsets[1-i]
+		mustSetCharset(t, "charset="+expected+","+other, expected)
+	}
 }
 
 func TestCRUD(t *testing.T) {
