@@ -84,7 +84,7 @@ func mustQuery(t *testing.T, db *sql.DB, query string, args ...interface{}) (row
 func mustSetCharset(t *testing.T, charsetParam, expected string) {
 	db, err := sql.Open("mysql", strings.Replace(dsn, charset, charsetParam, 1))
 	if err != nil {
-		t.Fatalf("Error connecting: %v", err)
+		t.Fatalf("Error on Open: %v", err)
 	}
 
 	rows := mustQuery(t, db, ("SELECT @@character_set_connection"))
@@ -98,7 +98,6 @@ func mustSetCharset(t *testing.T, charsetParam, expected string) {
 	if got != expected {
 		t.Fatalf("Expected connection charset %s but got %s", expected, got)
 	}
-	db.Close()
 }
 
 func TestCharset(t *testing.T) {
@@ -109,6 +108,16 @@ func TestCharset(t *testing.T) {
 
 	// non utf8 test
 	mustSetCharset(t, "charset=ascii", "ascii")
+}
+
+func TestFailingCharset(t *testing.T) {
+	db, err := sql.Open("mysql", strings.Replace(dsn, charset, "charset=none", 1))
+	// run query to really establish connection...
+	_, err = db.Exec("SELECT 1")
+	if err == nil {
+		db.Close()
+		t.Fatalf("Connection must not succeed without a valid charset")
+	}
 }
 
 func TestFallbackCharset(t *testing.T) {
