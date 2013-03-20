@@ -28,7 +28,7 @@ func init() {
 }
 
 // RegisterLocalFile adds the given file to the file whitelist,
-// so that it can be used by "LOAD DATA LOCAL INFILE <filepath".
+// so that it can be used by "LOAD DATA LOCAL INFILE <filepath>".
 // Alternatively you can allow the use of all local files with
 // the DSN parameter 'allowAllFiles=true'
 func RegisterLocalFile(filepath string) {
