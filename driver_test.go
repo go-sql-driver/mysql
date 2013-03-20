@@ -80,10 +80,10 @@ func mustQuery(t *testing.T, db *sql.DB, query string, args ...interface{}) (row
 	return
 }
 
-func mustSetCharset(t *testing.T, charsetParam, expected string) error {
+func mustSetCharset(t *testing.T, charsetParam, expected string) {
 	db, err := sql.Open("mysql", strings.Replace(dsn, charset, charsetParam, 1))
 	if err != nil {
-		return err
+		t.Fatalf("Error on Open: %v", err)
 	}
 
 	rows := mustQuery(t, db, ("SELECT @@character_set_connection"))
@@ -97,7 +97,6 @@ func mustSetCharset(t *testing.T, charsetParam, expected string) error {
 	if got != expected {
 		t.Fatalf("Expected connection charset %s but got %s", expected, got)
 	}
-	db.Close()
 }
 
 func TestCharset(t *testing.T) {
@@ -107,8 +106,16 @@ func TestCharset(t *testing.T) {
 	}
 
 	// non utf8 test
-	if err := mustSetCharset(t, "charset=ascii", "ascii"); err != nil {
-		t.Fatalf("Error connecting: %v", err)
+	mustSetCharset(t, "charset=ascii", "ascii")
+}
+
+func TestFailingCharset(t *testing.T) {
+	db, err := sql.Open("mysql", strings.Replace(dsn, charset, "charset=none", 1))
+	// run query to really establish connection...
+	_, err = db.Exec("SELECT 1")
+	if err == nil {
+		db.Close()
+		t.Fatalf("Connection must not succeed without a valid charset")
 	}
 }
 
@@ -119,22 +126,14 @@ func TestFallbackCharset(t *testing.T) {
 	}
 
 	// when the first charset is invalid, use the second
-	if err := mustSetCharset(t, "charset=none,utf8", "utf8"); err != nil {
-		t.Fatalf("Error connecting: %v", err)
-	}
+	mustSetCharset(t, "charset=none,utf8", "utf8")
 
 	// when the first charset is valid, use it
 	charsets := []string{"ascii", "utf8"}
 	for i := range charsets {
 		expected := charsets[i]
 		other := charsets[1-i]
-		if err := mustSetCharset(t, "charset="+expected+","+other, expected); err != nil {
-			t.Fatalf("Error connecting: %v", err)
-		}
-	}
-
-	if err := mustSetCharset(t, "charset=none1,none2", "utf8"); err == nil {
-		t.Fatalf("Must throw an error if no charsets are supported")
+		mustSetCharset(t, "charset="+expected+","+other, expected)
 	}
 }
 
