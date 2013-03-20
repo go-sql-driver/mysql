@@ -54,8 +54,8 @@ func (mc *mysqlConn) handleParams() (err error) {
 				}
 			}
 
-		// Timeout - already handled on connecting
-		case "timeout":
+		// handled elsewhere
+		case "timeout", "allowAllFiles":
 			continue
 
 		// TLS-Encryption
