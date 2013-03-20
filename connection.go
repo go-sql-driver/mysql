@@ -58,6 +58,9 @@ func (mc *mysqlConn) handleParams() (err error) {
 					}
 				}
 			}
+			if err != nil {
+				return
+			}
 
 		// handled elsewhere
 		case "timeout", "allowAllFiles":
