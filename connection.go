@@ -48,9 +48,14 @@ func (mc *mysqlConn) handleParams() (err error) {
 		case "charset":
 			charsets := strings.Split(val, ",")
 			for _, charset := range charsets {
+				// ignore errors here - a charset may not exist
 				err = mc.exec("SET NAMES " + charset)
-				if err != nil {
-					return
+				if err == nil {
+					var value []byte
+					value, err = mc.getSystemVar("character_set_connection")
+					if string(value) == charset {
+						break
+					}
 				}
 			}
 
