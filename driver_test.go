@@ -3,6 +3,7 @@ package mysql
 import (
 	"database/sql"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -12,6 +13,7 @@ import (
 )
 
 var (
+	charset string
 	dsn     string
 	netAddr string
 	run     bool
@@ -44,7 +46,8 @@ func getEnv() bool {
 		}
 
 		netAddr = fmt.Sprintf("%s(%s)", prot, addr)
-		dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&charset=utf8", user, pass, netAddr, dbname)
+		charset = "charset=utf8"
+		dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&"+charset, user, pass, netAddr, dbname)
 
 		c, err := net.Dial(prot, addr)
 		if err == nil {
@@ -76,6 +79,54 @@ func mustQuery(t *testing.T, db *sql.DB, query string, args ...interface{}) (row
 		t.Fatalf("Error on Query %q: %v", query, err)
 	}
 	return
+}
+
+func mustSetCharset(t *testing.T, charsetParam, expected string) {
+	db, err := sql.Open("mysql", strings.Replace(dsn, charset, charsetParam, 1))
+	if err != nil {
+		t.Fatalf("Error connecting: %v", err)
+	}
+
+	rows := mustQuery(t, db, ("SELECT @@character_set_connection"))
+	if !rows.Next() {
+		t.Fatalf("Error getting connection charset: %v", err)
+	}
+
+	var got string
+	rows.Scan(&got)
+
+	if got != expected {
+		t.Fatalf("Expected connection charset %s but got %s", expected, got)
+	}
+	db.Close()
+}
+
+func TestCharset(t *testing.T) {
+	if !getEnv() {
+		t.Logf("MySQL-Server not running on %s. Skipping TestCharset", netAddr)
+		return
+	}
+
+	// non utf8 test
+	mustSetCharset(t, "charset=ascii", "ascii")
+}
+
+func TestFallbackCharset(t *testing.T) {
+	if !getEnv() {
+		t.Logf("MySQL-Server not running on %s. Skipping TestCharsets", netAddr)
+		return
+	}
+
+	// for an invalid first we should pick the second
+	mustSetCharset(t, "charset=none,utf8", "utf8")
+
+	// for a valid first choice, take the first choice
+	charsets := []string{"ascii", "utf8"}
+	for i := range charsets {
+		expected := charsets[i]
+		other := charsets[1-i]
+		mustSetCharset(t, "charset="+expected+","+other, expected)
+	}
 }
 
 func TestCRUD(t *testing.T) {
@@ -657,11 +708,13 @@ func TestLoadData(t *testing.T) {
 	mustExec(t, db, "TRUNCATE TABLE test")
 
 	// Reader
-	file, err = os.Open(file.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	RegisterReader("test", file)
+	RegisterReaderHandler("test", func() io.Reader {
+		file, err = os.Open(file.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return file
+	})
 	mustExec(t, db, "LOAD DATA LOCAL INFILE 'Reader::test' INTO TABLE test")
 	verifyLoadDataResult(t, db)
 	// negative test
@@ -671,7 +724,6 @@ func TestLoadData(t *testing.T) {
 	} else if err.Error() != "Reader 'doesnotexist' is not registered" {
 		t.Fatal(err.Error())
 	}
-	file.Close()
 
 	mustExec(t, db, "DROP TABLE IF EXISTS test")
 }
