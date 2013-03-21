@@ -28,9 +28,9 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
 ## Features
   * Lightweight and [fast](https://github.com/go-sql-driver/sql-benchmark "golang MySQL-Driver performance")
   * Native Go implementation. No C-bindings, just pure Go
-  * Connections over TCP/IPv4, TCP/IPv6 or Unix Sockets
+  * Connections over TCP/IPv4, TCP/IPv6 or Unix domain sockets
   * Automatic handling of broken connections
-  * Automatic Connection-Pooling *(by database/sql package)*
+  * Automatic Connection Pooling *(by database/sql package)*
   * Supports queries larger than 16MB
   * Intelligent `LONG DATA` handling in prepared statements
   * Secure `LOAD DATA LOCAL INFILE` support with file Whitelisting and `io.Reader` support
@@ -49,17 +49,15 @@ $ go get github.com/go-sql-driver/mysql
 Make sure [Git is installed](http://git-scm.com/downloads) on your machine and in your system's `PATH`.
 
 ## Usage
-_Go MySQL Driver_ is an implementation of Go's `database/sql/driver` interface, so all you need to do is to import the driver and open a new database connection with the given driver.
+_Go MySQL Driver_ is an implementation of Go's `database/sql/driver` interface. You only need to import the driver and can use the full [`database/sql`](http://golang.org/pkg/database/sql) API then.
 
-Use `mysql` as `driverName` and a valid [DSN](#dsn-data-source-name)  as `dataSourceName`
+Use `mysql` as `driverName` and a valid [DSN](#dsn-data-source-name)  as `dataSourceName`:
 ```go
 import "database/sql"
 import _ "github.com/go-sql-driver/mysql"
 
 db, e := sql.Open("mysql", "user:password@/dbname?charset=utf8")
 ```
-
-All further methods are listed here: http://golang.org/pkg/database/sql
 
 [Examples are available in our Wiki](https://github.com/go-sql-driver/mysql/wiki/Examples "Go-MySQL-Driver Examples").
 
@@ -68,7 +66,7 @@ All further methods are listed here: http://golang.org/pkg/database/sql
 
 The Data Source Name has a common format, like e.g. [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php) uses it, but without type-prefix (optional parts marked by squared brackets):
 ```
-[username[:password]@][protocol[(address)]]/dbname[?param1=value1&paramN=valueN]
+[username[:password]@][protocol[(address)]]/dbname[?param1=value1&...&paramN=valueN]
 ```
 
 A DSN in its fullest form:
@@ -91,29 +89,27 @@ Passwords can consist of any character. Escaping is **not** necessary.
 
 #### Protocol
 See [net.Dial](http://golang.org/pkg/net/#Dial) for more information which networks are available.
-In general you should use an Unix-socket if available and TCP otherwise for best performance.
+In general you should use an Unix domain socket if available and TCP otherwise for best performance.
 
 #### Address
 For TCP and UDP networks, addresses have the form `host:port`.
 If `host` is a literal IPv6 address, it must be enclosed in square brackets.
 The functions [net.JoinHostPort](http://golang.org/pkg/net/#JoinHostPort) and [net.SplitHostPort](http://golang.org/pkg/net/#SplitHostPort) manipulate addresses in this form.
 
-For Unix-sockets the address is the absolute path to the MySQL-Server-socket, e.g. `/var/run/mysqld/mysqld.sock` or `/tmp/mysql.sock`.
+For Unix domain sockets the address is the absolute path to the MySQL-Server-socket, e.g. `/var/run/mysqld/mysqld.sock` or `/tmp/mysql.sock`.
 
 #### Parameters
 **Parameters are case-sensitive!**
 
 Possible Parameters are:
   * `timeout`: **Driver** side connection timeout. The value must be a string of decimal numbers, each with optional fraction and a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*. To set a server side timeout, use the parameter [`wait_timeout`](http://dev.mysql.com/doc/refman/5.6/en/server-system-variables.html#sysvar_wait_timeout).
-  * `charset`: *"SET NAMES `value`"*. If multiple charsets are set (seperated by a comma), the following charset is used if setting the charset failes. This enables support for `utf8mb4` ([introduced in MySQL 5.5.3](http://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)) with fallback to `utf8` for older servers.
+  * `charset`: Sets the charset used for client-server interaction (*"SET NAMES `value`"*). If multiple charsets are set (seperated by a comma), the following charset is used if setting the charset failes. This enables support for `utf8mb4` ([introduced in MySQL 5.5.3](http://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)) with fallback to `utf8` for older servers (`charset=utf8mb4,utf8`).
   * `allowAllFiles`: `allowAllFiles=true` disables the file Whitelist for `LOAD DATA LOCAL INFILE` and allows *all* files. *Might be insecure!*
-  * _(pending)_ <s>`tls`</s>: will enable SSL/TLS-Encryption
-  * _(pending)_ <s>`compress`</s>: will enable Compression
 
 All other parameters are interpreted as system variables:
-  * `autocommit`: *"SET autocommit='`value`'"*
-  * `time_zone`: *"SET time_zone='`value`'"*
-  * `tx_isolation`: *"SET [tx_isolation](https://dev.mysql.com/doc/refman/5.5/en/server-system-variables.html#sysvar_tx_isolation)='`value`'"*
+  * `autocommit`: *"SET autocommit=`value`"*
+  * `time_zone`: *"SET time_zone=`value`"*
+  * `tx_isolation`: *"SET [tx_isolation](https://dev.mysql.com/doc/refman/5.5/en/server-system-variables.html#sysvar_tx_isolation)=`value`"*
   * `param`: *"SET `param`=`value`"*
 
 #### Examples
