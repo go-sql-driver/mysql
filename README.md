@@ -99,7 +99,7 @@ The functions [net.JoinHostPort](http://golang.org/pkg/net/#JoinHostPort) and [n
 For Unix domain sockets the address is the absolute path to the MySQL-Server-socket, e.g. `/var/run/mysqld/mysqld.sock` or `/tmp/mysql.sock`.
 
 #### Parameters
-**Parameters are case-sensitive!**
+***Parameters are case-sensitive!***
 
 Possible Parameters are:
   * `timeout`: **Driver** side connection timeout. The value must be a string of decimal numbers, each with optional fraction and a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*. To set a server side timeout, use the parameter [`wait_timeout`](http://dev.mysql.com/doc/refman/5.6/en/server-system-variables.html#sysvar_wait_timeout).
