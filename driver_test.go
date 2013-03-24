@@ -65,7 +65,7 @@ func mustExec(t *testing.T, db *sql.DB, query string, args ...interface{}) (res 
 		if len(query) > 300 {
 			query = "[query too large to print]"
 		}
-		t.Fatalf("Error on Exec %q: %v", query, err)
+		t.Fatalf("Error on Exec %s: %v", query, err)
 	}
 	return
 }
@@ -76,7 +76,7 @@ func mustQuery(t *testing.T, db *sql.DB, query string, args ...interface{}) (row
 		if len(query) > 300 {
 			query = "[query too large to print]"
 		}
-		t.Fatalf("Error on Query %q: %v", query, err)
+		t.Fatalf("Error on Query %s: %v", query, err)
 	}
 	return
 }
@@ -703,7 +703,7 @@ func TestLoadData(t *testing.T) {
 
 	// Local File
 	RegisterLocalFile(file.Name())
-	mustExec(t, db, "LOAD DATA LOCAL INFILE '"+file.Name()+"' INTO TABLE test")
+	mustExec(t, db, fmt.Sprintf("LOAD DATA LOCAL INFILE '%q' INTO TABLE test", file.Name()))
 	verifyLoadDataResult(t, db)
 	// negative test
 	_, err = db.Exec("LOAD DATA LOCAL INFILE 'doesnotexist' INTO TABLE test")
@@ -970,39 +970,46 @@ func TestConcurrent(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 
-	t.Logf("Testing %d concurrent connections \r\n", max)
+	t.Logf("Testing up to %d concurrent connections \r\n", max)
 
 	canStop := false
 
 	c := make(chan struct{}, max)
 	for i := 0; i < max; i++ {
-		go func() {
+		go func(id int) {
 			tx, err := db.Begin()
 			if err != nil {
 				canStop = true
-				t.Fatalf("Error on Con %d: %s", i, err.Error())
+				if err.Error() == "Error 1040: Too many connections" {
+					max--
+					return
+				} else {
+					t.Fatalf("Error on Con %d: %s", id, err.Error())
+				}
 			}
 
 			c <- struct{}{}
 
 			for !canStop {
-				_, err := tx.Exec("SELECT 1")
+				_, err = tx.Exec("SELECT 1")
 				if err != nil {
 					canStop = true
-					t.Fatalf("Error on Con %d: %s", i, err.Error())
+					t.Fatalf("Error on Con %d: %s", id, err.Error())
 				}
 			}
 
 			err = tx.Commit()
 			if err != nil {
 				canStop = true
-				t.Fatalf("Error on Con %d: %s", i, err.Error())
+				t.Fatalf("Error on Con %d: %s", id, err.Error())
 			}
-		}()
+		}(i)
 	}
 
 	for i := 0; i < max; i++ {
 		<-c
 	}
 	canStop = true
+
+	t.Logf("Reached %d concurrent connections \r\n", max)
 }
