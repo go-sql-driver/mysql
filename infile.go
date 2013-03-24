@@ -32,7 +32,7 @@ func init() {
 // Alternatively you can allow the use of all local files with
 // the DSN parameter 'allowAllFiles=true'
 func RegisterLocalFile(filepath string) {
-	fileRegister[filepath] = true
+	fileRegister[strings.Trim(filepath, `"`)] = true
 }
 
 // RegisterReaderHandler registers a handler function which is used
@@ -62,6 +62,7 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 			}
 		}
 	} else { // File
+		name = strings.Trim(name, `"`)
 		if fileRegister[name] || mc.cfg.params[`allowAllFiles`] == `true` {
 			rdr, err = os.Open(name)
 		} else {
