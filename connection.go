@@ -10,6 +10,7 @@
 package mysql
 
 import (
+	"bufio"
 	"database/sql/driver"
 	"errors"
 	"net"
@@ -22,7 +23,7 @@ type mysqlConn struct {
 	charset          byte
 	cipher           []byte
 	netConn          net.Conn
-	buf              *buffer
+	buf              *bufio.Reader
 	protocol         uint8
 	sequence         uint8
 	affectedRows     uint64
@@ -182,7 +183,7 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 			var resLen int
 			resLen, err = mc.readResultSetHeaderPacket()
 			if err == nil {
-				rows := &mysqlRows{mc, false, nil, false}
+				rows := &mysqlRows{mc, false, nil, false, nil}
 
 				if resLen > 0 {
 					// Columns
@@ -208,7 +209,7 @@ func (mc *mysqlConn) getSystemVar(name string) (val []byte, err error) {
 		var resLen int
 		resLen, err = mc.readResultSetHeaderPacket()
 		if err == nil {
-			rows := &mysqlRows{mc, false, nil, false}
+			rows := &mysqlRows{mc, false, nil, false, nil}
 
 			if resLen > 0 {
 				// Columns

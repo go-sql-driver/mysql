@@ -24,17 +24,17 @@ import (
 // http://dev.mysql.com/doc/internals/en/client-server-protocol.html
 
 // Read packet to buffer 'data'
-func (mc *mysqlConn) readPacket() (data []byte, err error) {
+func (mc *mysqlConn) readPacket(reuseBuf *bytes.Buffer) (*bytes.Buffer, error) {
 	// Read packet header
-	data = make([]byte, 4)
-	err = mc.buf.read(data)
+	var header [4]byte
+	_, err := io.ReadAtLeast(mc.buf, header[:], len(header))
 	if err != nil {
 		errLog.Print(err.Error())
 		return nil, driver.ErrBadConn
 	}
 
 	// Packet Length [24 bit]
-	pktLen := uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16
+	pktLen := uint32(header[0]) | uint32(header[1])<<8 | uint32(header[2])<<16
 
 	if pktLen < 1 {
 		errLog.Print(errMalformPkt.Error())
@@ -42,8 +42,8 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 	}
 
 	// Check Packet Sync [8 bit]
-	if data[3] != mc.sequence {
-		if data[3] > mc.sequence {
+	if header[3] != mc.sequence {
+		if header[3] > mc.sequence {
 			return nil, errPktSyncMul
 		} else {
 			return nil, errPktSync
@@ -51,23 +51,48 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 	}
 	mc.sequence++
 
-	// Read packet body [pktLen bytes]
-	data = make([]byte, pktLen)
-	err = mc.buf.read(data)
-	if err == nil {
-		if pktLen < maxPacketSize {
-			return data, nil
-		}
-
-		// More data
-		var data2 []byte
-		data2, err = mc.readPacket()
-		if err == nil {
-			return append(data, data2...), nil
-		}
+	// Setup buffer with space for atleast pktLen bytes
+	var dataBuf *bytes.Buffer
+	if reuseBuf != nil {
+		dataBuf = reuseBuf
+		// TODO: in Go 1.1, bytes.Buffer has a Grow method that could reduce
+		// number of allocations even further. We could support go1.0.3 and
+		// go1.1 with some build-tags, but I'm leaving it for now.
+		//
+		// go1.1:
+		// dataBuf.Grow(int(pktLen))
+	} else {
+		dataBuf = bytes.NewBuffer(make([]byte, 0, int(pktLen)))
 	}
-	errLog.Print(err.Error())
-	return nil, driver.ErrBadConn
+
+	// Read packet body [pktLen bytes]
+	_, err = io.CopyN(dataBuf, mc.buf, int64(pktLen))
+	if err != nil {
+		errLog.Print(err.Error())
+		return nil, driver.ErrBadConn
+	}
+
+	if pktLen < maxPacketSize {
+		return dataBuf, nil
+	}
+
+	// TODO: convert this recursion into iteration
+
+	// pktLen == maxPacketSize is MySQL signalling that more data is in
+	// the next packet. We write the next packet directly into our data buffer.
+	dataBuf, err = mc.readPacket(dataBuf)
+	if err != nil {
+		return nil, err
+	}
+	return dataBuf, err
+}
+
+func (mc *mysqlConn) readPacketBytes() ([]byte, error) {
+	dataBuf, err := mc.readPacket(nil)
+	if err != nil {
+		return nil, err
+	}
+	return dataBuf.Bytes(), nil
 }
 
 // Write packet buffer 'data'
@@ -139,7 +164,7 @@ func (mc *mysqlConn) splitPacket(data []byte) (err error) {
 // Handshake Initialization Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::Handshake
 func (mc *mysqlConn) readInitPacket() (err error) {
-	data, err := mc.readPacket()
+	data, err := mc.readPacketBytes()
 	if err != nil {
 		return
 	}
@@ -346,7 +371,7 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 
 // Returns error if Packet is not an 'Result OK'-Packet
 func (mc *mysqlConn) readResultOK() error {
-	data, err := mc.readPacket()
+	data, err := mc.readPacketBytes()
 	if err == nil {
 		// packet indicator
 		switch data[0] {
@@ -368,7 +393,7 @@ func (mc *mysqlConn) readResultOK() error {
 // Result Set Header Packet
 // http://dev.mysql.com/doc/internals/en/text-protocol.html#packet-ProtocolText::Resultset
 func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
-	data, err := mc.readPacket()
+	data, err := mc.readPacketBytes()
 	if err == nil {
 		switch data[0] {
 
@@ -439,17 +464,24 @@ func (mc *mysqlConn) handleOkPacket(data []byte) {
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/text-protocol.html#packet-Protocol::ColumnDefinition41
 func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
-	var data []byte
+	var dataBuf *bytes.Buffer
 	var i, pos, n int
 	var name []byte
 
 	columns = make([]mysqlField, count)
 
 	for {
-		data, err = mc.readPacket()
+		// If we're reusing a buffer, reset it
+		if dataBuf != nil {
+			dataBuf.Reset()
+		}
+
+		dataBuf, err = mc.readPacket(dataBuf)
 		if err != nil {
 			return
 		}
+
+		data := dataBuf.Bytes()
 
 		// EOF Packet
 		if data[0] == iEOF && len(data) == 5 {
@@ -487,6 +519,9 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 		pos += n
 
 		// Name [len coded string]
+		//
+		// NOTE: We must take a copy of name, because we reuse the underlying
+		// storage
 		name, _, n, err = readLengthEnodedString(data[pos:])
 		if err != nil {
 			return
@@ -530,10 +565,14 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/text-protocol.html#packet-ProtocolText::ResultsetRow
 func (rows *mysqlRows) readRow(dest []driver.Value) (err error) {
-	data, err := rows.mc.readPacket()
+	if rows.buf != nil {
+		rows.buf.Reset()
+	}
+	rows.buf, err = rows.mc.readPacket(rows.buf)
 	if err != nil {
 		return
 	}
+	data := rows.buf.Bytes()
 
 	// EOF Packet
 	if data[0] == iEOF && len(data) == 5 {
@@ -563,20 +602,30 @@ func (rows *mysqlRows) readRow(dest []driver.Value) (err error) {
 	return
 }
 
-// Reads Packets until EOF-Packet or an Error appears. Returns count of Packets read
-func (mc *mysqlConn) readUntilEOF() (err error) {
-	var data []byte
+// Reads Packets until EOF-Packet or an Error appears.
+func (mc *mysqlConn) readUntilEOF() error {
+	var (
+		dataBuf *bytes.Buffer
+		err     error
+	)
 
 	for {
-		data, err = mc.readPacket()
-
-		// No Err and no EOF Packet
-		if err == nil && (data[0] != iEOF || len(data) != 5) {
-			continue
+		if dataBuf != nil {
+			dataBuf.Reset()
 		}
-		return // Err or EOF
+		dataBuf, err = mc.readPacket(dataBuf)
+		if err != nil {
+			return err
+		}
+		data := dataBuf.Bytes()
+
+		// If we found an EOF packet, then we're done.
+		if data[0] == iEOF && len(data) == 5 {
+			break
+		}
 	}
-	return
+
+	return nil
 }
 
 /******************************************************************************
@@ -586,7 +635,7 @@ func (mc *mysqlConn) readUntilEOF() (err error) {
 // Prepare Result Packets
 // http://dev.mysql.com/doc/internals/en/prepared-statements.html#com-stmt-prepare-response
 func (stmt *mysqlStmt) readPrepareResultPacket() (columnCount uint16, err error) {
-	data, err := stmt.mc.readPacket()
+	data, err := stmt.mc.readPacketBytes()
 	if err == nil {
 		// Position
 		pos := 0
@@ -816,10 +865,14 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 // http://dev.mysql.com/doc/internals/en/prepared-statements.html#packet-ProtocolBinary::ResultsetRow
 func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
-	data, err := rc.mc.readPacket()
+	if rc.buf != nil {
+		rc.buf.Reset()
+	}
+	rc.buf, err = rc.mc.readPacket(rc.buf)
 	if err != nil {
 		return
 	}
+	data := rc.buf.Bytes()
 
 	// packet indicator [1 byte]
 	if data[0] != iOK {
