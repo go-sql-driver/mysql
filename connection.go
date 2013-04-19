@@ -10,6 +10,7 @@
 package mysql
 
 import (
+	"bufio"
 	"database/sql/driver"
 	"errors"
 	"net"
@@ -22,7 +23,7 @@ type mysqlConn struct {
 	charset          byte
 	cipher           []byte
 	netConn          net.Conn
-	buf              *buffer
+	buf              *bufio.Reader
 	protocol         uint8
 	sequence         uint8
 	affectedRows     uint64
