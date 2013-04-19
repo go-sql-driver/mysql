@@ -459,17 +459,24 @@ func (mc *mysqlConn) handleOkPacket(data []byte) {
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/text-protocol.html#packet-Protocol::ColumnDefinition41
 func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
-	var data []byte
+	var dataBuf *bytes.Buffer
 	var i, pos, n int
 	var name []byte
 
 	columns = make([]mysqlField, count)
 
 	for {
-		data, err = mc.readPacketBytes()
+		// If we're reusing a buffer, reset it
+		if dataBuf != nil {
+			dataBuf.Reset()
+		}
+
+		dataBuf, err = mc.readPacket(dataBuf)
 		if err != nil {
 			return
 		}
+
+		data := dataBuf.Bytes()
 
 		// EOF Packet
 		if data[0] == iEOF && len(data) == 5 {
@@ -507,6 +514,9 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 		pos += n
 
 		// Name [len coded string]
+		//
+		// NOTE: We must take a copy of name, because we reuse the underlying
+		// storage
 		name, _, n, err = readLengthEnodedString(data[pos:])
 		if err != nil {
 			return
