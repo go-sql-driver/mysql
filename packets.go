@@ -27,7 +27,7 @@ import (
 func (mc *mysqlConn) readPacket() (data []byte, err error) {
 	// Read packet header
 	data = make([]byte, 4)
-	err = mc.buf.read(data)
+	_, err = io.ReadAtLeast(mc.buf, data, len(data))
 	if err != nil {
 		errLog.Print(err.Error())
 		return nil, driver.ErrBadConn
@@ -53,7 +53,7 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 
 	// Read packet body [pktLen bytes]
 	data = make([]byte, pktLen)
-	err = mc.buf.read(data)
+	_, err = io.ReadAtLeast(mc.buf, data, len(data))
 	if err == nil {
 		if pktLen < maxPacketSize {
 			return data, nil
