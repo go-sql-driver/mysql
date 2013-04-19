@@ -82,6 +82,14 @@ func (mc *mysqlConn) readPacket(reuseBuf *bytes.Buffer) (*bytes.Buffer, error) {
 	return dataBuf, err
 }
 
+func (mc *mysqlConn) readPacketBytes() ([]byte, error) {
+	dataBuf, err := mc.readPacket(nil)
+	if err != nil {
+		return nil, err
+	}
+	return dataBuf.Bytes(), nil
+}
+
 // Write packet buffer 'data'
 // The packet header must be already included
 func (mc *mysqlConn) writePacket(data []byte) error {
@@ -151,8 +159,7 @@ func (mc *mysqlConn) splitPacket(data []byte) (err error) {
 // Handshake Initialization Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::Handshake
 func (mc *mysqlConn) readInitPacket() (err error) {
-	dataBuf, err := mc.readPacket(nil)
-	data := dataBuf.Bytes()
+	data, err := mc.readPacketBytes()
 	if err != nil {
 		return
 	}
@@ -359,8 +366,7 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 
 // Returns error if Packet is not an 'Result OK'-Packet
 func (mc *mysqlConn) readResultOK() error {
-	dataBuf, err := mc.readPacket(nil)
-	data := dataBuf.Bytes()
+	data, err := mc.readPacketBytes()
 	if err == nil {
 		// packet indicator
 		switch data[0] {
@@ -382,8 +388,7 @@ func (mc *mysqlConn) readResultOK() error {
 // Result Set Header Packet
 // http://dev.mysql.com/doc/internals/en/text-protocol.html#packet-ProtocolText::Resultset
 func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
-	dataBuf, err := mc.readPacket(nil)
-	data := dataBuf.Bytes()
+	data, err := mc.readPacketBytes()
 	if err == nil {
 		switch data[0] {
 
@@ -454,7 +459,6 @@ func (mc *mysqlConn) handleOkPacket(data []byte) {
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/text-protocol.html#packet-Protocol::ColumnDefinition41
 func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
-	var dataBuf *bytes.Buffer
 	var data []byte
 	var i, pos, n int
 	var name []byte
@@ -462,8 +466,7 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 	columns = make([]mysqlField, count)
 
 	for {
-		dataBuf, err = mc.readPacket(nil)
-		data = dataBuf.Bytes()
+		data, err = mc.readPacketBytes()
 		if err != nil {
 			return
 		}
@@ -547,8 +550,7 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/text-protocol.html#packet-ProtocolText::ResultsetRow
 func (rows *mysqlRows) readRow(dest []driver.Value) (err error) {
-	dataBuf, err := rows.mc.readPacket(nil)
-	data := dataBuf.Bytes()
+	data, err := rows.mc.readPacketBytes()
 	if err != nil {
 		return
 	}
@@ -583,12 +585,10 @@ func (rows *mysqlRows) readRow(dest []driver.Value) (err error) {
 
 // Reads Packets until EOF-Packet or an Error appears. Returns count of Packets read
 func (mc *mysqlConn) readUntilEOF() (err error) {
-	var dataBuf *bytes.Buffer
 	var data []byte
 
 	for {
-		dataBuf, err = mc.readPacket(nil)
-		data = dataBuf.Bytes()
+		data, err = mc.readPacketBytes()
 
 		// No Err and no EOF Packet
 		if err == nil && (data[0] != iEOF || len(data) != 5) {
@@ -606,8 +606,7 @@ func (mc *mysqlConn) readUntilEOF() (err error) {
 // Prepare Result Packets
 // http://dev.mysql.com/doc/internals/en/prepared-statements.html#com-stmt-prepare-response
 func (stmt *mysqlStmt) readPrepareResultPacket() (columnCount uint16, err error) {
-	dataBuf, err := stmt.mc.readPacket(nil)
-	data := dataBuf.Bytes()
+	data, err := stmt.mc.readPacketBytes()
 	if err == nil {
 		// Position
 		pos := 0
@@ -837,8 +836,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 // http://dev.mysql.com/doc/internals/en/prepared-statements.html#packet-ProtocolBinary::ResultsetRow
 func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
-	dataBuf, err := rc.mc.readPacket(nil)
-	data := dataBuf.Bytes()
+	data, err := rc.mc.readPacketBytes()
 	if err != nil {
 		return
 	}
