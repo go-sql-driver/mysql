@@ -10,6 +10,7 @@
 package mysql
 
 import (
+	"bytes"
 	"database/sql/driver"
 	"errors"
 	"io"
@@ -26,6 +27,9 @@ type mysqlRows struct {
 	binary  bool
 	columns []mysqlField
 	eof     bool
+
+	// We reuse this buffer when parsing rows
+	buf *bytes.Buffer
 }
 
 func (rows *mysqlRows) Columns() (columns []string) {

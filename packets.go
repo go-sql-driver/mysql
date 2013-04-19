@@ -560,10 +560,14 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/text-protocol.html#packet-ProtocolText::ResultsetRow
 func (rows *mysqlRows) readRow(dest []driver.Value) (err error) {
-	data, err := rows.mc.readPacketBytes()
+	if rows.buf != nil {
+		rows.buf.Reset()
+	}
+	rows.buf, err = rows.mc.readPacket(rows.buf)
 	if err != nil {
 		return
 	}
+	data := rows.buf.Bytes()
 
 	// EOF Packet
 	if data[0] == iEOF && len(data) == 5 {
@@ -593,20 +597,30 @@ func (rows *mysqlRows) readRow(dest []driver.Value) (err error) {
 	return
 }
 
-// Reads Packets until EOF-Packet or an Error appears. Returns count of Packets read
-func (mc *mysqlConn) readUntilEOF() (err error) {
-	var data []byte
+// Reads Packets until EOF-Packet or an Error appears.
+func (mc *mysqlConn) readUntilEOF() error {
+	var (
+		dataBuf *bytes.Buffer
+		err     error
+	)
 
 	for {
-		data, err = mc.readPacketBytes()
-
-		// No Err and no EOF Packet
-		if err == nil && (data[0] != iEOF || len(data) != 5) {
-			continue
+		if dataBuf != nil {
+			dataBuf.Reset()
 		}
-		return // Err or EOF
+		dataBuf, err = mc.readPacket(dataBuf)
+		if err != nil {
+			return err
+		}
+		data := dataBuf.Bytes()
+
+		// If we found an EOF packet, then we're done.
+		if data[0] == iEOF && len(data) == 5 {
+			break
+		}
 	}
-	return
+
+	return nil
 }
 
 /******************************************************************************
@@ -846,10 +860,14 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 // http://dev.mysql.com/doc/internals/en/prepared-statements.html#packet-ProtocolBinary::ResultsetRow
 func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
-	data, err := rc.mc.readPacketBytes()
+	if rc.buf != nil {
+		rc.buf.Reset()
+	}
+	rc.buf, err = rc.mc.readPacket(rc.buf)
 	if err != nil {
 		return
 	}
+	data := rc.buf.Bytes()
 
 	// packet indicator [1 byte]
 	if data[0] != iOK {
