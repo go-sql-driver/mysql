@@ -55,7 +55,12 @@ func (mc *mysqlConn) readPacket(reuseBuf *bytes.Buffer) (*bytes.Buffer, error) {
 	var dataBuf *bytes.Buffer
 	if reuseBuf != nil {
 		dataBuf = reuseBuf
-		dataBuf.Grow(int(pktLen))
+		// TODO: in Go 1.1, bytes.Buffer has a Grow method that could reduce
+		// number of allocations even further. We could support go1.0.3 and
+		// go1.1 with some build-tags, but I'm leaving it for now.
+		//
+		// go1.1:
+		// dataBuf.Grow(int(pktLen))
 	} else {
 		dataBuf = bytes.NewBuffer(make([]byte, 0, int(pktLen)))
 	}
