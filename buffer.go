@@ -51,35 +51,45 @@ func (b *buffer) fill(need int) (err error) {
 	return
 }
 
-// read len(p) bytes
-func (b *buffer) read(p []byte) (err error) {
-	need := len(p)
+// returns next N bytes from buffer.
+// The returned slice is only guaranteed to be valid until the next read
+func (b *buffer) readNext(need int) (p []byte, err error) {
+	// return slice from buffer if possible
+	if b.length >= need {
+		p = b.buf[b.idx : b.idx+need]
+		b.idx += need
+		b.length -= need
+		return
 
-	if b.length < need {
+	} else {
+		p = make([]byte, need)
+		has := 0
+
+		// copy data that is already in the buffer
 		if b.length > 0 {
 			copy(p[0:b.length], b.buf[b.idx:])
-			need -= b.length
-			p = p[b.length:]
-
+			has = b.length
+			need -= has
 			b.idx = 0
 			b.length = 0
 		}
 
-		if need >= len(b.buf) {
+		// does the data fit into the buffer?
+		if need < len(b.buf) {
+			err = b.fill(need) // err deferred
+			copy(p[has:has+need], b.buf[b.idx:])
+			b.idx += need
+			b.length -= need
+			return
+
+		} else {
 			var n int
-			has := 0
-			for err == nil && need > has {
+			for err == nil && need > 0 {
 				n, err = b.rd.Read(p[has:])
 				has += n
+				need -= n
 			}
-			return
 		}
-
-		err = b.fill(need) // err deferred
 	}
-
-	copy(p, b.buf[b.idx:])
-	b.idx += need
-	b.length -= need
 	return
 }
