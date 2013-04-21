@@ -31,11 +31,14 @@ func newBuffer(rd io.Reader) *buffer {
 	}
 }
 
-// fill reads at least _need_ bytes in the buffer
-// existing data in the buffer gets lost
+// fill reads into the buffer until at least _need_ bytes are in it
 func (b *buffer) fill(need int) (err error) {
+	// move existing data to the beginning
+	if b.length > 0 && b.idx > 0 {
+		copy(b.buf[0:b.length], b.buf[b.idx:])
+	}
+
 	b.idx = 0
-	b.length = 0
 
 	var n int
 	for b.length < need {
@@ -62,27 +65,30 @@ func (b *buffer) readNext(need int) (p []byte, err error) {
 		return
 
 	} else {
-		p = make([]byte, need)
-		has := 0
-
-		// copy data that is already in the buffer
-		if b.length > 0 {
-			copy(p[0:b.length], b.buf[b.idx:])
-			has = b.length
-			need -= has
-			b.idx = 0
-			b.length = 0
-		}
 
 		// does the data fit into the buffer?
 		if need < len(b.buf) {
+			// refill
 			err = b.fill(need) // err deferred
-			copy(p[has:has+need], b.buf[b.idx:])
+			p = b.buf[:need]
 			b.idx += need
 			b.length -= need
 			return
 
 		} else {
+			p = make([]byte, need)
+			has := 0
+
+			// copy data that is already in the buffer
+			if b.length > 0 {
+				copy(p[0:b.length], b.buf[b.idx:])
+				has = b.length
+				need -= has
+				b.idx = 0
+				b.length = 0
+			}
+
+			// read rest directly into the new slice
 			var n int
 			for err == nil && need > 0 {
 				n, err = b.rd.Read(p[has:])
