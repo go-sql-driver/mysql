@@ -509,9 +509,10 @@ func TestDateTime(t *testing.T) {
 	}
 
 	resultType = "string"
-	runTests(t, "TestDateTime", testTime)
 	oldDsn := dsn
-	dsn = dsn + "&parseTime=true"
+	dsn += "&sql_mode=ALLOW_INVALID_DATES"
+	runTests(t, "TestDateTime", testTime)
+	dsn += "&parseTime=true"
 	resultType = "time.Time"
 	runTests(t, "TestDateTime", testTime)
 	dsn = oldDsn
