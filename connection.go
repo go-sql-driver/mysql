@@ -14,6 +14,7 @@ import (
 	"errors"
 	"net"
 	"strings"
+	"time"
 )
 
 type mysqlConn struct {
@@ -29,6 +30,7 @@ type mysqlConn struct {
 	insertId         uint64
 	maxPacketAllowed int
 	maxWriteSize     int
+	parseTime        bool
 }
 
 type config struct {
@@ -38,6 +40,7 @@ type config struct {
 	addr   string
 	dbname string
 	params map[string]string
+	loc    *time.Location
 }
 
 // Handles parameters set in DSN
@@ -59,8 +62,14 @@ func (mc *mysqlConn) handleParams() (err error) {
 			}
 
 		// handled elsewhere
-		case "timeout", "allowAllFiles":
+		case "timeout", "allowAllFiles", "loc":
 			continue
+
+		// time.Time parsing
+		case "parseTime":
+			if val == "true" {
+				mc.parseTime = true
+			}
 
 		// TLS-Encryption
 		case "tls":

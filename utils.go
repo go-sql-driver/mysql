@@ -11,11 +11,15 @@ package mysql
 
 import (
 	"crypto/sha1"
+	"database/sql/driver"
+	"encoding/binary"
+	"fmt"
 	"io"
 	"log"
 	"os"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // Logger
@@ -36,8 +40,8 @@ func init() {
 // Data Source Name Parser
 var dsnPattern *regexp.Regexp
 
-func parseDSN(dsn string) *config {
-	cfg := new(config)
+func parseDSN(dsn string) (cfg *config, err error) {
+	cfg = new(config)
 	cfg.params = make(map[string]string)
 
 	matches := dsnPattern.FindStringSubmatch(dsn)
@@ -76,7 +80,9 @@ func parseDSN(dsn string) *config {
 		cfg.addr = "127.0.0.1:3306"
 	}
 
-	return cfg
+	cfg.loc, err = time.LoadLocation(cfg.params["loc"])
+
+	return
 }
 
 // Encrypt password using 4.1+ method
@@ -108,6 +114,124 @@ func scramblePassword(scramble, password []byte) []byte {
 		scramble[i] ^= stage1[i]
 	}
 	return scramble
+}
+
+func parseDateTime(str string, loc *time.Location) (driver.Value, error) {
+	var t time.Time
+	var err error
+
+	switch len(str) {
+	case 10: // YYYY-MM-DD
+		if str == "0000-00-00" {
+			return time.Time{}, nil
+		}
+		t, err = time.Parse(timeFormat[:10], str)
+	case 19: // YYYY-MM-DD HH:MM:SS
+		if str == "0000-00-00 00:00:00" {
+			return time.Time{}, nil
+		}
+		t, err = time.Parse(timeFormat, str)
+	default:
+		return nil, fmt.Errorf("Invalid Time-String: %s", str)
+	}
+
+	// Adjust location
+	if err == nil && loc != time.UTC {
+		y, mo, d := t.Date()
+		h, mi, s := t.Clock()
+		return time.Date(y, mo, d, h, mi, s, t.Nanosecond(), loc), nil
+	}
+
+	return t, err
+}
+
+func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Value, error) {
+	switch num {
+	case 0:
+		return time.Time{}, nil
+	case 4:
+		return time.Date(
+			int(binary.LittleEndian.Uint16(data[:2])), // year
+			time.Month(data[2]),                       // month
+			int(data[3]),                              // day
+			0, 0, 0, 0,
+			loc,
+		), nil
+	case 7:
+		return time.Date(
+			int(binary.LittleEndian.Uint16(data[:2])), // year
+			time.Month(data[2]),                       // month
+			int(data[3]),                              // day
+			int(data[4]),                              // hour
+			int(data[5]),                              // minutes
+			int(data[6]),                              // seconds
+			0,
+			loc,
+		), nil
+	case 11:
+		return time.Date(
+			int(binary.LittleEndian.Uint16(data[:2])), // year
+			time.Month(data[2]),                       // month
+			int(data[3]),                              // day
+			int(data[4]),                              // hour
+			int(data[5]),                              // minutes
+			int(data[6]),                              // seconds
+			int(binary.LittleEndian.Uint32(data[7:11]))*1000, // nanoseconds
+			loc,
+		), nil
+	}
+	return nil, fmt.Errorf("Invalid DATETIME-packet length %d", num)
+}
+
+func formatBinaryDate(num uint64, data []byte) (driver.Value, error) {
+	switch num {
+	case 0:
+		return []byte("0000-00-00"), nil
+	case 4:
+		return []byte(fmt.Sprintf(
+			"%04d-%02d-%02d",
+			binary.LittleEndian.Uint16(data[:2]),
+			data[2],
+			data[3],
+		)), nil
+	}
+	return nil, fmt.Errorf("Invalid DATE-packet length %d", num)
+}
+
+func formatBinaryDateTime(num uint64, data []byte) (driver.Value, error) {
+	switch num {
+	case 0:
+		return []byte("0000-00-00 00:00:00"), nil
+	case 4:
+		return []byte(fmt.Sprintf(
+			"%04d-%02d-%02d 00:00:00",
+			binary.LittleEndian.Uint16(data[:2]),
+			data[2],
+			data[3],
+		)), nil
+	case 7:
+		return []byte(fmt.Sprintf(
+			"%04d-%02d-%02d %02d:%02d:%02d",
+			binary.LittleEndian.Uint16(data[:2]),
+			data[2],
+			data[3],
+			data[4],
+			data[5],
+			data[6],
+		)), nil
+	case 11:
+		return []byte(fmt.Sprintf(
+			"%04d-%02d-%02d %02d:%02d:%02d.%06d",
+			binary.LittleEndian.Uint16(data[:2]),
+			data[2],
+			data[3],
+			data[4],
+			data[5],
+			data[6],
+			binary.LittleEndian.Uint32(data[7:11]),
+		)), nil
+	}
+	return nil, fmt.Errorf("Invalid DATETIME-packet length %d", num)
 }
 
 /******************************************************************************

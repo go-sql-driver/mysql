@@ -551,7 +551,21 @@ func (rows *mysqlRows) readRow(dest []driver.Value) (err error) {
 		pos += n
 		if err == nil {
 			if !isNull {
-				continue
+				if !rows.mc.parseTime {
+					continue
+				} else {
+					switch rows.columns[i].fieldType {
+					case fieldTypeTimestamp, fieldTypeDateTime,
+						fieldTypeDate, fieldTypeNewDate:
+						dest[i], err = parseDateTime(string(dest[i].([]byte)), rows.mc.cfg.loc)
+						if err == nil {
+							continue
+						}
+					default:
+						continue
+					}
+				}
+
 			} else {
 				dest[i] = nil
 				continue
@@ -751,7 +765,14 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 		case time.Time:
 			paramTypes[i<<1] = fieldTypeString
-			val := []byte(v.Format(timeFormat))
+
+			var val []byte
+			if v.IsZero() {
+				val = []byte("0000-00-00")
+			} else {
+				val = []byte(v.Format(timeFormat))
+			}
+
 			paramValues[i] = append(
 				lengthEncodedIntegerToBytes(uint64(len(val))),
 				val...,
@@ -815,8 +836,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 }
 
 // http://dev.mysql.com/doc/internals/en/prepared-statements.html#packet-ProtocolBinary::ResultsetRow
-func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
-	data, err := rc.mc.readPacket()
+func (rows *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
+	data, err := rows.mc.readPacket()
 	if err != nil {
 		return
 	}
@@ -828,7 +849,7 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			return io.EOF
 		} else {
 			// Error otherwise
-			return rc.mc.handleErrorPacket(data)
+			return rows.mc.handleErrorPacket(data)
 		}
 	}
 
@@ -848,10 +869,10 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 			continue
 		}
 
-		unsigned = rc.columns[i].flags&flagUnsigned != 0
+		unsigned = rows.columns[i].flags&flagUnsigned != 0
 
 		// Convert to byte-coded string
-		switch rc.columns[i].fieldType {
+		switch rows.columns[i].fieldType {
 		case fieldTypeNULL:
 			dest[i] = nil
 			continue
@@ -934,21 +955,22 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 
 			pos += n
 
-			if num == 0 {
-				if isNull {
-					dest[i] = nil
-					continue
-				} else {
-					dest[i] = []byte("0000-00-00")
-					continue
-				}
+			if isNull {
+				dest[i] = nil
+				continue
+			}
+
+			if rows.mc.parseTime {
+				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.loc)
 			} else {
-				dest[i] = []byte(fmt.Sprintf("%04d-%02d-%02d",
-					binary.LittleEndian.Uint16(data[pos:pos+2]),
-					data[pos+2],
-					data[pos+3]))
+				dest[i], err = formatBinaryDate(num, data[pos:])
+			}
+
+			if err == nil {
 				pos += int(num)
 				continue
+			} else {
+				return err
 			}
 
 		// Time [-][H]HH:MM:SS[.fractal]
@@ -1008,58 +1030,27 @@ func (rc *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 
 			pos += n
 
-			if num == 0 {
-				if isNull {
-					dest[i] = nil
-					continue
-				} else {
-					dest[i] = []byte("0000-00-00 00:00:00")
-					continue
-				}
+			if isNull {
+				dest[i] = nil
+				continue
 			}
 
-			switch num {
-			case 4:
-				dest[i] = []byte(fmt.Sprintf(
-					"%04d-%02d-%02d 00:00:00",
-					binary.LittleEndian.Uint16(data[pos:pos+2]),
-					data[pos+2],
-					data[pos+3],
-				))
-				pos += 4
+			if rows.mc.parseTime {
+				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.loc)
+			} else {
+				dest[i], err = formatBinaryDateTime(num, data[pos:])
+			}
+
+			if err == nil {
+				pos += int(num)
 				continue
-			case 7:
-				dest[i] = []byte(fmt.Sprintf(
-					"%04d-%02d-%02d %02d:%02d:%02d",
-					binary.LittleEndian.Uint16(data[pos:pos+2]),
-					data[pos+2],
-					data[pos+3],
-					data[pos+4],
-					data[pos+5],
-					data[pos+6],
-				))
-				pos += 7
-				continue
-			case 11:
-				dest[i] = []byte(fmt.Sprintf(
-					"%04d-%02d-%02d %02d:%02d:%02d.%06d",
-					binary.LittleEndian.Uint16(data[pos:pos+2]),
-					data[pos+2],
-					data[pos+3],
-					data[pos+4],
-					data[pos+5],
-					data[pos+6],
-					binary.LittleEndian.Uint32(data[pos+7:pos+11]),
-				))
-				pos += 11
-				continue
-			default:
-				return fmt.Errorf("Invalid DATETIME-packet length %d", num)
+			} else {
+				return err
 			}
 
 		// Please report if this happens!
 		default:
-			return fmt.Errorf("Unknown FieldType %d", rc.columns[i].fieldType)
+			return fmt.Errorf("Unknown FieldType %d", rows.columns[i].fieldType)
 		}
 	}
 

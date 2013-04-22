@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 var (
@@ -408,36 +409,102 @@ func TestDateTime(t *testing.T) {
 		return
 	}
 
-	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		t.Fatalf("Error connecting: %v", err)
+	var modes = [2]string{"text", "binary"}
+	var types = [2]string{"DATE", "DATETIME"}
+	var tests = [2][]struct {
+		in      interface{}
+		sOut    string
+		tOut    time.Time
+		tIsZero bool
+	}{
+		{
+			{"2012-06-14", "2012-06-14", time.Date(2012, 6, 14, 0, 0, 0, 0, time.UTC), false},
+			{"0000-00-00", "0000-00-00", time.Time{}, true},
+			{time.Date(2012, 6, 14, 0, 0, 0, 0, time.UTC), "2012-06-14", time.Date(2012, 6, 14, 0, 0, 0, 0, time.UTC), false},
+			{time.Time{}, "0000-00-00", time.Time{}, true},
+		},
+		{
+			{"2011-11-20 21:27:37", "2011-11-20 21:27:37", time.Date(2011, 11, 20, 21, 27, 37, 0, time.UTC), false},
+			{"0000-00-00 00:00:00", "0000-00-00 00:00:00", time.Time{}, true},
+			{time.Date(2011, 11, 20, 21, 27, 37, 0, time.UTC), "2011-11-20 21:27:37", time.Date(2011, 11, 20, 21, 27, 37, 0, time.UTC), false},
+			{time.Time{}, "0000-00-00 00:00:00", time.Time{}, true},
+		},
 	}
+	var sOut string
+	var tOut time.Time
 
-	defer db.Close()
+	var rows [2]*sql.Rows
+	var sDB, tDB *sql.DB
+	var err error
 
-	mustExec(t, db, "DROP TABLE IF EXISTS test")
+	sDB, err = sql.Open("mysql", dsn)
+	if err != nil {
+		t.Fatalf("Error connecting (string): %v", err)
+	}
+	defer sDB.Close()
 
-	types := [...]string{"DATE", "DATETIME"}
-	in := [...]string{"2012-06-14", "2011-11-20 21:27:37"}
-	var out string
-	var rows *sql.Rows
+	tDB, err = sql.Open("mysql", dsn+"&parseTime=true")
+	if err != nil {
+		t.Fatalf("Error connecting (time.Time): %v", err)
+	}
+	defer tDB.Close()
 
+	mustExec(t, sDB, "DROP TABLE IF EXISTS test")
 	for i, v := range types {
-		mustExec(t, db, "CREATE TABLE test (value "+v+") CHARACTER SET utf8 COLLATE utf8_unicode_ci")
+		mustExec(t, sDB, "CREATE TABLE test (value "+v+") CHARACTER SET utf8 COLLATE utf8_unicode_ci")
 
-		mustExec(t, db, ("INSERT INTO test VALUES (?)"), in[i])
+		for j := range tests[i] {
+			mustExec(t, sDB, "INSERT INTO test VALUES (?)", tests[i][j].in)
 
-		rows = mustQuery(t, db, ("SELECT value FROM test"))
-		if rows.Next() {
-			rows.Scan(&out)
-			if in[i] != out {
-				t.Errorf("%s: %s != %s", v, in[i], out)
+			// string
+			rows[0] = mustQuery(t, sDB, "SELECT value FROM test")                // text
+			rows[1] = mustQuery(t, sDB, "SELECT value FROM test WHERE 1 = ?", 1) // binary
+
+			for k := range rows {
+				if rows[k].Next() {
+					err = rows[k].Scan(&sOut)
+					if err != nil {
+						t.Errorf("%s (string %s): %v", v, modes[k], err)
+					} else if tests[i][j].sOut != sOut {
+						t.Errorf("%s (string %s): %s != %s", v, modes[k], tests[i][j].sOut, sOut)
+					}
+				} else {
+					err = rows[k].Err()
+					if err != nil {
+						t.Errorf("%s (string %s): %v", v, modes[k], err)
+					} else {
+						t.Errorf("%s (string %s): no data", v, modes[k])
+					}
+				}
 			}
-		} else {
-			t.Errorf("%s: no data", v)
+
+			// time.Time
+			rows[0] = mustQuery(t, tDB, "SELECT value FROM test")                // text
+			rows[1] = mustQuery(t, tDB, "SELECT value FROM test WHERE 1 = ?", 1) // binary
+
+			for k := range rows {
+				if rows[k].Next() {
+					err = rows[k].Scan(&tOut)
+					if err != nil {
+						t.Errorf("%s (time.Time %s): %v", v, modes[k], err)
+					} else if tests[i][j].tOut != tOut || tests[i][j].tIsZero != tOut.IsZero() {
+						t.Errorf("%s (time.Time %s): %s [%t] != %s [%t]", v, modes[k], tests[i][j].tOut, tests[i][j].tIsZero, tOut, tOut.IsZero())
+					}
+				} else {
+					err = rows[k].Err()
+					if err != nil {
+						t.Errorf("%s (time.Time %s): %v", v, modes[k], err)
+					} else {
+						t.Errorf("%s (time.Time %s): no data", v, modes[k])
+					}
+
+				}
+			}
+
+			mustExec(t, sDB, "TRUNCATE TABLE test")
 		}
 
-		mustExec(t, db, "DROP TABLE IF EXISTS test")
+		mustExec(t, sDB, "DROP TABLE IF EXISTS test")
 	}
 }
 

@@ -25,9 +25,12 @@ func (d *mysqlDriver) Open(dsn string) (driver.Conn, error) {
 
 	// New mysqlConn
 	mc := &mysqlConn{
-		cfg:              parseDSN(dsn),
 		maxPacketAllowed: maxPacketSize,
 		maxWriteSize:     maxPacketSize - 1,
+	}
+	mc.cfg, err = parseDSN(dsn)
+	if err != nil {
+		return nil, err
 	}
 
 	// Connect to Server
