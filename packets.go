@@ -413,7 +413,10 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 	}
 
 	// Error Message [string]
-	return fmt.Errorf("Error %d: %s", errno, string(data[pos:]))
+	return &MySQLError{
+		Number:  errno,
+		Message: string(data[pos:]),
+	}
 }
 
 // Ok Packet

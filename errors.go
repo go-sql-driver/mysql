@@ -24,16 +24,26 @@ var (
 	errPktTooLarge = errors.New("Packet for query is too large. You can change this value on the server by adjusting the 'max_allowed_packet' variable.")
 )
 
-// error type which represents one or more MySQL warnings
+// error type which represents a single MySQL error
+type MySQLError struct {
+	Number  uint16
+	Message string
+}
+
+func (me *MySQLError) Error() string {
+	return fmt.Sprintf("Error %d: %s", me.Number, me.Message)
+}
+
+// error type which represents a group (one ore more) MySQL warnings
 type MySQLWarnings []mysqlWarning
 
-func (mws MySQLWarnings) Error() string {
+func (mws *MySQLWarnings) Error() string {
 	var msg string
-	for i := range mws {
+	for i, warning := range *mws {
 		if i > 0 {
 			msg += "\r\n"
 		}
-		msg += fmt.Sprintf("%s %s: %s", mws[i].Level, mws[i].Code, mws[i].Message)
+		msg += fmt.Sprintf("%s %s: %s", warning.Level, warning.Code, warning.Message)
 	}
 	return msg
 }
@@ -83,7 +93,7 @@ func (mc *mysqlConn) getWarnings() (err error) {
 			warnings = append(warnings, warning)
 
 		case io.EOF:
-			return warnings
+			return &warnings
 
 		default:
 			rows.Close()
