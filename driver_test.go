@@ -752,16 +752,11 @@ func TestStrict(t *testing.T) {
 					"Warning 1265: Data truncated for column 'b' at row 3",
 			},
 		}
-		var rows *sql.Rows
 		var err error
 
 		// text protocol
 		for i := range queries {
-			rows, err = dbt.db.Query(queries[i][0])
-			if rows != nil {
-				rows.Close()
-			}
-
+			_, err = dbt.db.Exec(queries[i][0])
 			if err == nil {
 				dbt.Errorf("Expecteded strict error on query [text] %s", queries[i][0])
 			} else if err.Error() != queries[i][1] {
@@ -778,11 +773,7 @@ func TestStrict(t *testing.T) {
 				dbt.Error("Error on preparing query %: ", queries[i][0], err.Error())
 			}
 
-			rows, err = stmt.Query()
-			if rows != nil {
-				rows.Close()
-			}
-
+			_, err = stmt.Exec()
 			if err == nil {
 				dbt.Errorf("Expecteded strict error on query [binary] %s", queries[i][0])
 			} else if err.Error() != queries[i][1] {
