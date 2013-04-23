@@ -119,9 +119,11 @@ func runTests(t *testing.T, name string, tests ...func(db *DBTest)) {
 	defer db.Close()
 
 	environment := &DBTest{t, db}
+	environment.mustExec("DROP TABLE IF EXISTS test")
 	for _, test := range tests {
 		test(environment)
 	}
+	environment.mustExec("DROP TABLE IF EXISTS test")
 }
 
 func args(args ...interface{}) []interface{} {
@@ -206,8 +208,6 @@ func _rawBytesResultExceedsBuffer(db *DBTest) {
 }
 
 func _crud(db *DBTest) {
-	db.mustExec("DROP TABLE IF EXISTS test")
-
 	// Create Table
 	db.mustExec("CREATE TABLE test (value BOOL)")
 
@@ -302,8 +302,6 @@ func TestInt(t *testing.T) {
 }
 
 func _int(db *DBTest) {
-	db.mustExec("DROP TABLE IF EXISTS test")
-
 	types := [5]string{"TINYINT", "SMALLINT", "MEDIUMINT", "INT", "BIGINT"}
 	in := int64(42)
 	var out int64
@@ -353,8 +351,6 @@ func TestFloat(t *testing.T) {
 }
 
 func _float(db *DBTest) {
-	db.mustExec("DROP TABLE IF EXISTS test")
-
 	types := [2]string{"FLOAT", "DOUBLE"}
 	in := float32(42.23)
 	var out float32
@@ -384,8 +380,6 @@ func TestString(t *testing.T) {
 }
 
 func _string(db *DBTest) {
-	db.mustExec("DROP TABLE IF EXISTS test")
-
 	types := [6]string{"CHAR(255)", "VARCHAR(255)", "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT"}
 	in := "κόσμε üöäßñóùéàâÿœ'îë Árvíztűrő いろはにほへとちりぬるを イロハニホヘト דג סקרן чащах  น่าฟังเอย"
 	var out string
@@ -432,75 +426,97 @@ func _string(db *DBTest) {
 }
 
 func TestDateTime(t *testing.T) {
-	var modes = [2]string{"text", "binary"}
-	var types = [2]string{"DATE", "DATETIME"}
-	var tests = [2][]struct {
+	type testmode struct {
+		selectSuffix string
+		args         []interface{}
+	}
+	type timetest struct {
 		in      interface{}
 		sOut    string
 		tOut    time.Time
 		tIsZero bool
-	}{
-		{
-			{"2012-06-14", "2012-06-14", time.Date(2012, 6, 14, 0, 0, 0, 0, time.UTC), false},
-			{"0000-00-00", "0000-00-00", time.Time{}, true},
-			{time.Date(2012, 6, 14, 0, 0, 0, 0, time.UTC), "2012-06-14", time.Date(2012, 6, 14, 0, 0, 0, 0, time.UTC), false},
-			{time.Time{}, "0000-00-00", time.Time{}, true},
-		},
-		{
-			{"2011-11-20 21:27:37", "2011-11-20 21:27:37", time.Date(2011, 11, 20, 21, 27, 37, 0, time.UTC), false},
-			{"0000-00-00 00:00:00", "0000-00-00 00:00:00", time.Time{}, true},
-			{time.Date(2011, 11, 20, 21, 27, 37, 0, time.UTC), "2011-11-20 21:27:37", time.Date(2011, 11, 20, 21, 27, 37, 0, time.UTC), false},
-			{time.Time{}, "0000-00-00 00:00:00", time.Time{}, true},
-		},
 	}
-	var sOut string
-	var tOut time.Time
+	type tester func(db *DBTest, rows *sql.Rows,
+		test *timetest, sqltype, resulttype, mode string)
+	type setup struct {
+		vartype   string
+		dsnSuffix string
+		test      tester
+	}
+	var (
+		date      = time.Date(2012, 6, 14, 0, 0, 0, 0, time.UTC)
+		dstring   = "2012-06-14"
+		datetime  = time.Date(2011, 11, 20, 21, 27, 37, 0, time.UTC)
+		dtstring  = "2011-11-20 21:27:37"
+		date0     = time.Time{}
+		d0string  = "0000-00-00"
+		dt0string = "0000-00-00 00:00:00"
+		modes     = map[string]*testmode{
+			"text":   &testmode{"", args()},
+			"binary": &testmode{" WHERE 1 = ?", args(1)},
+		}
+		timetests = map[string][]*timetest{
+			"DATE": {
+				{dstring, dstring, date, false},
+				{d0string, d0string, date0, true},
+				{date, dstring, date, false},
+				{date0, d0string, date0, true},
+			},
+			"DATETIME": {
+				{dtstring, dtstring, datetime, false},
+				{dt0string, dt0string, date0, true},
+				{datetime, dtstring, datetime, false},
+				{date0, dt0string, date0, true},
+			},
+		}
+		setups = []*setup{
+			{"string", "&parseTime=false", func(
+				db *DBTest, rows *sql.Rows, test *timetest, sqltype, resulttype, mode string) {
+				var sOut string
+				if err := rows.Scan(&sOut); err != nil {
+					db.Errorf("%s (%s %s): %v",
+						sqltype, resulttype, mode, err)
+				} else if test.sOut != sOut {
+					db.Errorf("%s (%s %s): %s != %s",
+						sqltype, resulttype, mode,
+						test.sOut, sOut)
+				}
+			}},
+			{"time.Time", "&parseTime=true", func(
+				db *DBTest, rows *sql.Rows, test *timetest, sqltype, resulttype, mode string) {
+				var tOut time.Time
+				if err := rows.Scan(&tOut); err != nil {
+					db.Errorf("%s (%s %s): %v",
+						sqltype, resulttype, mode, err)
+				} else if test.tOut != tOut || test.tIsZero != tOut.IsZero() {
+					db.Errorf("%s (%s %s): %s [%t] != %s [%t]",
+						sqltype, resulttype, mode,
+						test.tOut, test.tIsZero,
+						tOut, tOut.IsZero())
+				}
+			}},
+		}
+	)
 
-	var rows [2]*sql.Rows
-	var err error
-	var resultType string
-
+	var s *setup
 	testTime := func(db *DBTest) {
-		defer db.mustExec("DROP TABLE IF EXISTS test")
-		for i, v := range types {
+		var rows *sql.Rows
+		for sqltype, tests := range timetests {
 			db.mustExec("DROP TABLE IF EXISTS test")
-			db.mustExec("CREATE TABLE test (value " + v + ") CHARACTER SET utf8 COLLATE utf8_unicode_ci")
-			for j := range tests[i] {
-				db.mustExec("INSERT INTO test VALUES (?)", tests[i][j].in)
-				// string
-				rows[0] = db.mustQuery("SELECT value FROM test")                // text
-				rows[1] = db.mustQuery("SELECT value FROM test WHERE 1 = ?", 1) // binary
-
-				for k := range rows {
-					if rows[k].Next() {
-						if resultType == "string" {
-							err = rows[k].Scan(&sOut)
-							if err != nil {
-								db.Errorf("%s (%s %s): %v",
-									v, resultType, modes[k], err)
-							} else if tests[i][j].sOut != sOut {
-								db.Errorf("%s (%s %s): %s != %s",
-									v, resultType, modes[k],
-									tests[i][j].sOut, sOut)
-							}
-						} else {
-							err = rows[k].Scan(&tOut)
-							if err != nil {
-								t.Errorf("%s (%s %s): %v",
-									v, resultType, modes[k], err)
-							} else if tests[i][j].tOut != tOut || tests[i][j].tIsZero != tOut.IsZero() {
-								t.Errorf("%s (%s %s): %s [%t] != %s [%t]",
-									v, resultType, modes[k],
-									tests[i][j].tOut, tests[i][j].tIsZero,
-									tOut, tOut.IsZero())
-							}
-						}
+			db.mustExec("CREATE TABLE test (value " + sqltype + ") CHARACTER SET utf8 COLLATE utf8_unicode_ci")
+			for _, test := range tests {
+				db.mustExec("INSERT INTO test VALUES (?)", test.in)
+				for mode, q := range modes {
+					rows = db.mustQuery("SELECT value FROM test"+q.selectSuffix, q.args...)
+					if rows.Next() {
+						s.test(db, rows, test, sqltype, s.vartype, mode)
 					} else {
-						err = rows[k].Err()
-						if err != nil {
-							db.Errorf("%s (%s %s): %v", v, resultType, modes[k], err)
+						if err := rows.Err(); err != nil {
+							db.Errorf("%s (%s %s): %v",
+								sqltype, s.vartype, mode, err)
 						} else {
-							db.Errorf("%s (%s %s): no data", v, resultType, modes[k])
+							db.Errorf("%s (%s %s): no data",
+								sqltype, s.vartype, mode)
 						}
 					}
 				}
@@ -508,13 +524,13 @@ func TestDateTime(t *testing.T) {
 		}
 	}
 
-	resultType = "string"
 	oldDsn := dsn
-	dsn += "&sql_mode=ALLOW_INVALID_DATES"
-	runTests(t, "TestDateTime", testTime)
-	dsn += "&parseTime=true"
-	resultType = "time.Time"
-	runTests(t, "TestDateTime", testTime)
+	usedDsn := oldDsn + "&sql_mode=ALLOW_INVALID_DATES"
+	for _, v := range setups {
+		s = v
+		dsn = usedDsn + s.dsnSuffix
+		runTests(t, "TestDateTime", testTime)
+	}
 	dsn = oldDsn
 }
 
@@ -634,8 +650,6 @@ func _null(db *DBTest) {
 	} else {
 		db.Error("no data")
 	}
-
-	db.mustExec("DROP TABLE IF EXISTS test")
 }
 
 func TestLongData(t *testing.T) {
@@ -655,7 +669,6 @@ func _longData(db *DBTest) {
 		maxAllowedPacketSize = 1 << 25
 	}
 
-	db.mustExec("DROP TABLE IF EXISTS test")
 	db.mustExec("CREATE TABLE test (value LONGBLOB) CHARACTER SET utf8 COLLATE utf8_unicode_ci")
 
 	in := strings.Repeat(`0`, maxAllowedPacketSize+1)
@@ -696,8 +709,6 @@ func _longData(db *DBTest) {
 	} else {
 		db.Fatalf("LONGBLOB: no data")
 	}
-
-	db.mustExec("DROP TABLE IF EXISTS test")
 }
 
 func TestLoadData(t *testing.T) {
@@ -787,8 +798,6 @@ func _loadData(db *DBTest) {
 	} else if err.Error() != "Reader 'doesnotexist' is not registered" {
 		db.Fatal(err.Error())
 	}
-
-	db.mustExec("DROP TABLE IF EXISTS test")
 }
 
 // Special cases
