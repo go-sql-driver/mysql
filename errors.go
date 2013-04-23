@@ -9,7 +9,12 @@
 
 package mysql
 
-import "errors"
+import (
+	"database/sql/driver"
+	"errors"
+	"fmt"
+	"io"
+)
 
 var (
 	errMalformPkt  = errors.New("Malformed Packet")
@@ -18,3 +23,40 @@ var (
 	errOldPassword = errors.New("It seems like you are using old_passwords, which is unsupported. See https://github.com/go-sql-driver/mysql/wiki/old_passwords")
 	errPktTooLarge = errors.New("Packet for query is too large. You can change this value on the server by adjusting the 'max_allowed_packet' variable.")
 )
+
+// error type which represents one or more MySQL warnings
+type MySQLWarnings []string
+
+func (mw MySQLWarnings) Error() string {
+	var msg string
+	for i := range mw {
+		if i > 0 {
+			msg += "\r\n"
+		}
+		msg += mw[i]
+	}
+	return msg
+}
+
+func (mc *mysqlConn) getWarnings() (err error) {
+	rows, err := mc.Query("SHOW WARNINGS", []driver.Value{})
+	if err != nil {
+		return
+	}
+
+	var warnings = MySQLWarnings{}
+	var values = make([]driver.Value, 3)
+
+	for {
+		if err = rows.Next(values); err == nil {
+			warnings = append(warnings,
+				fmt.Sprintf("%s %s: %s", values[0], values[1], values[2]),
+			)
+		} else if err == io.EOF {
+			return warnings
+		} else {
+			return
+		}
+	}
+	return
+}

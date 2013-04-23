@@ -31,6 +31,7 @@ type mysqlConn struct {
 	maxPacketAllowed int
 	maxWriteSize     int
 	parseTime        bool
+	strict           bool
 }
 
 type config struct {
@@ -69,6 +70,12 @@ func (mc *mysqlConn) handleParams() (err error) {
 		case "parseTime":
 			if val == "true" {
 				mc.parseTime = true
+			}
+
+		// Strict mode
+		case "strict":
+			if val == "true" {
+				mc.strict = true
 			}
 
 		// TLS-Encryption

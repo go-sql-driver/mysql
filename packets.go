@@ -352,8 +352,7 @@ func (mc *mysqlConn) readResultOK() error {
 		switch data[0] {
 
 		case iOK:
-			mc.handleOkPacket(data)
-			return nil
+			return mc.handleOkPacket(data)
 
 		case iEOF: // someone is using old_passwords
 			return errOldPassword
@@ -373,8 +372,7 @@ func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
 		switch data[0] {
 
 		case iOK:
-			mc.handleOkPacket(data)
-			return 0, nil
+			return 0, mc.handleOkPacket(data)
 
 		case iERR:
 			return 0, mc.handleErrorPacket(data)
@@ -420,8 +418,8 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 
 // Ok Packet
 // http://dev.mysql.com/doc/internals/en/overview.html#packet-OK_Packet
-func (mc *mysqlConn) handleOkPacket(data []byte) {
-	var n int
+func (mc *mysqlConn) handleOkPacket(data []byte) (err error) {
+	var n, m int
 
 	// 0x00 [1 byte]
 
@@ -429,11 +427,22 @@ func (mc *mysqlConn) handleOkPacket(data []byte) {
 	mc.affectedRows, _, n = readLengthEncodedInteger(data[1:])
 
 	// Insert id [Length Coded Binary]
-	mc.insertId, _, _ = readLengthEncodedInteger(data[1+n:])
+	mc.insertId, _, m = readLengthEncodedInteger(data[1+n:])
 
 	// server_status [2 bytes]
+
 	// warning count [2 bytes]
+	if !mc.strict {
+		return
+	} else {
+		pos := 1 + n + m + 2
+		if binary.LittleEndian.Uint16(data[pos:pos+2]) > 0 {
+			err = mc.getWarnings()
+		}
+	}
+
 	// message [until end of packet]
+	return
 }
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
@@ -625,7 +634,13 @@ func (stmt *mysqlStmt) readPrepareResultPacket() (columnCount uint16, err error)
 		pos += 2
 
 		// Warning count [16 bit uint]
-		// bytesToUint16(data[pos : pos+2])
+		if !stmt.mc.strict {
+			return
+		} else {
+			if binary.LittleEndian.Uint16(data[pos:pos+2]) > 0 {
+				err = stmt.mc.getWarnings()
+			}
+		}
 	}
 	return
 }

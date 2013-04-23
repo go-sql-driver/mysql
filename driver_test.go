@@ -34,7 +34,7 @@ func init() {
 	dbname := env("MYSQL_TEST_DBNAME", "gotest")
 	charset = "charset=utf8"
 	netAddr = fmt.Sprintf("%s(%s)", prot, addr)
-	dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&"+charset, user, pass, netAddr, dbname)
+	dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&strict=true&"+charset, user, pass, netAddr, dbname)
 	c, err := net.Dial(prot, addr)
 	if err == nil {
 		available = true
@@ -119,11 +119,11 @@ func runTests(t *testing.T, name string, tests ...func(dbt *DBTest)) {
 	defer db.Close()
 
 	dbt := &DBTest{t, db}
-	dbt.mustExec("DROP TABLE IF EXISTS test")
+	dbt.db.Exec("DROP TABLE IF EXISTS test")
 	for _, test := range tests {
 		test(dbt)
+		dbt.db.Exec("DROP TABLE IF EXISTS test")
 	}
-	dbt.mustExec("DROP TABLE IF EXISTS test")
 }
 
 func (dbt *DBTest) fail(method, query string, err error) {
@@ -446,7 +446,6 @@ func TestDateTime(t *testing.T) {
 	testTime := func(dbt *DBTest) {
 		var rows *sql.Rows
 		for sqltype, tests := range timetests {
-			dbt.mustExec("DROP TABLE IF EXISTS test")
 			dbt.mustExec("CREATE TABLE test (value " + sqltype + ")")
 			for _, test := range tests {
 				for mode, q := range modes {
@@ -466,6 +465,7 @@ func TestDateTime(t *testing.T) {
 					}
 				}
 			}
+			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
 	}
 
@@ -701,7 +701,7 @@ func TestLoadData(t *testing.T) {
 		file.WriteString("1\ta string\n2\ta string containing a \\t\n3\ta string containing a \\n\n4\ta string containing both \\t\\n\n")
 		file.Close()
 
-		dbt.mustExec("DROP TABLE IF EXISTS test")
+		dbt.db.Exec("DROP TABLE IF EXISTS test")
 		dbt.mustExec("CREATE TABLE test (id INT NOT NULL PRIMARY KEY, value TEXT NOT NULL) CHARACTER SET utf8")
 
 		// Local File
@@ -735,6 +735,64 @@ func TestLoadData(t *testing.T) {
 			dbt.Fatal("Load non-existent Reader didn't fail")
 		} else if err.Error() != "Reader 'doesnotexist' is not registered" {
 			dbt.Fatal(err.Error())
+		}
+	})
+}
+
+func TestStrict(t *testing.T) {
+	runTests(t, "TestStrict", func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (a TINYINT NOT NULL, b CHAR(4))")
+
+		queries := [...][2]string{
+			{"DROP TABLE IF EXISTS no_such_table", "Note 1051: Unknown table 'no_such_table'"},
+			{"INSERT INTO test VALUES(10,'mysql'),(NULL,'test'),(300,'Open Source')",
+				"Warning 1265: Data truncated for column 'b' at row 1\r\n" +
+					"Warning 1048: Column 'a' cannot be null\r\n" +
+					"Warning 1264: Out of range value for column 'a' at row 3\r\n" +
+					"Warning 1265: Data truncated for column 'b' at row 3",
+			},
+		}
+		var rows *sql.Rows
+		var err error
+
+		// text protocol
+		for i := range queries {
+			rows, err = dbt.db.Query(queries[i][0])
+			if rows != nil {
+				rows.Close()
+			}
+
+			if err == nil {
+				dbt.Errorf("Expecteded strict error on query [text] %s", queries[i][0])
+			} else if err.Error() != queries[i][1] {
+				dbt.Errorf("Unexpected error on query [text] %s: %s != %s", queries[i][0], err.Error(), queries[i][1])
+			}
+		}
+
+		var stmt *sql.Stmt
+
+		// binary protocol
+		for i := range queries {
+			stmt, err = dbt.db.Prepare(queries[i][0])
+			if err != nil {
+				dbt.Error("Error on preparing query %: ", queries[i][0], err.Error())
+			}
+
+			rows, err = stmt.Query()
+			if rows != nil {
+				rows.Close()
+			}
+
+			if err == nil {
+				dbt.Errorf("Expecteded strict error on query [binary] %s", queries[i][0])
+			} else if err.Error() != queries[i][1] {
+				dbt.Errorf("Unexpected error on query [binary] %s: %s != %s", queries[i][0], err.Error(), queries[i][1])
+			}
+
+			err = stmt.Close()
+			if err != nil {
+				dbt.Error("Error on closing stmt for query %: ", queries[i][0], err.Error())
+			}
 		}
 	})
 }
