@@ -427,19 +427,16 @@ func TestDateTime(t *testing.T) {
 				if err := rows.Scan(&sOut); err != nil {
 					dbt.Errorf("%s (%s %s): %v", sqltype, resulttype, mode, err)
 				} else if test.sOut != sOut {
-					dbt.Errorf("%s (%s %s): %s != %s",
-						sqltype, resulttype, mode, test.sOut, sOut)
+					dbt.Errorf("%s (%s %s): %s != %s", sqltype, resulttype, mode, test.sOut, sOut)
 				}
 			}},
 			{"time.Time", "&parseTime=true", func(
 				dbt *DBTest, rows *sql.Rows, test *timetest, sqltype, resulttype, mode string) {
 				var tOut time.Time
 				if err := rows.Scan(&tOut); err != nil {
-					dbt.Errorf("%s (%s %s): %v",
-						sqltype, resulttype, mode, err)
+					dbt.Errorf("%s (%s %s): %v", sqltype, resulttype, mode, err)
 				} else if test.tOut != tOut || test.tIsZero != tOut.IsZero() {
-					dbt.Errorf("%s (%s %s): %s [%t] != %s [%t]",
-						sqltype, resulttype, mode, test.tOut, test.tIsZero, tOut, tOut.IsZero())
+					dbt.Errorf("%s (%s %s): %s [%t] != %s [%t]", sqltype, resulttype, mode, test.tOut, test.tIsZero, tOut, tOut.IsZero())
 				}
 			}},
 		}
