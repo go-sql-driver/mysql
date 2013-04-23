@@ -386,7 +386,7 @@ func _string(db *DBTest) {
 	var rows *sql.Rows
 
 	for _, v := range types {
-		db.mustExec("CREATE TABLE test (value " + v + ") CHARACTER SET utf8 COLLATE utf8_unicode_ci")
+		db.mustExec("CREATE TABLE test (value " + v + ") CHARACTER SET utf8")
 
 		db.mustExec("INSERT INTO test VALUES (?)", in)
 
@@ -404,7 +404,7 @@ func _string(db *DBTest) {
 	}
 
 	// BLOB
-	db.mustExec("CREATE TABLE test (id int, value BLOB) CHARACTER SET utf8 COLLATE utf8_unicode_ci")
+	db.mustExec("CREATE TABLE test (id int, value BLOB) CHARACTER SET utf8")
 
 	id := 2
 	in = "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, " +
@@ -503,7 +503,7 @@ func TestDateTime(t *testing.T) {
 		var rows *sql.Rows
 		for sqltype, tests := range timetests {
 			db.mustExec("DROP TABLE IF EXISTS test")
-			db.mustExec("CREATE TABLE test (value " + sqltype + ") CHARACTER SET utf8 COLLATE utf8_unicode_ci")
+			db.mustExec("CREATE TABLE test (value " + sqltype + ")")
 			for _, test := range tests {
 				for mode, q := range modes {
 					db.mustExec("TRUNCATE test")
@@ -670,7 +670,7 @@ func _longData(db *DBTest) {
 		maxAllowedPacketSize = 1 << 25
 	}
 
-	db.mustExec("CREATE TABLE test (value LONGBLOB) CHARACTER SET utf8 COLLATE utf8_unicode_ci")
+	db.mustExec("CREATE TABLE test (value LONGBLOB)")
 
 	in := strings.Repeat(`0`, maxAllowedPacketSize+1)
 	var out string
@@ -765,7 +765,7 @@ func _loadData(db *DBTest) {
 	file.Close()
 
 	db.mustExec("DROP TABLE IF EXISTS test")
-	db.mustExec("CREATE TABLE test (id INT NOT NULL PRIMARY KEY, value TEXT NOT NULL) CHARACTER SET utf8 COLLATE utf8_unicode_ci")
+	db.mustExec("CREATE TABLE test (id INT NOT NULL PRIMARY KEY, value TEXT NOT NULL) CHARACTER SET utf8")
 
 	// Local File
 	RegisterLocalFile(file.Name())
