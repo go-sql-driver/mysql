@@ -25,17 +25,28 @@ var (
 )
 
 // error type which represents one or more MySQL warnings
-type MySQLWarnings []string
+type MySQLWarnings []MySQLWarning
 
-func (mw MySQLWarnings) Error() string {
+func (mws MySQLWarnings) Error() string {
 	var msg string
-	for i := range mw {
+	for i := range mws {
 		if i > 0 {
 			msg += "\r\n"
 		}
-		msg += mw[i]
+		msg += mws[i].Error()
 	}
 	return msg
+}
+
+// error type which represents a single MySQL warning
+type MySQLWarning struct {
+	Level   string
+	Code    string
+	Message string
+}
+
+func (mw MySQLWarning) Error() string {
+	return fmt.Sprintf("%s %s: %s", mw.Level, mw.Code, mw.Message)
 }
 
 func (mc *mysqlConn) getWarnings() (err error) {
@@ -47,14 +58,38 @@ func (mc *mysqlConn) getWarnings() (err error) {
 	var warnings = MySQLWarnings{}
 	var values = make([]driver.Value, 3)
 
+	var warning MySQLWarning
+	var raw []byte
+	var ok bool
+
 	for {
-		if err = rows.Next(values); err == nil {
-			warnings = append(warnings,
-				fmt.Sprintf("%s %s: %s", values[0], values[1], values[2]),
-			)
-		} else if err == io.EOF {
+		err = rows.Next(values)
+		switch err {
+		case nil:
+			warning = MySQLWarning{}
+
+			if raw, ok = values[0].([]byte); ok {
+				warning.Level = string(raw)
+			} else {
+				warning.Level = fmt.Sprintf("%s", values[0])
+			}
+			if raw, ok = values[1].([]byte); ok {
+				warning.Code = string(raw)
+			} else {
+				warning.Code = fmt.Sprintf("%s", values[1])
+			}
+			if raw, ok = values[2].([]byte); ok {
+				warning.Message = string(raw)
+			} else {
+				warning.Message = fmt.Sprintf("%s", values[0])
+			}
+
+			warnings = append(warnings, warning)
+
+		case io.EOF:
 			return warnings
-		} else {
+
+		default:
 			rows.Close()
 			return
 		}
