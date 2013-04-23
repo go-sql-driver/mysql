@@ -505,8 +505,9 @@ func TestDateTime(t *testing.T) {
 			db.mustExec("DROP TABLE IF EXISTS test")
 			db.mustExec("CREATE TABLE test (value " + sqltype + ") CHARACTER SET utf8 COLLATE utf8_unicode_ci")
 			for _, test := range tests {
-				db.mustExec("INSERT INTO test VALUES (?)", test.in)
 				for mode, q := range modes {
+					db.mustExec("TRUNCATE test")
+					db.mustExec("INSERT INTO test VALUES (?)", test.in)
 					rows = db.mustQuery("SELECT value FROM test"+q.selectSuffix, q.args...)
 					if rows.Next() {
 						s.test(db, rows, test, sqltype, s.vartype, mode)
