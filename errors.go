@@ -25,7 +25,7 @@ var (
 )
 
 // error type which represents one or more MySQL warnings
-type MySQLWarnings []MySQLWarning
+type MySQLWarnings []mysqlWarning
 
 func (mws MySQLWarnings) Error() string {
 	var msg string
@@ -33,20 +33,16 @@ func (mws MySQLWarnings) Error() string {
 		if i > 0 {
 			msg += "\r\n"
 		}
-		msg += mws[i].Error()
+		msg += fmt.Sprintf("%s %s: %s", mws[i].Level, mws[i].Code, mws[i].Message)
 	}
 	return msg
 }
 
 // error type which represents a single MySQL warning
-type MySQLWarning struct {
+type mysqlWarning struct {
 	Level   string
 	Code    string
 	Message string
-}
-
-func (mw MySQLWarning) Error() string {
-	return fmt.Sprintf("%s %s: %s", mw.Level, mw.Code, mw.Message)
 }
 
 func (mc *mysqlConn) getWarnings() (err error) {
@@ -58,7 +54,7 @@ func (mc *mysqlConn) getWarnings() (err error) {
 	var warnings = MySQLWarnings{}
 	var values = make([]driver.Value, 3)
 
-	var warning MySQLWarning
+	var warning mysqlWarning
 	var raw []byte
 	var ok bool
 
@@ -66,7 +62,7 @@ func (mc *mysqlConn) getWarnings() (err error) {
 		err = rows.Next(values)
 		switch err {
 		case nil:
-			warning = MySQLWarning{}
+			warning = mysqlWarning{}
 
 			if raw, ok = values[0].([]byte); ok {
 				warning.Level = string(raw)
