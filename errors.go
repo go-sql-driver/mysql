@@ -55,6 +55,7 @@ func (mc *mysqlConn) getWarnings() (err error) {
 		} else if err == io.EOF {
 			return warnings
 		} else {
+			rows.Close()
 			return
 		}
 	}
