@@ -126,13 +126,17 @@ func runTests(t *testing.T, name string, tests ...func(dbt *DBTest)) {
 	dbt.mustExec("DROP TABLE IF EXISTS test")
 }
 
+func (dbt *DBTest) fail(method, query string, err error) {
+	if len(query) > 300 {
+		query = "[query too large to print]"
+	}
+	dbt.Fatalf("Error on %s %s: %v", method, query, err)
+}
+
 func (dbt *DBTest) mustExec(query string, args ...interface{}) (res sql.Result) {
 	res, err := dbt.db.Exec(query, args...)
 	if err != nil {
-		if len(query) > 300 {
-			query = "[query too large to print]"
-		}
-		dbt.Fatalf("Error on Exec %s: %v", query, err)
+		dbt.fail("Exec", query, err)
 	}
 	return res
 }
@@ -140,10 +144,7 @@ func (dbt *DBTest) mustExec(query string, args ...interface{}) (res sql.Result) 
 func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows) {
 	rows, err := dbt.db.Query(query, args...)
 	if err != nil {
-		if len(query) > 300 {
-			query = "[query too large to print]"
-		}
-		dbt.Fatalf("Error on Query %s: %v", query, err)
+		dbt.fail("Query", query, err)
 	}
 	return rows
 }
