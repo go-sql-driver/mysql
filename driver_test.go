@@ -34,7 +34,7 @@ func init() {
 	dbname := env("MYSQL_TEST_DBNAME", "gotest")
 	charset = "charset=utf8"
 	netAddr = fmt.Sprintf("%s(%s)", prot, addr)
-	dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&"+charset, user, pass, netAddr, dbname)
+	dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&strict=true&"+charset, user, pass, netAddr, dbname)
 	c, err := net.Dial(prot, addr)
 	if err == nil {
 		available = true
@@ -118,12 +118,13 @@ func runTests(t *testing.T, name string, tests ...func(dbt *DBTest)) {
 	}
 	defer db.Close()
 
+	db.Exec("DROP TABLE IF EXISTS test")
+
 	dbt := &DBTest{t, db}
-	dbt.mustExec("DROP TABLE IF EXISTS test")
 	for _, test := range tests {
 		test(dbt)
+		dbt.db.Exec("DROP TABLE IF EXISTS test")
 	}
-	dbt.mustExec("DROP TABLE IF EXISTS test")
 }
 
 func (dbt *DBTest) fail(method, query string, err error) {
@@ -446,7 +447,6 @@ func TestDateTime(t *testing.T) {
 	testTime := func(dbt *DBTest) {
 		var rows *sql.Rows
 		for sqltype, tests := range timetests {
-			dbt.mustExec("DROP TABLE IF EXISTS test")
 			dbt.mustExec("CREATE TABLE test (value " + sqltype + ")")
 			for _, test := range tests {
 				for mode, q := range modes {
@@ -466,6 +466,7 @@ func TestDateTime(t *testing.T) {
 					}
 				}
 			}
+			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
 	}
 
@@ -701,7 +702,7 @@ func TestLoadData(t *testing.T) {
 		file.WriteString("1\ta string\n2\ta string containing a \\t\n3\ta string containing a \\n\n4\ta string containing both \\t\\n\n")
 		file.Close()
 
-		dbt.mustExec("DROP TABLE IF EXISTS test")
+		dbt.db.Exec("DROP TABLE IF EXISTS test")
 		dbt.mustExec("CREATE TABLE test (id INT NOT NULL PRIMARY KEY, value TEXT NOT NULL) CHARACTER SET utf8")
 
 		// Local File
@@ -735,6 +736,71 @@ func TestLoadData(t *testing.T) {
 			dbt.Fatal("Load non-existent Reader didn't fail")
 		} else if err.Error() != "Reader 'doesnotexist' is not registered" {
 			dbt.Fatal(err.Error())
+		}
+	})
+}
+
+func TestStrict(t *testing.T) {
+	runTests(t, "TestStrict", func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (a TINYINT NOT NULL, b CHAR(4))")
+
+		var queries = [...]struct {
+			in    string
+			codes []string
+		}{
+			{"DROP TABLE IF EXISTS no_such_table", []string{"1051"}},
+			{"INSERT INTO test VALUES(10,'mysql'),(NULL,'test'),(300,'Open Source')", []string{"1265", "1048", "1264", "1265"}},
+		}
+		var err error
+
+		var checkWarnings = func(err error, mode string, idx int) {
+			if err == nil {
+				dbt.Errorf("Expected STRICT error on query [%s] %s", mode, queries[idx].in)
+			}
+
+			if warnings, ok := err.(MySQLWarnings); ok {
+				var codes = make([]string, len(warnings))
+				for i := range warnings {
+					codes[i] = warnings[i].Code
+				}
+				if len(codes) != len(queries[idx].codes) {
+					dbt.Errorf("Unexpected STRICT error count on query [%s] %s: Wanted %v, Got %v", mode, queries[idx].in, queries[idx].codes, codes)
+				}
+
+				for i := range warnings {
+					if codes[i] != queries[idx].codes[i] {
+						dbt.Errorf("Unexpected STRICT error codes on query [%s] %s: Wanted %v, Got %v", mode, queries[idx].in, queries[idx].codes, codes)
+						return
+					}
+				}
+
+			} else {
+				dbt.Errorf("Unexpected error on query [%s] %s: %s", mode, queries[idx].in, err.Error())
+			}
+		}
+
+		// text protocol
+		for i := range queries {
+			_, err = dbt.db.Exec(queries[i].in)
+			checkWarnings(err, "text", i)
+		}
+
+		var stmt *sql.Stmt
+
+		// binary protocol
+		for i := range queries {
+			stmt, err = dbt.db.Prepare(queries[i].in)
+			if err != nil {
+				dbt.Error("Error on preparing query %: ", queries[i].in, err.Error())
+			}
+
+			_, err = stmt.Exec()
+			checkWarnings(err, "binary", i)
+
+			err = stmt.Close()
+			if err != nil {
+				dbt.Error("Error on closing stmt for query %: ", queries[i].in, err.Error())
+			}
 		}
 	})
 }
@@ -919,7 +985,7 @@ func TestStmtMultiRows(t *testing.T) {
 }
 
 func TestConcurrent(t *testing.T) {
-	if os.Getenv("MYSQL_TEST_CONCURRENT") != "1" {
+	if readBool(os.Getenv("MYSQL_TEST_CONCURRENT")) != true {
 		t.Log("CONCURRENT env var not set. Skipping TestConcurrent")
 		return
 	}
