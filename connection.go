@@ -212,6 +212,7 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 }
 
 // Gets the value of the given MySQL System Variable
+// The returned byte slice is only valid until the next read
 func (mc *mysqlConn) getSystemVar(name string) (val []byte, err error) {
 	// Send command
 	err = mc.writeCommandPacketStr(comQuery, "SELECT @@"+name)
