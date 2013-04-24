@@ -55,7 +55,7 @@ func (b *buffer) fill(need int) (err error) {
 	return
 }
 
-// grow the buffer to the given size
+// grow the buffer to at least the given size
 // credit for this code snippet goes to Maxim Khitrov
 // https://groups.google.com/forum/#!topic/golang-nuts/ETbw1ECDgRs
 func (b *buffer) grow(size int) {
