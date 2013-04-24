@@ -9,13 +9,9 @@
 
 package mysql
 
-import (
-	"io"
-)
+import "io"
 
-const (
-	defaultBufSize = 4096
-)
+const defaultBufSize = 4096
 
 type buffer struct {
 	buf    []byte
@@ -38,6 +34,11 @@ func (b *buffer) fill(need int) (err error) {
 		copy(b.buf[0:b.length], b.buf[b.idx:])
 	}
 
+	// grow buffer if necessary
+	if need > len(b.buf) {
+		b.grow(need)
+	}
+
 	b.idx = 0
 
 	var n int
@@ -54,48 +55,32 @@ func (b *buffer) fill(need int) (err error) {
 	return
 }
 
+// credit for this code snippet goes to Maxim Khitrov
+// https://groups.google.com/forum/#!topic/golang-nuts/ETbw1ECDgRs
+func (b *buffer) grow(size int) {
+	if size > 2*cap(b.buf) {
+		newBuf := make([]byte, size)
+		copy(newBuf, b.buf)
+		b.buf = newBuf
+		return
+	} else {
+		for cap(b.buf) < size {
+			b.buf = append(b.buf[:cap(b.buf)], 0)
+		}
+		b.buf = b.buf[:cap(b.buf)]
+	}
+}
+
 // returns next N bytes from buffer.
 // The returned slice is only guaranteed to be valid until the next read
 func (b *buffer) readNext(need int) (p []byte, err error) {
-	// return slice from buffer if possible
-	if b.length >= need {
-		p = b.buf[b.idx : b.idx+need]
-		b.idx += need
-		b.length -= need
-		return
-
-	} else {
-
-		// does the data fit into the buffer?
-		if need < len(b.buf) {
-			// refill
-			err = b.fill(need) // err deferred
-			p = b.buf[:need]
-			b.idx += need
-			b.length -= need
-			return
-
-		} else {
-			p = make([]byte, need)
-			has := 0
-
-			// copy data that is already in the buffer
-			if b.length > 0 {
-				copy(p[0:b.length], b.buf[b.idx:])
-				has = b.length
-				need -= has
-				b.idx = 0
-				b.length = 0
-			}
-
-			// read rest directly into the new slice
-			var n int
-			for err == nil && need > 0 {
-				n, err = b.rd.Read(p[has:])
-				has += n
-				need -= n
-			}
-		}
+	if b.length < need {
+		// refill
+		err = b.fill(need) // err deferred
 	}
+
+	p = b.buf[b.idx : b.idx+need]
+	b.idx += need
+	b.length -= need
 	return
 }
