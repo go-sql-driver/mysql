@@ -741,6 +741,9 @@ func TestLoadData(t *testing.T) {
 }
 
 func TestStrict(t *testing.T) {
+	oldDsn := dsn
+	// to get rid of stricter modes - we want to test for warnings, not errors
+	dsn += "&sql_mode=ALLOW_INVALID_DATES"
 	runTests(t, "TestStrict", func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (a TINYINT NOT NULL, b CHAR(4))")
 
@@ -803,6 +806,7 @@ func TestStrict(t *testing.T) {
 			}
 		}
 	})
+	dsn = oldDsn
 }
 
 // Special cases
