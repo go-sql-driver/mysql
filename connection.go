@@ -68,15 +68,11 @@ func (mc *mysqlConn) handleParams() (err error) {
 
 		// time.Time parsing
 		case "parseTime":
-			if val == "true" {
-				mc.parseTime = true
-			}
+			mc.parseTime = readBool(val)
 
 		// Strict mode
 		case "strict":
-			if val == "true" {
-				mc.strict = true
-			}
+			mc.strict = readBool(val)
 
 		// TLS-Encryption
 		case "tls":

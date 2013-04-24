@@ -234,6 +234,16 @@ func formatBinaryDateTime(num uint64, data []byte) (driver.Value, error) {
 	return nil, fmt.Errorf("Invalid DATETIME-packet length %d", num)
 }
 
+func readBool(value string) bool {
+	switch strings.ToLower(value) {
+	case "true":
+		return true
+	case "1":
+		return true
+	}
+	return false
+}
+
 /******************************************************************************
 *                       Convert from and to bytes                             *
 ******************************************************************************/
