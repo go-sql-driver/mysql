@@ -37,9 +37,9 @@ func (me *MySQLError) Error() string {
 // error type which represents a group (one ore more) MySQL warnings
 type MySQLWarnings []mysqlWarning
 
-func (mws *MySQLWarnings) Error() string {
+func (mws MySQLWarnings) Error() string {
 	var msg string
-	for i, warning := range *mws {
+	for i, warning := range mws {
 		if i > 0 {
 			msg += "\r\n"
 		}
@@ -93,7 +93,7 @@ func (mc *mysqlConn) getWarnings() (err error) {
 			warnings = append(warnings, warning)
 
 		case io.EOF:
-			return &warnings
+			return warnings
 
 		default:
 			rows.Close()
