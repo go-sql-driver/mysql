@@ -16,6 +16,7 @@ func BenchmarkRoundtripText(b *testing.B) {
 	if err != nil {
 		b.Fatalf("crashed")
 	}
+	defer db.Close()
 	var result string
 	for i := 0; i < b.N; i++ {
 		length := 16 + i%(4*b.N)
@@ -46,6 +47,7 @@ func BenchmarkRoundtripPrepared(b *testing.B) {
 	if err != nil {
 		b.Fatalf("crashed")
 	}
+	defer db.Close()
 	var result string
 	stmt, err := db.Prepare("SELECT ?")
 	if err != nil {
