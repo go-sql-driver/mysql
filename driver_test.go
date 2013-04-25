@@ -42,6 +42,55 @@ func init() {
 	}
 }
 
+type DBTest struct {
+	*testing.T
+	db *sql.DB
+}
+
+func runTests(t *testing.T, name, dsn string, tests ...func(dbt *DBTest)) {
+	if !available {
+		t.Logf("MySQL-Server not running on %s. Skipping %s", netAddr, name)
+		return
+	}
+
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		t.Fatalf("Error connecting: %v", err)
+	}
+	defer db.Close()
+
+	db.Exec("DROP TABLE IF EXISTS test")
+
+	dbt := &DBTest{t, db}
+	for _, test := range tests {
+		test(dbt)
+		dbt.db.Exec("DROP TABLE IF EXISTS test")
+	}
+}
+
+func (dbt *DBTest) fail(method, query string, err error) {
+	if len(query) > 300 {
+		query = "[query too large to print]"
+	}
+	dbt.Fatalf("Error on %s %s: %v", method, query, err)
+}
+
+func (dbt *DBTest) mustExec(query string, args ...interface{}) (res sql.Result) {
+	res, err := dbt.db.Exec(query, args...)
+	if err != nil {
+		dbt.fail("Exec", query, err)
+	}
+	return res
+}
+
+func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows) {
+	rows, err := dbt.db.Query(query, args...)
+	if err != nil {
+		dbt.fail("Query", query, err)
+	}
+	return rows
+}
+
 func TestCharset(t *testing.T) {
 	mustSetCharset := func(charsetParam, expected string) {
 		db, err := sql.Open("mysql", strings.Replace(dsn, charset, charsetParam, 1))
@@ -99,55 +148,6 @@ func TestFailingCharset(t *testing.T) {
 		db.Close()
 		t.Fatalf("Connection must not succeed without a valid charset")
 	}
-}
-
-type DBTest struct {
-	*testing.T
-	db *sql.DB
-}
-
-func runTests(t *testing.T, name, dsn string, tests ...func(dbt *DBTest)) {
-	if !available {
-		t.Logf("MySQL-Server not running on %s. Skipping %s", netAddr, name)
-		return
-	}
-
-	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		t.Fatalf("Error connecting: %v", err)
-	}
-	defer db.Close()
-
-	db.Exec("DROP TABLE IF EXISTS test")
-
-	dbt := &DBTest{t, db}
-	for _, test := range tests {
-		test(dbt)
-		dbt.db.Exec("DROP TABLE IF EXISTS test")
-	}
-}
-
-func (dbt *DBTest) fail(method, query string, err error) {
-	if len(query) > 300 {
-		query = "[query too large to print]"
-	}
-	dbt.Fatalf("Error on %s %s: %v", method, query, err)
-}
-
-func (dbt *DBTest) mustExec(query string, args ...interface{}) (res sql.Result) {
-	res, err := dbt.db.Exec(query, args...)
-	if err != nil {
-		dbt.fail("Exec", query, err)
-	}
-	return res
-}
-
-func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows) {
-	rows, err := dbt.db.Query(query, args...)
-	if err != nil {
-		dbt.fail("Query", query, err)
-	}
-	return rows
 }
 
 func TestRawBytesResultExceedsBuffer(t *testing.T) {
