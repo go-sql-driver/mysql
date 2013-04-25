@@ -106,7 +106,7 @@ type DBTest struct {
 	db *sql.DB
 }
 
-func runTests(t *testing.T, name string, tests ...func(dbt *DBTest)) {
+func runTests(t *testing.T, name, dsn string, tests ...func(dbt *DBTest)) {
 	if !available {
 		t.Logf("MySQL-Server not running on %s. Skipping %s", netAddr, name)
 		return
@@ -151,7 +151,7 @@ func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows)
 }
 
 func TestRawBytesResultExceedsBuffer(t *testing.T) {
-	runTests(t, "TestRawBytesResultExceedsBuffer", func(dbt *DBTest) {
+	runTests(t, "TestRawBytesResultExceedsBuffer", dsn, func(dbt *DBTest) {
 		// defaultBufSize from buffer.go
 		expected := strings.Repeat("abc", defaultBufSize)
 		rows := dbt.mustQuery("SELECT '" + expected + "'")
@@ -168,7 +168,7 @@ func TestRawBytesResultExceedsBuffer(t *testing.T) {
 }
 
 func TestCRUD(t *testing.T) {
-	runTests(t, "TestCRUD", func(dbt *DBTest) {
+	runTests(t, "TestCRUD", dsn, func(dbt *DBTest) {
 		// Create Table
 		dbt.mustExec("CREATE TABLE test (value BOOL)")
 
@@ -260,7 +260,7 @@ func TestCRUD(t *testing.T) {
 }
 
 func TestInt(t *testing.T) {
-	runTests(t, "TestInt", func(dbt *DBTest) {
+	runTests(t, "TestInt", dsn, func(dbt *DBTest) {
 		types := [5]string{"TINYINT", "SMALLINT", "MEDIUMINT", "INT", "BIGINT"}
 		in := int64(42)
 		var out int64
@@ -307,7 +307,7 @@ func TestInt(t *testing.T) {
 }
 
 func TestFloat(t *testing.T) {
-	runTests(t, "TestFloat", func(dbt *DBTest) {
+	runTests(t, "TestFloat", dsn, func(dbt *DBTest) {
 		types := [2]string{"FLOAT", "DOUBLE"}
 		in := float32(42.23)
 		var out float32
@@ -330,7 +330,7 @@ func TestFloat(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
-	runTests(t, "TestString", func(dbt *DBTest) {
+	runTests(t, "TestString", dsn, func(dbt *DBTest) {
 		types := [6]string{"CHAR(255)", "VARCHAR(255)", "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT"}
 		in := "κόσμε üöäßñóùéàâÿœ'îë Árvíztűrő いろはにほへとちりぬるを イロハニホヘト דג סקרן чащах  น่าฟังเอย"
 		var out string
@@ -470,18 +470,15 @@ func TestDateTime(t *testing.T) {
 		}
 	}
 
-	oldDsn := dsn
-	usedDsn := oldDsn + "&sql_mode=ALLOW_INVALID_DATES"
+	timeDsn := dsn + "&sql_mode=ALLOW_INVALID_DATES"
 	for _, v := range setups {
 		s = v
-		dsn = usedDsn + s.dsnSuffix
-		runTests(t, "TestDateTime", testTime)
+		runTests(t, "TestDateTime", timeDsn+s.dsnSuffix, testTime)
 	}
-	dsn = oldDsn
 }
 
 func TestNULL(t *testing.T) {
-	runTests(t, "TestNULL", func(dbt *DBTest) {
+	runTests(t, "TestNULL", dsn, func(dbt *DBTest) {
 		nullStmt, err := dbt.db.Prepare("SELECT NULL")
 		if err != nil {
 			dbt.Fatal(err)
@@ -597,7 +594,7 @@ func TestNULL(t *testing.T) {
 }
 
 func TestLongData(t *testing.T) {
-	runTests(t, "TestLongData", func(dbt *DBTest) {
+	runTests(t, "TestLongData", dsn, func(dbt *DBTest) {
 		var maxAllowedPacketSize int
 		err := dbt.db.QueryRow("select @@max_allowed_packet").Scan(&maxAllowedPacketSize)
 		if err != nil {
@@ -654,7 +651,7 @@ func TestLongData(t *testing.T) {
 }
 
 func TestLoadData(t *testing.T) {
-	runTests(t, "TestLoadData", func(dbt *DBTest) {
+	runTests(t, "TestLoadData", dsn, func(dbt *DBTest) {
 		verifyLoadDataResult := func() {
 			rows, err := dbt.db.Query("SELECT * FROM test")
 			if err != nil {
@@ -741,10 +738,9 @@ func TestLoadData(t *testing.T) {
 }
 
 func TestStrict(t *testing.T) {
-	oldDsn := dsn
-	// to get rid of stricter modes - we want to test for warnings, not errors
-	dsn += "&sql_mode=ALLOW_INVALID_DATES"
-	runTests(t, "TestStrict", func(dbt *DBTest) {
+	// ALLOW_INVALID_DATES to get rid of stricter modes - we want to test for warnings, not errors
+	relaxedDsn := dsn + "&sql_mode=ALLOW_INVALID_DATES"
+	runTests(t, "TestStrict", relaxedDsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (a TINYINT NOT NULL, b CHAR(4))")
 
 		var queries = [...]struct {
@@ -806,13 +802,12 @@ func TestStrict(t *testing.T) {
 			}
 		}
 	})
-	dsn = oldDsn
 }
 
 // Special cases
 
 func TestRowsClose(t *testing.T) {
-	runTests(t, "TestRowsClose", func(dbt *DBTest) {
+	runTests(t, "TestRowsClose", dsn, func(dbt *DBTest) {
 		rows, err := dbt.db.Query("SELECT 1")
 		if err != nil {
 			dbt.Fatal(err)
@@ -837,7 +832,7 @@ func TestRowsClose(t *testing.T) {
 // dangling statements
 // http://code.google.com/p/go/issues/detail?id=3865
 func TestCloseStmtBeforeRows(t *testing.T) {
-	runTests(t, "TestCloseStmtBeforeRows", func(dbt *DBTest) {
+	runTests(t, "TestCloseStmtBeforeRows", dsn, func(dbt *DBTest) {
 		stmt, err := dbt.db.Prepare("SELECT 1")
 		if err != nil {
 			dbt.Fatal(err)
@@ -878,7 +873,7 @@ func TestCloseStmtBeforeRows(t *testing.T) {
 // It is valid to have multiple Rows for the same Stmt
 // http://code.google.com/p/go/issues/detail?id=3734
 func TestStmtMultiRows(t *testing.T) {
-	runTests(t, "TestStmtMultiRows", func(dbt *DBTest) {
+	runTests(t, "TestStmtMultiRows", dsn, func(dbt *DBTest) {
 		stmt, err := dbt.db.Prepare("SELECT 1 UNION SELECT 0")
 		if err != nil {
 			dbt.Fatal(err)
@@ -993,7 +988,7 @@ func TestConcurrent(t *testing.T) {
 		t.Log("CONCURRENT env var not set. Skipping TestConcurrent")
 		return
 	}
-	runTests(t, "TestConcurrent", func(dbt *DBTest) {
+	runTests(t, "TestConcurrent", dsn, func(dbt *DBTest) {
 		var max int
 		err := dbt.db.QueryRow("SELECT @@max_connections").Scan(&max)
 		if err != nil {
