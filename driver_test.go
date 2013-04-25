@@ -19,6 +19,16 @@ var (
 	available bool
 )
 
+var (
+	tDate      = time.Date(2012, 6, 14, 0, 0, 0, 0, time.UTC)
+	sDate      = "2012-06-14"
+	tDateTime  = time.Date(2011, 11, 20, 21, 27, 37, 0, time.UTC)
+	sDateTime  = "2011-11-20 21:27:37"
+	tDate0     = time.Time{}
+	sDate0     = "0000-00-00"
+	sDateTime0 = "0000-00-00 00:00:00"
+)
+
 // See https://github.com/go-sql-driver/mysql/wiki/Testing
 func init() {
 	env := func(key, defaultValue string) string {
@@ -396,29 +406,22 @@ func TestDateTime(t *testing.T) {
 		test      tester
 	}
 	var (
-		tdate      = time.Date(2012, 6, 14, 0, 0, 0, 0, time.UTC)
-		sdate      = "2012-06-14"
-		tdatetime  = time.Date(2011, 11, 20, 21, 27, 37, 0, time.UTC)
-		sdatetime  = "2011-11-20 21:27:37"
-		tdate0     = time.Time{}
-		sdate0     = "0000-00-00"
-		sdatetime0 = "0000-00-00 00:00:00"
-		modes      = map[string]*testmode{
+		modes = map[string]*testmode{
 			"text":   &testmode{},
 			"binary": &testmode{" WHERE 1 = ?", []interface{}{1}},
 		}
 		timetests = map[string][]*timetest{
 			"DATE": {
-				{sdate, sdate, tdate, false},
-				{sdate0, sdate0, tdate0, true},
-				{tdate, sdate, tdate, false},
-				{tdate0, sdate0, tdate0, true},
+				{sDate, sDate, tDate, false},
+				{sDate0, sDate0, tDate0, true},
+				{tDate, sDate, tDate, false},
+				{tDate0, sDate0, tDate0, true},
 			},
 			"DATETIME": {
-				{sdatetime, sdatetime, tdatetime, false},
-				{sdatetime0, sdatetime0, tdate0, true},
-				{tdatetime, sdatetime, tdatetime, false},
-				{tdate0, sdatetime0, tdate0, true},
+				{sDateTime, sDateTime, tDateTime, false},
+				{sDateTime0, sDateTime0, tDate0, true},
+				{tDateTime, sDateTime, tDateTime, false},
+				{tDate0, sDateTime0, tDate0, true},
 			},
 		}
 		setups = []*setup{
