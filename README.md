@@ -159,6 +159,8 @@ However, many want to scan MySQL `DATE` and `DATETIME` values into `time.Time` v
 
 **Caution:** As of Go 1.1, this makes `time.Time` the only variable type you can scan `DATE` and `DATETIME` values into. This breaks for example [`sql.RawBytes` support](https://github.com/go-sql-driver/mysql/wiki/Examples#rawbytes).
 
+Alternatively you can use the [`NullTime`](http://godoc.org/github.com/go-sql-driver/mysql#NullTime) type as the scan destination, which works with both `time.Time` and `string` / `[]byte`.
+
 
 
 ## Testing / Development
@@ -167,7 +169,7 @@ To run the driver tests you may need to adjust the configuration. See the [Testi
 Go-MySQL-Driver is not feature-complete yet. Your help is very appreciated.
 If you want to contribute, you can work on an [open issue](https://github.com/go-sql-driver/mysql/issues?state=open) or review a [pull request](https://github.com/go-sql-driver/mysql/pulls).
 
-Code changes must be proposed via a Pull Request and must be reviewed. Only *LGTM*-ed (" *Looks good to me* ") code may be committed to the master branch. 
+Code changes must be proposed via a Pull Request and must be reviewed. Only *LGTM*-ed (" *Looks good to me* ") code may be committed to the master branch.
 
 ---------------------------------------
 

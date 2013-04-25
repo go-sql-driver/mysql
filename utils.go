@@ -22,6 +22,60 @@ import (
 	"time"
 )
 
+// NullTime represents a time.Time that may be NULL.
+// NullTime implements the Scanner interface so
+// it can be used as a scan destination:
+//
+//  var nt NullTime
+//  err := db.QueryRow("SELECT time FROM foo WHERE id=?", id).Scan(&nt)
+//  ...
+//  if nt.Valid {
+//     // use nt.Time
+//  } else {
+//     // NULL value
+//  }
+//
+// This NullTime implementation is not driver-specific
+type NullTime struct {
+	Time  time.Time
+	Valid bool // Valid is true if Time is not NULL
+}
+
+// Scan implements the Scanner interface.
+// The value type must be time.Time or string / []byte (formatted time-string),
+// otherwise Scan fails.
+func (nt *NullTime) Scan(value interface{}) (err error) {
+	if value == nil {
+		nt.Time, nt.Valid = time.Time{}, false
+		return
+	}
+
+	switch v := value.(type) {
+	case time.Time:
+		nt.Time, nt.Valid = v, true
+		return
+	case []byte:
+		nt.Time, err = parseDateTime(string(v), time.UTC)
+		nt.Valid = (err == nil)
+		return
+	case string:
+		nt.Time, err = parseDateTime(v, time.UTC)
+		nt.Valid = (err == nil)
+		return
+	}
+
+	nt.Valid = false
+	return fmt.Errorf("Can't convert %T to time.Time", value)
+}
+
+// Value implements the driver Valuer interface.
+func (nt NullTime) Value() (driver.Value, error) {
+	if !nt.Valid {
+		return nil, nil
+	}
+	return nt.Time, nil
+}
+
 // Logger
 var (
 	errLog *log.Logger
@@ -116,33 +170,31 @@ func scramblePassword(scramble, password []byte) []byte {
 	return scramble
 }
 
-func parseDateTime(str string, loc *time.Location) (driver.Value, error) {
-	var t time.Time
-	var err error
-
+func parseDateTime(str string, loc *time.Location) (t time.Time, err error) {
 	switch len(str) {
 	case 10: // YYYY-MM-DD
 		if str == "0000-00-00" {
-			return time.Time{}, nil
+			return
 		}
 		t, err = time.Parse(timeFormat[:10], str)
 	case 19: // YYYY-MM-DD HH:MM:SS
 		if str == "0000-00-00 00:00:00" {
-			return time.Time{}, nil
+			return
 		}
 		t, err = time.Parse(timeFormat, str)
 	default:
-		return nil, fmt.Errorf("Invalid Time-String: %s", str)
+		err = fmt.Errorf("Invalid Time-String: %s", str)
+		return
 	}
 
 	// Adjust location
 	if err == nil && loc != time.UTC {
 		y, mo, d := t.Date()
 		h, mi, s := t.Clock()
-		return time.Date(y, mo, d, h, mi, s, t.Nanosecond(), loc), nil
+		t, err = time.Date(y, mo, d, h, mi, s, t.Nanosecond(), loc), nil
 	}
 
-	return t, err
+	return
 }
 
 func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Value, error) {
