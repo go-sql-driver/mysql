@@ -8,7 +8,8 @@ import (
 
 var (
 	// dsn from driver_test.go
-	sample = []byte(strings.Repeat("0123456789abcdef", 1024*1024))
+	sample   = []byte(strings.Repeat("0123456789abcdef", 1024*1024))
+	min, max = 16, len(sample)
 )
 
 func BenchmarkRoundtripText(b *testing.B) {
@@ -19,7 +20,10 @@ func BenchmarkRoundtripText(b *testing.B) {
 	defer db.Close()
 	var result string
 	for i := 0; i < b.N; i++ {
-		length := 16 + i%(4*b.N)
+		length := min + i
+		if length > max {
+			length = max
+		}
 		test := string(sample[0:length])
 		rows, err := db.Query("SELECT \"" + test + "\"")
 		if err != nil {
@@ -54,7 +58,10 @@ func BenchmarkRoundtripPrepared(b *testing.B) {
 		b.Fatalf("crashed")
 	}
 	for i := 0; i < b.N; i++ {
-		length := 16 + i%(4*b.N)
+		length := min + i
+		if length > max {
+			length = max
+		}
 		test := string(sample[0:length])
 		rows, err := stmt.Query(test)
 		if err != nil {
