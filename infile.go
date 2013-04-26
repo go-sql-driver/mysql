@@ -35,6 +35,11 @@ func RegisterLocalFile(filepath string) {
 	fileRegister[strings.Trim(filepath, `"`)] = true
 }
 
+// DeregisterLocalFile removes the given filepath from the whitelist.
+func DeregisterLocalFile(filepath string) {
+	delete(fileRegister, strings.Trim(filepath, `"`))
+}
+
 // RegisterReaderHandler registers a handler function which is used
 // to receive a io.Reader.
 // The Reader can be used by "LOAD DATA LOCAL INFILE Reader::<name>".
@@ -42,6 +47,12 @@ func RegisterLocalFile(filepath string) {
 // request is finished.
 func RegisterReaderHandler(name string, handler func() io.Reader) {
 	readerRegister[name] = handler
+}
+
+// DeregisterReaderHandler removes the ReaderHandler function with
+// the given name from the registry.
+func DeregisterReaderHandler(name string) {
+	delete(readerRegister, name)
 }
 
 func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
