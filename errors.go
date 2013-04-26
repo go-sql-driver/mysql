@@ -34,7 +34,7 @@ func (me *MySQLError) Error() string {
 	return fmt.Sprintf("Error %d: %s", me.Number, me.Message)
 }
 
-// error type which represents a group (one ore more) MySQL warnings
+// error type which represents a group of one ore more MySQL warnings
 type MySQLWarnings []mysqlWarning
 
 func (mws MySQLWarnings) Error() string {
