@@ -79,7 +79,9 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 		return nil, err
 	}
 
-	rows := &mysqlRows{stmt.mc, true, nil, false}
+	rows := newMysqlRows()
+	rows.mc = stmt.mc
+	rows.binary = true
 
 	if resLen > 0 {
 		// Columns
@@ -89,5 +91,5 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 		}
 	}
 
-	return rows, err
+	return &mysqlRowsI{rows}, err
 }

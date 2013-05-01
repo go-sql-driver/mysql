@@ -194,13 +194,14 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 			var resLen int
 			resLen, err = mc.readResultSetHeaderPacket()
 			if err == nil {
-				rows := &mysqlRows{mc, false, nil, false}
+				rows := newMysqlRows()
+				rows.mc = mc
 
 				if resLen > 0 {
 					// Columns
 					rows.columns, err = mc.readColumns(resLen)
 				}
-				return rows, err
+				return &mysqlRowsI{rows}, err
 			}
 		}
 
@@ -221,7 +222,8 @@ func (mc *mysqlConn) getSystemVar(name string) (val []byte, err error) {
 		var resLen int
 		resLen, err = mc.readResultSetHeaderPacket()
 		if err == nil {
-			rows := &mysqlRows{mc, false, nil, false}
+			rows := newMysqlRows()
+			rows.mc = mc
 
 			if resLen > 0 {
 				// Columns
