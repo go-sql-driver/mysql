@@ -21,14 +21,32 @@ type mysqlField struct {
 	flags     fieldFlag
 }
 
+// mysqlRows is the driver-internal Rows struct that is never given to
+// the database/sql package. This struct is 40 bytes on 64-bit
+// machines and is recycled. Its size isn't very relevant, since we
+// recycle it.
+//
+// Allocate with newMysqlRows (from buffer.go) and return with
+// putMySQLRows.  See also: mysqlRowsI.
 type mysqlRows struct {
 	mc      *mysqlConn
-	binary  bool
 	columns []mysqlField
+	binary  bool  // Note: packing small bool fields at the end
 	eof     bool
 }
 
+// mysqlRowsI implements driver.Rows. Its wrapped *mysqlRows pointer
+// becomes nil and recycled on Close. This struct is kept small (8
+// bytes) to minimize garbage creation.
+type mysqlRowsI struct {
+	*mysqlRows
+}
+
 func (rows *mysqlRows) Columns() (columns []string) {
+	if rows == nil {
+		println("mysql-driver: mysqlRows.Columns called with nil receiver")
+		return nil
+	}
 	columns = make([]string, len(rows.columns))
 	for i := range columns {
 		columns[i] = rows.columns[i].name
@@ -36,9 +54,22 @@ func (rows *mysqlRows) Columns() (columns []string) {
 	return
 }
 
-func (rows *mysqlRows) Close() (err error) {
+func (ri *mysqlRowsI) Close() (err error) {
+	if ri.mysqlRows == nil {
+		println("mysql-driver: mysqlRows.Close called twice? sql package fail?")
+		return errors.New("Invalid Connection")
+	}
+	err = ri.mysqlRows.close()
+	putMysqlRows(ri.mysqlRows)
+	ri.mysqlRows = nil
+	return err
+}
+
+func (rows *mysqlRows) close() (err error) {
 	defer func() {
 		rows.mc = nil
+		putFields(rows.columns)
+		rows.columns = nil
 	}()
 
 	// Remove unread packets from stream
@@ -54,6 +85,10 @@ func (rows *mysqlRows) Close() (err error) {
 }
 
 func (rows *mysqlRows) Next(dest []driver.Value) error {
+	if rows == nil {
+		println("mysql-driver: mysqlRows.Next called with nil receiver")
+		return errors.New("Invalid Connection")
+	}
 	if rows.eof {
 		return io.EOF
 	}

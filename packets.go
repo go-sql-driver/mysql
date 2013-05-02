@@ -453,7 +453,7 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 	var i, pos, n int
 	var name []byte
 
-	columns = make([]mysqlField, count)
+	columns = makeFields(count)
 
 	for {
 		data, err = mc.readPacket()
@@ -501,7 +501,7 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 		if err != nil {
 			return
 		}
-		columns[i].name = string(name)
+		columns[i].name = string(name) // TODO(bradfitz): garbage. intern these.
 		pos += n
 
 		// Original name [len coded string]
@@ -703,13 +703,23 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			len(args),
 			stmt.paramCount)
 	}
-
 	// Reset packet-sequence
 	stmt.mc.sequence = 0
 
 	pktLen := 1 + 4 + 1 + 4 + ((stmt.paramCount + 7) >> 3) + 1 + (stmt.paramCount << 1)
-	paramValues := make([][]byte, stmt.paramCount)
-	paramTypes := make([]byte, (stmt.paramCount << 1))
+
+	var paramValues [][]byte
+	var paramValuesBuf [16][]byte
+	if n := stmt.paramCount; n <= len(paramValuesBuf) {
+		// Fast path
+		paramValues = paramValuesBuf[:n]
+	} else {
+		paramValues = make([][]byte, stmt.paramCount)
+	}
+
+	paramTypes := makeBytes(stmt.paramCount * 2)
+	defer putBytes(paramTypes)
+
 	bitMask := uint64(0)
 	var i int
 
@@ -724,14 +734,20 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		// cache types and values
 		switch v := args[i].(type) {
 		case int64:
+			buf := makeBytes(8)
+			defer putBytes(buf)
+			binary.LittleEndian.PutUint64(buf, uint64(v))
+			paramValues[i] = buf
 			paramTypes[i<<1] = fieldTypeLongLong
-			paramValues[i] = uint64ToBytes(uint64(v))
 			pktLen += 8
 			continue
 
 		case float64:
+			buf := makeBytes(8)
+			defer putBytes(buf)
+			binary.LittleEndian.PutUint64(buf, math.Float64bits(v))
+			paramValues[i] = buf
 			paramTypes[i<<1] = fieldTypeDouble
-			paramValues[i] = uint64ToBytes(math.Float64bits(v))
 			pktLen += 8
 			continue
 
@@ -801,7 +817,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		}
 	}
 
-	data := make([]byte, pktLen+4)
+	data := makeBytes(pktLen+4)
+	defer putBytes(data)
 
 	// packet header [4 bytes]
 	data[0] = byte(pktLen)

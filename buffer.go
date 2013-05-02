@@ -86,3 +86,66 @@ func (b *buffer) readNext(need int) (p []byte, err error) {
 	b.length -= need
 	return
 }
+
+var fieldCache = make(chan []mysqlField, 16)
+
+func makeFields(n int) []mysqlField {
+	select {
+	case f := <-fieldCache:
+		if cap(f) >= n {
+			return f[:n]
+		}
+	default:
+	}
+	return make([]mysqlField, n)
+}
+
+func putFields(f []mysqlField) {
+	select {
+	case fieldCache <- f:
+	default:
+	}
+}
+
+var bytesCache = make(chan []byte, 16)
+
+func makeBytes(n int) []byte {
+	select {
+	case s := <-bytesCache:
+		if cap(s) >= n {
+			s = s[:n]
+			for i := range s {
+				s[i] = 0
+			}
+			return s
+		}
+	default:
+	}
+	return make([]byte, n)
+}
+
+func putBytes(s []byte) {
+	select {
+	case bytesCache <- s:
+	default:
+	}
+}
+
+var rowsCache = make(chan *mysqlRows, 16)
+
+func newMysqlRows() *mysqlRows {
+	select {
+	case r := <-rowsCache:
+		return r
+	default:
+		return new(mysqlRows)
+	}
+}
+
+func putMysqlRows(r *mysqlRows) {
+	*r = mysqlRows{} // zero it
+	select {
+	case rowsCache <- r:
+	default:
+	}
+}
