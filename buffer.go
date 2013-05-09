@@ -13,6 +13,7 @@ import "io"
 
 const defaultBufSize = 4096
 
+// custom zero-copy buffer
 type buffer struct {
 	buf    []byte
 	rd     io.Reader
@@ -87,31 +88,13 @@ func (b *buffer) readNext(need int) (p []byte, err error) {
 	return
 }
 
-var fieldCache = make(chan []mysqlField, 16)
+// various allocation pools
 
-func makeFields(n int) []mysqlField {
+var bytesPool = make(chan []byte, 16)
+
+func getBytes(n int) []byte {
 	select {
-	case f := <-fieldCache:
-		if cap(f) >= n {
-			return f[:n]
-		}
-	default:
-	}
-	return make([]mysqlField, n)
-}
-
-func putFields(f []mysqlField) {
-	select {
-	case fieldCache <- f:
-	default:
-	}
-}
-
-var bytesCache = make(chan []byte, 16)
-
-func makeBytes(n int) []byte {
-	select {
-	case s := <-bytesCache:
+	case s := <-bytesPool:
 		if cap(s) >= n {
 			s = s[:n]
 			for i := range s {
@@ -126,16 +109,36 @@ func makeBytes(n int) []byte {
 
 func putBytes(s []byte) {
 	select {
-	case bytesCache <- s:
+	case bytesPool <- s:
 	default:
 	}
 }
 
-var rowsCache = make(chan *mysqlRows, 16)
+var fieldPool = make(chan []mysqlField, 16)
 
-func newMysqlRows() *mysqlRows {
+func getMysqlFields(n int) []mysqlField {
 	select {
-	case r := <-rowsCache:
+	case f := <-fieldPool:
+		if cap(f) >= n {
+			return f[:n]
+		}
+	default:
+	}
+	return make([]mysqlField, n)
+}
+
+func putMysqlFields(f []mysqlField) {
+	select {
+	case fieldPool <- f:
+	default:
+	}
+}
+
+var rowsPool = make(chan *mysqlRows, 16)
+
+func getMysqlRows() *mysqlRows {
+	select {
+	case r := <-rowsPool:
 		return r
 	default:
 		return new(mysqlRows)
@@ -145,7 +148,7 @@ func newMysqlRows() *mysqlRows {
 func putMysqlRows(r *mysqlRows) {
 	*r = mysqlRows{} // zero it
 	select {
-	case rowsCache <- r:
+	case rowsPool <- r:
 	default:
 	}
 }

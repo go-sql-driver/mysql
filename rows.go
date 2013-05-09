@@ -31,7 +31,7 @@ type mysqlField struct {
 type mysqlRows struct {
 	mc      *mysqlConn
 	columns []mysqlField
-	binary  bool  // Note: packing small bool fields at the end
+	binary  bool // Note: packing small bool fields at the end
 	eof     bool
 }
 
@@ -68,7 +68,7 @@ func (ri *mysqlRowsI) Close() (err error) {
 func (rows *mysqlRows) close() (err error) {
 	defer func() {
 		rows.mc = nil
-		putFields(rows.columns)
+		putMysqlFields(rows.columns)
 		rows.columns = nil
 	}()
 

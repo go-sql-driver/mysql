@@ -453,7 +453,7 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 	var i, pos, n int
 	var name []byte
 
-	columns = makeFields(count)
+	columns = getMysqlFields(count)
 
 	for {
 		data, err = mc.readPacket()
@@ -717,7 +717,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		paramValues = make([][]byte, stmt.paramCount)
 	}
 
-	paramTypes := makeBytes(stmt.paramCount * 2)
+	paramTypes := getBytes(stmt.paramCount * 2)
 	defer putBytes(paramTypes)
 
 	bitMask := uint64(0)
@@ -734,7 +734,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		// cache types and values
 		switch v := args[i].(type) {
 		case int64:
-			buf := makeBytes(8)
+			buf := getBytes(8)
 			defer putBytes(buf)
 			binary.LittleEndian.PutUint64(buf, uint64(v))
 			paramValues[i] = buf
@@ -743,7 +743,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			continue
 
 		case float64:
-			buf := makeBytes(8)
+			buf := getBytes(8)
 			defer putBytes(buf)
 			binary.LittleEndian.PutUint64(buf, math.Float64bits(v))
 			paramValues[i] = buf
@@ -817,7 +817,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		}
 	}
 
-	data := makeBytes(pktLen+4)
+	data := getBytes(pktLen + 4)
 	defer putBytes(data)
 
 	// packet header [4 bytes]

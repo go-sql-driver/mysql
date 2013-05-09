@@ -79,7 +79,7 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 		return nil, err
 	}
 
-	rows := newMysqlRows()
+	rows := getMysqlRows()
 	rows.mc = stmt.mc
 	rows.binary = true
 
