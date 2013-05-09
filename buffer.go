@@ -92,15 +92,12 @@ func (b *buffer) readNext(need int) (p []byte, err error) {
 
 var bytesPool = make(chan []byte, 16)
 
+// may return unzeroed bytes
 func getBytes(n int) []byte {
 	select {
 	case s := <-bytesPool:
 		if cap(s) >= n {
-			s = s[:n]
-			for i := range s {
-				s[i] = 0
-			}
-			return s
+			return s[:n]
 		}
 	default:
 	}

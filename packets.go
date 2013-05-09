@@ -836,13 +836,15 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	data[8] = byte(stmt.id >> 24)
 
 	// flags (0: CURSOR_TYPE_NO_CURSOR) [1 byte]
-	//data[9] = 0x00
+	// 0 must be set explicitly since the slice might not be zeroed
+	data[9] = 0x00
 
 	// iteration_count (uint32(1)) [4 bytes]
+	// 0 must be set explicitly since the slice might not be zeroed
 	data[10] = 0x01
-	//data[11] = 0x00
-	//data[12] = 0x00
-	//data[13] = 0x00
+	data[11] = 0x00
+	data[12] = 0x00
+	data[13] = 0x00
 
 	if stmt.paramCount > 0 {
 		// NULL-bitmap [(param_count+7)/8 bytes]
