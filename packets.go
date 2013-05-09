@@ -717,8 +717,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		paramValues = make([][]byte, stmt.paramCount)
 	}
 
-	paramTypes := getBytes(stmt.paramCount * 2)
-	defer putBytes(paramTypes)
+	paramTypes := getNBytes(stmt.paramCount * 2)
+	defer putNBytes(paramTypes)
 
 	bitMask := uint64(0)
 	var i int
@@ -734,8 +734,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		// cache types and values
 		switch v := args[i].(type) {
 		case int64:
-			buf := getBytes(8)
-			defer putBytes(buf)
+			buf := get8Bytes()
+			defer put8Bytes(buf)
 			binary.LittleEndian.PutUint64(buf, uint64(v))
 			paramValues[i] = buf
 			paramTypes[i<<1] = fieldTypeLongLong
@@ -743,8 +743,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			continue
 
 		case float64:
-			buf := getBytes(8)
-			defer putBytes(buf)
+			buf := get8Bytes()
+			defer put8Bytes(buf)
 			binary.LittleEndian.PutUint64(buf, math.Float64bits(v))
 			paramValues[i] = buf
 			paramTypes[i<<1] = fieldTypeDouble
@@ -817,8 +817,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		}
 	}
 
-	data := getBytes(pktLen + 4)
-	defer putBytes(data)
+	data := getNBytes(pktLen + 4)
+	defer putNBytes(data)
 
 	// packet header [4 bytes]
 	data[0] = byte(pktLen)
