@@ -11,7 +11,6 @@ package mysql
 
 import (
 	"database/sql/driver"
-	"errors"
 	"io"
 )
 
@@ -56,8 +55,8 @@ func (rows *mysqlRows) Columns() (columns []string) {
 
 func (ri *mysqlRowsI) Close() (err error) {
 	if ri.mysqlRows == nil {
-		println("mysql-driver: mysqlRows.Close called twice? sql package fail?")
-		return errors.New("Invalid Connection")
+		errLog.Print("mysqlRows.Close called twice? sql package fail?")
+		return errInvConn
 	}
 	err = ri.mysqlRows.close()
 	putMysqlRows(ri.mysqlRows)
@@ -75,7 +74,7 @@ func (rows *mysqlRows) close() (err error) {
 	// Remove unread packets from stream
 	if !rows.eof {
 		if rows.mc == nil {
-			return errors.New("Invalid Connection")
+			return errInvConn
 		}
 
 		err = rows.mc.readUntilEOF()
@@ -86,15 +85,15 @@ func (rows *mysqlRows) close() (err error) {
 
 func (rows *mysqlRows) Next(dest []driver.Value) error {
 	if rows == nil {
-		println("mysql-driver: mysqlRows.Next called with nil receiver")
-		return errors.New("Invalid Connection")
+		errLog.Print("mysqlRows.Next called with nil receiver")
+		return errInvConn
 	}
 	if rows.eof {
 		return io.EOF
 	}
 
 	if rows.mc == nil {
-		return errors.New("Invalid Connection")
+		return errInvConn
 	}
 
 	// Fetch next row from stream
