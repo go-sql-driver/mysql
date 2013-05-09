@@ -141,8 +141,8 @@ func getMysqlRows() *mysqlRows {
 	case r := <-rowsPool:
 		return r
 	default:
-		return new(mysqlRows)
 	}
+	return new(mysqlRows)
 }
 
 func putMysqlRows(r *mysqlRows) {
