@@ -43,7 +43,7 @@ type mysqlRowsI struct {
 
 func (rows *mysqlRows) Columns() (columns []string) {
 	if rows == nil {
-		println("mysql-driver: mysqlRows.Columns called with nil receiver")
+		errLog.Print("mysqlRows.Columns called with nil receiver")
 		return nil
 	}
 	columns = make([]string, len(rows.columns))
