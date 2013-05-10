@@ -282,7 +282,7 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	// Send CMD packet
 	return mc.writePacket([]byte{
 		// Add the packet header [24bit length + 1 byte sequence]
-		0x05, // 5 bytes long
+		0x01, // 1 byte long
 		0x00,
 		0x00,
 		0x00, // mc.sequence
