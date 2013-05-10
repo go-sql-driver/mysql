@@ -292,18 +292,20 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	})
 }
 
-func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
+func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) (err error) {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
 	pktLen := 1 + len(arg)
-	data := make([]byte, pktLen+4)
+
+	// get byte slice from pool
+	data := getNBytes(pktLen + 4)
 
 	// Add the packet header [24bit length + 1 byte sequence]
 	data[0] = byte(pktLen)
 	data[1] = byte(pktLen >> 8)
 	data[2] = byte(pktLen >> 16)
-	//data[3] = mc.sequence
+	data[3] = 0x00
 
 	// Add command byte
 	data[4] = command
@@ -312,7 +314,12 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	copy(data[5:], arg)
 
 	// Send CMD packet
-	return mc.writePacket(data)
+	err = mc.writePacket(data)
+
+	// Return byte slice to pool
+	putNBytes(data)
+
+	return
 }
 
 func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
