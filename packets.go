@@ -292,18 +292,20 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	})
 }
 
-func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
+func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) (err error) {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
 	pktLen := 1 + len(arg)
-	data := make([]byte, pktLen+4)
+
+	// get byte slice from pool
+	data := getNBytes(pktLen + 4)
 
 	// Add the packet header [24bit length + 1 byte sequence]
 	data[0] = byte(pktLen)
 	data[1] = byte(pktLen >> 8)
 	data[2] = byte(pktLen >> 16)
-	//data[3] = mc.sequence
+	data[3] = 0x00
 
 	// Add command byte
 	data[4] = command
@@ -312,7 +314,12 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	copy(data[5:], arg)
 
 	// Send CMD packet
-	return mc.writePacket(data)
+	err = mc.writePacket(data)
+
+	// Return byte slice to pool
+	putNBytes(data)
+
+	return
 }
 
 func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
@@ -453,7 +460,7 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 	var i, pos, n int
 	var name []byte
 
-	columns = make([]mysqlField, count)
+	columns = getMysqlFields(count)
 
 	for {
 		data, err = mc.readPacket()
@@ -501,7 +508,7 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 		if err != nil {
 			return
 		}
-		columns[i].name = string(name)
+		columns[i].name = string(name) // TODO(bradfitz): garbage. intern these.
 		pos += n
 
 		// Original name [len coded string]
@@ -699,17 +706,27 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) (err error)
 func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	if len(args) != stmt.paramCount {
 		return fmt.Errorf(
-			"Arguments count mismatch (Got: %d Has: %d",
+			"Arguments count mismatch (Got: %d Has: %d)",
 			len(args),
 			stmt.paramCount)
 	}
-
 	// Reset packet-sequence
 	stmt.mc.sequence = 0
 
 	pktLen := 1 + 4 + 1 + 4 + ((stmt.paramCount + 7) >> 3) + 1 + (stmt.paramCount << 1)
-	paramValues := make([][]byte, stmt.paramCount)
-	paramTypes := make([]byte, (stmt.paramCount << 1))
+
+	var paramValues [][]byte
+	var paramValuesBuf [16][]byte
+	if n := stmt.paramCount; n <= len(paramValuesBuf) {
+		// Fast path
+		paramValues = paramValuesBuf[:n]
+	} else {
+		paramValues = make([][]byte, stmt.paramCount)
+	}
+
+	paramTypes := getNBytes(stmt.paramCount * 2)
+	defer putNBytes(paramTypes)
+
 	bitMask := uint64(0)
 	var i int
 
@@ -724,14 +741,20 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		// cache types and values
 		switch v := args[i].(type) {
 		case int64:
+			buf := get8Bytes()
+			defer put8Bytes(buf)
+			binary.LittleEndian.PutUint64(buf, uint64(v))
+			paramValues[i] = buf
 			paramTypes[i<<1] = fieldTypeLongLong
-			paramValues[i] = uint64ToBytes(uint64(v))
 			pktLen += 8
 			continue
 
 		case float64:
+			buf := get8Bytes()
+			defer put8Bytes(buf)
+			binary.LittleEndian.PutUint64(buf, math.Float64bits(v))
+			paramValues[i] = buf
 			paramTypes[i<<1] = fieldTypeDouble
-			paramValues[i] = uint64ToBytes(math.Float64bits(v))
 			pktLen += 8
 			continue
 
@@ -801,7 +824,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		}
 	}
 
-	data := make([]byte, pktLen+4)
+	data := getNBytes(pktLen + 4)
+	defer putNBytes(data)
 
 	// packet header [4 bytes]
 	data[0] = byte(pktLen)
@@ -819,13 +843,15 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	data[8] = byte(stmt.id >> 24)
 
 	// flags (0: CURSOR_TYPE_NO_CURSOR) [1 byte]
-	//data[9] = 0x00
+	// 0 must be set explicitly since the slice might not be zeroed
+	data[9] = 0x00
 
 	// iteration_count (uint32(1)) [4 bytes]
+	// 0 must be set explicitly since the slice might not be zeroed
 	data[10] = 0x01
-	//data[11] = 0x00
-	//data[12] = 0x00
-	//data[13] = 0x00
+	data[11] = 0x00
+	data[12] = 0x00
+	data[13] = 0x00
 
 	if stmt.paramCount > 0 {
 		// NULL-bitmap [(param_count+7)/8 bytes]
