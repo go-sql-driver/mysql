@@ -706,7 +706,7 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) (err error)
 func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	if len(args) != stmt.paramCount {
 		return fmt.Errorf(
-			"Arguments count mismatch (Got: %d Has: %d",
+			"Arguments count mismatch (Got: %d Has: %d)",
 			len(args),
 			stmt.paramCount)
 	}
