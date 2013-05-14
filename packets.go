@@ -187,10 +187,15 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 		// which is not documented but seems to work.
 		mc.cipher = append(mc.cipher, data[pos:pos+12]...)
 
-		if data[len(data)-1] == 0 {
-			return
-		}
-		return errMalformPkt
+		// TODO: Verify string termination
+		// EOF if version (>= 5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
+		// \NUL otherwise
+		// http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::Handshake
+		//
+		//if data[len(data)-1] == 0 {
+		//	return
+		//}
+		//return errMalformPkt
 	}
 
 	return
