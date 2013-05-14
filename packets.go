@@ -187,7 +187,7 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 		// which is not documented but seems to work.
 		mc.cipher = append(mc.cipher, data[pos:pos+12]...)
 
-		// TODO: Verifiy string termination
+		// TODO: Verify string termination
 		// EOF for version >= (5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
 		// \NUL otherwise
 		//if data[len(data)-1] == 0 {
