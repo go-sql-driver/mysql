@@ -188,8 +188,10 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 		mc.cipher = append(mc.cipher, data[pos:pos+12]...)
 
 		// TODO: Verify string termination
-		// EOF for version >= (5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
+		// EOF if version (>= 5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
 		// \NUL otherwise
+		// http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::Handshake
+		//
 		//if data[len(data)-1] == 0 {
 		//	return
 		//}
