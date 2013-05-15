@@ -63,7 +63,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 			}
 
 		// handled elsewhere
-		case "timeout", "allowAllFiles", "loc":
+		case "timeout", "allowAllFiles", "loc", "clientFoundRows":
 			continue
 
 		// time.Time parsing

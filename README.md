@@ -111,6 +111,7 @@ Possible Parameters are:
   * `parseTime`: `parseTime=true` changes the output type of `DATE` and `DATETIME` values to `time.Time` instead of `[]byte` / `string`
   * `loc`: Sets the location for time.Time values (when using `parseTime=true`). The default is `UTC`. *"Local"* sets the system's location. See [time.LoadLocation](http://golang.org/pkg/time/#LoadLocation) for details.
   * `strict`: Enable strict mode. MySQL warnings are treated as errors.
+  * `clientFoundRows`: `clientFoundRows=true` causes causes an UPDATE to return the number of matching rows instead of the number of rows changed.
 
 All other parameters are interpreted as system variables:
   * `autocommit`: *"SET autocommit=`value`"*

@@ -215,7 +215,9 @@ func (mc *mysqlConn) writeAuthPacket() error {
 	if mc.flags&clientLongFlag > 0 {
 		clientFlags |= uint32(clientLongFlag)
 	}
-
+	if _, ok := mc.cfg.params["clientFoundRows"]; ok {
+		clientFlags |= uint32(clientFoundRows)
+	}
 	// User Password
 	scrambleBuff := scramblePassword(mc.cipher, []byte(mc.cfg.passwd))
 	mc.cipher = nil
