@@ -63,7 +63,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 			}
 
 		// handled elsewhere
-		case "timeout", "allowAllFiles", "loc":
+		case "timeout", "allowAllFiles", "loc", "clientFoundRows":
 			continue
 
 		// time.Time parsing
@@ -82,9 +82,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 		// Compression
 		case "compress":
 			err = errors.New("Compression not implemented yet")
-		
-		case "CLIENT_FOUND_ROWS":
-		
+
 		// System Vars
 		default:
 			err = mc.exec("SET " + param + "=" + val + "")

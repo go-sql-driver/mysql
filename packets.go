@@ -215,7 +215,7 @@ func (mc *mysqlConn) writeAuthPacket() error {
 	if mc.flags&clientLongFlag > 0 {
 		clientFlags |= uint32(clientLongFlag)
 	}
-	if _, ok := mc.cfg.params["CLIENT_FOUND_ROWS"]; ok {
+	if _, ok := mc.cfg.params["clientFoundRows"]; ok {
 		clientFlags |= uint32(clientFoundRows)
 	}
 	// User Password
