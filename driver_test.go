@@ -1036,6 +1036,51 @@ func TestConcurrent(t *testing.T) {
 	})
 }
 
+func TestFoundRows(t *testing.T) {
+	runTests(t, "TestFoundRows1", dsn, func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (id INT NOT NULL ,data INT NOT NULL)")
+		dbt.mustExec("INSERT INTO test (id, data) VALUES (0, 0),(0, 0),(1, 0),(1, 0),(1, 1)")
+		
+		res := dbt.mustExec("UPDATE test SET data = 1 WHERE id = 0")
+		count, err := res.RowsAffected()
+		if err != nil {
+				dbt.Fatalf("res.RowsAffected() returned error: %v", err)
+			}
+		if count != 2 {
+			dbt.Fatalf("Expected 2 affected rows, got %d", count)
+		}
+		res = dbt.mustExec("UPDATE test SET data = 1 WHERE id = 1")
+		count, err = res.RowsAffected()
+		if err != nil {
+				dbt.Fatalf("res.RowsAffected() returned error: %v", err)
+			}
+		if count != 2 {
+			dbt.Fatalf("Expected 2 affected rows, got %d", count)
+		}
+	})
+	runTests(t, "TestFoundRows2", dsn + "&clientFoundRows=true", func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (id INT NOT NULL ,data INT NOT NULL)")
+		dbt.mustExec("INSERT INTO test (id, data) VALUES (0, 0),(0, 0),(1, 0),(1, 0),(1, 1)")
+		
+		res := dbt.mustExec("UPDATE test SET data = 1 WHERE id = 0")
+		count, err := res.RowsAffected()
+		if err != nil {
+				dbt.Fatalf("res.RowsAffected() returned error: %v", err)
+			}
+		if count != 2 {
+			dbt.Fatalf("Expected 2 matched rows, got %d", count)
+		}
+		res = dbt.mustExec("UPDATE test SET data = 1 WHERE id = 1")
+		count, err = res.RowsAffected()
+		if err != nil {
+				dbt.Fatalf("res.RowsAffected() returned error: %v", err)
+			}
+		if count != 3 {
+			dbt.Fatalf("Expected 3 matched rows, got %d", count)
+		}
+	})
+}
+
 // BENCHMARKS
 var sample []byte
 
