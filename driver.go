@@ -12,7 +12,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"net"
-	"time"
 )
 
 type mysqlDriver struct{}
@@ -34,11 +33,9 @@ func (d *mysqlDriver) Open(dsn string) (driver.Conn, error) {
 	}
 
 	// Connect to Server
-	if _, ok := mc.cfg.params["timeout"]; ok { // with timeout
-		var timeout time.Duration
-		timeout, err = time.ParseDuration(mc.cfg.params["timeout"])
+	if mc.cfg.timeout > 0 { // with timeout
 		if err == nil {
-			mc.netConn, err = net.DialTimeout(mc.cfg.net, mc.cfg.addr, timeout)
+			mc.netConn, err = net.DialTimeout(mc.cfg.net, mc.cfg.addr, mc.cfg.timeout)
 		}
 	} else { // no timeout
 		mc.netConn, err = net.Dial(mc.cfg.net, mc.cfg.addr)
@@ -46,6 +43,7 @@ func (d *mysqlDriver) Open(dsn string) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	mc.buf = newBuffer(mc.netConn)
 
 	// Reading Handshake Initialization Packet

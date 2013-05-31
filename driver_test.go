@@ -807,6 +807,39 @@ func TestStrict(t *testing.T) {
 	})
 }
 
+func TestTLS(t *testing.T) {
+	runTests(t, "TestTLS", dsn+"&tls=skip-verify", func(dbt *DBTest) {
+		/*if err := dbt.db.Ping(); err != nil {
+			if err == errNoTLS {
+				dbt.Skip("Server does not support TLS. Skipping TestTLS")
+			} else {
+				dbt.Fatalf("Error on Ping: %s", err.Error())
+			}
+		}*/
+		if _, err := dbt.db.Exec("DO 1"); err != nil {
+			if err == errNoTLS {
+				dbt.Log("Server does not support TLS. Skipping TestTLS")
+				return
+			} else {
+				dbt.Fatalf("Error on Ping: %s", err.Error())
+			}
+		}
+
+		rows := dbt.mustQuery("SHOW STATUS LIKE 'Ssl_cipher'")
+
+		var variable, value *sql.RawBytes
+		for rows.Next() {
+			if err := rows.Scan(&variable, &value); err != nil {
+				dbt.Fatal(err.Error())
+			}
+
+			if value == nil {
+				dbt.Fatal("No Cipher")
+			}
+		}
+	})
+}
+
 // Special cases
 
 func TestRowsClose(t *testing.T) {
