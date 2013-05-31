@@ -215,6 +215,15 @@ func (mc *mysqlConn) writeAuthPacket() error {
 		clientLocalFiles |
 		mc.flags&clientLongFlag
 
+	if _, ok := mc.cfg.params["clientFoundRows"]; ok {
+		clientFlags |= clientFoundRows
+	}
+
+	// To enable TLS / SSL
+	if mc.cfg.tls != nil {
+		clientFlags |= clientSSL
+	}
+
 	// User Password
 	scrambleBuff := scramblePassword(mc.cipher, []byte(mc.cfg.passwd))
 	mc.cipher = nil
@@ -225,11 +234,6 @@ func (mc *mysqlConn) writeAuthPacket() error {
 	if len(mc.cfg.dbname) > 0 {
 		clientFlags |= clientConnectWithDB
 		pktLen += len(mc.cfg.dbname) + 1
-	}
-
-	// To enable TLS / SSL
-	if mc.cfg.tls != nil {
-		clientFlags |= clientSSL
 	}
 
 	// Calculate packet length and make buffer with that size

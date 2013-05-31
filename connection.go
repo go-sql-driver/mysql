@@ -66,8 +66,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 			}
 
 		// handled elsewhere
-		case "allowAllFiles":
-			continue
+		case "allowAllFiles", "clientFoundRows":
 
 		// time.Time parsing
 		case "parseTime":
