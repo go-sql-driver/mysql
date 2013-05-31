@@ -11,9 +11,9 @@ package mysql
 
 import (
 	"bytes"
+	"crypto/tls"
 	"database/sql/driver"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -167,7 +167,10 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 	// capability flags (lower 2 bytes) [2 bytes]
 	mc.flags = clientFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
 	if mc.flags&clientProtocol41 == 0 {
-		err = errors.New("MySQL-Server does not support required Protocol 41+")
+		return errOldProtocol
+	}
+	if mc.flags&clientSSL == 0 && mc.cfg.tls != nil {
+		return errNoTLS
 	}
 	pos += 2
 
@@ -205,16 +208,12 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 // http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::HandshakeResponse
 func (mc *mysqlConn) writeAuthPacket() error {
 	// Adjust client flags based on server support
-	clientFlags := uint32(
-		clientProtocol41 |
-			clientSecureConn |
-			clientLongPassword |
-			clientTransactions |
-			clientLocalFiles,
-	)
-	if mc.flags&clientLongFlag > 0 {
-		clientFlags |= uint32(clientLongFlag)
-	}
+	clientFlags := clientProtocol41 |
+		clientSecureConn |
+		clientLongPassword |
+		clientTransactions |
+		clientLocalFiles |
+		mc.flags&clientLongFlag
 
 	// User Password
 	scrambleBuff := scramblePassword(mc.cipher, []byte(mc.cfg.passwd))
@@ -224,18 +223,17 @@ func (mc *mysqlConn) writeAuthPacket() error {
 
 	// To specify a db name
 	if len(mc.cfg.dbname) > 0 {
-		clientFlags |= uint32(clientConnectWithDB)
+		clientFlags |= clientConnectWithDB
 		pktLen += len(mc.cfg.dbname) + 1
+	}
+
+	// To enable TLS / SSL
+	if mc.cfg.tls != nil {
+		clientFlags |= clientSSL
 	}
 
 	// Calculate packet length and make buffer with that size
 	data := make([]byte, pktLen+4)
-
-	// Add the packet header  [24bit length + 1 byte sequence]
-	data[0] = byte(pktLen)
-	data[1] = byte(pktLen >> 8)
-	data[2] = byte(pktLen >> 16)
-	data[3] = mc.sequence
 
 	// ClientFlags [32 bit]
 	data[4] = byte(clientFlags)
@@ -251,6 +249,35 @@ func (mc *mysqlConn) writeAuthPacket() error {
 
 	// Charset [1 byte]
 	data[12] = mc.charset
+
+	// SSL Connection Request Packet
+	// http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::SSLRequest
+	if mc.cfg.tls != nil {
+		// Packet header  [24bit length + 1 byte sequence]
+		data[0] = byte((4 + 4 + 1 + 23))
+		data[1] = byte((4 + 4 + 1 + 23) >> 8)
+		data[2] = byte((4 + 4 + 1 + 23) >> 16)
+		data[3] = mc.sequence
+
+		// Send TLS / SSL request packet
+		if err := mc.writePacket(data[:(4+4+1+23)+4]); err != nil {
+			return err
+		}
+
+		// Switch to TLS
+		tlsConn := tls.Client(mc.netConn, mc.cfg.tls)
+		if err := tlsConn.Handshake(); err != nil {
+			return err
+		}
+		mc.netConn = tlsConn
+		mc.buf.rd = tlsConn
+	}
+
+	// Add the packet header  [24bit length + 1 byte sequence]
+	data[0] = byte(pktLen)
+	data[1] = byte(pktLen >> 8)
+	data[2] = byte(pktLen >> 16)
+	data[3] = mc.sequence
 
 	// Filler [23 bytes] (all 0x00)
 	pos := 13 + 23

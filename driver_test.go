@@ -13,7 +13,6 @@ import (
 )
 
 var (
-	charset   string
 	dsn       string
 	netAddr   string
 	available bool
@@ -42,9 +41,8 @@ func init() {
 	prot := env("MYSQL_TEST_PROT", "tcp")
 	addr := env("MYSQL_TEST_ADDR", "localhost:3306")
 	dbname := env("MYSQL_TEST_DBNAME", "gotest")
-	charset = "charset=utf8"
 	netAddr = fmt.Sprintf("%s(%s)", prot, addr)
-	dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&strict=true&"+charset, user, pass, netAddr, dbname)
+	dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&strict=true&charset=utf8", user, pass, netAddr, dbname)
 	c, err := net.Dial(prot, addr)
 	if err == nil {
 		available = true
@@ -54,7 +52,8 @@ func init() {
 
 type DBTest struct {
 	*testing.T
-	db *sql.DB
+	db   *sql.DB
+	name string
 }
 
 func runTests(t *testing.T, name, dsn string, tests ...func(dbt *DBTest)) {
@@ -71,7 +70,7 @@ func runTests(t *testing.T, name, dsn string, tests ...func(dbt *DBTest)) {
 
 	db.Exec("DROP TABLE IF EXISTS test")
 
-	dbt := &DBTest{t, db}
+	dbt := &DBTest{t, db, name}
 	for _, test := range tests {
 		test(dbt)
 		dbt.db.Exec("DROP TABLE IF EXISTS test")
@@ -102,32 +101,27 @@ func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows)
 }
 
 func TestCharset(t *testing.T) {
-	mustSetCharset := func(charsetParam, expected string) {
-		db, err := sql.Open("mysql", strings.Replace(dsn, charset, charsetParam, 1))
-		if err != nil {
-			t.Fatalf("Error on Open: %v", err)
-		}
-		defer db.Close()
-
-		dbt := &DBTest{t, db}
-		rows := dbt.mustQuery("SELECT @@character_set_connection")
-		defer rows.Close()
-
-		if !rows.Next() {
-			dbt.Fatalf("Error getting connection charset: %v", err)
-		}
-
-		var got string
-		rows.Scan(&got)
-
-		if got != expected {
-			dbt.Fatalf("Expected connection charset %s but got %s", expected, got)
-		}
-	}
-
 	if !available {
 		t.Logf("MySQL-Server not running on %s. Skipping TestCharset", netAddr)
 		return
+	}
+
+	mustSetCharset := func(charsetParam, expected string) {
+		runTests(t, "TestCharset["+charsetParam+"]", dsn+"&"+charsetParam, func(dbt *DBTest) {
+			rows := dbt.mustQuery("SELECT @@character_set_connection")
+			defer rows.Close()
+
+			if !rows.Next() {
+				dbt.Fatalf("Error getting connection charset: %s", rows.Err())
+			}
+
+			var got string
+			rows.Scan(&got)
+
+			if got != expected {
+				dbt.Fatalf("Expected connection charset %s but got %s", expected, got)
+			}
+		})
 	}
 
 	// non utf8 test
@@ -142,22 +136,14 @@ func TestCharset(t *testing.T) {
 }
 
 func TestFailingCharset(t *testing.T) {
-	if !available {
-		t.Logf("MySQL-Server not running on %s. Skipping TestFailingCharset", netAddr)
-		return
-	}
-	db, err := sql.Open("mysql", strings.Replace(dsn, charset, "charset=none", 1))
-	if err != nil {
-		t.Fatalf("Error on Open: %v", err)
-	}
-	defer db.Close()
-
-	// run query to really establish connection...
-	_, err = db.Exec("SELECT 1")
-	if err == nil {
-		db.Close()
-		t.Fatalf("Connection must not succeed without a valid charset")
-	}
+	runTests(t, "TestFailingCharset", dsn+"&charset=none", func(dbt *DBTest) {
+		// run query to really establish connection...
+		_, err := dbt.db.Exec("SELECT 1")
+		if err == nil {
+			dbt.db.Close()
+			t.Fatalf("Connection must not succeed without a valid charset")
+		}
+	})
 }
 
 func TestRawBytesResultExceedsBuffer(t *testing.T) {
@@ -802,6 +788,31 @@ func TestStrict(t *testing.T) {
 			err = stmt.Close()
 			if err != nil {
 				dbt.Error("Error on closing stmt for query %: ", queries[i].in, err.Error())
+			}
+		}
+	})
+}
+
+func TestTLS(t *testing.T) {
+	runTests(t, "TestTLS", dsn+"&tls=skip-verify", func(dbt *DBTest) {
+		if err := dbt.db.Ping(); err != nil {
+			if err == errNoTLS {
+				dbt.Skip("Server does not support TLS. Skipping " + dbt.name)
+			} else {
+				dbt.Fatalf("Error on Ping: %s", err.Error())
+			}
+		}
+
+		rows := dbt.mustQuery("SHOW STATUS LIKE 'Ssl_cipher'")
+
+		var variable, value *sql.RawBytes
+		for rows.Next() {
+			if err := rows.Scan(&variable, &value); err != nil {
+				dbt.Fatal(err.Error())
+			}
+
+			if value == nil {
+				dbt.Fatal("No Cipher")
 			}
 		}
 	})
