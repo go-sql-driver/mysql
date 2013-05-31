@@ -74,7 +74,7 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 		}
 	} else { // File
 		name = strings.Trim(name, `"`)
-		if fileRegister[name] || mc.cfg.params[`allowAllFiles`] == `true` {
+		if fileRegister[name] || params[`allowAllFiles`] == `true` {
 			rdr, err = os.Open(name)
 		} else {
 			err = fmt.Errorf("Local File '%s' is not registered. Use the DSN parameter 'allowAllFiles=true' to allow all files", name)

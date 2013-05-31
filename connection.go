@@ -31,6 +31,8 @@ type mysqlConn struct {
 	insertId         uint64
 	maxPacketAllowed int
 	maxWriteSize     int
+	allowAllFiles    bool //TODO: consider moving to cfg
+	clientFoundRows  bool //TODO: consider moving to cfg
 	parseTime        bool
 	strict           bool
 }
@@ -67,7 +69,10 @@ func (mc *mysqlConn) handleParams() (err error) {
 
 		// handled elsewhere
 		case "allowAllFiles":
-			continue
+
+		// time.Time parsing
+		case "clientFoundRows":
+			mc.clientFoundRows = readBool(val)
 
 		// time.Time parsing
 		case "parseTime":

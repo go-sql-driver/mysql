@@ -227,6 +227,10 @@ func (mc *mysqlConn) writeAuthPacket() error {
 		pktLen += len(mc.cfg.dbname) + 1
 	}
 
+	if mc.clientFoundRows {
+		clientFlags |= uint32(clientFoundRows)
+	}
+
 	// To enable TLS / SSL
 	if mc.cfg.tls != nil {
 		clientFlags |= clientSSL
