@@ -807,6 +807,42 @@ func TestStrict(t *testing.T) {
 	})
 }
 
+func TestTLS(t *testing.T) {
+	runTests(t, "TestTLS", dsn+"&tls=skip-verify", func(dbt *DBTest) {
+		/* TODO: GO 1.1 API */
+		/*if err := dbt.db.Ping(); err != nil {
+		    if err == errNoTLS {
+		        dbt.Skip("Server does not support TLS. Skipping TestTLS")
+		    } else {
+		        dbt.Fatalf("Error on Ping: %s", err.Error())
+		    }
+		}*/
+
+		/* GO 1.0 API */
+		if _, err := dbt.db.Exec("DO 1"); err != nil {
+			if err == errNoTLS {
+				dbt.Log("Server does not support TLS. Skipping TestTLS")
+				return
+			} else {
+				dbt.Fatalf("Error on Ping: %s", err.Error())
+			}
+		}
+
+		rows := dbt.mustQuery("SHOW STATUS LIKE 'Ssl_cipher'")
+
+		var variable, value *sql.RawBytes
+		for rows.Next() {
+			if err := rows.Scan(&variable, &value); err != nil {
+				dbt.Fatal(err.Error())
+			}
+
+			if value == nil {
+				dbt.Fatal("No Cipher")
+			}
+		}
+	})
+}
+
 // Special cases
 
 func TestRowsClose(t *testing.T) {
@@ -1040,41 +1076,41 @@ func TestFoundRows(t *testing.T) {
 	runTests(t, "TestFoundRows1", dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (id INT NOT NULL ,data INT NOT NULL)")
 		dbt.mustExec("INSERT INTO test (id, data) VALUES (0, 0),(0, 0),(1, 0),(1, 0),(1, 1)")
-		
+
 		res := dbt.mustExec("UPDATE test SET data = 1 WHERE id = 0")
 		count, err := res.RowsAffected()
 		if err != nil {
-				dbt.Fatalf("res.RowsAffected() returned error: %v", err)
-			}
+			dbt.Fatalf("res.RowsAffected() returned error: %v", err)
+		}
 		if count != 2 {
 			dbt.Fatalf("Expected 2 affected rows, got %d", count)
 		}
 		res = dbt.mustExec("UPDATE test SET data = 1 WHERE id = 1")
 		count, err = res.RowsAffected()
 		if err != nil {
-				dbt.Fatalf("res.RowsAffected() returned error: %v", err)
-			}
+			dbt.Fatalf("res.RowsAffected() returned error: %v", err)
+		}
 		if count != 2 {
 			dbt.Fatalf("Expected 2 affected rows, got %d", count)
 		}
 	})
-	runTests(t, "TestFoundRows2", dsn + "&clientFoundRows=true", func(dbt *DBTest) {
+	runTests(t, "TestFoundRows2", dsn+"&clientFoundRows=true", func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (id INT NOT NULL ,data INT NOT NULL)")
 		dbt.mustExec("INSERT INTO test (id, data) VALUES (0, 0),(0, 0),(1, 0),(1, 0),(1, 1)")
-		
+
 		res := dbt.mustExec("UPDATE test SET data = 1 WHERE id = 0")
 		count, err := res.RowsAffected()
 		if err != nil {
-				dbt.Fatalf("res.RowsAffected() returned error: %v", err)
-			}
+			dbt.Fatalf("res.RowsAffected() returned error: %v", err)
+		}
 		if count != 2 {
 			dbt.Fatalf("Expected 2 matched rows, got %d", count)
 		}
 		res = dbt.mustExec("UPDATE test SET data = 1 WHERE id = 1")
 		count, err = res.RowsAffected()
 		if err != nil {
-				dbt.Fatalf("res.RowsAffected() returned error: %v", err)
-			}
+			dbt.Fatalf("res.RowsAffected() returned error: %v", err)
+		}
 		if count != 3 {
 			dbt.Fatalf("Expected 3 matched rows, got %d", count)
 		}

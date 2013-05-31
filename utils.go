@@ -11,6 +11,7 @@ package mysql
 
 import (
 	"crypto/sha1"
+	"crypto/tls"
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
@@ -119,7 +120,35 @@ func parseDSN(dsn string) (cfg *config, err error) {
 				if len(param) != 2 {
 					continue
 				}
-				cfg.params[param[0]] = param[1]
+
+				// cfg params
+				switch value := param[1]; param[0] {
+
+				// Time Location
+				case "loc":
+					cfg.loc, err = time.LoadLocation(value)
+					if err != nil {
+						return
+					}
+
+				// Dial Timeout
+				case "timeout":
+					cfg.timeout, err = time.ParseDuration(value)
+					if err != nil {
+						return
+					}
+
+				// TLS-Encryption
+				case "tls":
+					if readBool(value) {
+						cfg.tls = &tls.Config{}
+					} else if strings.ToLower(value) == "skip-verify" {
+						cfg.tls = &tls.Config{InsecureSkipVerify: true}
+					}
+
+				default:
+					cfg.params[param[0]] = value
+				}
 			}
 		}
 	}
@@ -134,7 +163,10 @@ func parseDSN(dsn string) (cfg *config, err error) {
 		cfg.addr = "127.0.0.1:3306"
 	}
 
-	cfg.loc, err = time.LoadLocation(cfg.params["loc"])
+	// Set default location if not set
+	if cfg.loc == nil {
+		cfg.loc = time.UTC
+	}
 
 	return
 }
