@@ -10,6 +10,7 @@
 package mysql
 
 import (
+	"crypto/tls"
 	"database/sql/driver"
 	"errors"
 	"net"
@@ -35,13 +36,15 @@ type mysqlConn struct {
 }
 
 type config struct {
-	user   string
-	passwd string
-	net    string
-	addr   string
-	dbname string
-	params map[string]string
-	loc    *time.Location
+	user    string
+	passwd  string
+	net     string
+	addr    string
+	dbname  string
+	params  map[string]string
+	loc     *time.Location
+	timeout time.Duration
+	tls     *tls.Config
 }
 
 // Handles parameters set in DSN
@@ -63,7 +66,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 			}
 
 		// handled elsewhere
-		case "timeout", "allowAllFiles", "loc", "clientFoundRows":
+		case "allowAllFiles", "clientFoundRows":
 			continue
 
 		// time.Time parsing
@@ -74,14 +77,10 @@ func (mc *mysqlConn) handleParams() (err error) {
 		case "strict":
 			mc.strict = readBool(val)
 
-		// TLS-Encryption
-		case "tls":
-			err = errors.New("TLS-Encryption not implemented yet")
-			return
-
 		// Compression
 		case "compress":
 			err = errors.New("Compression not implemented yet")
+			return
 
 		// System Vars
 		default:
