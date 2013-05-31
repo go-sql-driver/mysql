@@ -809,9 +809,17 @@ func TestStrict(t *testing.T) {
 
 func TestTLS(t *testing.T) {
 	runTests(t, "TestTLS", dsn+"&tls=skip-verify", func(dbt *DBTest) {
-		if err := dbt.db.Ping(); err != nil {
+		/*if err := dbt.db.Ping(); err != nil {
 			if err == errNoTLS {
 				dbt.Skip("Server does not support TLS. Skipping TestTLS")
+			} else {
+				dbt.Fatalf("Error on Ping: %s", err.Error())
+			}
+		}*/
+		if _, err := dbt.db.Exec("DO 1"); err != nil {
+			if err == errNoTLS {
+				dbt.Log("Server does not support TLS. Skipping TestTLS")
+				return
 			} else {
 				dbt.Fatalf("Error on Ping: %s", err.Error())
 			}
