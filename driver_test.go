@@ -797,7 +797,7 @@ func TestStrict(t *testing.T) {
 		for i := range queries {
 			stmt, err = dbt.db.Prepare(queries[i].in)
 			if err != nil {
-				dbt.Error("Error on preparing query %: ", queries[i].in, err.Error())
+				dbt.Errorf("Error on preparing query %s: %s", queries[i].in, err.Error())
 			}
 
 			_, err = stmt.Exec()
@@ -805,7 +805,7 @@ func TestStrict(t *testing.T) {
 
 			err = stmt.Close()
 			if err != nil {
-				dbt.Error("Error on closing stmt for query %: ", queries[i].in, err.Error())
+				dbt.Errorf("Error on closing stmt for query %s: %s", queries[i].in, err.Error())
 			}
 		}
 	})
