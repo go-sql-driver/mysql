@@ -569,8 +569,6 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 
 		i++
 	}
-
-	return
 }
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
@@ -636,7 +634,6 @@ func (mc *mysqlConn) readUntilEOF() (err error) {
 		}
 		return // Err or EOF
 	}
-	return
 }
 
 /******************************************************************************
