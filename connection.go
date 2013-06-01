@@ -35,15 +35,17 @@ type mysqlConn struct {
 }
 
 type config struct {
-	user    string
-	passwd  string
-	net     string
-	addr    string
-	dbname  string
-	params  map[string]string
-	loc     *time.Location
-	timeout time.Duration
-	tls     *tls.Config
+	user            string
+	passwd          string
+	net             string
+	addr            string
+	dbname          string
+	params          map[string]string
+	loc             *time.Location
+	timeout         time.Duration
+	tls             *tls.Config
+	allowAllFiles   bool
+	clientFoundRows bool
 }
 
 // Handles parameters set in DSN
@@ -63,10 +65,6 @@ func (mc *mysqlConn) handleParams() (err error) {
 			if err != nil {
 				return
 			}
-
-		// handled elsewhere
-		case "allowAllFiles", "clientFoundRows":
-			continue
 
 		// time.Time parsing
 		case "parseTime":

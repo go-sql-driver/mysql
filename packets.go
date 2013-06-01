@@ -215,7 +215,7 @@ func (mc *mysqlConn) writeAuthPacket() error {
 		clientLocalFiles |
 		mc.flags&clientLongFlag
 
-	if _, ok := mc.cfg.params["clientFoundRows"]; ok {
+	if mc.cfg.clientFoundRows {
 		clientFlags |= clientFoundRows
 	}
 
