@@ -231,9 +231,9 @@ func (mc *mysqlConn) writeAuthPacket() error {
 	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.user) + 1 + 1 + len(scrambleBuff)
 
 	// To specify a db name
-	if len(mc.cfg.dbname) > 0 {
+	if n := len(mc.cfg.dbname); n > 0 {
 		clientFlags |= clientConnectWithDB
-		pktLen += len(mc.cfg.dbname) + 1
+		pktLen += n + 1
 	}
 
 	// Calculate packet length and make buffer with that size
