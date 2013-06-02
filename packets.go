@@ -176,8 +176,6 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 
 	if len(data) > pos {
 		// character set [1 byte]
-		mc.charset = data[pos]
-
 		// status flags [2 bytes]
 		// capability flags (upper 2 bytes) [2 bytes]
 		// length of auth-plugin-data [1 byte]
@@ -252,7 +250,7 @@ func (mc *mysqlConn) writeAuthPacket() error {
 	//data[11] = 0x00
 
 	// Charset [1 byte]
-	data[12] = mc.charset
+	data[12] = collation_utf8_general_ci
 
 	// SSL Connection Request Packet
 	// http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::SSLRequest
