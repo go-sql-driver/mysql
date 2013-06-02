@@ -13,6 +13,8 @@ import "io"
 
 const defaultBufSize = 4096
 
+// A read buffer similar to bufio.Reader but zero-copy-ish
+// Also highly optimized for this particular use case.
 type buffer struct {
 	buf    []byte
 	rd     io.Reader
@@ -36,41 +38,29 @@ func (b *buffer) fill(need int) (err error) {
 
 	// grow buffer if necessary
 	if need > len(b.buf) {
-		b.grow(need)
+		for {
+			b.buf = append(b.buf, 0)
+			b.buf = b.buf[:cap(b.buf)]
+
+			if cap(b.buf) >= need {
+				break
+			}
+		}
 	}
 
 	b.idx = 0
 
 	var n int
-	for b.length < need {
+	for {
 		n, err = b.rd.Read(b.buf[b.length:])
 		b.length += n
 
-		if err == nil {
+		if b.length < need && err == nil {
 			continue
 		}
 		return // err
 	}
-
 	return
-}
-
-// grow the buffer to at least the given size
-// credit for this code snippet goes to Maxim Khitrov
-// https://groups.google.com/forum/#!topic/golang-nuts/ETbw1ECDgRs
-func (b *buffer) grow(size int) {
-	// If append would be too expensive, alloc a new slice
-	if size > 2*cap(b.buf) {
-		newBuf := make([]byte, size)
-		copy(newBuf, b.buf)
-		b.buf = newBuf
-		return
-	}
-
-	for cap(b.buf) < size {
-		b.buf = append(b.buf[:cap(b.buf)], 0)
-	}
-	b.buf = b.buf[:cap(b.buf)]
 }
 
 // returns next N bytes from buffer.
