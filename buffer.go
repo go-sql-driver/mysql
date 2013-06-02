@@ -42,10 +42,10 @@ func (b *buffer) fill(need int) (err error) {
 			b.buf = append(b.buf, 0)
 			b.buf = b.buf[:cap(b.buf)]
 
-			if cap(b.buf) < size {
+			if cap(b.buf) < need {
 				continue
 			}
-			return
+			break
 		}
 	}
 
