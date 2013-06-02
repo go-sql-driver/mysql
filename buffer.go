@@ -90,12 +90,12 @@ func (b *buffer) readNext(need int) (p []byte, err error) {
 
 // various allocation pools
 
-var bytesPoolN = make(chan []byte, 16)
+var bytesPool = make(chan []byte, 16)
 
 // may return unzeroed bytes
-func getNBytes(n int) []byte {
+func getBytes(n int) []byte {
 	select {
-	case s := <-bytesPoolN:
+	case s := <-bytesPool:
 		if cap(s) >= n {
 			return s[:n]
 		}
@@ -104,32 +104,9 @@ func getNBytes(n int) []byte {
 	return make([]byte, n)
 }
 
-func putNBytes(s []byte) {
+func putBytes(s []byte) {
 	select {
-	case bytesPoolN <- s:
-	default:
-	}
-}
-
-var bytesPool8 = make(chan []byte, 16)
-
-// may return unzeroed bytes
-func get8Bytes() []byte {
-	select {
-	case s := <-bytesPool8:
-		return s
-	default:
-	}
-	return make([]byte, 8)
-}
-
-func put8Bytes(s []byte) {
-	if len(s) != 8 {
-		return
-	}
-
-	select {
-	case bytesPool8 <- s:
+	case bytesPool <- s:
 	default:
 	}
 }

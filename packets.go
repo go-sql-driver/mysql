@@ -299,7 +299,7 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) (err error)
 	pktLen := 1 + len(arg)
 
 	// get byte slice from pool
-	data := getNBytes(pktLen + 4)
+	data := getBytes(pktLen + 4)
 
 	// Add the packet header [24bit length + 1 byte sequence]
 	data[0] = byte(pktLen)
@@ -317,7 +317,7 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) (err error)
 	err = mc.writePacket(data)
 
 	// Return byte slice to pool
-	putNBytes(data)
+	putBytes(data)
 
 	return
 }
@@ -704,128 +704,97 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) (err error)
 // Execute Prepared Statement
 // http://dev.mysql.com/doc/internals/en/prepared-statements.html#com-stmt-execute
 func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
-	if len(args) != stmt.paramCount {
+	argsCount := len(args)
+	if argsCount != stmt.paramCount {
 		return fmt.Errorf(
 			"Arguments count mismatch (Got: %d Has: %d",
-			len(args),
+			argsCount,
 			stmt.paramCount)
 	}
 	// Reset packet-sequence
 	stmt.mc.sequence = 0
 
-	pktLen := 1 + 4 + 1 + 4 + ((stmt.paramCount + 7) >> 3) + 1 + (stmt.paramCount << 1)
+	pktLen := 1 + 4 + 1 + 4 + ((argsCount + 7) >> 3) + 1 + (argsCount << 1)
 
-	var paramValues [][]byte
-	var paramValuesBuf [16][]byte
-	if n := stmt.paramCount; n <= len(paramValuesBuf) {
-		// Fast path
-		paramValues = paramValuesBuf[:n]
-	} else {
-		paramValues = make([][]byte, stmt.paramCount)
-	}
+	// bitmask for params send as long data packet
+	longDataMask := uint(0)
 
-	paramTypes := getNBytes(stmt.paramCount * 2)
-	defer putNBytes(paramTypes)
+	// 2-PASS packing
 
-	bitMask := uint64(0)
-	var i int
-
-	for i = range args {
-		// build NULL-bitmap
+	// PASS 1 - get length
+	for i := range args {
 		if args[i] == nil {
-			bitMask += 1 << uint(i)
-			paramTypes[i<<1] = fieldTypeNULL
 			continue
 		}
 
-		// cache types and values
 		switch v := args[i].(type) {
-		case int64:
-			buf := get8Bytes()
-			defer put8Bytes(buf)
-			binary.LittleEndian.PutUint64(buf, uint64(v))
-			paramValues[i] = buf
-			paramTypes[i<<1] = fieldTypeLongLong
-			pktLen += 8
-			continue
-
-		case float64:
-			buf := get8Bytes()
-			defer put8Bytes(buf)
-			binary.LittleEndian.PutUint64(buf, math.Float64bits(v))
-			paramValues[i] = buf
-			paramTypes[i<<1] = fieldTypeDouble
+		case int64, float64:
 			pktLen += 8
 			continue
 
 		case bool:
-			paramTypes[i<<1] = fieldTypeTiny
 			pktLen++
-			if v {
-				paramValues[i] = []byte{0x01}
-			} else {
-				paramValues[i] = []byte{0x00}
-			}
 			continue
 
 		case []byte:
-			paramTypes[i<<1] = fieldTypeString
-			if len(v) < stmt.mc.maxPacketAllowed-pktLen-(stmt.paramCount-(i+1))*64 {
-				paramValues[i] = append(
-					lengthEncodedIntegerToBytes(uint64(len(v))),
-					v...,
-				)
-				pktLen += len(paramValues[i])
-				continue
-			} else {
-				err := stmt.writeCommandLongData(i, v)
-				if err == nil {
+			if n := len(v); n < stmt.mc.maxPacketAllowed-pktLen-(argsCount-(i+1))*64 {
+				switch {
+				case n <= 250:
+					pktLen += n + 1
 					continue
+
+				case n <= 0xffff:
+					pktLen += n + 3
+					continue
+
+				case n <= 0xffffff:
+					pktLen += n + 4
+					continue
+
+				default:
+					return errors.New("Invalid length")
 				}
-				return err
+			} else {
+				longDataMask |= 1 << uint(i)
 			}
 
 		case string:
-			paramTypes[i<<1] = fieldTypeString
-			if len(v) < stmt.mc.maxPacketAllowed-pktLen-(stmt.paramCount-(i+1))*64 {
-				paramValues[i] = append(
-					lengthEncodedIntegerToBytes(uint64(len(v))),
-					[]byte(v)...,
-				)
-				pktLen += len(paramValues[i])
-				continue
-			} else {
-				err := stmt.writeCommandLongData(i, []byte(v))
-				if err == nil {
+			if n := len(v); n < stmt.mc.maxPacketAllowed-pktLen-(argsCount-(i+1))*64 {
+				switch {
+				case n <= 250:
+					pktLen += n + 1
 					continue
+
+				case n <= 0xffff:
+					pktLen += n + 3
+					continue
+
+				case n <= 0xffffff:
+					pktLen += n + 4
+					continue
+
+				default:
+					return errors.New("Invalid length")
 				}
-				return err
+			} else {
+				longDataMask |= 1 << uint(i)
 			}
 
 		case time.Time:
-			paramTypes[i<<1] = fieldTypeString
-
-			var val []byte
-			if v.IsZero() {
-				val = []byte("0000-00-00")
+			if !v.IsZero() {
+				pktLen += 1 + 19
 			} else {
-				val = []byte(v.Format(timeFormat))
+				pktLen += 1 + 10
 			}
-
-			paramValues[i] = append(
-				lengthEncodedIntegerToBytes(uint64(len(val))),
-				val...,
-			)
-			pktLen += len(paramValues[i])
-			continue
 
 		default:
 			return fmt.Errorf("Can't convert type: %T", args[i])
 		}
 	}
 
-	data := getNBytes(pktLen + 4)
-	defer putNBytes(data)
+	// get data buffer
+	data := getBytes(pktLen + 4)
+	defer putBytes(data)
 
 	// packet header [4 bytes]
 	data[0] = byte(pktLen)
@@ -853,24 +822,102 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	data[12] = 0x00
 	data[13] = 0x00
 
-	if stmt.paramCount > 0 {
+	if argsCount > 0 {
 		// NULL-bitmap [(param_count+7)/8 bytes]
-		pos := 14 + ((stmt.paramCount + 7) >> 3)
-		// Convert bitMask to bytes
-		for i = 14; i < pos; i++ {
-			data[i] = byte(bitMask >> uint((i-14)<<3))
-		}
+		// deferred
+		bitMask := uint(0)
+		pos := 14 + ((argsCount + 7) >> 3)
 
 		// newParameterBoundFlag 1 [1 byte]
 		data[pos] = 0x01
 		pos++
 
-		// type of parameters [param_count*2 bytes]
-		pos += copy(data[pos:], paramTypes)
+		// type of the parameters [param_count*2 bytes]
+		paramTypes := data[pos:]
 
-		// values for the parameters [n bytes]
-		for i = range paramValues {
-			pos += copy(data[pos:], paramValues[i])
+		// values of the parameters [n bytes]
+		paramValues := data[pos+(argsCount<<1):]
+		pos = 0
+
+		// PASS 2 - copy data
+		for i := range args {
+			paramTypes[(i<<1)+1] = 0x00
+
+			// build NULL-bitmap
+			if args[i] == nil {
+				bitMask |= 1 << uint(i)
+				paramTypes[i<<1] = fieldTypeNULL
+				continue
+			}
+
+			// cache types and values
+			switch v := args[i].(type) {
+			case int64:
+				paramTypes[i<<1] = fieldTypeLongLong
+				binary.LittleEndian.PutUint64(paramValues[pos:], uint64(v))
+				pos += 8
+				continue
+
+			case float64:
+				paramTypes[i<<1] = fieldTypeDouble
+				binary.LittleEndian.PutUint64(paramValues[pos:], math.Float64bits(v))
+				pos += 8
+				continue
+
+			case bool:
+				paramTypes[i<<1] = fieldTypeTiny
+				if v {
+					paramValues[pos] = 0x01
+				} else {
+					paramValues[pos] = 0x00
+				}
+				pos++
+				continue
+
+			case []byte:
+				paramTypes[i<<1] = fieldTypeString
+				if longDataMask&(1<<uint(i)) == 0 {
+					pos += lengthEncodedIntegerToBytes(paramValues[pos:], uint64(len(v)))
+					pos += copy(paramValues[pos:], v)
+				} else {
+					if err := stmt.writeCommandLongData(i, v); err != nil {
+						return err
+					}
+				}
+
+			case string:
+				paramTypes[i<<1] = fieldTypeString
+				if longDataMask&(1<<uint(i)) == 0 {
+					pos += lengthEncodedIntegerToBytes(paramValues[pos:], uint64(len(v)))
+					pos += copy(paramValues[pos:], []byte(v))
+				} else {
+					if err := stmt.writeCommandLongData(i, []byte(v)); err != nil {
+						return err
+					}
+				}
+
+			case time.Time:
+				paramTypes[i<<1] = fieldTypeString
+
+				var n int
+				if !v.IsZero() {
+					n = copy(paramValues[pos+1:], []byte(v.Format(timeFormat)))
+				} else {
+					n = copy(paramValues[pos+1:], []byte("0000-00-00"))
+				}
+
+				paramValues[pos] = byte(n) // length
+				pos += 1 + n
+				continue
+
+			default:
+				return fmt.Errorf("Can't convert type: %T", args[i])
+			}
+		}
+
+		// Convert bitMask to bytes
+		for i, max := 0, ((argsCount + 7) >> 3); i < max; i++ {
+			data[14+i] = byte(bitMask >> uint(i<<3))
 		}
 	}
 
