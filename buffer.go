@@ -38,7 +38,15 @@ func (b *buffer) fill(need int) (err error) {
 
 	// grow buffer if necessary
 	if need > len(b.buf) {
-		b.grow(need)
+		for {
+			b.buf = append(b.buf, 0)
+			b.buf = b.buf[:cap(b.buf)]
+
+			if cap(b.buf) < size {
+				continue
+			}
+			return
+		}
 	}
 
 	b.idx = 0
@@ -52,29 +60,6 @@ func (b *buffer) fill(need int) (err error) {
 			continue
 		}
 		return // err
-	}
-}
-
-// grow the buffer to at least the given size
-// credit for this code snippet goes to Maxim Khitrov
-// https://groups.google.com/forum/#!topic/golang-nuts/ETbw1ECDgRs
-func (b *buffer) grow(size int) {
-	// If append would be too expensive, alloc a new slice
-	if size > cap(b.buf)*2 {
-		newBuf := make([]byte, size)
-		copy(newBuf, b.buf)
-		b.buf = newBuf
-		return
-	}
-
-	for {
-		b.buf = append(b.buf, 0)
-		b.buf = b.buf[:cap(b.buf)]
-
-		if cap(b.buf) < size {
-			continue
-		}
-		return
 	}
 }
 
