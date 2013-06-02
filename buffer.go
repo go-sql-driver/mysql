@@ -42,10 +42,9 @@ func (b *buffer) fill(need int) (err error) {
 			b.buf = append(b.buf, 0)
 			b.buf = b.buf[:cap(b.buf)]
 
-			if cap(b.buf) < need {
-				continue
+			if cap(b.buf) >= need {
+				break
 			}
-			break
 		}
 	}
 
@@ -61,6 +60,7 @@ func (b *buffer) fill(need int) (err error) {
 		}
 		return // err
 	}
+	return
 }
 
 // returns next N bytes from buffer.
