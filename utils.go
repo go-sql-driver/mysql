@@ -401,8 +401,7 @@ func readLengthEncodedInteger(b []byte) (num uint64, isNull bool, n int) {
 }
 
 // Does NOT make bounds check
-// Returns 0 if int could not be written
-func lengthEncodedIntegerToBytes(b []byte, i uint64) int {
+func lengthEncodedIntegerToBytes(b []byte, i uint32) int {
 	switch {
 	case i <= 250:
 		b[0] = byte(i)
@@ -414,12 +413,12 @@ func lengthEncodedIntegerToBytes(b []byte, i uint64) int {
 		b[2] = byte(i >> 8)
 		return 3
 
-	case i <= 0xffffff:
+	default: //i <= 0xffffff
 		b[0] = 0xfd
 		b[1] = byte(i)
 		b[2] = byte(i >> 8)
 		b[3] = byte(i >> 16)
 		return 4
 	}
-	return 0
+	return 0 // TODO: Go 1.1 return spec
 }

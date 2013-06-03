@@ -877,7 +877,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			case []byte:
 				paramTypes[i<<1] = fieldTypeString
 				if longDataMask&(1<<uint(i)) == 0 {
-					pos += lengthEncodedIntegerToBytes(paramValues[pos:], uint64(len(v)))
+					pos += lengthEncodedIntegerToBytes(paramValues[pos:], uint32(len(v)))
 					pos += copy(paramValues[pos:], v)
 				} else {
 					if err := stmt.writeCommandLongData(i, v); err != nil {
@@ -888,7 +888,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			case string:
 				paramTypes[i<<1] = fieldTypeString
 				if longDataMask&(1<<uint(i)) == 0 {
-					pos += lengthEncodedIntegerToBytes(paramValues[pos:], uint64(len(v)))
+					pos += lengthEncodedIntegerToBytes(paramValues[pos:], uint32(len(v)))
 					pos += copy(paramValues[pos:], []byte(v))
 				} else {
 					if err := stmt.writeCommandLongData(i, []byte(v)); err != nil {
