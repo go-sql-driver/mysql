@@ -57,11 +57,13 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 			return data, nil
 		}
 
+		var buf []byte
+		buf = append(buf, data...)
+
 		// More data
-		var data2 []byte
-		data2, err = mc.readPacket()
+		data, err = mc.readPacket()
 		if err == nil {
-			return append(data, data2...), nil
+			return append(buf, data...), nil
 		}
 	}
 	errLog.Print(err.Error())
