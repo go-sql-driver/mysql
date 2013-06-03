@@ -23,8 +23,9 @@ type buffer struct {
 }
 
 func newBuffer(rd io.Reader) *buffer {
+	var b [defaultBufSize]byte
 	return &buffer{
-		buf: make([]byte, defaultBufSize),
+		buf: b[:],
 		rd:  rd,
 	}
 }
@@ -38,14 +39,9 @@ func (b *buffer) fill(need int) (err error) {
 
 	// grow buffer if necessary
 	if need > len(b.buf) {
-		for {
-			b.buf = append(b.buf, 0)
-			b.buf = b.buf[:cap(b.buf)]
-
-			if cap(b.buf) >= need {
-				break
-			}
-		}
+		newBuf := make([]byte, need)
+		copy(newBuf, b.buf)
+		b.buf = newBuf
 	}
 
 	b.idx = 0
