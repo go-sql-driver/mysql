@@ -612,7 +612,7 @@ func TestLongData(t *testing.T) {
 
 		dbt.mustExec("CREATE TABLE test (value LONGBLOB)")
 
-		in := strings.Repeat(`0`, maxAllowedPacketSize+1)
+		in := strings.Repeat(`a`, maxAllowedPacketSize+1)
 		var out string
 		var rows *sql.Rows
 
@@ -648,7 +648,11 @@ func TestLongData(t *testing.T) {
 				dbt.Error("LONGBLOB: unexpexted row")
 			}
 		} else {
-			dbt.Fatalf("LONGBLOB: no data")
+			if err = rows.Err(); err != nil {
+				dbt.Fatalf("LONGBLOB: no data (err: %s)", err.Error())
+			} else {
+				dbt.Fatal("LONGBLOB: no data (err: <nil>)")
+			}
 		}
 	})
 }
