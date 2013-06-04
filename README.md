@@ -21,6 +21,7 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
       * [Examples](#examples)
     * [LOAD DATA LOCAL INFILE support](#load-data-local-infile-support)
     * [time.Time support](#timetime-support)
+    * [Unicode support](#unicode-support)
   * [Testing / Development](#testing--development)
   * [License](#license)
 
@@ -126,11 +127,11 @@ user@unix(/path/to/socket)/dbname
 ```
 
 ```
-user:password@tcp(localhost:5555)/dbname?charset=utf8&autocommit=true
+user:password@tcp(localhost:5555)/dbname?autocommit=true
 ```
 
 ```
-user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname?charset=utf8mb4,utf8
+user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname?tls=skip-verify&charset=utf8mb4,utf8
 ```
 
 ```
@@ -154,6 +155,7 @@ To use a `io.Reader` a handler function must be registered with `mysql.RegisterR
 
 See also the [godoc of Go-MySQL-Driver](http://godoc.org/github.com/go-sql-driver/mysql "golang mysql driver documentation")
 
+
 ### `time.Time` support
 The default internal output type of MySQL `DATE` and `DATETIME` values is `[]byte` which allows you to scan the value into a `[]byte`, `string` or `sql.RawBytes` variable in your programm.
 
@@ -163,6 +165,11 @@ However, many want to scan MySQL `DATE` and `DATETIME` values into `time.Time` v
 
 Alternatively you can use the [`NullTime`](http://godoc.org/github.com/go-sql-driver/mysql#NullTime) type as the scan destination, which works with both `time.Time` and `string` / `[]byte`.
 
+
+### Unicode support
+Since version 1.1 Go-MySQL-Driver automatically uses the collation `utf8_general_ci` by default. Adding `&charset=utf8` (alias for `SET NAMES utf8`) to the DSN is not necessary anymore in most cases.
+
+See http://dev.mysql.com/doc/refman/5.7/en/charset-unicode.html for more details on MySQL's Unicode support.
 
 
 ## Testing / Development
