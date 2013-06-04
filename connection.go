@@ -21,7 +21,6 @@ import (
 type mysqlConn struct {
 	cfg              *config
 	flags            clientFlag
-	charset          byte
 	cipher           []byte
 	netConn          net.Conn
 	buf              *buffer

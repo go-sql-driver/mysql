@@ -44,7 +44,7 @@ func init() {
 	dbname := env("MYSQL_TEST_DBNAME", "gotest")
 	charset = "charset=utf8"
 	netAddr = fmt.Sprintf("%s(%s)", prot, addr)
-	dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&strict=true&"+charset, user, pass, netAddr, dbname)
+	dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&strict=true", user, pass, netAddr, dbname)
 	c, err := net.Dial(prot, addr)
 	if err == nil {
 		available = true
@@ -103,7 +103,7 @@ func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows)
 
 func TestCharset(t *testing.T) {
 	mustSetCharset := func(charsetParam, expected string) {
-		db, err := sql.Open("mysql", strings.Replace(dsn, charset, charsetParam, 1))
+		db, err := sql.Open("mysql", dsn+"&"+charsetParam)
 		if err != nil {
 			t.Fatalf("Error on Open: %v", err)
 		}
@@ -146,7 +146,7 @@ func TestFailingCharset(t *testing.T) {
 		t.Logf("MySQL-Server not running on %s. Skipping TestFailingCharset", netAddr)
 		return
 	}
-	db, err := sql.Open("mysql", strings.Replace(dsn, charset, "charset=none", 1))
+	db, err := sql.Open("mysql", dsn+"&charset=none")
 	if err != nil {
 		t.Fatalf("Error on Open: %v", err)
 	}
