@@ -124,6 +124,14 @@ func parseDSN(dsn string) (cfg *config, err error) {
 				// cfg params
 				switch value := param[1]; param[0] {
 
+				// Disable INFILE whitelist / enable all files
+				case "allowAllFiles":
+					cfg.allowAllFiles = readBool(value)
+
+				// Switch "rowsAffected" mode
+				case "clientFoundRows":
+					cfg.clientFoundRows = readBool(value)
+
 				// Time Location
 				case "loc":
 					cfg.loc, err = time.LoadLocation(value)
