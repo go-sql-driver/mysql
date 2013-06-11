@@ -102,5 +102,4 @@ func (mc *mysqlConn) getWarnings() (err error) {
 			return
 		}
 	}
-	return
 }

@@ -33,13 +33,8 @@ func (d *mysqlDriver) Open(dsn string) (driver.Conn, error) {
 	}
 
 	// Connect to Server
-	if mc.cfg.timeout > 0 { // with timeout
-		if err == nil {
-			mc.netConn, err = net.DialTimeout(mc.cfg.net, mc.cfg.addr, mc.cfg.timeout)
-		}
-	} else { // no timeout
-		mc.netConn, err = net.Dial(mc.cfg.net, mc.cfg.addr)
-	}
+	nd := net.Dialer{Timeout: mc.cfg.timeout}
+	mc.netConn, err = nd.Dial(mc.cfg.net, mc.cfg.addr)
 	if err != nil {
 		return nil, err
 	}
