@@ -460,5 +460,4 @@ func lengthEncodedIntegerToBytes(b []byte, i uint32) int {
 		b[3] = byte(i >> 16)
 		return 4
 	}
-	return 0 // TODO: Go 1.1 return spec
 }

@@ -56,7 +56,6 @@ func (b *buffer) fill(need int) (err error) {
 		}
 		return // err
 	}
-	return
 }
 
 // returns next N bytes from buffer.
