@@ -11,6 +11,7 @@ package mysql
 
 import (
 	"bytes"
+	"crypto/tls"
 	"database/sql/driver"
 	"encoding/binary"
 	"errors"
@@ -57,11 +58,13 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 			return data, nil
 		}
 
+		var buf []byte
+		buf = append(buf, data...)
+
 		// More data
-		var data2 []byte
-		data2, err = mc.readPacket()
+		data, err = mc.readPacket()
 		if err == nil {
-			return append(data, data2...), nil
+			return append(buf, data...), nil
 		}
 	}
 	errLog.Print(err.Error())
@@ -167,14 +170,15 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 	// capability flags (lower 2 bytes) [2 bytes]
 	mc.flags = clientFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
 	if mc.flags&clientProtocol41 == 0 {
-		err = errors.New("MySQL-Server does not support required Protocol 41+")
+		err = errOldProtocol
+	}
+	if mc.flags&clientSSL == 0 && mc.cfg.tls != nil {
+		return errNoTLS
 	}
 	pos += 2
 
 	if len(data) > pos {
 		// character set [1 byte]
-		mc.charset = data[pos]
-
 		// status flags [2 bytes]
 		// capability flags (upper 2 bytes) [2 bytes]
 		// length of auth-plugin-data [1 byte]
@@ -187,10 +191,15 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 		// which is not documented but seems to work.
 		mc.cipher = append(mc.cipher, data[pos:pos+12]...)
 
-		if data[len(data)-1] == 0 {
-			return
-		}
-		return errMalformPkt
+		// TODO: Verify string termination
+		// EOF if version (>= 5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
+		// \NUL otherwise
+		// http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::Handshake
+		//
+		//if data[len(data)-1] == 0 {
+		//	return
+		//}
+		//return errMalformPkt
 	}
 
 	return
@@ -200,15 +209,20 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 // http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::HandshakeResponse
 func (mc *mysqlConn) writeAuthPacket() error {
 	// Adjust client flags based on server support
-	clientFlags := uint32(
-		clientProtocol41 |
-			clientSecureConn |
-			clientLongPassword |
-			clientTransactions |
-			clientLocalFiles,
-	)
-	if mc.flags&clientLongFlag > 0 {
-		clientFlags |= uint32(clientLongFlag)
+	clientFlags := clientProtocol41 |
+		clientSecureConn |
+		clientLongPassword |
+		clientTransactions |
+		clientLocalFiles |
+		mc.flags&clientLongFlag
+
+	if mc.cfg.clientFoundRows {
+		clientFlags |= clientFoundRows
+	}
+
+	// To enable TLS / SSL
+	if mc.cfg.tls != nil {
+		clientFlags |= clientSSL
 	}
 
 	// User Password
@@ -218,19 +232,13 @@ func (mc *mysqlConn) writeAuthPacket() error {
 	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.user) + 1 + 1 + len(scrambleBuff)
 
 	// To specify a db name
-	if len(mc.cfg.dbname) > 0 {
-		clientFlags |= uint32(clientConnectWithDB)
-		pktLen += len(mc.cfg.dbname) + 1
+	if n := len(mc.cfg.dbname); n > 0 {
+		clientFlags |= clientConnectWithDB
+		pktLen += n + 1
 	}
 
 	// Calculate packet length and make buffer with that size
 	data := make([]byte, pktLen+4)
-
-	// Add the packet header  [24bit length + 1 byte sequence]
-	data[0] = byte(pktLen)
-	data[1] = byte(pktLen >> 8)
-	data[2] = byte(pktLen >> 16)
-	data[3] = mc.sequence
 
 	// ClientFlags [32 bit]
 	data[4] = byte(clientFlags)
@@ -245,7 +253,36 @@ func (mc *mysqlConn) writeAuthPacket() error {
 	//data[11] = 0x00
 
 	// Charset [1 byte]
-	data[12] = mc.charset
+	data[12] = collation_utf8_general_ci
+
+	// SSL Connection Request Packet
+	// http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::SSLRequest
+	if mc.cfg.tls != nil {
+		// Packet header  [24bit length + 1 byte sequence]
+		data[0] = byte((4 + 4 + 1 + 23))
+		data[1] = byte((4 + 4 + 1 + 23) >> 8)
+		data[2] = byte((4 + 4 + 1 + 23) >> 16)
+		data[3] = mc.sequence
+
+		// Send TLS / SSL request packet
+		if err := mc.writePacket(data[:(4+4+1+23)+4]); err != nil {
+			return err
+		}
+
+		// Switch to TLS
+		tlsConn := tls.Client(mc.netConn, mc.cfg.tls)
+		if err := tlsConn.Handshake(); err != nil {
+			return err
+		}
+		mc.netConn = tlsConn
+		mc.buf.rd = tlsConn
+	}
+
+	// Add the packet header  [24bit length + 1 byte sequence]
+	data[0] = byte(pktLen)
+	data[1] = byte(pktLen >> 8)
+	data[2] = byte(pktLen >> 16)
+	data[3] = mc.sequence
 
 	// Filler [23 bytes] (all 0x00)
 	pos := 13 + 23
@@ -282,7 +319,7 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	// Send CMD packet
 	return mc.writePacket([]byte{
 		// Add the packet header [24bit length + 1 byte sequence]
-		0x05, // 5 bytes long
+		0x01, // 1 byte long
 		0x00,
 		0x00,
 		0x00, // mc.sequence
@@ -540,8 +577,6 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 
 		i++
 	}
-
-	return
 }
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
@@ -607,7 +642,6 @@ func (mc *mysqlConn) readUntilEOF() (err error) {
 		}
 		return // Err or EOF
 	}
-	return
 }
 
 /******************************************************************************
@@ -707,9 +741,10 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	argsCount := len(args)
 	if argsCount != stmt.paramCount {
 		return fmt.Errorf(
-			"Arguments count mismatch (Got: %d Has: %d",
+			"Arguments count mismatch (Got: %d Has: %d)",
 			argsCount,
-			stmt.paramCount)
+			stmt.paramCount,
+		)
 	}
 	// Reset packet-sequence
 	stmt.mc.sequence = 0

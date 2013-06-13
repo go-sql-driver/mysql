@@ -18,9 +18,11 @@ import (
 
 var (
 	errMalformPkt  = errors.New("Malformed Packet")
+	errNoTLS       = errors.New("TLS encryption requested but server does not support TLS")
+	errOldPassword = errors.New("It seems like you are using old_passwords, which is unsupported. See https://github.com/go-sql-driver/mysql/wiki/old_passwords")
+	errOldProtocol = errors.New("MySQL-Server does not support required Protocol 41+")
 	errPktSync     = errors.New("Commands out of sync. You can't run this command now")
 	errPktSyncMul  = errors.New("Commands out of sync. Did you run multiple statements at once?")
-	errOldPassword = errors.New("It seems like you are using old_passwords, which is unsupported. See https://github.com/go-sql-driver/mysql/wiki/old_passwords")
 	errPktTooLarge = errors.New("Packet for query is too large. You can change this value on the server by adjusting the 'max_allowed_packet' variable.")
 	errInvConn     = errors.New("Invalid Connection")
 )
@@ -101,5 +103,4 @@ func (mc *mysqlConn) getWarnings() (err error) {
 			return
 		}
 	}
-	return
 }

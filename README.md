@@ -2,9 +2,9 @@
 
 A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) package
 
-![Go-MySQL-Driver logo](https://raw.github.com/wiki/go-sql-driver/mysql/go-mysql-driver_m.jpg "Golang Gopher transporting the MySQL Dolphin in a wheelbarrow")
+![Go-MySQL-Driver logo](https://raw.github.com/wiki/go-sql-driver/mysql/gomysql_m.png "Golang Gopher holding the MySQL Dolphin")
 
-**Current tagged Release:** April 26, 2013 (stable beta 5)
+**Current tagged Release:** May 14, 2013 (Version 1.0)
 
 [![Build Status](https://travis-ci.org/go-sql-driver/mysql.png?branch=master)](https://travis-ci.org/go-sql-driver/mysql) *(master branch)*
 
@@ -21,6 +21,7 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
       * [Examples](#examples)
     * [LOAD DATA LOCAL INFILE support](#load-data-local-infile-support)
     * [time.Time support](#timetime-support)
+    * [Unicode support](#unicode-support)
   * [Testing / Development](#testing--development)
   * [License](#license)
 
@@ -39,7 +40,7 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
   * Optional `time.Time` parsing
 
 ## Requirements
-  * Go 1.0.3 or higher
+  * Go 1.1 or higher (use [v1.0](https://github.com/go-sql-driver/mysql/tags) for Go 1.0.x)
   * MySQL (Version 4.1 or higher), MariaDB or Percona Server
 
 ---------------------------------------
@@ -105,12 +106,14 @@ For Unix domain sockets the address is the absolute path to the MySQL-Server-soc
 ***Parameters are case-sensitive!***
 
 Possible Parameters are:
-  * `timeout`: **Driver** side connection timeout. The value must be a string of decimal numbers, each with optional fraction and a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*. To set a server side timeout, use the parameter [`wait_timeout`](http://dev.mysql.com/doc/refman/5.6/en/server-system-variables.html#sysvar_wait_timeout).
-  * `charset`: Sets the charset used for client-server interaction ("SET NAMES `value`"). If multiple charsets are set (separated by a comma), the following charset is used if setting the charset failes. This enables support for `utf8mb4` ([introduced in MySQL 5.5.3](http://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)) with fallback to `utf8` for older servers (`charset=utf8mb4,utf8`).
   * `allowAllFiles`: `allowAllFiles=true` disables the file Whitelist for `LOAD DATA LOCAL INFILE` and allows *all* files. *Might be insecure!*
-  * `parseTime`: `parseTime=true` changes the output type of `DATE` and `DATETIME` values to `time.Time` instead of `[]byte` / `string`
+  * `charset`: Sets the charset used for client-server interaction ("SET NAMES `value`"). If multiple charsets are set (separated by a comma), the following charset is used if setting the charset failes. This enables support for `utf8mb4` ([introduced in MySQL 5.5.3](http://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)) with fallback to `utf8` for older servers (`charset=utf8mb4,utf8`).
+  * `clientFoundRows`: `clientFoundRows=true` causes an UPDATE to return the number of matching rows instead of the number of rows changed.
   * `loc`: Sets the location for time.Time values (when using `parseTime=true`). The default is `UTC`. *"Local"* sets the system's location. See [time.LoadLocation](http://golang.org/pkg/time/#LoadLocation) for details.
+  * `parseTime`: `parseTime=true` changes the output type of `DATE` and `DATETIME` values to `time.Time` instead of `[]byte` / `string`
   * `strict`: Enable strict mode. MySQL warnings are treated as errors.
+  * `timeout`: **Driver** side connection timeout. The value must be a string of decimal numbers, each with optional fraction and a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*. To set a server side timeout, use the parameter [`wait_timeout`](http://dev.mysql.com/doc/refman/5.6/en/server-system-variables.html#sysvar_wait_timeout).
+  * `tls`: `true` enables TLS / SSL encrypted connection to the server. Use `skip-verify` if you want to use a self-signed or invalid certificate (server side)
 
 All other parameters are interpreted as system variables:
   * `autocommit`: *"SET autocommit=`value`"*
@@ -124,11 +127,11 @@ user@unix(/path/to/socket)/dbname
 ```
 
 ```
-user:password@tcp(localhost:5555)/dbname?charset=utf8&autocommit=true
+user:password@tcp(localhost:5555)/dbname?autocommit=true
 ```
 
 ```
-user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname?charset=utf8mb4,utf8
+user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname?tls=skip-verify&charset=utf8mb4,utf8
 ```
 
 ```
@@ -152,6 +155,7 @@ To use a `io.Reader` a handler function must be registered with `mysql.RegisterR
 
 See also the [godoc of Go-MySQL-Driver](http://godoc.org/github.com/go-sql-driver/mysql "golang mysql driver documentation")
 
+
 ### `time.Time` support
 The default internal output type of MySQL `DATE` and `DATETIME` values is `[]byte` which allows you to scan the value into a `[]byte`, `string` or `sql.RawBytes` variable in your programm.
 
@@ -161,6 +165,11 @@ However, many want to scan MySQL `DATE` and `DATETIME` values into `time.Time` v
 
 Alternatively you can use the [`NullTime`](http://godoc.org/github.com/go-sql-driver/mysql#NullTime) type as the scan destination, which works with both `time.Time` and `string` / `[]byte`.
 
+
+### Unicode support
+Since version 1.1 Go-MySQL-Driver automatically uses the collation `utf8_general_ci` by default. Adding `&charset=utf8` (alias for `SET NAMES utf8`) to the DSN is not necessary anymore in most cases.
+
+See http://dev.mysql.com/doc/refman/5.7/en/charset-unicode.html for more details on MySQL's Unicode support.
 
 
 ## Testing / Development
@@ -188,3 +197,6 @@ That means:
 Please read the [MPL 2.0 FAQ](http://www.mozilla.org/MPL/2.0/FAQ.html) if you have further questions regarding the license.
 
 You can read the full terms here: [LICENSE](https://raw.github.com/go-sql-driver/mysql/master/LICENSE)
+
+![Go Gopher and MySQL Dolphin](https://raw.github.com/wiki/go-sql-driver/mysql/go-mysql-driver_m.jpg "Golang Gopher transporting the MySQL Dolphin in a wheelbarrow")
+
