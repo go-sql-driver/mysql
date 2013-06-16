@@ -226,7 +226,6 @@ func (mc *mysqlConn) writeAuthPacket() error {
 
 	// User Password
 	scrambleBuff := scramblePassword(mc.cipher, []byte(mc.cfg.passwd))
-	mc.cipher = nil
 
 	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.user) + 1 + 1 + len(scrambleBuff)
 
@@ -409,6 +408,8 @@ func (mc *mysqlConn) readResultOK() error {
 		switch data[0] {
 
 		case iOK:
+			// Remove the chipher in case of successfull authentication
+			mc.cipher = nil
 			return mc.handleOkPacket(data)
 
 		case iEOF:
