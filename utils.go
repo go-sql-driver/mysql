@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"regexp"
 	"strings"
@@ -211,6 +212,67 @@ func scramblePassword(scramble, password []byte) []byte {
 		scramble[i] ^= stage1[i]
 	}
 	return scramble
+}
+
+// Encrypt password using pre 4.1 (old password) method
+// https://github.com/atcurtis/mariadb/blob/master/mysys/my_rnd.c
+type myRnd struct {
+	seed1, seed2 uint32
+}
+
+const myRndMaxVal = 0x3FFFFFFF
+
+func newMyRnd(seed1, seed2 uint32) *myRnd {
+	r := new(myRnd)
+	r.seed1 = seed1 % myRndMaxVal
+	r.seed2 = seed2 % myRndMaxVal
+	return r
+}
+
+func (r *myRnd) Float64() float64 {
+	r.seed1 = (r.seed1*3 + r.seed2) % myRndMaxVal
+	r.seed2 = (r.seed1 + r.seed2 + 33) % myRndMaxVal
+	return float64(r.seed1) / myRndMaxVal
+}
+
+// https://github.com/atcurtis/mariadb/blob/master/sql/password.c
+func pwHash(password []byte) (result [2]uint32) {
+	var nr, add, nr2, tmp uint32
+	nr, add, nr2 = 1345345333, 7, 0x12345671
+
+	for _, c := range password {
+		if c == ' ' || c == '\t' {
+			continue // skip space in password
+		}
+
+		tmp = uint32(c)
+		nr ^= (((nr & 63) + add) * tmp) + (nr << 8)
+		nr2 += (nr2 << 8) ^ nr
+		add += tmp
+	}
+
+	result[0] = nr & ((1 << 31) - 1) // Don't use sign bit (str2int)
+	result[1] = nr2 & ((1 << 31) - 1)
+	return
+}
+
+func scrambleOldPassword(scramble, password []byte) []byte {
+	if len(password) == 0 {
+		return nil
+	}
+	scramble = scramble[:8]
+	hashPw := pwHash(password)
+	hashSc := pwHash(scramble)
+	r := newMyRnd(hashPw[0]^hashSc[0], hashPw[1]^hashSc[1])
+	var out [8]byte
+	for i := range out {
+		out[i] = byte(math.Floor(r.Float64()*31) + 64)
+	}
+	extra := byte(math.Floor(r.Float64() * 31))
+	for i := range out {
+		out[i] ^= extra
+	}
+	return out[:]
 }
 
 // Returns the bool value of the input.

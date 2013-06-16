@@ -307,6 +307,29 @@ func (mc *mysqlConn) writeAuthPacket() error {
 	return mc.writePacket(data)
 }
 
+//  Client old authentication packet
+// http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::AuthSwitchResponse
+func (mc *mysqlConn) writeOldAuthPacket() error {
+	// User password
+	scrambleBuff := scrambleOldPassword(mc.cipher, []byte(mc.cfg.passwd))
+	mc.cipher = nil
+
+	// Calculate the packet lenght and add a tailing 0
+	pktLen := len(scrambleBuff) + 1
+	data := make([]byte, pktLen+4)
+
+	// Add the packet header  [24bit length + 1 byte sequence]
+	data[0] = byte(pktLen)
+	data[1] = byte(pktLen >> 8)
+	data[2] = byte(pktLen >> 16)
+	data[3] = mc.sequence
+
+	// Add the scrambled password (it will be terminated by 0)
+	copy(data[4:], scrambleBuff)
+
+	return mc.writePacket(data)
+}
+
 /******************************************************************************
 *                             Command Packets                                 *
 ******************************************************************************/
@@ -388,8 +411,13 @@ func (mc *mysqlConn) readResultOK() error {
 		case iOK:
 			return mc.handleOkPacket(data)
 
-		case iEOF: // someone is using old_passwords
-			return errOldPassword
+		case iEOF:
+			// someone is using old_passwords
+			err = mc.writeOldAuthPacket()
+			if err != nil {
+				return err
+			}
+			return mc.readResultOK()
 
 		default: // Error otherwise
 			return mc.handleErrorPacket(data)
