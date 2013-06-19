@@ -152,6 +152,9 @@ func parseDSN(dsn string) (cfg *config, err error) {
 						cfg.tls = &tls.Config{}
 					} else if strings.ToLower(value) == "skip-verify" {
 						cfg.tls = &tls.Config{InsecureSkipVerify: true}
+					} else if tlsConfig, ok := tlsConfigMap[value]; ok {
+						cfg.tls = &tls.Config{}
+						*cfg.tls = *tlsConfig
 					}
 
 				default:
