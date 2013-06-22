@@ -77,6 +77,50 @@ func (nt NullTime) Value() (driver.Value, error) {
 	return nt.Time, nil
 }
 
+var tlsConfigMap map[string]*tls.Config
+
+// Registers a custom tls.Config to be used with sql.Open.
+// Use the key as a value in the DSN where tls=value.
+//
+//  rootCertPool := x509.NewCertPool()
+//  {
+//      pem, err := ioutil.ReadFile("/path/ca-cert.pem")
+//      if err != nil {
+//          log.Fatal(err)
+//      }
+//      if ok := rootCAs.AppendCertsFromPEM(pem); !ok {
+//          log.Fatal("Failed to append PEM.")
+//      }
+//  }
+//  clientCert := make([]tls.Certificate, 0, 1)
+//  {
+//      certs, err := tls.LoadX509KeyPair("/path/client-cert.pem", "/path/client-key.pem")
+//      if err != nil {
+//          log.Fatal(err)
+//      }
+//      clientCert = append(clientCerts, certs)
+//  }
+//  mysql.RegisterTLSConfig("custom", tls.Config{
+//      RootCAs: rootCertPool,
+//      Certificates: clientCert,
+//  })
+//  db, err := sql.Open("mysql", "user@tcp(localhost:3306)/test?tls=custom")
+//
+func RegisterTLSConfig(key string, config *tls.Config) {
+	if tlsConfigMap == nil {
+		tlsConfigMap = make(map[string]*tls.Config)
+	}
+	tlsConfigMap[key] = config
+}
+
+// Removes tls.Config associated with key.
+func DeregisterTLSConfig(key string) {
+	if tlsConfigMap == nil {
+		return
+	}
+	delete(tlsConfigMap, key)
+}
+
 // Logger
 var (
 	errLog *log.Logger
@@ -153,8 +197,7 @@ func parseDSN(dsn string) (cfg *config, err error) {
 					} else if strings.ToLower(value) == "skip-verify" {
 						cfg.tls = &tls.Config{InsecureSkipVerify: true}
 					} else if tlsConfig, ok := tlsConfigMap[value]; ok {
-						cfg.tls = &tls.Config{}
-						*cfg.tls = *tlsConfig
+						cfg.tls = tlsConfig
 					}
 
 				default:
