@@ -88,7 +88,7 @@ var tlsConfigMap map[string]*tls.Config
 //      if err != nil {
 //          log.Fatal(err)
 //      }
-//      if ok := rootCAs.AppendCertsFromPEM(pem); !ok {
+//      if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
 //          log.Fatal("Failed to append PEM.")
 //      }
 //  }
@@ -98,7 +98,7 @@ var tlsConfigMap map[string]*tls.Config
 //      if err != nil {
 //          log.Fatal(err)
 //      }
-//      clientCert = append(clientCerts, certs)
+//      clientCert = append(clientCert, certs)
 //  }
 //  mysql.RegisterTLSConfig("custom", tls.Config{
 //      RootCAs: rootCertPool,
@@ -196,6 +196,7 @@ func parseDSN(dsn string) (cfg *config, err error) {
 						cfg.tls = &tls.Config{}
 					} else if strings.ToLower(value) == "skip-verify" {
 						cfg.tls = &tls.Config{InsecureSkipVerify: true}
+					// TODO: Check for Boolean false
 					} else if tlsConfig, ok := tlsConfigMap[value]; ok {
 						cfg.tls = tlsConfig
 					}

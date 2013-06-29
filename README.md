@@ -19,7 +19,6 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
       * [Address](#address)
       * [Parameters](#parameters)
       * [Examples](#examples)
-    * [TLS support](#tls-support)
     * [LOAD DATA LOCAL INFILE support](#load-data-local-infile-support)
     * [time.Time support](#timetime-support)
     * [Unicode support](#unicode-support)
@@ -114,7 +113,7 @@ Possible Parameters are:
   * `parseTime`: `parseTime=true` changes the output type of `DATE` and `DATETIME` values to `time.Time` instead of `[]byte` / `string`
   * `strict`: Enable strict mode. MySQL warnings are treated as errors.
   * `timeout`: **Driver** side connection timeout. The value must be a string of decimal numbers, each with optional fraction and a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*. To set a server side timeout, use the parameter [`wait_timeout`](http://dev.mysql.com/doc/refman/5.6/en/server-system-variables.html#sysvar_wait_timeout).
-  * `tls`: `true` enables TLS / SSL encrypted connection to the server. For other values see [TLS support](#tls-support).
+  * `tls`: `true` enables TLS / SSL encrypted connection to the server. Use `skip-verify` if you want to use a self-signed or invalid certificate (server side). Use a custom value registered with [`mysql.RegisterTLSConfig`](http://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).
 
 All other parameters are interpreted as system variables:
   * `autocommit`: *"SET autocommit=`value`"*
@@ -143,14 +142,6 @@ No Database preselected:
 ```
 user:password@/
 ```
-
-### TLS support
-For TLS support set the `tls` parameter to one of the following values:
-
- * `true`: Server certificate is signed by a trusted authority.
- * `skip-verify`: Server certificate is self-signed with no root authority.
- * `custom`: Server certifiate is signed by a self-managed authority, and/or a client certificate is used. `custom` can be any value that coorisponds to a custom `tls.Config` registered with [`mysql.RegisterTLSConfig`](http://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).
-
 
 ### `LOAD DATA LOCAL INFILE` support
 For this feature you need direct access to the package. Therefore you must change the import path (no `_`):
