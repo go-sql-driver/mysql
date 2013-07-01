@@ -68,11 +68,19 @@ func (mc *mysqlConn) handleParams() (err error) {
 
 		// time.Time parsing
 		case "parseTime":
-			mc.parseTime = readBool(val)
+			var isBool bool
+			mc.parseTime, isBool = readBool(val)
+			if !isBool {
+				return errors.New("Invalid Bool value: " + val)
+			}
 
 		// Strict mode
 		case "strict":
-			mc.strict = readBool(val)
+			var isBool bool
+			mc.strict, isBool = readBool(val)
+			if !isBool {
+				return errors.New("Invalid Bool value: " + val)
+			}
 
 		// Compression
 		case "compress":

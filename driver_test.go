@@ -1053,7 +1053,7 @@ func TestStmtMultiRows(t *testing.T) {
 }
 
 func TestConcurrent(t *testing.T) {
-	if readBool(os.Getenv("MYSQL_TEST_CONCURRENT")) != true {
+	if enabled, _ := readBool(os.Getenv("MYSQL_TEST_CONCURRENT")); !enabled {
 		t.Skip("CONCURRENT env var not set")
 	}
 
