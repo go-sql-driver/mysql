@@ -11,7 +11,6 @@ package mysql
 
 import (
 	"database/sql/driver"
-	"errors"
 	"io"
 )
 
@@ -37,33 +36,30 @@ func (rows *mysqlRows) Columns() (columns []string) {
 }
 
 func (rows *mysqlRows) Close() (err error) {
-	defer func() {
-		rows.mc = nil
-	}()
-
 	// Remove unread packets from stream
 	if !rows.eof {
 		if rows.mc == nil {
-			return errors.New("Invalid Connection")
+			return errInvalidConn
 		}
 
 		err = rows.mc.readUntilEOF()
 	}
 
+	rows.mc = nil
+
 	return
 }
 
-func (rows *mysqlRows) Next(dest []driver.Value) error {
+func (rows *mysqlRows) Next(dest []driver.Value) (err error) {
 	if rows.eof {
 		return io.EOF
 	}
 
 	if rows.mc == nil {
-		return errors.New("Invalid Connection")
+		return errInvalidConn
 	}
 
 	// Fetch next row from stream
-	var err error
 	if rows.binary {
 		err = rows.readBinaryRow(dest)
 	} else {

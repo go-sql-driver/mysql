@@ -17,6 +17,7 @@ import (
 )
 
 var (
+	errInvalidConn = errors.New("Invalid Connection")
 	errMalformPkt  = errors.New("Malformed Packet")
 	errNoTLS       = errors.New("TLS encryption requested but server does not support TLS")
 	errOldPassword = errors.New("It seems like you are using old_passwords, which is unsupported. See https://github.com/go-sql-driver/mysql/wiki/old_passwords")
