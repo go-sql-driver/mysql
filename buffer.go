@@ -56,7 +56,6 @@ func (b *buffer) fill(need int) (err error) {
 		}
 		return // err
 	}
-	return
 }
 
 // returns next N bytes from buffer.
@@ -71,4 +70,66 @@ func (b *buffer) readNext(need int) (p []byte, err error) {
 	b.idx += need
 	b.length -= need
 	return
+}
+
+// various allocation pools
+
+var bytesPool = make(chan []byte, 16)
+
+// may return unzeroed bytes
+func getBytes(n int) []byte {
+	select {
+	case s := <-bytesPool:
+		if cap(s) >= n {
+			return s[:n]
+		}
+	default:
+	}
+	return make([]byte, n)
+}
+
+func putBytes(s []byte) {
+	select {
+	case bytesPool <- s:
+	default:
+	}
+}
+
+var fieldPool = make(chan []mysqlField, 16)
+
+func getMysqlFields(n int) []mysqlField {
+	select {
+	case f := <-fieldPool:
+		if cap(f) >= n {
+			return f[:n]
+		}
+	default:
+	}
+	return make([]mysqlField, n)
+}
+
+func putMysqlFields(f []mysqlField) {
+	select {
+	case fieldPool <- f:
+	default:
+	}
+}
+
+var rowsPool = make(chan *mysqlRows, 16)
+
+func getMysqlRows() *mysqlRows {
+	select {
+	case r := <-rowsPool:
+		return r
+	default:
+	}
+	return new(mysqlRows)
+}
+
+func putMysqlRows(r *mysqlRows) {
+	*r = mysqlRows{} // zero it
+	select {
+	case rowsPool <- r:
+	default:
+	}
 }

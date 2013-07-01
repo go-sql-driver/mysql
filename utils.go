@@ -383,19 +383,6 @@ func readBool(value string) bool {
 *                       Convert from and to bytes                             *
 ******************************************************************************/
 
-func uint64ToBytes(n uint64) []byte {
-	return []byte{
-		byte(n),
-		byte(n >> 8),
-		byte(n >> 16),
-		byte(n >> 24),
-		byte(n >> 32),
-		byte(n >> 40),
-		byte(n >> 48),
-		byte(n >> 56),
-	}
-}
-
 func uint64ToString(n uint64) []byte {
 	var a [20]byte
 	i := 20
@@ -496,16 +483,24 @@ func readLengthEncodedInteger(b []byte) (num uint64, isNull bool, n int) {
 	return
 }
 
-func lengthEncodedIntegerToBytes(n uint64) []byte {
+// Does NOT make bounds check
+func lengthEncodedIntegerToBytes(b []byte, i uint32) int {
 	switch {
-	case n <= 250:
-		return []byte{byte(n)}
+	case i <= 250:
+		b[0] = byte(i)
+		return 1
 
-	case n <= 0xffff:
-		return []byte{0xfc, byte(n), byte(n >> 8)}
+	case i <= 0xffff:
+		b[0] = 0xfc
+		b[1] = byte(i)
+		b[2] = byte(i >> 8)
+		return 3
 
-	case n <= 0xffffff:
-		return []byte{0xfd, byte(n), byte(n >> 8), byte(n >> 16)}
+	default: //i <= 0xffffff
+		b[0] = 0xfd
+		b[1] = byte(i)
+		b[2] = byte(i >> 8)
+		b[3] = byte(i >> 16)
+		return 4
 	}
-	return nil
 }

@@ -24,6 +24,7 @@ var (
 	errPktSync     = errors.New("Commands out of sync. You can't run this command now")
 	errPktSyncMul  = errors.New("Commands out of sync. Did you run multiple statements at once?")
 	errPktTooLarge = errors.New("Packet for query is too large. You can change this value on the server by adjusting the 'max_allowed_packet' variable.")
+	errInvConn     = errors.New("Invalid Connection")
 )
 
 // error type which represents a single MySQL error
