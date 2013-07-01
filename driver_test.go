@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"crypto/tls"
 	"database/sql"
 	"fmt"
 	"io"
@@ -840,7 +841,7 @@ func TestStrict(t *testing.T) {
 }
 
 func TestTLS(t *testing.T) {
-	runTests(t, dsn+"&tls=skip-verify", func(dbt *DBTest) {
+	tlsTest := func(dbt *DBTest) {
 		if err := dbt.db.Ping(); err != nil {
 			if err == errNoTLS {
 				dbt.Skip("Server does not support TLS")
@@ -861,7 +862,15 @@ func TestTLS(t *testing.T) {
 				dbt.Fatal("No Cipher")
 			}
 		}
+	}
+
+	runTests(t, dsn+"&tls=skip-verify", tlsTest)
+
+	// Verify that registering / using a custom cfg works
+	RegisterTLSConfig("custom-skip-verify", &tls.Config{
+		InsecureSkipVerify: true,
 	})
+	runTests(t, dsn+"&tls=custom-skip-verify", tlsTest)
 }
 
 // Special cases
