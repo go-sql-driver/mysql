@@ -6,6 +6,13 @@
 // You can obtain one at http://mozilla.org/MPL/2.0/.
 
 // Go MySQL Driver - A MySQL-Driver for Go's database/sql package
+//
+// The driver should be used via the database/sql package:
+//
+//  import "database/sql"
+//  import _ "github.com/go-sql-driver/mysql"
+//
+//  db, err := sql.Open("mysql", "user:password@/dbname")
 package mysql
 
 import (
@@ -14,12 +21,14 @@ import (
 	"net"
 )
 
-type mysqlDriver struct{}
+// This struct is exported to make the driver directly accessible.
+// In general the driver is used via the database/sql package.
+type MySQLDriver struct{}
 
 // Open new Connection.
 // See https://github.com/go-sql-driver/mysql#dsn-data-source-name for how
 // the DSN string is formated
-func (d *mysqlDriver) Open(dsn string) (driver.Conn, error) {
+func (d *MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	var err error
 
 	// New mysqlConn
@@ -78,5 +87,5 @@ func (d *mysqlDriver) Open(dsn string) (driver.Conn, error) {
 }
 
 func init() {
-	sql.Register("mysql", &mysqlDriver{})
+	sql.Register("mysql", &MySQLDriver{})
 }
