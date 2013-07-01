@@ -83,24 +83,20 @@ var tlsConfigMap map[string]*tls.Config
 // Use the key as a value in the DSN where tls=value.
 //
 //  rootCertPool := x509.NewCertPool()
-//  {
-//      pem, err := ioutil.ReadFile("/path/ca-cert.pem")
-//      if err != nil {
-//          log.Fatal(err)
-//      }
-//      if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
-//          log.Fatal("Failed to append PEM.")
-//      }
+//  pem, err := ioutil.ReadFile("/path/ca-cert.pem")
+//  if err != nil {
+//      log.Fatal(err)
+//  }
+//  if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
+//      log.Fatal("Failed to append PEM.")
 //  }
 //  clientCert := make([]tls.Certificate, 0, 1)
-//  {
-//      certs, err := tls.LoadX509KeyPair("/path/client-cert.pem", "/path/client-key.pem")
-//      if err != nil {
-//          log.Fatal(err)
-//      }
-//      clientCert = append(clientCert, certs)
+//  certs, err := tls.LoadX509KeyPair("/path/client-cert.pem", "/path/client-key.pem")
+//  if err != nil {
+//      log.Fatal(err)
 //  }
-//  mysql.RegisterTLSConfig("custom", tls.Config{
+//  clientCert = append(clientCert, certs)
+//  mysql.RegisterTLSConfig("custom", &tls.Config{
 //      RootCAs: rootCertPool,
 //      Certificates: clientCert,
 //  })
