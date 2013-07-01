@@ -36,10 +36,6 @@ func (rows *mysqlRows) Columns() (columns []string) {
 }
 
 func (rows *mysqlRows) Close() (err error) {
-	defer func() {
-		rows.mc = nil
-	}()
-
 	// Remove unread packets from stream
 	if !rows.eof {
 		if rows.mc == nil {
@@ -48,6 +44,8 @@ func (rows *mysqlRows) Close() (err error) {
 
 		err = rows.mc.readUntilEOF()
 	}
+
+	rows.mc = nil
 
 	return
 }
