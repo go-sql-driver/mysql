@@ -65,6 +65,9 @@ func (b *buffer) readNext(need int) (p []byte, err error) {
 	if b.length < need {
 		// refill
 		err = b.fill(need) // err deferred
+		if err == io.EOF && b.length >= need {
+			err = nil
+		}
 	}
 
 	p = b.buf[b.idx : b.idx+need]
