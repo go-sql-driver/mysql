@@ -498,7 +498,7 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 		}
 
 		// EOF Packet
-		if data[0] == iEOF && len(data) == 5 {
+		if data[0] == iEOF && (len(data) == 5 || len(data) == 1) {
 			if i != count {
 				err = fmt.Errorf("ColumnsCount mismatch n:%d len:%d", count, len(columns))
 			}
