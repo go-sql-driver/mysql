@@ -629,7 +629,7 @@ func (mc *mysqlConn) readUntilEOF() (err error) {
 		data, err = mc.readPacket()
 
 		// No Err and no EOF Packet
-		if err == nil && (data[0] != iEOF || len(data) != 5) {
+		if err == nil && (data[0] != iEOF) {
 			continue
 		}
 		return // Err or EOF
@@ -667,12 +667,18 @@ func (stmt *mysqlStmt) readPrepareResultPacket() (columnCount uint16, err error)
 		stmt.paramCount = int(binary.LittleEndian.Uint16(data[pos : pos+2]))
 		pos += 2
 
+		// These 24 bits be here when > mysql4.1: see function send_prep_stmt() in sql/sql_prepare.cc
+		// Guard against a 4.1 client [8 bit uint], always 0
 		// Warning count [16 bit uint]
 		if !stmt.mc.strict {
 			return
 		} else {
-			if binary.LittleEndian.Uint16(data[pos:pos+2]) > 0 {
-				err = stmt.mc.getWarnings()
+			// See function cli_read_prepare_result() in libmysql/libmysql.c
+			if len(data) >= 12 {
+				pos++
+				if binary.LittleEndian.Uint16(data[pos:pos+2]) > 0 {
+					err = stmt.mc.getWarnings()
+				}
 			}
 		}
 	}
