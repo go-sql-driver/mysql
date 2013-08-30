@@ -819,7 +819,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			if v.IsZero() {
 				val = []byte("0000-00-00")
 			} else {
-				val = []byte(v.Format(timeFormat))
+				val = []byte(v.In(stmt.mc.cfg.loc).Format(timeFormat))
 			}
 
 			paramValues[i] = append(
