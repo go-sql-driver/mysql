@@ -161,6 +161,47 @@ func TestRawBytesResultExceedsBuffer(t *testing.T) {
 	})
 }
 
+func TestTimezoneConversion(t *testing.T) {
+
+	zones := []string{"UTC", "US/Central", "US/Pacific", "Local"}
+
+	// Regression test for timezone handling
+	tzTest := func(dbt *DBTest) {
+
+		// Create table
+		dbt.mustExec("CREATE TABLE test (ts TIMESTAMP)")
+
+		// Insert local time into database (should be converted)
+		usCentral, _ := time.LoadLocation("US/Central")
+		now := time.Now().In(usCentral)
+		dbt.mustExec("INSERT INTO test VALUE (?)", now)
+
+		// Retrieve time from DB
+		rows := dbt.mustQuery("SELECT ts FROM test")
+		if !rows.Next() {
+			dbt.Fatal("Didn't get any rows out")
+		}
+
+		var nowDB time.Time
+		err := rows.Scan(&nowDB)
+		if err != nil {
+			dbt.Fatal("Err", err)
+		}
+
+		// Check that dates match
+		if now.Unix() != nowDB.Unix() {
+			dbt.Errorf("Times don't match.\n")
+			dbt.Errorf(" Now(%v)=%v\n", usCentral, now)
+			dbt.Errorf(" Now(UTC)=%v\n", nowDB)
+		}
+
+	}
+
+	for _, tz := range zones {
+		runTests(t, dsn+"&parseTime=true&loc="+tz, tzTest)
+	}
+}
+
 func TestCRUD(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		// Create Table
@@ -1054,7 +1095,7 @@ func TestStmtMultiRows(t *testing.T) {
 
 func TestConcurrent(t *testing.T) {
 	if enabled, _ := readBool(os.Getenv("MYSQL_TEST_CONCURRENT")); !enabled {
-		t.Skip("CONCURRENT env var not set")
+		t.Skip("MYSQL_TEST_CONCURRENT env var not set")
 	}
 
 	runTests(t, dsn, func(dbt *DBTest) {
