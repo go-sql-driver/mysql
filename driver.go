@@ -66,7 +66,22 @@ func (d *MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	// Read Result Packet
 	err = mc.readResultOK()
 	if err != nil {
-		return nil, err
+		if !mc.cfg.oldPasswords {
+			return nil, err
+		}
+
+		// try old password method
+		err = mc.writeOldPasswordPacket()
+
+		if err != nil {
+			return nil, err
+		}
+
+		err = mc.readResultOK()
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Get max allowed packet size

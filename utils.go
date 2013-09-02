@@ -157,6 +157,15 @@ func parseDSN(dsn string) (cfg *config, err error) {
 						}
 					}
 
+				// Old passwords (pre MySQL 4.1)
+				case "oldPasswords":
+					var isBool bool
+					cfg.oldPasswords, isBool = readBool(value)
+					if !isBool {
+						err = fmt.Errorf("Invalid Bool value: %s", value)
+						return
+					}
+
 				default:
 					cfg.params[param[0]] = value
 				}

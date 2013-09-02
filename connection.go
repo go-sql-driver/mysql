@@ -46,6 +46,7 @@ type config struct {
 	tls             *tls.Config
 	allowAllFiles   bool
 	clientFoundRows bool
+	oldPasswords    bool
 }
 
 // Handles parameters set in DSN
