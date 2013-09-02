@@ -204,6 +204,25 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 	return
 }
 
+// Sends a password package to authenticate with the old (pre 4.1)
+// authentication method.
+func (mc *mysqlConn) writeOldPasswordPacket() error {
+	buf := Crypt323(mc.cipher, []byte(mc.cfg.passwd))
+
+	size := len(buf) + 1
+	data := make([]byte, 4+size)
+
+	data[0] = byte(size)
+	data[1] = byte(size >> 8)
+	data[2] = byte(size >> 16)
+	data[3] = mc.sequence
+
+	copy(data[4:], buf)
+	data[size+3] = 0
+
+	return mc.writePacket(data)
+}
+
 // Client Authentication Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::HandshakeResponse
 func (mc *mysqlConn) writeAuthPacket() error {
@@ -226,7 +245,6 @@ func (mc *mysqlConn) writeAuthPacket() error {
 
 	// User Password
 	scrambleBuff := scramblePassword(mc.cipher, []byte(mc.cfg.passwd))
-	mc.cipher = nil
 
 	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.user) + 1 + 1 + len(scrambleBuff)
 
