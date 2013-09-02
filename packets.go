@@ -674,10 +674,9 @@ func (stmt *mysqlStmt) readPrepareResultPacket() (columnCount uint16, err error)
 		if !stmt.mc.strict {
 			return
 		} else {
-			if len(data) >= 12 {
-				if binary.LittleEndian.Uint16(data[pos:pos+2]) > 0 {
-					err = stmt.mc.getWarnings()
-				}
+			// Check for warnings count > 0, only available in MySQL > 4.1
+			if len(data) >= 12 && binary.LittleEndian.Uint16(data[pos:pos+2]) > 0 {
+				err = stmt.mc.getWarnings()
 			}
 		}
 	}
