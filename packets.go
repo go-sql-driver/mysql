@@ -498,7 +498,7 @@ func (mc *mysqlConn) readColumns(count int) (columns []mysqlField, err error) {
 		}
 
 		// EOF Packet
-		if data[0] == iEOF && len(data) == 5 {
+		if data[0] == iEOF && (len(data) == 5 || len(data) == 1) {
 			if i != count {
 				err = fmt.Errorf("ColumnsCount mismatch n:%d len:%d", count, len(columns))
 			}
@@ -629,7 +629,7 @@ func (mc *mysqlConn) readUntilEOF() (err error) {
 		data, err = mc.readPacket()
 
 		// No Err and no EOF Packet
-		if err == nil && (data[0] != iEOF || len(data) != 5) {
+		if err == nil && data[0] != iEOF {
 			continue
 		}
 		return // Err or EOF
@@ -667,11 +667,15 @@ func (stmt *mysqlStmt) readPrepareResultPacket() (columnCount uint16, err error)
 		stmt.paramCount = int(binary.LittleEndian.Uint16(data[pos : pos+2]))
 		pos += 2
 
+		// Reserved [8 bit]
+		pos++
+
 		// Warning count [16 bit uint]
 		if !stmt.mc.strict {
 			return
 		} else {
-			if binary.LittleEndian.Uint16(data[pos:pos+2]) > 0 {
+			// Check for warnings count > 0, only available in MySQL > 4.1
+			if len(data) >= 12 && binary.LittleEndian.Uint16(data[pos:pos+2]) > 0 {
 				err = stmt.mc.getWarnings()
 			}
 		}
