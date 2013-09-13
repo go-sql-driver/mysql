@@ -43,11 +43,15 @@ func (rows *mysqlRows) Close() (err error) {
 
 	// Remove unread packets from stream
 	if !rows.eof {
-		if rows.mc == nil {
+		if rows.mc == nil || rows.mc.netConn == nil {
 			return errors.New("Invalid Connection")
 		}
 
 		err = rows.mc.readUntilEOF()
+
+		// explicitly set because readUntilEOF might return early in case of an
+		// error
+		rows.eof = true
 	}
 
 	return
@@ -58,7 +62,7 @@ func (rows *mysqlRows) Next(dest []driver.Value) error {
 		return io.EOF
 	}
 
-	if rows.mc == nil {
+	if rows.mc == nil || rows.mc.netConn == nil {
 		return errors.New("Invalid Connection")
 	}
 
