@@ -14,12 +14,18 @@ type mysqlTx struct {
 }
 
 func (tx *mysqlTx) Commit() (err error) {
+	if tx.mc == nil {
+		return errInvalidConn
+	}
 	err = tx.mc.exec("COMMIT")
 	tx.mc = nil
 	return
 }
 
 func (tx *mysqlTx) Rollback() (err error) {
+	if tx.mc == nil {
+		return errInvalidConn
+	}
 	err = tx.mc.exec("ROLLBACK")
 	tx.mc = nil
 	return

@@ -29,6 +29,7 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 	data, err = mc.buf.readNext(4)
 	if err != nil {
 		errLog.Print(err.Error())
+		mc.Close()
 		return nil, driver.ErrBadConn
 	}
 
@@ -37,6 +38,7 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 
 	if pktLen < 1 {
 		errLog.Print(errMalformPkt.Error())
+		mc.Close()
 		return nil, driver.ErrBadConn
 	}
 
@@ -51,8 +53,7 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 	mc.sequence++
 
 	// Read packet body [pktLen bytes]
-	data, err = mc.buf.readNext(pktLen)
-	if err == nil {
+	if data, err = mc.buf.readNext(pktLen); err == nil {
 		if pktLen < maxPacketSize {
 			return data, nil
 		}
@@ -66,6 +67,9 @@ func (mc *mysqlConn) readPacket() (data []byte, err error) {
 			return append(buf, data...), nil
 		}
 	}
+
+	// err case
+	mc.Close()
 	errLog.Print(err.Error())
 	return nil, driver.ErrBadConn
 }
