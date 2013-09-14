@@ -52,26 +52,42 @@ func (d *MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	mc.buf = newBuffer(mc.netConn)
 
 	// Reading Handshake Initialization Packet
-	err = mc.readInitPacket()
+	cipher, err := mc.readInitPacket()
 	if err != nil {
+		mc.Close()
 		return nil, err
 	}
 
 	// Send Client Authentication Packet
-	err = mc.writeAuthPacket()
-	if err != nil {
+	if err = mc.writeAuthPacket(cipher); err != nil {
+		mc.Close()
 		return nil, err
 	}
 
 	// Read Result Packet
 	err = mc.readResultOK()
 	if err != nil {
-		return nil, err
+		// Retry with old authentication method, if allowed
+		if mc.cfg.allowOldPasswords && err == errOldPassword {
+			if err = mc.writeOldAuthPacket(cipher); err != nil {
+				mc.Close()
+				return nil, err
+			}
+			if err = mc.readResultOK(); err != nil {
+				mc.Close()
+				return nil, err
+			}
+		} else {
+			mc.Close()
+			return nil, err
+		}
+
 	}
 
 	// Get max allowed packet size
 	maxap, err := mc.getSystemVar("max_allowed_packet")
 	if err != nil {
+		mc.Close()
 		return nil, err
 	}
 	mc.maxPacketAllowed = stringToInt(maxap) - 1
@@ -82,10 +98,11 @@ func (d *MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	// Handle DSN Params
 	err = mc.handleParams()
 	if err != nil {
+		mc.Close()
 		return nil, err
 	}
 
-	return mc, err
+	return mc, nil
 }
 
 func init() {

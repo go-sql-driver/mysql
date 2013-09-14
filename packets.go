@@ -138,14 +138,14 @@ func (mc *mysqlConn) splitPacket(data []byte) (err error) {
 
 // Handshake Initialization Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::Handshake
-func (mc *mysqlConn) readInitPacket() (err error) {
+func (mc *mysqlConn) readInitPacket() (cipher []byte, err error) {
 	data, err := mc.readPacket()
 	if err != nil {
 		return
 	}
 
 	if data[0] == iERR {
-		return mc.handleErrorPacket(data)
+		return nil, mc.handleErrorPacket(data)
 	}
 
 	// protocol version [1 byte]
@@ -154,6 +154,7 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 			"Unsupported MySQL Protocol Version %d. Protocol Version %d or higher is required",
 			data[0],
 			minProtocolVersion)
+		return
 	}
 
 	// server version [null terminated string]
@@ -161,7 +162,7 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 	pos := 1 + bytes.IndexByte(data[1:], 0x00) + 1 + 4
 
 	// first part of the password cipher [8 bytes]
-	mc.cipher = append(mc.cipher, data[pos:pos+8]...)
+	cipher = data[pos : pos+8]
 
 	// (filler) always 0x00 [1 byte]
 	pos += 8 + 1
@@ -169,10 +170,10 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 	// capability flags (lower 2 bytes) [2 bytes]
 	mc.flags = clientFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
 	if mc.flags&clientProtocol41 == 0 {
-		err = errOldProtocol
+		return nil, errOldProtocol
 	}
 	if mc.flags&clientSSL == 0 && mc.cfg.tls != nil {
-		return errNoTLS
+		return nil, errNoTLS
 	}
 	pos += 2
 
@@ -188,7 +189,7 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 		// The documentation is ambiguous about the length.
 		// The official Python library uses the fixed length 12
 		// which is not documented but seems to work.
-		mc.cipher = append(mc.cipher, data[pos:pos+12]...)
+		cipher = append(cipher, data[pos:pos+12]...)
 
 		// TODO: Verify string termination
 		// EOF if version (>= 5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
@@ -206,7 +207,7 @@ func (mc *mysqlConn) readInitPacket() (err error) {
 
 // Client Authentication Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::HandshakeResponse
-func (mc *mysqlConn) writeAuthPacket() error {
+func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	// Adjust client flags based on server support
 	clientFlags := clientProtocol41 |
 		clientSecureConn |
@@ -225,7 +226,7 @@ func (mc *mysqlConn) writeAuthPacket() error {
 	}
 
 	// User Password
-	scrambleBuff := scramblePassword(mc.cipher, []byte(mc.cfg.passwd))
+	scrambleBuff := scramblePassword(cipher, []byte(mc.cfg.passwd))
 
 	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.user) + 1 + 1 + len(scrambleBuff)
 
@@ -308,10 +309,9 @@ func (mc *mysqlConn) writeAuthPacket() error {
 
 //  Client old authentication packet
 // http://dev.mysql.com/doc/internals/en/connection-phase.html#packet-Protocol::AuthSwitchResponse
-func (mc *mysqlConn) writeOldAuthPacket() error {
+func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 	// User password
-	scrambleBuff := scrambleOldPassword(mc.cipher, []byte(mc.cfg.passwd))
-	mc.cipher = nil
+	scrambleBuff := scrambleOldPassword(cipher, []byte(mc.cfg.passwd))
 
 	// Calculate the packet lenght and add a tailing 0
 	pktLen := len(scrambleBuff) + 1
@@ -323,7 +323,7 @@ func (mc *mysqlConn) writeOldAuthPacket() error {
 	data[2] = byte(pktLen >> 16)
 	data[3] = mc.sequence
 
-	// Add the scrambled password (it will be terminated by 0)
+	// Add the scrambled password [null terminated string]
 	copy(data[4:], scrambleBuff)
 
 	return mc.writePacket(data)
@@ -408,17 +408,11 @@ func (mc *mysqlConn) readResultOK() error {
 		switch data[0] {
 
 		case iOK:
-			// Remove the chipher in case of successfull authentication
-			mc.cipher = nil
 			return mc.handleOkPacket(data)
 
 		case iEOF:
 			// someone is using old_passwords
-			err = mc.writeOldAuthPacket()
-			if err != nil {
-				return err
-			}
-			return mc.readResultOK()
+			return errOldPassword
 
 		default: // Error otherwise
 			return mc.handleErrorPacket(data)

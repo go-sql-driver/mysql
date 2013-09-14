@@ -126,6 +126,15 @@ func parseDSN(dsn string) (cfg *config, err error) {
 						return
 					}
 
+				// Use old authentication mode (pre MySQL 4.1)
+				case "allowOldPasswords":
+					var isBool bool
+					cfg.allowOldPasswords, isBool = readBool(value)
+					if !isBool {
+						err = fmt.Errorf("Invalid Bool value: %s", value)
+						return
+					}
+
 				// Time Location
 				case "loc":
 					cfg.loc, err = time.LoadLocation(value)
