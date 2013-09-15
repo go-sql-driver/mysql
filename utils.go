@@ -124,6 +124,15 @@ func parseDSN(dsn string) (cfg *config, err error) {
 						return
 					}
 
+				// Use old authentication mode (pre MySQL 4.1)
+				case "allowOldPasswords":
+					var isBool bool
+					cfg.allowOldPasswords, isBool = readBool(value)
+					if !isBool {
+						err = fmt.Errorf("Invalid Bool value: %s", value)
+						return
+					}
+
 				// Time Location
 				case "loc":
 					cfg.loc, err = time.LoadLocation(value)
@@ -181,8 +190,25 @@ func parseDSN(dsn string) (cfg *config, err error) {
 	return
 }
 
+// Returns the bool value of the input.
+// The 2nd return value indicates if the input was a valid bool value
+func readBool(input string) (value bool, valid bool) {
+	switch input {
+	case "1", "true", "TRUE", "True":
+		return true, true
+	case "0", "false", "FALSE", "False":
+		return false, true
+	}
+
+	// Not a valid bool value
+	return
+}
+
+/******************************************************************************
+*                             Authentication                                  *
+******************************************************************************/
+
 // Encrypt password using 4.1+ method
-// http://forge.mysql.com/wiki/MySQL_Internals_ClientServer_Protocol#4.1_and_later
 func scramblePassword(scramble, password []byte) []byte {
 	if len(password) == 0 {
 		return nil
@@ -212,18 +238,83 @@ func scramblePassword(scramble, password []byte) []byte {
 	return scramble
 }
 
-// Returns the bool value of the input.
-// The 2nd return value indicates if the input was a valid bool value
-func readBool(input string) (value bool, valid bool) {
-	switch input {
-	case "1", "true", "TRUE", "True":
-		return true, true
-	case "0", "false", "FALSE", "False":
-		return false, true
+// Encrypt password using pre 4.1 (old password) method
+// https://github.com/atcurtis/mariadb/blob/master/mysys/my_rnd.c
+type myRnd struct {
+	seed1, seed2 uint32
+}
+
+const myRndMaxVal = 0x3FFFFFFF
+
+// Pseudo random number generator
+func newMyRnd(seed1, seed2 uint32) *myRnd {
+	return &myRnd{
+		seed1: seed1 % myRndMaxVal,
+		seed2: seed2 % myRndMaxVal,
+	}
+}
+
+// Tested to be equivalent to MariaDB's floating point variant
+// http://play.golang.org/p/QHvhd4qved
+// http://play.golang.org/p/RG0q4ElWDx
+func (r *myRnd) NextByte() byte {
+	r.seed1 = (r.seed1*3 + r.seed2) % myRndMaxVal
+	r.seed2 = (r.seed1 + r.seed2 + 33) % myRndMaxVal
+
+	return byte(uint64(r.seed1) * 31 / myRndMaxVal)
+}
+
+// Generate binary hash from byte string using insecure pre 4.1 method
+func pwHash(password []byte) (result [2]uint32) {
+	var add uint32 = 7
+	var tmp uint32
+
+	result[0] = 1345345333
+	result[1] = 0x12345671
+
+	for _, c := range password {
+		// skip spaces and tabs in password
+		if c == ' ' || c == '\t' {
+			continue
+		}
+
+		tmp = uint32(c)
+		result[0] ^= (((result[0] & 63) + add) * tmp) + (result[0] << 8)
+		result[1] += (result[1] << 8) ^ result[0]
+		add += tmp
 	}
 
-	// Not a valid bool value
+	// Remove sign bit (1<<31)-1)
+	result[0] &= 0x7FFFFFFF
+	result[1] &= 0x7FFFFFFF
+
 	return
+}
+
+// Encrypt password using insecure pre 4.1 method
+func scrambleOldPassword(scramble, password []byte) []byte {
+	if len(password) == 0 {
+		return nil
+	}
+
+	scramble = scramble[:8]
+
+	hashPw := pwHash(password)
+	hashSc := pwHash(scramble)
+
+	r := newMyRnd(hashPw[0]^hashSc[0], hashPw[1]^hashSc[1])
+
+	var out [8]byte
+	for i := range out {
+		out[i] = r.NextByte() + 64
+	}
+
+	mask := r.NextByte()
+	for i := range out {
+		out[i] ^= mask
+	}
+
+	return out[:]
 }
 
 /******************************************************************************

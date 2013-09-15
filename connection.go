@@ -20,7 +20,6 @@ import (
 type mysqlConn struct {
 	cfg              *config
 	flags            clientFlag
-	cipher           []byte
 	netConn          net.Conn
 	buf              *buffer
 	protocol         uint8
@@ -34,17 +33,18 @@ type mysqlConn struct {
 }
 
 type config struct {
-	user            string
-	passwd          string
-	net             string
-	addr            string
-	dbname          string
-	params          map[string]string
-	loc             *time.Location
-	timeout         time.Duration
-	tls             *tls.Config
-	allowAllFiles   bool
-	clientFoundRows bool
+	user              string
+	passwd            string
+	net               string
+	addr              string
+	dbname            string
+	params            map[string]string
+	loc               *time.Location
+	timeout           time.Duration
+	tls               *tls.Config
+	allowAllFiles     bool
+	allowOldPasswords bool
+	clientFoundRows   bool
 }
 
 // Handles parameters set in DSN
