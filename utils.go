@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"os"
 	"regexp"
 	"strings"
@@ -211,7 +210,6 @@ func readBool(input string) (value bool, valid bool) {
 ******************************************************************************/
 
 // Encrypt password using 4.1+ method
-// http://forge.mysql.com/wiki/MySQL_Internals_ClientServer_Protocol#4.1_and_later
 func scramblePassword(scramble, password []byte) []byte {
 	if len(password) == 0 {
 		return nil
@@ -249,19 +247,25 @@ type myRnd struct {
 
 const myRndMaxVal = 0x3FFFFFFF
 
+// Pseudo random number generator
 func newMyRnd(seed1, seed2 uint32) *myRnd {
-	r := new(myRnd)
-	r.seed1 = seed1 % myRndMaxVal
-	r.seed2 = seed2 % myRndMaxVal
-	return r
+	return &myRnd{
+		seed1: seed1 % myRndMaxVal,
+		seed2: seed2 % myRndMaxVal,
+	}
 }
 
-func (r *myRnd) Float64() float64 {
+// Tested to be equivalent to MariaDB's floating point variant
+// http://play.golang.org/p/QHvhd4qved
+// http://play.golang.org/p/RG0q4ElWDx
+func (r *myRnd) NextByte() byte {
 	r.seed1 = (r.seed1*3 + r.seed2) % myRndMaxVal
 	r.seed2 = (r.seed1 + r.seed2 + 33) % myRndMaxVal
-	return float64(r.seed1) / myRndMaxVal
+
+	return byte(uint64(r.seed1) * 31 / myRndMaxVal)
 }
 
+// Generate binary hash from byte string using insecure pre 4.1 method
 func pwHash(password []byte) (result [2]uint32) {
 	var add uint32 = 7
 	var tmp uint32
@@ -281,11 +285,14 @@ func pwHash(password []byte) (result [2]uint32) {
 		add += tmp
 	}
 
-	result[0] &= (1 << 31) - 1 // Don't use sign bit (str2int)
-	result[1] &= (1 << 31) - 1
+	// Remove sign bit (1<<31)-1)
+	result[0] &= 0x7FFFFFFF
+	result[1] &= 0x7FFFFFFF
+
 	return
 }
 
+// Encrypt password using insecure pre 4.1 method
 func scrambleOldPassword(scramble, password []byte) []byte {
 	if len(password) == 0 {
 		return nil
@@ -300,10 +307,10 @@ func scrambleOldPassword(scramble, password []byte) []byte {
 
 	var out [8]byte
 	for i := range out {
-		out[i] = byte(math.Floor(r.Float64()*31) + 64)
+		out[i] = r.NextByte() + 64
 	}
 
-	mask := byte(math.Floor(r.Float64() * 31))
+	mask := r.NextByte()
 	for i := range out {
 		out[i] ^= mask
 	}
