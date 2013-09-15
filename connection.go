@@ -108,11 +108,16 @@ func (mc *mysqlConn) Begin() (driver.Tx, error) {
 }
 
 func (mc *mysqlConn) Close() (err error) {
-	mc.writeCommandPacket(comQuit)
+	// Makes Close idempotent
+	if mc.netConn != nil {
+		mc.writeCommandPacket(comQuit)
+		mc.netConn.Close()
+		mc.netConn = nil
+	}
+
 	mc.cfg = nil
 	mc.buf = nil
-	mc.netConn.Close()
-	mc.netConn = nil
+
 	return
 }
 

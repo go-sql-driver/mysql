@@ -20,6 +20,10 @@ type mysqlStmt struct {
 }
 
 func (stmt *mysqlStmt) Close() (err error) {
+	if stmt.mc == nil || stmt.mc.netConn == nil {
+		return errInvalidConn
+	}
+
 	err = stmt.mc.writeCommandPacketUint32(comStmtClose, stmt.id)
 	stmt.mc = nil
 	return
