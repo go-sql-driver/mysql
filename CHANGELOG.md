@@ -16,7 +16,7 @@ Changes:
 
 New Features:
 
-  - Added `old_passwords` support: Required in some cases, but must be enabled by adding `allowOldPasswords=true` to the DSN since it is insecure
+  - Added *old_passwords* support: Required in some cases, but must be enabled by adding `allowOldPasswords=true` to the DSN since it is insecure
   - Added a `clientFoundRows` parameter: Return the number of matching rows instead of the number of rows changed on UPDATEs
   - Added TLS/SSL support: Use a TLS/SSL encrypted connection to the server. Custom TLS configs can be registered and used
 
