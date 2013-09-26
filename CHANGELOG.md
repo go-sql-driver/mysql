@@ -3,7 +3,7 @@
 Changes:
 
   - Go-MySQL-Driver now requires Go 1.1
-  - Connections now use the collation 'utf8_general_ci' by default. Adding '&charset=UTF8' should not be necessary anymore
+  - Connections now use the collation `utf8_general_ci` by default. Adding `&charset=UTF8` to the DSN should not be necessary anymore
   - Made closing rows and connections error tolerant. This allows for example deferring rows.Close() without checking for errors
   - New Logo
   - Changed the copyright header to include all contributors
@@ -16,8 +16,8 @@ Changes:
 
 New Features:
 
-  - Added 'old_passwords' support: Required in some cases, but must be enabled via a DSN parameter since it is insecure
-  - Added a 'clientFoundRows' parameter: Return the number of matching rows instead of the number of rows changed on UPDATEs
+  - Added `old_passwords` support: Required in some cases, but must be enabled by adding `allowOldPasswords=true` to the DSN since it is insecure
+  - Added a `clientFoundRows` parameter: Return the number of matching rows instead of the number of rows changed on UPDATEs
   - Added TLS/SSL support: Use a TLS/SSL encrypted connection to the server. Custom TLS configs can be registered and used
 
 Bugfixes:
