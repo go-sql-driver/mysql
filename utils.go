@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -26,7 +27,8 @@ var (
 	errLog            *log.Logger            // Error Logger
 	tlsConfigRegister map[string]*tls.Config // Register for custom tls.Configs
 
-	errInvalidDSN = errors.New("Invalid DSN")
+	errInvalidDSNUnescaped = errors.New("Invalid DSN: Did you forget to escape a param value?")
+	errInvalidDSNAddr      = errors.New("Invalid DSN: Network Address not terminated (missing closing brace)")
 )
 
 func init() {
@@ -71,13 +73,14 @@ func DeregisterTLSConfig(key string) {
 	delete(tlsConfigRegister, key)
 }
 
+// parseDSN parses the DSN string to a config
 func parseDSN(dsn string) (cfg *config, err error) {
 	cfg = new(config)
 
 	// TODO: use strings.IndexByte when we can depend on Go 1.2
 
 	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
-	// Find the last '/'
+	// Find the last '/' (since the password might contain a '/')
 	for i := len(dsn) - 1; i >= 0; i-- {
 		if dsn[i] == '/' {
 			var j int
@@ -105,7 +108,10 @@ func parseDSN(dsn string) (cfg *config, err error) {
 							if dsn[k] == '(' {
 								// dsn[i-1] must be == ')' if an adress is specified
 								if dsn[i-1] != ')' {
-									return nil, errInvalidDSN
+									if strings.ContainsRune(dsn[k+1:i], ')') {
+										return nil, errInvalidDSNUnescaped
+									}
+									return nil, errInvalidDSNAddr
 								}
 								cfg.addr = dsn[k+1 : i-1]
 								break
@@ -119,7 +125,7 @@ func parseDSN(dsn string) (cfg *config, err error) {
 
 				// non-empty left part must contain an '@'
 				if j < 0 {
-					return nil, errInvalidDSN
+					return nil, errInvalidDSNUnescaped
 				}
 			}
 
@@ -157,7 +163,7 @@ func parseDSN(dsn string) (cfg *config, err error) {
 
 	}
 
-	// Set default location if not set
+	// Set default location if empty
 	if cfg.loc == nil {
 		cfg.loc = time.UTC
 	}
@@ -165,9 +171,9 @@ func parseDSN(dsn string) (cfg *config, err error) {
 	return
 }
 
+// parseDSNParams parses the DSN "query string"
+// Values must be url.QueryEscape'ed
 func parseDSNParams(cfg *config, params string) (err error) {
-	cfg.params = make(map[string]string)
-
 	for _, v := range strings.Split(params, "&") {
 		param := strings.SplitN(v, "=", 2)
 		if len(param) != 2 {
@@ -203,6 +209,9 @@ func parseDSNParams(cfg *config, params string) (err error) {
 
 		// Time Location
 		case "loc":
+			if value, err = url.QueryUnescape(value); err != nil {
+				return
+			}
 			cfg.loc, err = time.LoadLocation(value)
 			if err != nil {
 				return
@@ -233,7 +242,14 @@ func parseDSNParams(cfg *config, params string) (err error) {
 			}
 
 		default:
-			cfg.params[param[0]] = value
+			// lazy init
+			if cfg.params == nil {
+				cfg.params = make(map[string]string)
+			}
+
+			if cfg.params[param[0]], err = url.QueryUnescape(value); err != nil {
+				return
+			}
 		}
 	}
 
