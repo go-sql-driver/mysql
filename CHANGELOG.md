@@ -13,6 +13,7 @@ Changes:
   - Refactored the driver tests
   - Added more benchmarks and moved all to a separate file
   - Other small refactoring
+  - DSN parameter values must now be url.QueryEscape'ed. This allows text values to contain special characters, such as '&'.
 
 New Features:
 

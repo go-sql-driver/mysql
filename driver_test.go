@@ -15,6 +15,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -206,7 +207,7 @@ func TestTimezoneConversion(t *testing.T) {
 	}
 
 	for _, tz := range zones {
-		runTests(t, dsn+"&parseTime=true&loc="+tz, tzTest)
+		runTests(t, dsn+"&parseTime=true&loc="+url.QueryEscape(tz), tzTest)
 	}
 }
 
