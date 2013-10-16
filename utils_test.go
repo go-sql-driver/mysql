@@ -30,7 +30,7 @@ var testDSNs = []struct {
 	{"/", "&{user: passwd: net:tcp addr:127.0.0.1:3306 dbname: params:map[] loc:%p timeout:0 tls:<nil> allowAllFiles:false allowOldPasswords:false clientFoundRows:false}", time.UTC},
 	{"", "&{user: passwd: net:tcp addr:127.0.0.1:3306 dbname: params:map[] loc:%p timeout:0 tls:<nil> allowAllFiles:false allowOldPasswords:false clientFoundRows:false}", time.UTC},
 	{"user:p@/ssword@/", "&{user:user passwd:p@/ssword net:tcp addr:127.0.0.1:3306 dbname: params:map[] loc:%p timeout:0 tls:<nil> allowAllFiles:false allowOldPasswords:false clientFoundRows:false}", time.UTC},
-	{"@unix/?arg=%2Fsome%2Fpath.ext", "&{user: passwd: net:unix addr:/tmp/mysql.sock dbname: params:map[arg:/some/path.ext] loc:%p timeout:0 tls:<nil> allowAllFiles:false allowOldPasswords:false clientFoundRows:false}", time.UTC},
+	{"unix/?arg=%2Fsome%2Fpath.ext", "&{user: passwd: net:unix addr:/tmp/mysql.sock dbname: params:map[arg:/some/path.ext] loc:%p timeout:0 tls:<nil> allowAllFiles:false allowOldPasswords:false clientFoundRows:false}", time.UTC},
 }
 
 func TestDSNParser(t *testing.T) {
@@ -56,8 +56,11 @@ func TestDSNParser(t *testing.T) {
 
 func TestDSNParserInvalid(t *testing.T) {
 	var invalidDSNs = []string{
-		"asdf/dbname",
-		"@net(addr/",
+		"@net(addr/",  // no closing brace
+		"@tcp(/",      // no closing brace
+		"tcp(/",       // no closing brace
+		"(/",          // no closing brace
+		"net(addr)//", // unescaped
 		//"/dbname?arg=/some/unescaped/path",
 	}
 

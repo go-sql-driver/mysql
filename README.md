@@ -78,7 +78,7 @@ A DSN in its fullest form:
 username:password@protocol(address)/dbname?param=value
 ```
 
-Except of the databasename, all values are optional. So the minimal DSN is:
+Except for the databasename, all values are optional. So the minimal DSN is:
 ```
 /dbname
 ```

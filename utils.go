@@ -80,10 +80,10 @@ func parseDSN(dsn string) (cfg *config, err error) {
 	// TODO: use strings.IndexByte when we can depend on Go 1.2
 
 	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
-	// Find the last '/' (since the password might contain a '/')
+	// Find the last '/' (since the password or the net addr might contain a '/')
 	for i := len(dsn) - 1; i >= 0; i-- {
 		if dsn[i] == '/' {
-			var j int
+			var j, k int
 
 			// left part is empty if i <= 0
 			if i > 0 {
@@ -93,7 +93,6 @@ func parseDSN(dsn string) (cfg *config, err error) {
 					if dsn[j] == '@' {
 						// username[:password]
 						// Find the first ':' in dsn[:j]
-						var k int
 						for k = 0; k < j; k++ {
 							if dsn[k] == ':' {
 								cfg.passwd = dsn[k+1 : j]
@@ -102,31 +101,26 @@ func parseDSN(dsn string) (cfg *config, err error) {
 						}
 						cfg.user = dsn[:k]
 
-						// [protocol[(address)]]
-						// Find the first '(' in dsn[j+1:i]
-						for k = j + 1; k < i; k++ {
-							if dsn[k] == '(' {
-								// dsn[i-1] must be == ')' if an adress is specified
-								if dsn[i-1] != ')' {
-									if strings.ContainsRune(dsn[k+1:i], ')') {
-										return nil, errInvalidDSNUnescaped
-									}
-									return nil, errInvalidDSNAddr
-								}
-								cfg.addr = dsn[k+1 : i-1]
-								break
-							}
-						}
-						cfg.net = dsn[j+1 : k]
-
 						break
 					}
 				}
 
-				// non-empty left part must contain an '@'
-				if j < 0 {
-					return nil, errInvalidDSNUnescaped
+				// [protocol[(address)]]
+				// Find the first '(' in dsn[j+1:i]
+				for k = j + 1; k < i; k++ {
+					if dsn[k] == '(' {
+						// dsn[i-1] must be == ')' if an adress is specified
+						if dsn[i-1] != ')' {
+							if strings.ContainsRune(dsn[k+1:i], ')') {
+								return nil, errInvalidDSNUnescaped
+							}
+							return nil, errInvalidDSNAddr
+						}
+						cfg.addr = dsn[k+1 : i-1]
+						break
+					}
 				}
+				cfg.net = dsn[j+1 : k]
 			}
 
 			// dbname[?param1=value1&...&paramN=valueN]
