@@ -87,6 +87,10 @@ If you do not want to preselect a database, leave `dbname` empty:
 ```
 /
 ```
+This has the same effect as an empty DSN string:
+```
+
+```
 
 #### Password
 Passwords can consist of any character. Escaping is **not** necessary.
@@ -103,26 +107,115 @@ The functions [net.JoinHostPort](http://golang.org/pkg/net/#JoinHostPort) and [n
 For Unix domain sockets the address is the absolute path to the MySQL-Server-socket, e.g. `/var/run/mysqld/mysqld.sock` or `/tmp/mysql.sock`.
 
 #### Parameters
-***Parameters are case-sensitive!***
+*Parameters are case-sensitive!*
 
-Possible Parameters are:
-  * `allowAllFiles`: `allowAllFiles=true` disables the file Whitelist for `LOAD DATA LOCAL INFILE` and allows *all* files. [*Might be insecure!*](http://dev.mysql.com/doc/refman/5.7/en/load-data-local.html)
-  * `allowOldPasswords`: `allowAllFiles=true` allows the usage of the insecure old password method. This should be avoided, but is necessary in some cases. See also [the old_passwords wiki page](https://github.com/go-sql-driver/mysql/wiki/old_passwords).
-  * `charset`: Sets the charset used for client-server interaction ("SET NAMES `value`"). If multiple charsets are set (separated by a comma), the following charset is used if setting the charset failes. This enables support for `utf8mb4` ([introduced in MySQL 5.5.3](http://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)) with fallback to `utf8` for older servers (`charset=utf8mb4,utf8`).
-  * `clientFoundRows`: `clientFoundRows=true` causes an UPDATE to return the number of matching rows instead of the number of rows changed.
-  * `loc`: Sets the location for time.Time values (when using `parseTime=true`). The default is `UTC`. *"Local"* sets the system's location. See [time.LoadLocation](http://golang.org/pkg/time/#LoadLocation) for details. Please keep in mind, that param values must be [url.QueryEscape](http://golang.org/pkg/net/url/#QueryEscape)'ed. Alternatively you can manually replace the `/` with `%2F`. For example `US/Pacific` would be `US%2FPacific`.
-  * `parseTime`: `parseTime=true` changes the output type of `DATE` and `DATETIME` values to `time.Time` instead of `[]byte` / `string`
-  * `strict`: Enable strict mode. MySQL warnings are treated as errors.
-  * `timeout`: **Driver** side connection timeout. The value must be a string of decimal numbers, each with optional fraction and a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*. To set a server side timeout, use the parameter [`wait_timeout`](http://dev.mysql.com/doc/refman/5.6/en/server-system-variables.html#sysvar_wait_timeout).
-  * `tls`: `true` enables TLS / SSL encrypted connection to the server. Use `skip-verify` if you want to use a self-signed or invalid certificate (server side). Use a custom value registered with [`mysql.RegisterTLSConfig`](http://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).
+##### `allowAllFiles`
+
+```
+Type:           bool
+Valid Values:   true, false 
+Default:        false
+```
+
+`allowAllFiles=true` disables the file Whitelist for `LOAD DATA LOCAL INFILE` and allows *all* files.
+[*Might be insecure!*](http://dev.mysql.com/doc/refman/5.7/en/load-data-local.html)
+
+##### `allowOldPasswords`
+
+```
+Type:           bool
+Valid Values:   true, false 
+Default:        false
+```
+`allowAllFiles=true` allows the usage of the insecure old password method. This should be avoided, but is necessary in some cases. See also [the old_passwords wiki page](https://github.com/go-sql-driver/mysql/wiki/old_passwords).
+
+##### `charset`
+
+```
+Type:           string
+Valid Values:   <name>
+Default:        none
+```
+
+Sets the charset used for client-server interaction (`"SET NAMES <value>"`). If multiple charsets are set (separated by a comma), the following charset is used if setting the charset failes. This enables support for `utf8mb4` ([introduced in MySQL 5.5.3](http://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)) with fallback to `utf8` for older servers (`charset=utf8mb4,utf8`).
+
+
+##### `clientFoundRows`
+
+```
+Type:           bool
+Valid Values:   true, false 
+Default:        false
+```
+
+`clientFoundRows=true` causes an UPDATE to return the number of matching rows instead of the number of rows changed.
+
+
+##### `loc`
+
+```
+Type:           string
+Valid Values:   <escaped name>
+Default:        UTC
+```
+
+Sets the location for time.Time values (when using `parseTime=true`). *"Local"* sets the system's location. See [time.LoadLocation](http://golang.org/pkg/time/#LoadLocation) for details.
+
+Please keep in mind, that param values must be [url.QueryEscape](http://golang.org/pkg/net/url/#QueryEscape)'ed. Alternatively you can manually replace the `/` with `%2F`. For example `US/Pacific` would be `loc=US%2FPacific`.
+
+
+##### `parseTime`
+
+```
+Type:           bool
+Valid Values:   true, false 
+Default:        false
+```
+
+`parseTime=true` changes the output type of `DATE` and `DATETIME` values to `time.Time` instead of `[]byte` / `string`
+
+
+##### `strict`
+
+```
+Type:           bool
+Valid Values:   true, false 
+Default:        false
+```
+
+`strict=true` enables strict mode. MySQL warnings are treated as errors.
+
+
+##### `timeout`
+
+```
+Type:           decimal number
+Default:        OS default
+```
+
+*Driver* side connection timeout. The value must be a string of decimal numbers, each with optional fraction and a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*. To set a server side timeout, use the parameter [`wait_timeout`](http://dev.mysql.com/doc/refman/5.6/en/server-system-variables.html#sysvar_wait_timeout).
+
+
+##### `tls`
+
+```
+Type:           bool / string
+Valid Values:   true, false, skip-verify, <name> 
+Default:        false
+```
+
+`tls=true` enables TLS / SSL encrypted connection to the server. Use `skip-verify` if you want to use a self-signed or invalid certificate (server side). Use a custom value registered with [`mysql.RegisterTLSConfig`](http://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).
+
+
+##### System Variables
 
 All other parameters are interpreted as system variables:
-  * `autocommit`: *"SET autocommit=`value`"*
-  * `time_zone`: *"SET time_zone=`value`"*
-  * `tx_isolation`: *"SET [tx_isolation](https://dev.mysql.com/doc/refman/5.5/en/server-system-variables.html#sysvar_tx_isolation)=`value`"*
-  * `param`: *"SET `param`=`value`"*
+  * `autocommit`: `"SET autocommit=<value>"`
+  * `time_zone`: `"SET time_zone=<value>"`
+  * [`tx_isolation`](https://dev.mysql.com/doc/refman/5.5/en/server-system-variables.html#sysvar_tx_isolation): `"SET tx_isolation=<value>"`
+  * `param`: `"SET <param>=<value>"`
 
-***The values must be [url.QueryEscape](http://golang.org/pkg/net/url/#QueryEscape)'ed!***
+*The values must be [url.QueryEscape](http://golang.org/pkg/net/url/#QueryEscape)'ed!*
 
 #### Examples
 ```
@@ -130,13 +223,24 @@ user@unix(/path/to/socket)/dbname
 ```
 
 ```
-user:password@tcp(localhost:5555)/dbname?autocommit=true
+root:pw@unix(/tmp/mysql.sock)/myDatabse?loc=Local
 ```
 
 ```
-user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname?tls=skip-verify&charset=utf8mb4,utf8&sys_var=withSlash%2FandAt%40
+user:password@tcp(localhost:5555)/dbname?tls=skip-verify&autocommit=true
 ```
 
+TCP via IPv6:
+```
+user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname?timeout=90s
+```
+
+TCP using default port (3306) on localhost:
+```
+user:password@tcp/dbname&charset=utf8mb4,utf8&sys_var=esc%40ped
+```
+
+Use the default protocol (tcp) and host (localhost:3306):
 ```
 user:password@/dbname
 ```
