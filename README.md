@@ -223,7 +223,7 @@ user@unix(/path/to/socket)/dbname
 ```
 
 ```
-root:pw@unix(/tmp/mysql.sock)/myDatabse?loc=Local
+root:pw@unix(/tmp/mysql.sock)/myDatabase?loc=Local
 ```
 
 ```
@@ -233,6 +233,11 @@ user:password@tcp(localhost:5555)/dbname?tls=skip-verify&autocommit=true
 TCP via IPv6:
 ```
 user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname?timeout=90s
+```
+
+TCP on a remote host, e.g. Amazon RDS:
+```
+id:password@tcp(your-amazonaws-uri.com:3306)/dbname
 ```
 
 TCP using default port (3306) on localhost:
