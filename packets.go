@@ -877,7 +877,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			switch v := args[i].(type) {
 			case int64:
 				paramTypes[i+i] = fieldTypeLongLong
-				if cap(paramValues) <= len(paramValues)+8 {
+				if cap(paramValues)-len(paramValues)-8 >= 0 {
 					paramValues = paramValues[:len(paramValues)+8]
 					binary.LittleEndian.PutUint64(paramValues, uint64(v))
 				} else {
@@ -888,7 +888,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 			case float64:
 				paramTypes[i+i] = fieldTypeDouble
-				if cap(paramValues) <= len(paramValues)+8 {
+				if cap(paramValues)-len(paramValues)-8 >= 0 {
 					paramValues = paramValues[:len(paramValues)+8]
 					binary.LittleEndian.PutUint64(paramValues, math.Float64bits(v))
 				} else {
