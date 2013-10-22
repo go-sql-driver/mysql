@@ -868,8 +868,9 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		for i := range args {
 			// build NULL-bitmap
 			if args[i] == nil {
-				nullMask += 1 << uint(i)
+				nullMask |= 1 << uint(i)
 				paramTypes[i+i] = fieldTypeNULL
+				paramTypes[i+i+1] = 0x00
 				continue
 			}
 
@@ -877,9 +878,11 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			switch v := args[i].(type) {
 			case int64:
 				paramTypes[i+i] = fieldTypeLongLong
+				paramTypes[i+i+1] = 0x00
+
 				if cap(paramValues)-len(paramValues)-8 >= 0 {
 					paramValues = paramValues[:len(paramValues)+8]
-					binary.LittleEndian.PutUint64(paramValues, uint64(v))
+					binary.LittleEndian.PutUint64(paramValues[len(paramValues)-8:], uint64(v))
 				} else {
 					paramValues = append(paramValues,
 						uint64ToBytes(uint64(v))...,
@@ -888,9 +891,11 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 			case float64:
 				paramTypes[i+i] = fieldTypeDouble
+				paramTypes[i+i+1] = 0x00
+
 				if cap(paramValues)-len(paramValues)-8 >= 0 {
 					paramValues = paramValues[:len(paramValues)+8]
-					binary.LittleEndian.PutUint64(paramValues, math.Float64bits(v))
+					binary.LittleEndian.PutUint64(paramValues[len(paramValues)-8:], math.Float64bits(v))
 				} else {
 					paramValues = append(paramValues,
 						uint64ToBytes(math.Float64bits(v))...,
@@ -899,6 +904,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 			case bool:
 				paramTypes[i+i] = fieldTypeTiny
+				paramTypes[i+i+1] = 0x00
+
 				if v {
 					paramValues = append(paramValues, 0x01)
 				} else {
@@ -907,6 +914,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 			case []byte:
 				paramTypes[i+i] = fieldTypeString
+				paramTypes[i+i+1] = 0x00
+
 				if len(v) < stmt.mc.maxPacketAllowed-pos-len(paramValues)-(len(args)-(i+1))*64 {
 					paramValues = append(paramValues,
 						lengthEncodedIntegerToBytes(uint64(len(v)))...,
@@ -920,6 +929,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 			case string:
 				paramTypes[i+i] = fieldTypeString
+				paramTypes[i+i+1] = 0x00
+
 				if len(v) < stmt.mc.maxPacketAllowed-pos-len(paramValues)-(len(args)-(i+1))*64 {
 					paramValues = append(paramValues,
 						lengthEncodedIntegerToBytes(uint64(len(v)))...,
@@ -933,6 +944,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 			case time.Time:
 				paramTypes[i+i] = fieldTypeString
+				paramTypes[i+i+1] = 0x00
 
 				var val []byte
 				if v.IsZero() {
