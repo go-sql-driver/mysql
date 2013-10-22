@@ -12,7 +12,10 @@ import "io"
 
 const defaultBufSize = 4096
 
-// A read buffer similar to bufio.Reader but zero-copy-ish
+// A buffer which is used for both reading and writing.
+// This is possible since communication on each connection is synchronous.
+// In other words, we can't write and read simultaneously on the same connection.
+// The buffer is similar to bufio.Reader / Writer but zero-copy-ish
 // Also highly optimized for this particular use case.
 type buffer struct {
 	buf    []byte
@@ -37,8 +40,11 @@ func (b *buffer) fill(need int) (err error) {
 	}
 
 	// grow buffer if necessary
+	// TODO: let the buffer shrink again at some point
+	//       Maybe keep the org buf slice and swap back?
 	if need > len(b.buf) {
-		newBuf := make([]byte, need)
+		// Round up to the next multiple of the default size
+		newBuf := make([]byte, ((need/defaultBufSize)+1)*defaultBufSize)
 		copy(newBuf, b.buf)
 		b.buf = newBuf
 	}
@@ -73,4 +79,45 @@ func (b *buffer) readNext(need int) (p []byte, err error) {
 	b.idx += need
 	b.length -= need
 	return
+}
+
+// returns a buffer with the requested size.
+// If possible, a slice from the existing buffer is returned.
+// Otherwise a bigger buffer is made.
+// Only one buffer (total) can be used at a time.
+func (b *buffer) writeBuffer(length int) []byte {
+	if b.length > 0 {
+		return nil
+	}
+
+	// test (cheap) general case first
+	if length <= defaultBufSize || length <= cap(b.buf) {
+		return b.buf[:length]
+	}
+
+	if length < maxPacketSize {
+		b.buf = make([]byte, length)
+		return b.buf
+	}
+	return make([]byte, length)
+}
+
+// shortcut which can be used if the requested buffer is guaranteed to be
+// smaller than defaultBufSize
+// Only one buffer (total) can be used at a time.
+func (b *buffer) smallWriteBuffer(length int) []byte {
+	if b.length == 0 {
+		return b.buf[:length]
+	}
+	return nil
+}
+
+// takeCompleteBuffer returns the complete existing buffer.
+// This can be used if the necessary buffer size is unknown.
+// Only one buffer (total) can be used at a time.
+func (b *buffer) takeCompleteBuffer() []byte {
+	if b.length == 0 {
+		return b.buf
+	}
+	return nil
 }

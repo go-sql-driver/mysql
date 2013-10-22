@@ -69,23 +69,26 @@ func BenchmarkQuery(b *testing.B) {
 
 	stmt := tb.checkStmt(db.Prepare("SELECT val FROM foo WHERE id=?"))
 	defer stmt.Close()
-	b.StartTimer()
 
 	remain := int64(b.N)
 	var wg sync.WaitGroup
 	wg.Add(concurrencyLevel)
 	defer wg.Wait()
+	b.StartTimer()
+
 	for i := 0; i < concurrencyLevel; i++ {
 		go func() {
-			defer wg.Done()
 			for {
 				if atomic.AddInt64(&remain, -1) < 0 {
+					wg.Done()
 					return
 				}
+
 				var got string
 				tb.check(stmt.QueryRow(1).Scan(&got))
 				if got != "one" {
 					b.Errorf("query = %q; want one", got)
+					wg.Done()
 					return
 				}
 			}
