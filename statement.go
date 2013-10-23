@@ -19,14 +19,14 @@ type mysqlStmt struct {
 	params     []mysqlField
 }
 
-func (stmt *mysqlStmt) Close() (err error) {
+func (stmt *mysqlStmt) Close() error {
 	if stmt.mc == nil || stmt.mc.netConn == nil {
 		return errInvalidConn
 	}
 
-	err = stmt.mc.writeCommandPacketUint32(comStmtClose, stmt.id)
+	err := stmt.mc.writeCommandPacketUint32(comStmtClose, stmt.id)
 	stmt.mc = nil
-	return
+	return err
 }
 
 func (stmt *mysqlStmt) NumInput() int {
@@ -34,33 +34,34 @@ func (stmt *mysqlStmt) NumInput() int {
 }
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
-	stmt.mc.affectedRows = 0
-	stmt.mc.insertId = 0
-
 	// Send command
 	err := stmt.writeExecutePacket(args)
 	if err != nil {
 		return nil, err
 	}
 
+	mc := stmt.mc
+
+	mc.affectedRows = 0
+	mc.insertId = 0
+
 	// Read Result
-	var resLen int
-	resLen, err = stmt.mc.readResultSetHeaderPacket()
+	resLen, err := mc.readResultSetHeaderPacket()
 	if err == nil {
 		if resLen > 0 {
 			// Columns
-			err = stmt.mc.readUntilEOF()
+			err = mc.readUntilEOF()
 			if err != nil {
 				return nil, err
 			}
 
 			// Rows
-			err = stmt.mc.readUntilEOF()
+			err = mc.readUntilEOF()
 		}
 		if err == nil {
 			return &mysqlResult{
-				affectedRows: int64(stmt.mc.affectedRows),
-				insertId:     int64(stmt.mc.insertId),
+				affectedRows: int64(mc.affectedRows),
+				insertId:     int64(mc.insertId),
 			}, nil
 		}
 	}
@@ -75,21 +76,19 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 		return nil, err
 	}
 
+	mc := stmt.mc
+
 	// Read Result
-	var resLen int
-	resLen, err = stmt.mc.readResultSetHeaderPacket()
+	resLen, err := mc.readResultSetHeaderPacket()
 	if err != nil {
 		return nil, err
 	}
 
-	rows := &mysqlRows{stmt.mc, true, nil, false}
+	rows := &mysqlRows{mc, true, nil, false}
 
 	if resLen > 0 {
 		// Columns
-		rows.columns, err = stmt.mc.readColumns(resLen)
-		if err != nil {
-			return nil, err
-		}
+		rows.columns, err = mc.readColumns(resLen)
 	}
 
 	return rows, err

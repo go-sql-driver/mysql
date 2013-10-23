@@ -136,14 +136,14 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	columnCount, err := stmt.readPrepareResultPacket()
 	if err == nil {
 		if stmt.paramCount > 0 {
-			stmt.params, err = stmt.mc.readColumns(stmt.paramCount)
+			stmt.params, err = mc.readColumns(stmt.paramCount)
 			if err != nil {
 				return nil, err
 			}
 		}
 
 		if columnCount > 0 {
-			err = stmt.mc.readUntilEOF()
+			err = mc.readUntilEOF()
 		}
 	}
 
@@ -171,26 +171,24 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 }
 
 // Internal function to execute commands
-func (mc *mysqlConn) exec(query string) (err error) {
+func (mc *mysqlConn) exec(query string) error {
 	// Send command
-	err = mc.writeCommandPacketStr(comQuery, query)
+	err := mc.writeCommandPacketStr(comQuery, query)
 	if err != nil {
-		return
+		return err
 	}
 
 	// Read Result
-	var resLen int
-	resLen, err = mc.readResultSetHeaderPacket()
+	resLen, err := mc.readResultSetHeaderPacket()
 	if err == nil && resLen > 0 {
-		err = mc.readUntilEOF()
-		if err != nil {
-			return
+		if err = mc.readUntilEOF(); err != nil {
+			return err
 		}
 
 		err = mc.readUntilEOF()
 	}
 
-	return
+	return err
 }
 
 func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, error) {
@@ -211,7 +209,6 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 				return rows, err
 			}
 		}
-
 		return nil, err
 	}
 
@@ -221,29 +218,29 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 
 // Gets the value of the given MySQL System Variable
 // The returned byte slice is only valid until the next read
-func (mc *mysqlConn) getSystemVar(name string) (val []byte, err error) {
+func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 	// Send command
-	err = mc.writeCommandPacketStr(comQuery, "SELECT @@"+name)
-	if err == nil {
-		// Read Result
-		var resLen int
-		resLen, err = mc.readResultSetHeaderPacket()
-		if err == nil {
-			rows := &mysqlRows{mc, false, nil, false}
-
-			if resLen > 0 {
-				// Columns
-				rows.columns, err = mc.readColumns(resLen)
-			}
-
-			dest := make([]driver.Value, resLen)
-			err = rows.readRow(dest)
-			if err == nil {
-				val = dest[0].([]byte)
-				err = mc.readUntilEOF()
-			}
-		}
+	if err := mc.writeCommandPacketStr(comQuery, "SELECT @@"+name); err != nil {
+		return nil, err
 	}
 
-	return
+	// Read Result
+	resLen, err := mc.readResultSetHeaderPacket()
+	if err == nil {
+		rows := &mysqlRows{mc, false, nil, false}
+
+		if resLen > 0 {
+			// Columns
+			rows.columns, err = mc.readColumns(resLen)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		dest := make([]driver.Value, resLen)
+		if err = rows.readRow(dest); err == nil {
+			return dest[0].([]byte), mc.readUntilEOF()
+		}
+	}
+	return nil, err
 }

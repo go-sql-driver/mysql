@@ -26,12 +26,12 @@ type mysqlRows struct {
 	eof     bool
 }
 
-func (rows *mysqlRows) Columns() (columns []string) {
-	columns = make([]string, len(rows.columns))
+func (rows *mysqlRows) Columns() []string {
+	columns := make([]string, len(rows.columns))
 	for i := range columns {
 		columns[i] = rows.columns[i].name
 	}
-	return
+	return columns
 }
 
 func (rows *mysqlRows) Close() (err error) {
