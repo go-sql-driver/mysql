@@ -51,7 +51,6 @@ func initDB(b *testing.B, queries ...string) *sql.DB {
 	return db
 }
 
-// by Brad Fitzpatrick
 const concurrencyLevel = 10
 
 func BenchmarkQuery(b *testing.B) {
@@ -87,6 +86,39 @@ func BenchmarkQuery(b *testing.B) {
 				if got != "one" {
 					b.Errorf("query = %q; want one", got)
 					return
+				}
+			}
+		}()
+	}
+}
+
+func BenchmarkExec(b *testing.B) {
+	tb := (*TB)(b)
+	b.StopTimer()
+	b.ReportAllocs()
+	db := tb.checkDB(sql.Open("mysql", dsn))
+	db.SetMaxIdleConns(concurrencyLevel)
+	defer db.Close()
+
+	stmt := tb.checkStmt(db.Prepare("DO 1"))
+	defer stmt.Close()
+
+	remain := int64(b.N)
+	var wg sync.WaitGroup
+	wg.Add(concurrencyLevel)
+	defer wg.Wait()
+	b.StartTimer()
+
+	for i := 0; i < concurrencyLevel; i++ {
+		go func() {
+			for {
+				if atomic.AddInt64(&remain, -1) < 0 {
+					wg.Done()
+					return
+				}
+
+				if _, err := stmt.Exec(); err != nil {
+					b.Fatal(err.Error())
 				}
 			}
 		}()
