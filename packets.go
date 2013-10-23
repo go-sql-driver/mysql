@@ -409,7 +409,7 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	}
 
 	// Add the packet header [24bit length + 1 byte sequence]
-	data[0] = 0x05 // 1 bytes long
+	data[0] = 0x05 // 5 bytes long
 	data[1] = 0x00
 	data[2] = 0x00
 	data[3] = 0x00 // sequence is always 0
