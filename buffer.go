@@ -85,7 +85,7 @@ func (b *buffer) readNext(need int) (p []byte, err error) {
 // If possible, a slice from the existing buffer is returned.
 // Otherwise a bigger buffer is made.
 // Only one buffer (total) can be used at a time.
-func (b *buffer) writeBuffer(length int) []byte {
+func (b *buffer) takeBuffer(length int) []byte {
 	if b.length > 0 {
 		return nil
 	}
@@ -105,7 +105,7 @@ func (b *buffer) writeBuffer(length int) []byte {
 // shortcut which can be used if the requested buffer is guaranteed to be
 // smaller than defaultBufSize
 // Only one buffer (total) can be used at a time.
-func (b *buffer) smallWriteBuffer(length int) []byte {
+func (b *buffer) takeSmallBuffer(length int) []byte {
 	if b.length == 0 {
 		return b.buf[:length]
 	}

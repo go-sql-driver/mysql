@@ -239,7 +239,7 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	}
 
 	// Calculate packet length and get buffer with that size
-	data := mc.buf.smallWriteBuffer(pktLen + 4)
+	data := mc.buf.takeSmallBuffer(pktLen + 4)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print("Busy buffer")
@@ -322,7 +322,7 @@ func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 
 	// Calculate the packet lenght and add a tailing 0
 	pktLen := len(scrambleBuff) + 1
-	data := mc.buf.smallWriteBuffer(pktLen + 4)
+	data := mc.buf.takeSmallBuffer(pktLen + 4)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print("Busy buffer")
@@ -349,7 +349,7 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
-	data := mc.buf.smallWriteBuffer(4 + 1)
+	data := mc.buf.takeSmallBuffer(4 + 1)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print("Busy buffer")
@@ -374,7 +374,7 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	mc.sequence = 0
 
 	pktLen := 1 + len(arg)
-	data := mc.buf.writeBuffer(pktLen + 4)
+	data := mc.buf.takeBuffer(pktLen + 4)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print("Busy buffer")
@@ -401,7 +401,7 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
-	data := mc.buf.smallWriteBuffer(4 + 1 + 4)
+	data := mc.buf.takeSmallBuffer(4 + 1 + 4)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print("Busy buffer")
@@ -795,7 +795,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 	if len(args) == 0 {
 		const pktLen = 1 + 4 + 1 + 4
-		data = mc.buf.writeBuffer(4 + pktLen)
+		data = mc.buf.takeBuffer(4 + pktLen)
 		if data == nil {
 			// can not take the buffer. Something must be wrong with the connection
 			errLog.Print("Busy buffer")
