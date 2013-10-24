@@ -136,8 +136,7 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	columnCount, err := stmt.readPrepareResultPacket()
 	if err == nil {
 		if stmt.paramCount > 0 {
-			stmt.params, err = mc.readColumns(stmt.paramCount)
-			if err != nil {
+			if err = mc.readUntilEOF(); err != nil {
 				return nil, err
 			}
 		}
