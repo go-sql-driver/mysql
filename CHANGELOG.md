@@ -9,6 +9,7 @@ Changes:
   - Changed the copyright header to include all contributors
   - Optimized the buffer for reading
   - Use the buffer also for writing. This results in zero allocations (by the driver) for most queries
+  - stmt.Query now caches column metadata
   - Improved the LOAD INFILE documentation
   - The driver struct is now exported to make the driver directly accessible
   - Refactored the driver tests

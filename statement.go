@@ -16,7 +16,7 @@ type mysqlStmt struct {
 	mc         *mysqlConn
 	id         uint32
 	paramCount int
-	params     []mysqlField
+	columns    []mysqlField // cached from the first query
 }
 
 func (stmt *mysqlStmt) Close() error {
@@ -88,7 +88,14 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 
 	if resLen > 0 {
 		// Columns
-		rows.columns, err = mc.readColumns(resLen)
+		// If not cached, read them and cache them
+		if stmt.columns == nil {
+			rows.columns, err = mc.readColumns(resLen)
+			stmt.columns = rows.columns
+		} else {
+			rows.columns = stmt.columns
+			err = mc.readUntilEOF()
+		}
 	}
 
 	return rows, err
