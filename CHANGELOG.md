@@ -7,7 +7,8 @@ Changes:
   - Made closing rows and connections error tolerant. This allows for example deferring rows.Close() without checking for errors
   - New Logo
   - Changed the copyright header to include all contributors
-  - Optimized the read buffer
+  - Optimized the buffer for reading
+  - Use the buffer also for writing. This results in zero allocations (by the driver) for most queries
   - Improved the LOAD INFILE documentation
   - The driver struct is now exported to make the driver directly accessible
   - Refactored the driver tests
