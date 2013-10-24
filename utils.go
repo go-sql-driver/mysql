@@ -668,16 +668,16 @@ func readLengthEncodedInteger(b []byte) (num uint64, isNull bool, n int) {
 	return
 }
 
-func lengthEncodedIntegerToBytes(n uint64) []byte {
+func appendLengthEncodedInteger(b []byte, n uint64) []byte {
 	switch {
 	case n <= 250:
-		return []byte{byte(n)}
+		return append(b, byte(n))
 
 	case n <= 0xffff:
-		return []byte{0xfc, byte(n), byte(n >> 8)}
+		return append(b, 0xfc, byte(n), byte(n>>8))
 
 	case n <= 0xffffff:
-		return []byte{0xfd, byte(n), byte(n >> 8), byte(n >> 16)}
+		return append(b, 0xfd, byte(n), byte(n>>8), byte(n>>16))
 	}
-	return nil
+	return b
 }

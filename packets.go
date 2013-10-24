@@ -918,8 +918,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				paramTypes[i+i+1] = 0x00
 
 				if len(v) < mc.maxPacketAllowed-pos-len(paramValues)-(len(args)-(i+1))*64 {
-					paramValues = append(paramValues,
-						lengthEncodedIntegerToBytes(uint64(len(v)))...,
+					paramValues = appendLengthEncodedInteger(paramValues,
+						uint64(len(v)),
 					)
 					paramValues = append(paramValues, v...)
 				} else {
@@ -933,8 +933,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				paramTypes[i+i+1] = 0x00
 
 				if len(v) < mc.maxPacketAllowed-pos-len(paramValues)-(len(args)-(i+1))*64 {
-					paramValues = append(paramValues,
-						lengthEncodedIntegerToBytes(uint64(len(v)))...,
+					paramValues = appendLengthEncodedInteger(paramValues,
+						uint64(len(v)),
 					)
 					paramValues = append(paramValues, v...)
 				} else {
@@ -954,8 +954,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 					val = []byte(v.In(mc.cfg.loc).Format(timeFormat))
 				}
 
-				paramValues = append(paramValues,
-					lengthEncodedIntegerToBytes(uint64(len(val)))...,
+				paramValues = appendLengthEncodedInteger(paramValues,
+					uint64(len(val)),
 				)
 				paramValues = append(paramValues, val...)
 
