@@ -78,9 +78,10 @@ func (b *buffer) readNext(need int) ([]byte, error) {
 		}
 	}
 
+	offset := b.idx
 	b.idx += need
 	b.length -= need
-	return b.buf[b.idx-need : b.idx], nil
+	return b.buf[offset:b.idx], nil
 }
 
 // returns a buffer with the requested size.
