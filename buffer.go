@@ -33,7 +33,7 @@ func newBuffer(rd io.Reader) *buffer {
 }
 
 // fill reads into the buffer until at least _need_ bytes are in it
-func (b *buffer) fill(need int) (err error) {
+func (b *buffer) fill(need int) error {
 	// move existing data to the beginning
 	if b.length > 0 && b.idx > 0 {
 		copy(b.buf[0:b.length], b.buf[b.idx:])
@@ -51,34 +51,36 @@ func (b *buffer) fill(need int) (err error) {
 
 	b.idx = 0
 
-	var n int
 	for {
-		n, err = b.rd.Read(b.buf[b.length:])
+		n, err := b.rd.Read(b.buf[b.length:])
 		b.length += n
 
-		if b.length < need && err == nil {
-			continue
+		if err == nil {
+			if b.length < need {
+				continue
+			}
+			return nil
 		}
-		return // err
+		if b.length >= need && err == io.EOF {
+			return nil
+		}
+		return err
 	}
-	return
 }
 
 // returns next N bytes from buffer.
 // The returned slice is only guaranteed to be valid until the next read
-func (b *buffer) readNext(need int) (p []byte, err error) {
+func (b *buffer) readNext(need int) ([]byte, error) {
 	if b.length < need {
 		// refill
-		err = b.fill(need) // err deferred
-		if err == io.EOF && b.length >= need {
-			err = nil
+		if err := b.fill(need); err != nil {
+			return nil, err
 		}
 	}
 
-	p = b.buf[b.idx : b.idx+need]
 	b.idx += need
 	b.length -= need
-	return
+	return b.buf[b.idx-need : b.idx], nil
 }
 
 // returns a buffer with the requested size.
