@@ -14,15 +14,15 @@ import (
 )
 
 type mysqlField struct {
-	name      string
 	fieldType byte
 	flags     fieldFlag
+	name      string
 }
 
 type mysqlRows struct {
 	mc      *mysqlConn
-	binary  bool
 	columns []mysqlField
+	binary  bool
 	eof     bool
 }
 
