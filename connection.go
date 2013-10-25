@@ -230,8 +230,7 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 
 		if resLen > 0 {
 			// Columns
-			rows.columns, err = mc.readColumns(resLen)
-			if err != nil {
+			if err := mc.readUntilEOF(); err != nil {
 				return nil, err
 			}
 		}
