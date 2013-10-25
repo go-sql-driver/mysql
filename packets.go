@@ -57,8 +57,9 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 			return data, nil
 		}
 
-		var buf []byte
-		buf = append(buf, data...)
+		// Make a copy since data becomes invalid with the next read
+		buf := make([]byte, len(data))
+		copy(buf, data)
 
 		// More data
 		data, err = mc.readPacket()
