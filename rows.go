@@ -34,6 +34,10 @@ func (rows *mysqlRows) Columns() []string {
 	return columns
 }
 
+func (rows *mysqlRows) ColumnsCount() int {
+	return len(rows.columns)
+}
+
 func (rows *mysqlRows) Close() (err error) {
 	// Remove unread packets from stream
 	if !rows.eof {
