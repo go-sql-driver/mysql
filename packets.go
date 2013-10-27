@@ -1014,16 +1014,15 @@ func (rows *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 				}
 			}
 
-			var sign byte
+			var sign string
 			if data[pos] == 1 {
-				sign = byte('-')
+				sign = "-"
 			}
 
 			switch num {
 			case 8:
 				dest[i] = []byte(fmt.Sprintf(
-					"%c%02d:%02d:%02d",
-					sign,
+					sign+"%02d:%02d:%02d",
 					uint16(data[pos+1])*24+uint16(data[pos+5]),
 					data[pos+6],
 					data[pos+7],
@@ -1032,8 +1031,7 @@ func (rows *mysqlRows) readBinaryRow(dest []driver.Value) (err error) {
 				continue
 			case 12:
 				dest[i] = []byte(fmt.Sprintf(
-					"%c%02d:%02d:%02d.%06d",
-					sign,
+					sign+"%02d:%02d:%02d.%06d",
 					uint16(data[pos+1])*24+uint16(data[pos+5]),
 					data[pos+6],
 					data[pos+7],
