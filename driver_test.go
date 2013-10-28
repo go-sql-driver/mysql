@@ -514,6 +514,45 @@ func TestDateTime(t *testing.T) {
 	}
 }
 
+// This tests for https://github.com/go-sql-driver/mysql/pull/140
+//
+// An extra (invisible) nil byte was being added to the beginning of positive
+// time strings.
+func TestTime(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		var sTimes = []struct {
+			value     string
+			fieldType string
+		}{
+			{"12:34:56", "TIME"},
+			{"-12:34:56", "TIME"},
+			// As described in http://dev.mysql.com/doc/refman/5.6/en/fractional-seconds.html
+			// they *should* work, but only in 5.6+.
+			// { "12:34:56.789", "TIME(3)" },
+			// { "-12:34:56.789", "TIME(3)" },
+		}
+
+		for _, sTime := range sTimes {
+			dbt.db.Exec("DROP TABLE IF EXISTS test")
+			dbt.mustExec("CREATE TABLE test (id INT, time_field " + sTime.fieldType + ")")
+			dbt.mustExec("TRUNCATE TABLE test")
+			dbt.mustExec("INSERT INTO test (id, time_field) VALUES(1, '" + sTime.value + "')")
+			rows := dbt.mustQuery("SELECT time_field FROM test WHERE id = ?", 1)
+			if rows.Next() {
+				var oTime string
+				rows.Scan(&oTime)
+				if oTime != sTime.value {
+					dbt.Error(fmt.Sprintf(`time values differ: got "%s", expecting "%s".`, oTime, sTime.value))
+				}
+			} else {
+				dbt.Error("expecting at least one row.")
+			}
+		}
+
+	})
+
+}
+
 func TestNULL(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		nullStmt, err := dbt.db.Prepare("SELECT NULL")
