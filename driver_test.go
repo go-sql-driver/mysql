@@ -514,11 +514,11 @@ func TestDateTime(t *testing.T) {
 	}
 }
 
-// This tests for https://github.com/go-sql-driver/mysql/pull/140
+// This tests for https://github.com/go-sql-driver/mysql/pull/139
 //
 // An extra (invisible) nil byte was being added to the beginning of positive
 // time strings.
-func TestTime(t *testing.T) {
+func TestTimeSign(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		var sTimes = []struct {
 			value     string
@@ -535,14 +535,13 @@ func TestTime(t *testing.T) {
 		for _, sTime := range sTimes {
 			dbt.db.Exec("DROP TABLE IF EXISTS test")
 			dbt.mustExec("CREATE TABLE test (id INT, time_field " + sTime.fieldType + ")")
-			dbt.mustExec("TRUNCATE TABLE test")
 			dbt.mustExec("INSERT INTO test (id, time_field) VALUES(1, '" + sTime.value + "')")
 			rows := dbt.mustQuery("SELECT time_field FROM test WHERE id = ?", 1)
 			if rows.Next() {
 				var oTime string
 				rows.Scan(&oTime)
 				if oTime != sTime.value {
-					dbt.Error(fmt.Sprintf(`time values differ: got %q, expected %q.`, oTime, sTime.value))
+					dbt.Errorf(`time values differ: got %q, expected %q.`, oTime, sTime.value)
 				}
 			} else {
 				dbt.Error("expecting at least one row.")
