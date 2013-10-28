@@ -542,7 +542,7 @@ func TestTime(t *testing.T) {
 				var oTime string
 				rows.Scan(&oTime)
 				if oTime != sTime.value {
-					dbt.Error(fmt.Sprintf(`time values differ: got "%s", expecting "%s".`, oTime, sTime.value))
+					dbt.Error(fmt.Sprintf(`time values differ: got %q, expected %q.`, oTime, sTime.value))
 				}
 			} else {
 				dbt.Error("expecting at least one row.")
