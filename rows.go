@@ -37,7 +37,7 @@ func (rows *mysqlRows) Columns() []string {
 func (rows *mysqlRows) Close() (err error) {
 	// Remove unread packets from stream
 	if !rows.eof {
-		if rows.mc == nil || rows.mc.netConn == nil {
+		if rows.mc == nil || rows.mc.buf == nil {
 			return errInvalidConn
 		}
 
@@ -58,7 +58,7 @@ func (rows *mysqlRows) Next(dest []driver.Value) (err error) {
 		return io.EOF
 	}
 
-	if rows.mc == nil || rows.mc.netConn == nil {
+	if rows.mc == nil || rows.mc.buf == nil {
 		return errInvalidConn
 	}
 
