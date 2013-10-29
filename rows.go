@@ -11,7 +11,6 @@ package mysql
 
 import (
 	"database/sql/driver"
-	"errors"
 	"io"
 )
 
@@ -44,7 +43,7 @@ func (rows *mysqlRows) Close() (err error) {
 	// Remove unread packets from stream
 	if !rows.eof {
 		if rows.mc == nil || rows.mc.netConn == nil {
-			return errors.New("Invalid Connection")
+			return errInvalidConn
 		}
 
 		err = rows.mc.readUntilEOF()
@@ -63,7 +62,7 @@ func (rows *mysqlRows) Next(dest []driver.Value) error {
 	}
 
 	if rows.mc == nil || rows.mc.netConn == nil {
-		return errors.New("Invalid Connection")
+		return errInvalidConn
 	}
 
 	// Fetch next row from stream

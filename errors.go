@@ -17,6 +17,7 @@ import (
 )
 
 var (
+	errInvalidConn = errors.New("Invalid Connection")
 	errMalformPkt  = errors.New("Malformed Packet")
 	errPktSync     = errors.New("Commands out of sync. You can't run this command now")
 	errPktSyncMul  = errors.New("Commands out of sync. Did you run multiple statements at once?")
