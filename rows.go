@@ -22,7 +22,14 @@ type mysqlField struct {
 type mysqlRows struct {
 	mc      *mysqlConn
 	columns []mysqlField
-	binary  bool
+}
+
+type binaryRows struct {
+	mysqlRows
+}
+
+type textRows struct {
+	mysqlRows
 }
 
 func (rows *mysqlRows) Columns() []string {
@@ -41,28 +48,39 @@ func (rows *mysqlRows) Close() error {
 	if mc.netConn == nil {
 		return errInvalidConn
 	}
+
 	// Remove unread packets from stream
 	err := mc.readUntilEOF()
 	rows.mc = nil
 	return err
 }
 
-func (rows *mysqlRows) Next(dest []driver.Value) (err error) {
-	mc := rows.mc
-	if mc == nil {
-		return io.EOF
-	}
-	if mc.netConn == nil {
-		return errInvalidConn
-	}
-	// Fetch next row from stream
-	if rows.binary {
-		err = rows.readBinaryRow(dest)
-	} else {
-		err = rows.readRow(dest)
-	}
-	if err == io.EOF {
+func (rows *binaryRows) Next(dest []driver.Value) error {
+	if mc := rows.mc; mc != nil {
+		if mc.netConn == nil {
+			return errInvalidConn
+		}
+
+		// Fetch next row from stream
+		if err := rows.readRow(dest); err != io.EOF {
+			return err
+		}
 		rows.mc = nil
 	}
-	return
+	return io.EOF
+}
+
+func (rows *textRows) Next(dest []driver.Value) error {
+	if mc := rows.mc; mc != nil {
+		if mc.netConn == nil {
+			return errInvalidConn
+		}
+
+		// Fetch next row from stream
+		if err := rows.readRow(dest); err != io.EOF {
+			return err
+		}
+		rows.mc = nil
+	}
+	return io.EOF
 }
