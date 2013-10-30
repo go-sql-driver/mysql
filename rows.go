@@ -23,7 +23,6 @@ type mysqlRows struct {
 	mc      *mysqlConn
 	columns []mysqlField
 	binary  bool
-	eof     bool
 }
 
 func (rows *mysqlRows) Columns() []string {
@@ -34,43 +33,36 @@ func (rows *mysqlRows) Columns() []string {
 	return columns
 }
 
-func (rows *mysqlRows) Close() (err error) {
-	// Remove unread packets from stream
-	if !rows.eof {
-		if rows.mc == nil || rows.mc.netConn == nil {
-			return errInvalidConn
-		}
-
-		err = rows.mc.readUntilEOF()
-
-		// explicitly set because readUntilEOF might return early in case of an
-		// error
-		rows.eof = true
+func (rows *mysqlRows) Close() error {
+	mc := rows.mc
+	if mc == nil {
+		return nil
 	}
-
+	if mc.netConn == nil {
+		return errInvalidConn
+	}
+	// Remove unread packets from stream
+	err := mc.readUntilEOF()
 	rows.mc = nil
-
-	return
+	return err
 }
 
 func (rows *mysqlRows) Next(dest []driver.Value) (err error) {
-	if rows.eof {
+	mc := rows.mc
+	if mc == nil {
 		return io.EOF
 	}
-
-	if rows.mc == nil || rows.mc.netConn == nil {
+	if mc.netConn == nil {
 		return errInvalidConn
 	}
-
 	// Fetch next row from stream
 	if rows.binary {
 		err = rows.readBinaryRow(dest)
 	} else {
 		err = rows.readRow(dest)
 	}
-
 	if err == io.EOF {
-		rows.eof = true
+		rows.mc = nil
 	}
-	return err
+	return
 }
