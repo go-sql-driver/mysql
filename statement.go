@@ -90,7 +90,7 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 		return nil, err
 	}
 
-	rows := &mysqlRows{mc, nil, true, false}
+	rows := &mysqlRows{mc, nil, true}
 
 	if resLen > 0 {
 		// Columns
