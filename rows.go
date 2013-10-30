@@ -47,7 +47,7 @@ func (rows *mysqlRows) Close() error {
 	return err
 }
 
-func (rows *mysqlRows) Next(dest []driver.Value) error {
+func (rows *mysqlRows) Next(dest []driver.Value) (err error) {
 	mc := rows.mc
 	if mc == nil {
 		return io.EOF
@@ -55,7 +55,6 @@ func (rows *mysqlRows) Next(dest []driver.Value) error {
 	if mc.netConn == nil {
 		return errInvalidConn
 	}
-	var err error
 	// Fetch next row from stream
 	if rows.binary {
 		err = rows.readBinaryRow(dest)
@@ -65,5 +64,5 @@ func (rows *mysqlRows) Next(dest []driver.Value) error {
 	if err == io.EOF {
 		rows.mc = nil
 	}
-	return err
+	return
 }
