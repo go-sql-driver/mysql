@@ -108,7 +108,7 @@ func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows)
 	return rows
 }
 
-func TestClosedConnection(t *testing.T) {
+func TestReuseClosedConnection(t *testing.T) {
 	// this test does not use sql.database, it uses the driver directly
 	if !available {
 		t.Skipf("MySQL-Server not running on %s", netAddr)
@@ -118,7 +118,7 @@ func TestClosedConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error connecting: %s", err.Error())
 	}
-	stmt, err := conn.Prepare("SET @tmpif := 1")
+	stmt, err := conn.Prepare("DO 1")
 	if err != nil {
 		t.Fatalf("Error preparing statement: %s", err.Error())
 	}
@@ -136,7 +136,7 @@ func TestClosedConnection(t *testing.T) {
 		}
 	}()
 	_, err = stmt.Exec(nil)
-	if err != errInvalidConn {
+	if err != nil && err != errInvalidConn {
 		t.Errorf("Unexpected error '%s', expected '%s'",
 			err.Error(), errInvalidConn.Error())
 	}
