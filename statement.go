@@ -34,7 +34,7 @@ func (stmt *mysqlStmt) NumInput() int {
 }
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
-	if stmt.mc.buf == nil {
+	if stmt.mc.netConn == nil {
 		return nil, errInvalidConn
 	}
 	// Send command
@@ -73,7 +73,7 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 }
 
 func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
-	if stmt.mc.buf == nil {
+	if stmt.mc.netConn == nil {
 		return nil, errInvalidConn
 	}
 	// Send command
