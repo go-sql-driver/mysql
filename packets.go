@@ -915,19 +915,28 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				}
 
 			case []byte:
-				paramTypes[i+i] = fieldTypeString
-				paramTypes[i+i+1] = 0x00
+				// Common case (non-nil value) first
+				if v != nil {
+					paramTypes[i+i] = fieldTypeString
+					paramTypes[i+i+1] = 0x00
 
-				if len(v) < mc.maxPacketAllowed-pos-len(paramValues)-(len(args)-(i+1))*64 {
-					paramValues = appendLengthEncodedInteger(paramValues,
-						uint64(len(v)),
-					)
-					paramValues = append(paramValues, v...)
-				} else {
-					if err := stmt.writeCommandLongData(i, v); err != nil {
-						return err
+					if len(v) < mc.maxPacketAllowed-pos-len(paramValues)-(len(args)-(i+1))*64 {
+						paramValues = appendLengthEncodedInteger(paramValues,
+							uint64(len(v)),
+						)
+						paramValues = append(paramValues, v...)
+					} else {
+						if err := stmt.writeCommandLongData(i, v); err != nil {
+							return err
+						}
 					}
+					continue
 				}
+
+				// Handle []byte(nil) as a NULL value
+				nullMask |= 1 << uint(i)
+				paramTypes[i+i] = fieldTypeNULL
+				paramTypes[i+i+1] = 0x00
 
 			case string:
 				paramTypes[i+i] = fieldTypeString
