@@ -517,6 +517,15 @@ func TestNULL(t *testing.T) {
 		if b == nil {
 			dbt.Error("Nil []byte wich should be non-nil")
 		}
+		// Insert nil
+		b = nil
+		success := false
+		if err = dbt.db.QueryRow("SELECT ? IS NULL", b).Scan(&success); err != nil {
+			dbt.Fatal(err)
+		}
+		if !success {
+			dbt.Error("Inserting []byte(nil) as NULL failed")
+		}
 		// Check input==output (==nil)
 		b = nil
 		if err = dbt.db.QueryRow("SELECT ?", nil).Scan(&b); err != nil {
