@@ -600,11 +600,14 @@ func stringToInt(b []byte) int {
 	return val
 }
 
+// returns the string read as a bytes slice, wheter the value is NULL,
+// the number of bytes read and an error, in case the string is longer than
+// the input slice
 func readLengthEnodedString(b []byte) ([]byte, bool, int, error) {
 	// Get length
 	num, isNull, n := readLengthEncodedInteger(b)
 	if num < 1 {
-		return nil, isNull, n, nil
+		return b[n:n], isNull, n, nil
 	}
 
 	n += int(num)
@@ -616,6 +619,8 @@ func readLengthEnodedString(b []byte) ([]byte, bool, int, error) {
 	return nil, false, n, io.EOF
 }
 
+// returns the number of bytes skipped and an error, in case the string is
+// longer than the input slice
 func skipLengthEnodedString(b []byte) (int, error) {
 	// Get length
 	num, _, n := readLengthEncodedInteger(b)
@@ -632,42 +637,35 @@ func skipLengthEnodedString(b []byte) (int, error) {
 	return n, io.EOF
 }
 
-func readLengthEncodedInteger(b []byte) (num uint64, isNull bool, n int) {
+// returns the number read, whether the value is NULL and the number of bytes read
+func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
 	switch b[0] {
 
 	// 251: NULL
 	case 0xfb:
-		n = 1
-		isNull = true
-		return
+		return 0, true, 1
 
 	// 252: value of following 2
 	case 0xfc:
-		num = uint64(b[1]) | uint64(b[2])<<8
-		n = 3
-		return
+		return uint64(b[1]) | uint64(b[2])<<8, false, 3
 
 	// 253: value of following 3
 	case 0xfd:
-		num = uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16
-		n = 4
-		return
+		return uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16, false, 4
 
 	// 254: value of following 8
 	case 0xfe:
-		num = uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16 |
-			uint64(b[4])<<24 | uint64(b[5])<<32 | uint64(b[6])<<40 |
-			uint64(b[7])<<48 | uint64(b[8])<<54
-		n = 9
-		return
+		return uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16 |
+				uint64(b[4])<<24 | uint64(b[5])<<32 | uint64(b[6])<<40 |
+				uint64(b[7])<<48 | uint64(b[8])<<54,
+			false, 9
 	}
 
 	// 0-250: value of first byte
-	num = uint64(b[0])
-	n = 1
-	return
+	return uint64(b[0]), false, 1
 }
 
+// encodes a uint64 value and appends it to the given bytes slice
 func appendLengthEncodedInteger(b []byte, n uint64) []byte {
 	switch {
 	case n <= 250:

@@ -5,6 +5,7 @@ Changes:
   - Go-MySQL-Driver now requires Go 1.1
   - Connections now use the collation `utf8_general_ci` by default. Adding `&charset=UTF8` to the DSN should not be necessary anymore
   - Made closing rows and connections error tolerant. This allows for example deferring rows.Close() without checking for errors
+  - `byte(nil)` is now treated as a NULL value. Before it was treated like an empty string / `[]byte("")`.
   - New Logo
   - Changed the copyright header to include all contributors
   - Optimized the buffer for reading
@@ -28,6 +29,7 @@ Bugfixes:
   - Fixed MySQL 4.1 support: MySQL 4.1 sends packets with lengths which differ from the specification
   - Convert to DB timezone when inserting time.Time
   - Splitted packets (more than 16MB) are now merged correctly
+  - Fixed empty string producing false nil values
 
 
 ## 1.0 (2013-05-14)
