@@ -613,6 +613,16 @@ func TestNULL(t *testing.T) {
 			dbt.Error("Unexpected NullString value:" + ns.String + " (should be `1`)")
 		}
 
+		// bytes
+		// Check input==output with input!=nil
+		b := []byte("")
+		if err = dbt.db.QueryRow("SELECT ?", b).Scan(&b); err != nil {
+			dbt.Fatal(err)
+		}
+		if b == nil {
+			dbt.Error("nil echo from non-nil input")
+		}
+
 		// Insert NULL
 		dbt.mustExec("CREATE TABLE test (dummmy1 int, value int, dummy2 int)")
 
