@@ -600,6 +600,9 @@ func stringToInt(b []byte) int {
 	return val
 }
 
+// returns the string read as a bytes slice, wheter the value is NULL,
+// the number of bytes read and an error, in case the string is longer than
+// the input slice
 func readLengthEnodedString(b []byte) ([]byte, bool, int, error) {
 	// Get length
 	num, isNull, n := readLengthEncodedInteger(b)
@@ -616,6 +619,8 @@ func readLengthEnodedString(b []byte) ([]byte, bool, int, error) {
 	return nil, false, n, io.EOF
 }
 
+// returns the number of bytes skipped and an error, in case the string is
+// longer than the input slice
 func skipLengthEnodedString(b []byte) (int, error) {
 	// Get length
 	num, _, n := readLengthEncodedInteger(b)
@@ -632,6 +637,7 @@ func skipLengthEnodedString(b []byte) (int, error) {
 	return n, io.EOF
 }
 
+// returns the number read, whether the value is NULL and the number of bytes read
 func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
 	switch b[0] {
 
@@ -659,6 +665,7 @@ func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
 	return uint64(b[0]), false, 1
 }
 
+// encodes a uint64 value and appends it to the given bytes slice
 func appendLengthEncodedInteger(b []byte, n uint64) []byte {
 	switch {
 	case n <= 250:
