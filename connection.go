@@ -18,16 +18,15 @@ import (
 )
 
 type mysqlConn struct {
-	cfg              *config
-	flags            clientFlag
-	netConn          net.Conn
 	buf              *buffer
-	protocol         uint8
-	sequence         uint8
+	netConn          net.Conn
 	affectedRows     uint64
 	insertId         uint64
+	cfg              *config
 	maxPacketAllowed int
 	maxWriteSize     int
+	flags            clientFlag
+	sequence         uint8
 	parseTime        bool
 	strict           bool
 }
