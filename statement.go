@@ -21,6 +21,10 @@ type mysqlStmt struct {
 }
 
 func (stmt *mysqlStmt) Close() (err error) {
+	if stmt.mc == nil || stmt.mc.netConn == nil {
+		return errInvalidConn
+	}
+
 	err = stmt.mc.writeCommandPacketUint32(comStmtClose, stmt.id)
 	stmt.mc = nil
 	return
@@ -31,6 +35,10 @@ func (stmt *mysqlStmt) NumInput() int {
 }
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
+	if stmt.mc.netConn == nil {
+		return nil, errInvalidConn
+	}
+
 	stmt.mc.affectedRows = 0
 	stmt.mc.insertId = 0
 
@@ -66,6 +74,10 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 }
 
 func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
+	if stmt.mc.netConn == nil {
+		return nil, errInvalidConn
+	}
+
 	// Send command
 	err := stmt.writeExecutePacket(args)
 	if err != nil {
