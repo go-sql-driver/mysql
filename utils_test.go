@@ -112,10 +112,10 @@ func TestScanNullTime(t *testing.T) {
 	for _, tst := range scanTests {
 		err = nt.Scan(tst.in)
 		if (err != nil) != tst.error {
-			t.Errorf("%v: expected error status %b, got %b", tst.in, tst.error, (err != nil))
+			t.Errorf("%v: expected error status %t, got %t", tst.in, tst.error, (err != nil))
 		}
 		if nt.Valid != tst.valid {
-			t.Errorf("%v: expected valid status %b, got %b", tst.in, tst.valid, nt.Valid)
+			t.Errorf("%v: expected valid status %t, got %t", tst.in, tst.valid, nt.Valid)
 		}
 		if nt.Time != tst.time {
 			t.Errorf("%v: expected time %v, got %v", tst.in, tst.time, nt.Time)
