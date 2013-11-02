@@ -620,7 +620,7 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-ProtocolText::ResultsetRow
-func (rows *mysqlRows) readRow(dest []driver.Value) error {
+func (rows *textRows) readRow(dest []driver.Value) error {
 	mc := rows.mc
 
 	data, err := mc.readPacket()
@@ -1002,7 +1002,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 }
 
 // http://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html
-func (rows *mysqlRows) readBinaryRow(dest []driver.Value) error {
+func (rows *binaryRows) readRow(dest []driver.Value) error {
 	data, err := rows.mc.readPacket()
 	if err != nil {
 		return err
