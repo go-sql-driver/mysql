@@ -4,7 +4,7 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
 
 ![Go-MySQL-Driver logo](https://raw.github.com/wiki/go-sql-driver/mysql/gomysql_m.png "Golang Gopher holding the MySQL Dolphin")
 
-**Current tagged Release:** May 14, 2013 (Version 1.0)
+**Current tagged Release:** Version 1.1 (November 02, 2013)
 
 [![Build Status](https://travis-ci.org/go-sql-driver/mysql.png?branch=master)](https://travis-ci.org/go-sql-driver/mysql) *(master branch)*
 
@@ -51,6 +51,8 @@ Simple install the package to your [$GOPATH](http://code.google.com/p/go-wiki/wi
 $ go get github.com/go-sql-driver/mysql
 ```
 Make sure [Git is installed](http://git-scm.com/downloads) on your machine and in your system's `PATH`.
+
+*`go get` installs the latest tagged release*
 
 ## Usage
 _Go MySQL Driver_ is an implementation of Go's `database/sql/driver` interface. You only need to import the driver and can use the full [`database/sql`](http://golang.org/pkg/database/sql) API then.
@@ -113,7 +115,7 @@ For Unix domain sockets the address is the absolute path to the MySQL-Server-soc
 
 ```
 Type:           bool
-Valid Values:   true, false 
+Valid Values:   true, false
 Default:        false
 ```
 
@@ -124,7 +126,7 @@ Default:        false
 
 ```
 Type:           bool
-Valid Values:   true, false 
+Valid Values:   true, false
 Default:        false
 ```
 `allowAllFiles=true` allows the usage of the insecure old password method. This should be avoided, but is necessary in some cases. See also [the old_passwords wiki page](https://github.com/go-sql-driver/mysql/wiki/old_passwords).
@@ -144,7 +146,7 @@ Sets the charset used for client-server interaction (`"SET NAMES <value>"`). If 
 
 ```
 Type:           bool
-Valid Values:   true, false 
+Valid Values:   true, false
 Default:        false
 ```
 
@@ -168,7 +170,7 @@ Please keep in mind, that param values must be [url.QueryEscape](http://golang.o
 
 ```
 Type:           bool
-Valid Values:   true, false 
+Valid Values:   true, false
 Default:        false
 ```
 
@@ -179,7 +181,7 @@ Default:        false
 
 ```
 Type:           bool
-Valid Values:   true, false 
+Valid Values:   true, false
 Default:        false
 ```
 
@@ -200,7 +202,7 @@ Default:        OS default
 
 ```
 Type:           bool / string
-Valid Values:   true, false, skip-verify, <name> 
+Valid Values:   true, false, skip-verify, <name>
 Default:        false
 ```
 
