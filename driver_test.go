@@ -11,6 +11,7 @@ package mysql
 import (
 	"crypto/tls"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -860,8 +861,8 @@ func TestReuseClosedConnection(t *testing.T) {
 		t.Skipf("MySQL-Server not running on %s", netAddr)
 	}
 
-	driver := &MySQLDriver{}
-	conn, err := driver.Open(dsn)
+	md := &MySQLDriver{}
+	conn, err := md.Open(dsn)
 	if err != nil {
 		t.Fatalf("Error connecting: %s", err.Error())
 	}
@@ -884,9 +885,9 @@ func TestReuseClosedConnection(t *testing.T) {
 		}
 	}()
 	_, err = stmt.Exec(nil)
-	if err != nil && err != errInvalidConn {
+	if err != nil && err != driver.ErrBadConn {
 		t.Errorf("Unexpected error '%s', expected '%s'",
-			err.Error(), errInvalidConn.Error())
+			err.Error(), driver.ErrBadConn.Error())
 	}
 }
 
