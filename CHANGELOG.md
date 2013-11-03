@@ -5,7 +5,7 @@ Changes:
   - Go-MySQL-Driver now requires Go 1.1
   - Connections now use the collation `utf8_general_ci` by default. Adding `&charset=UTF8` to the DSN should not be necessary anymore
   - Made closing rows and connections error tolerant. This allows for example deferring rows.Close() without checking for errors
-  - `byte(nil)` is now treated as a NULL value. Before, it was treated like an empty string / `[]byte("")`
+  - `[]byte(nil)` is now treated as a NULL value. Before, it was treated like an empty string / `[]byte("")`
   - DSN parameter values must now be url.QueryEscape'ed. This allows text values to contain special characters, such as '&'.
   - Use the IO buffer also for writing. This results in zero allocations (by the driver) for most queries
   - Optimized the buffer for reading
