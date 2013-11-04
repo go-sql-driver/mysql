@@ -41,46 +41,43 @@ func (rows *mysqlRows) Columns() []string {
 }
 
 func (rows *mysqlRows) Close() error {
-	mc := rows.mc
-	if mc == nil {
-		return nil
-	}
-	if mc.netConn == nil {
-		return errInvalidConn
+	if mc := rows.mc; mc == nil || mc.netConn == nil {
+		rows.mc = nil
+		return driver.ErrBadConn
 	}
 
 	// Remove unread packets from stream
-	err := mc.readUntilEOF()
+	err := rows.mc.readUntilEOF()
 	rows.mc = nil
 	return err
 }
 
 func (rows *binaryRows) Next(dest []driver.Value) error {
-	if mc := rows.mc; mc != nil {
-		if mc.netConn == nil {
-			return errInvalidConn
-		}
-
-		// Fetch next row from stream
-		if err := rows.readRow(dest); err != io.EOF {
-			return err
-		}
+	if mc := rows.mc; mc == nil || mc.netConn == nil {
+		errLog.Print(errInvalidConn)
 		rows.mc = nil
+		return driver.ErrBadConn
 	}
+
+	// Fetch next row from stream
+	if err := rows.readRow(dest); err != io.EOF {
+		return err
+	}
+	rows.mc = nil
 	return io.EOF
 }
 
 func (rows *textRows) Next(dest []driver.Value) error {
-	if mc := rows.mc; mc != nil {
-		if mc.netConn == nil {
-			return errInvalidConn
-		}
-
-		// Fetch next row from stream
-		if err := rows.readRow(dest); err != io.EOF {
-			return err
-		}
+	if mc := rows.mc; mc == nil || mc.netConn == nil {
+		errLog.Print(errInvalidConn)
 		rows.mc = nil
+		return driver.ErrBadConn
 	}
+
+	// Fetch next row from stream
+	if err := rows.readRow(dest); err != io.EOF {
+		return err
+	}
+	rows.mc = nil
 	return io.EOF
 }
