@@ -8,14 +8,19 @@
 
 package mysql
 
+import "database/sql/driver"
+
 type mysqlTx struct {
 	mc *mysqlConn
 }
 
 func (tx *mysqlTx) Commit() (err error) {
 	if tx.mc == nil || tx.mc.netConn == nil {
-		return errInvalidConn
+		errLog.Print(errInvalidConn)
+		tx.mc = nil
+		return driver.ErrBadConn
 	}
+
 	err = tx.mc.exec("COMMIT")
 	tx.mc = nil
 	return
@@ -23,8 +28,11 @@ func (tx *mysqlTx) Commit() (err error) {
 
 func (tx *mysqlTx) Rollback() (err error) {
 	if tx.mc == nil || tx.mc.netConn == nil {
-		return errInvalidConn
+		errLog.Print(errInvalidConn)
+		tx.mc = nil
+		return driver.ErrBadConn
 	}
+
 	err = tx.mc.exec("ROLLBACK")
 	tx.mc = nil
 	return
