@@ -20,7 +20,7 @@ type mysqlStmt struct {
 }
 
 func (stmt *mysqlStmt) Close() error {
-	if stmt.mc == nil || stmt.mc.netConn == nil {
+	if mc := stmt.mc; mc == nil || mc.netConn == nil {
 		stmt.mc = nil
 		return driver.ErrBadConn
 	}
@@ -35,7 +35,7 @@ func (stmt *mysqlStmt) NumInput() int {
 }
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
-	if stmt.mc == nil || stmt.mc.netConn == nil {
+	if mc := stmt.mc; mc == nil || mc.netConn == nil {
 		errLog.Print(errInvalidConn)
 		stmt.mc = nil
 		return nil, driver.ErrBadConn
@@ -77,7 +77,7 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 }
 
 func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
-	if stmt.mc == nil || stmt.mc.netConn == nil {
+	if mc := stmt.mc; mc == nil || mc.netConn == nil {
 		errLog.Print(errInvalidConn)
 		stmt.mc = nil
 		return nil, driver.ErrBadConn

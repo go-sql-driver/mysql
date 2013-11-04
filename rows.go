@@ -41,7 +41,7 @@ func (rows *mysqlRows) Columns() []string {
 }
 
 func (rows *mysqlRows) Close() error {
-	if rows.mc == nil || rows.mc.netConn == nil {
+	if mc := rows.mc; mc == nil || mc.netConn == nil {
 		rows.mc = nil
 		return driver.ErrBadConn
 	}
@@ -53,7 +53,7 @@ func (rows *mysqlRows) Close() error {
 }
 
 func (rows *binaryRows) Next(dest []driver.Value) error {
-	if rows.mc == nil || rows.mc.netConn == nil {
+	if mc := rows.mc; mc == nil || mc.netConn == nil {
 		errLog.Print(errInvalidConn)
 		rows.mc = nil
 		return driver.ErrBadConn
@@ -68,7 +68,7 @@ func (rows *binaryRows) Next(dest []driver.Value) error {
 }
 
 func (rows *textRows) Next(dest []driver.Value) error {
-	if rows.mc == nil || rows.mc.netConn == nil {
+	if mc := rows.mc; mc == nil || mc.netConn == nil {
 		errLog.Print(errInvalidConn)
 		rows.mc = nil
 		return driver.ErrBadConn
