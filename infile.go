@@ -114,10 +114,6 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 		for err == nil && ioErr == nil {
 			n, err = rdr.Read(data[4:])
 			if n > 0 {
-				data[0] = byte(n)
-				data[1] = byte(n >> 8)
-				data[2] = byte(n >> 16)
-				data[3] = mc.sequence
 				ioErr = mc.writePacket(data[:4+n])
 			}
 		}

@@ -251,12 +251,6 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	// SSL Connection Request Packet
 	// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::SSLRequest
 	if mc.cfg.tls != nil {
-		// Packet header  [24bit length + 1 byte sequence]
-		data[0] = byte((4 + 4 + 1 + 23))
-		data[1] = byte((4 + 4 + 1 + 23) >> 8)
-		data[2] = byte((4 + 4 + 1 + 23) >> 16)
-		data[3] = mc.sequence
-
 		// Send TLS / SSL request packet
 		if err := mc.writePacket(data[:(4+4+1+23)+4]); err != nil {
 			return err
@@ -270,12 +264,6 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 		mc.netConn = tlsConn
 		mc.buf.rd = tlsConn
 	}
-
-	// Add the packet header  [24bit length + 1 byte sequence]
-	data[0] = byte(pktLen)
-	data[1] = byte(pktLen >> 8)
-	data[2] = byte(pktLen >> 16)
-	data[3] = mc.sequence
 
 	// Filler [23 bytes] (all 0x00)
 	pos := 13 + 23
@@ -316,12 +304,6 @@ func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 		return driver.ErrBadConn
 	}
 
-	// Add the packet header  [24bit length + 1 byte sequence]
-	data[0] = byte(pktLen)
-	data[1] = byte(pktLen >> 8)
-	data[2] = byte(pktLen >> 16)
-	data[3] = mc.sequence
-
 	// Add the scrambled password [null terminated string]
 	copy(data[4:], scrambleBuff)
 
@@ -343,12 +325,6 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 		return driver.ErrBadConn
 	}
 
-	// Add the packet header [24bit length + 1 byte sequence]
-	data[0] = 0x01 // 1 byte long
-	data[1] = 0x00
-	data[2] = 0x00
-	data[3] = 0x00 // new command, sequence id is always 0
-
 	// Add command byte
 	data[4] = command
 
@@ -367,12 +343,6 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 		errLog.Print("Busy buffer")
 		return driver.ErrBadConn
 	}
-
-	// Add the packet header [24bit length + 1 byte sequence]
-	data[0] = byte(pktLen)
-	data[1] = byte(pktLen >> 8)
-	data[2] = byte(pktLen >> 16)
-	data[3] = 0x00 // new command, sequence id is always 0
 
 	// Add command byte
 	data[4] = command
@@ -394,12 +364,6 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 		errLog.Print("Busy buffer")
 		return driver.ErrBadConn
 	}
-
-	// Add the packet header [24bit length + 1 byte sequence]
-	data[0] = 0x05 // 5 bytes long
-	data[1] = 0x00
-	data[2] = 0x00
-	data[3] = 0x00 // new command, sequence id is always 0
 
 	// Add command byte
 	data[4] = command
@@ -735,12 +699,6 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 		}
 
 		stmt.mc.sequence = 0
-		// Add the packet header [24bit length + 1 byte sequence]
-		data[0] = byte(pktLen)
-		data[1] = byte(pktLen >> 8)
-		data[2] = byte(pktLen >> 16)
-		data[3] = 0x00 // mc.sequence
-
 		// Add command byte [1 byte]
 		data[4] = comStmtSendLongData
 
@@ -970,14 +928,6 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 		pos += len(paramValues)
 		data = data[:pos]
-
-		pktLen := pos - 4
-
-		// packet header [4 bytes]
-		data[0] = byte(pktLen)
-		data[1] = byte(pktLen >> 8)
-		data[2] = byte(pktLen >> 16)
-		data[3] = mc.sequence
 
 		// Convert nullMask to bytes
 		for i, max := 0, (stmt.paramCount+7)>>3; i < max; i++ {
