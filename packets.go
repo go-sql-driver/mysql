@@ -748,26 +748,13 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	if len(args) == 0 {
 		const pktLen = 1 + 4 + 1 + 4
 		data = mc.buf.takeBuffer(4 + pktLen)
-		if data == nil {
-			// can not take the buffer. Something must be wrong with the connection
-			errLog.Print("Busy buffer")
-			return driver.ErrBadConn
-		}
-
-		// packet header [4 bytes]
-		data[0] = byte(pktLen)
-		data[1] = byte(pktLen >> 8)
-		data[2] = byte(pktLen >> 16)
-		data[3] = 0x00 // new command, sequence id is always 0
 	} else {
 		data = mc.buf.takeCompleteBuffer()
-		if data == nil {
-			// can not take the buffer. Something must be wrong with the connection
-			errLog.Print("Busy buffer")
-			return driver.ErrBadConn
-		}
-
-		// header (bytes 0-3) is added after we know the packet size
+	}
+	if data == nil {
+		// can not take the buffer. Something must be wrong with the connection
+		errLog.Print("Busy buffer")
+		return driver.ErrBadConn
 	}
 
 	// command [1 byte]
