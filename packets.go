@@ -75,7 +75,6 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 }
 
 // Write packet buffer 'data'
-// The packet header must be already included
 func (mc *mysqlConn) writePacket(data []byte) error {
 	pktLen := len(data) - 4
 
