@@ -743,8 +743,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	var data []byte
 
 	if len(args) == 0 {
-		const pktLen = 1 + 4 + 1 + 4
-		data = mc.buf.takeBuffer(4 + pktLen)
+		data = mc.buf.takeBuffer(4 + 1 + 4 + 1 + 4)
 	} else {
 		data = mc.buf.takeCompleteBuffer()
 	}
