@@ -102,7 +102,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		if err == nil && n == 4+size {
 			mc.sequence++
 			if size != maxPacketSize {
-				break
+				return nil
 			}
 			pktLen -= size
 			data = data[size:]
@@ -117,8 +117,6 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		}
 		return driver.ErrBadConn
 	}
-
-	return nil
 }
 
 /******************************************************************************
