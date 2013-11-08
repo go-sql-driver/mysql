@@ -502,34 +502,34 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 		}
 
 		// Catalog
-		pos, err := skipLengthEnodedString(data)
+		pos, err := skipLengthEncodedString(data)
 		if err != nil {
 			return nil, err
 		}
 
 		// Database [len coded string]
-		n, err := skipLengthEnodedString(data[pos:])
+		n, err := skipLengthEncodedString(data[pos:])
 		if err != nil {
 			return nil, err
 		}
 		pos += n
 
 		// Table [len coded string]
-		n, err = skipLengthEnodedString(data[pos:])
+		n, err = skipLengthEncodedString(data[pos:])
 		if err != nil {
 			return nil, err
 		}
 		pos += n
 
 		// Original table [len coded string]
-		n, err = skipLengthEnodedString(data[pos:])
+		n, err = skipLengthEncodedString(data[pos:])
 		if err != nil {
 			return nil, err
 		}
 		pos += n
 
 		// Name [len coded string]
-		name, _, n, err := readLengthEnodedString(data[pos:])
+		name, _, n, err := readLengthEncodedString(data[pos:])
 		if err != nil {
 			return nil, err
 		}
@@ -537,7 +537,7 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 		pos += n
 
 		// Original name [len coded string]
-		n, err = skipLengthEnodedString(data[pos:])
+		n, err = skipLengthEncodedString(data[pos:])
 		if err != nil {
 			return nil, err
 		}
@@ -587,7 +587,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 
 	for i := range dest {
 		// Read bytes and convert to string
-		dest[i], isNull, n, err = readLengthEnodedString(data[pos:])
+		dest[i], isNull, n, err = readLengthEncodedString(data[pos:])
 		pos += n
 		if err == nil {
 			if !isNull {
@@ -1016,7 +1016,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 			fieldTypeVarString, fieldTypeString, fieldTypeGeometry:
 			var isNull bool
 			var n int
-			dest[i], isNull, n, err = readLengthEnodedString(data[pos:])
+			dest[i], isNull, n, err = readLengthEncodedString(data[pos:])
 			pos += n
 			if err == nil {
 				if !isNull {
