@@ -657,7 +657,7 @@ func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
 	case 0xfe:
 		return uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16 |
 				uint64(b[4])<<24 | uint64(b[5])<<32 | uint64(b[6])<<40 |
-				uint64(b[7])<<48 | uint64(b[8])<<54,
+				uint64(b[7])<<48 | uint64(b[8])<<56,
 			false, 9
 	}
 
