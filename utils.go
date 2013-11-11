@@ -657,7 +657,7 @@ func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
 	case 0xfe:
 		return uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16 |
 				uint64(b[4])<<24 | uint64(b[5])<<32 | uint64(b[6])<<40 |
-				uint64(b[7])<<48 | uint64(b[8])<<54,
+				uint64(b[7])<<48 | uint64(b[8])<<56,
 			false, 9
 	}
 
@@ -677,5 +677,6 @@ func appendLengthEncodedInteger(b []byte, n uint64) []byte {
 	case n <= 0xffffff:
 		return append(b, 0xfd, byte(n), byte(n>>8), byte(n>>16))
 	}
-	return b
+	return append(b, 0xfe, byte(n), byte(n>>8), byte(n>>16), byte(n>>24),
+			byte(n>>32), byte(n>>40), byte(n>>48), byte(n>>56))
 }

@@ -11,6 +11,7 @@ package mysql
 import (
 	"fmt"
 	"testing"
+	"bytes"
 	"time"
 )
 
@@ -121,4 +122,43 @@ func TestScanNullTime(t *testing.T) {
 			t.Errorf("%v: expected time %v, got %v", tst.in, tst.time, nt.Time)
 		}
 	}
+}
+
+func TestLengthEncodedInteger(t *testing.T) {
+	var integerTests = []struct {
+	        num     uint64
+	        encoded []byte
+	}{
+		{0x0000000000000000, []byte{0x00}},
+		{0x0000000000000012, []byte{0x12}},
+		{0x00000000000000fa, []byte{0xfa}},
+		{0x0000000000000100, []byte{0xfc, 0x00, 0x01}},
+		{0x0000000000001234, []byte{0xfc, 0x34, 0x12}},
+		{0x000000000000ffff, []byte{0xfc, 0xff, 0xff}},
+		{0x0000000000010000, []byte{0xfd, 0x00, 0x00, 0x01}},
+		{0x0000000000123456, []byte{0xfd, 0x56, 0x34, 0x12}},
+		{0x0000000000ffffff, []byte{0xfd, 0xff, 0xff, 0xff}},
+		{0x0000000001000000, []byte{0xfe, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00}},
+		{0x123456789abcdef0, []byte{0xfe, 0xf0, 0xde, 0xbc, 0x9a, 0x78, 0x56, 0x34, 0x12}},
+		{0xffffffffffffffff, []byte{0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}},
+	}
+
+	for _, tst := range integerTests {
+		num, isNull, numLen := readLengthEncodedInteger(tst.encoded)
+		if isNull {
+			t.Errorf("%x: expected %d, got NULL", tst.encoded, tst.num)
+		}
+		if num != tst.num {
+			t.Errorf("%x: expected %d, got %d", tst.encoded, tst.num, num)
+		}
+		if numLen != len(tst.encoded) {
+			t.Errorf("%x: expected size %d, got %d", tst.encoded, len(tst.encoded), numLen)
+		}
+		encoded := appendLengthEncodedInteger(nil, num)
+		if (!bytes.Equal(encoded, tst.encoded)) {
+			t.Errorf("%v: expected %x, got %x", num, tst.encoded, encoded)
+		}
+	}
+
+
 }
