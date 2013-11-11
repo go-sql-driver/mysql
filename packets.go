@@ -61,11 +61,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 			return nil, driver.ErrBadConn
 		}
 
-		// Make a copy since data becomes invalid with the next read
-		buf := make([]byte, len(data))
-		copy(buf, data)
-
-		payload = append(payload, buf...)
+		payload = append(payload, data...)
 
 		if pktLen < maxPacketSize {
 			return payload, nil
