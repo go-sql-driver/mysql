@@ -61,9 +61,16 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 			return nil, driver.ErrBadConn
 		}
 
+		isLastPacket := (pktLen < maxPacketSize)
+
+		// Zero allocations for non-splitting packets
+		if isLastPacket && payload == nil {
+			return data, nil
+		}
+
 		payload = append(payload, data...)
 
-		if pktLen < maxPacketSize {
+		if isLastPacket {
 			return payload, nil
 		}
 	}
