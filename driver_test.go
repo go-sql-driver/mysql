@@ -1223,20 +1223,7 @@ func TestConcurrent(t *testing.T) {
 		}
 		dbt.Logf("Testing up to %d concurrent connections \r\n", max)
 
-		canStopVal := false
-		var canStopM sync.Mutex
-		canStop := func() bool {
-			canStopM.Lock()
-			defer canStopM.Unlock()
-			return canStopVal
-		}
-		setCanStop := func() {
-			canStopM.Lock()
-			defer canStopM.Unlock()
-			canStopVal = true
-		}
-
-		var succeeded int32
+		var remaining, succeeded int32 = int32(max), 0
 
 		var wg sync.WaitGroup
 		wg.Add(max)
@@ -1254,41 +1241,40 @@ func TestConcurrent(t *testing.T) {
 				defer wg.Done()
 
 				tx, err := dbt.db.Begin()
+				atomic.AddInt32(&remaining, -1)
+
 				if err != nil {
-					setCanStop()
-					if err.Error() == "Error 1040: Too many connections" {
+					if err.Error() != "Error 1040: Too many connections" {
+						fatal("Error on Conn %d: %s", id, err.Error())
+					}
+					return
+				}
+
+				// keep the connection busy until all connections are open
+				for remaining > 0 {
+					if _, err = tx.Exec("DO 1"); err != nil {
+						fatal("Error on Conn %d: %s", id, err.Error())
 						return
-					} else {
-						fatal("Error on Con %d: %s", id, err.Error())
 					}
 				}
 
+				if err = tx.Commit(); err != nil {
+					fatal("Error on Conn %d: %s", id, err.Error())
+					return
+				}
+
+				// everything went fine with this connection
 				atomic.AddInt32(&succeeded, 1)
-
-				var hasSelected bool
-				for !canStop() || !hasSelected {
-					_, err = tx.Exec("SELECT 1")
-					if err != nil {
-						setCanStop()
-						fatal("Error on Con %d: %s", id, err.Error())
-					}
-					hasSelected = true
-				}
-				err = tx.Commit()
-				if err != nil {
-					fatal("Error on Con %d: %s", id, err.Error())
-				}
 			}(i)
 		}
 
-		setCanStop()
-
+		// wait until all conections are open
 		wg.Wait()
 
 		if fatalError != "" {
 			dbt.Fatal(fatalError)
 		}
 
-		dbt.Logf("Reached %d concurrent connections \r\n", succeeded)
+		dbt.Logf("Reached %d concurrent connections\r\n", succeeded)
 	})
 }
