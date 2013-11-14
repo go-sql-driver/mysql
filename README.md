@@ -242,6 +242,11 @@ TCP on a remote host, e.g. Amazon RDS:
 id:password@tcp(your-amazonaws-uri.com:3306)/dbname
 ```
 
+Google Cloud SQL on App Engine:
+```
+user@cloudsql(project-id:instance-name)/dbname
+```
+
 TCP using default port (3306) on localhost:
 ```
 user:password@tcp/dbname&charset=utf8mb4,utf8&sys_var=esc%40ped

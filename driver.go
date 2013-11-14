@@ -26,6 +26,10 @@ import (
 // In general the driver is used via the database/sql package.
 type MySQLDriver struct{}
 
+type dialFunc func(*config) (net.Conn, error)
+
+var dials map[string]dialFunc
+
 // Open new Connection.
 // See https://github.com/go-sql-driver/mysql#dsn-data-source-name for how
 // the DSN string is formated
@@ -43,8 +47,12 @@ func (d *MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	}
 
 	// Connect to Server
-	nd := net.Dialer{Timeout: mc.cfg.timeout}
-	mc.netConn, err = nd.Dial(mc.cfg.net, mc.cfg.addr)
+	if dial, ok := dials[mc.cfg.net]; ok {
+		mc.netConn, err = dial(mc.cfg)
+	} else {
+		nd := net.Dialer{Timeout: mc.cfg.timeout}
+		mc.netConn, err = nd.Dial(mc.cfg.net, mc.cfg.addr)
+	}
 	if err != nil {
 		return nil, err
 	}
