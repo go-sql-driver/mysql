@@ -78,25 +78,38 @@ func DeregisterReaderHandler(name string) {
 
 func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 	var rdr io.Reader
-	data := make([]byte, 4+mc.maxWriteSize)
+	var data []byte
 
 	if strings.HasPrefix(name, "Reader::") { // io.Reader
 		name = name[8:]
-		handler, inMap := readerRegister[name]
-		if handler != nil {
+		if handler, inMap := readerRegister[name]; inMap {
 			rdr = handler()
-		}
-		if rdr == nil {
-			if !inMap {
-				err = fmt.Errorf("Reader '%s' is not registered", name)
+			if rdr != nil {
+				data = make([]byte, 4+mc.maxWriteSize)
 			} else {
 				err = fmt.Errorf("Reader '%s' is <nil>", name)
 			}
+		} else {
+			err = fmt.Errorf("Reader '%s' is not registered", name)
 		}
 	} else { // File
 		name = strings.Trim(name, `"`)
 		if mc.cfg.allowAllFiles || fileRegister[name] {
-			rdr, err = os.Open(name)
+			var file *os.File
+			var fi os.FileInfo
+
+			if file, err = os.Open(name); err == nil {
+				if fi, err = file.Stat(); err == nil {
+					rdr = file
+					if fileSize := int(fi.Size()); fileSize <= mc.maxWriteSize {
+						data = make([]byte, 4+fileSize)
+					} else if fileSize <= mc.maxPacketAllowed {
+						data = make([]byte, 4+mc.maxWriteSize)
+					} else {
+						err = fmt.Errorf("Local File '%s' too large: Size: %d, Max: %d", name, fileSize, mc.maxPacketAllowed)
+					}
+				}
+			}
 		} else {
 			err = fmt.Errorf("Local File '%s' is not registered. Use the DSN parameter 'allowAllFiles=true' to allow all files", name)
 		}
