@@ -21,11 +21,6 @@ var (
 	readerRegister map[string]func() io.Reader
 )
 
-func init() {
-	fileRegister = make(map[string]bool)
-	readerRegister = make(map[string]func() io.Reader)
-}
-
 // RegisterLocalFile adds the given file to the file whitelist,
 // so that it can be used by "LOAD DATA LOCAL INFILE <filepath>".
 // Alternatively you can allow the use of all local files with
@@ -38,6 +33,11 @@ func init() {
 //  ...
 //
 func RegisterLocalFile(filePath string) {
+	// lazy map init
+	if fileRegister == nil {
+		fileRegister = make(map[string]bool)
+	}
+
 	fileRegister[strings.Trim(filePath, `"`)] = true
 }
 
@@ -62,6 +62,11 @@ func DeregisterLocalFile(filePath string) {
 //  ...
 //
 func RegisterReaderHandler(name string, handler func() io.Reader) {
+	// lazy map init
+	if readerRegister == nil {
+		readerRegister = make(map[string]func() io.Reader)
+	}
+
 	readerRegister[name] = handler
 }
 
