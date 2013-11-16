@@ -75,6 +75,13 @@ func DeregisterReaderHandler(name string) {
 	delete(readerRegister, name)
 }
 
+func deferredClose(err *error, closer io.Closer) {
+	closeErr := closer.Close()
+	if *err == nil {
+		*err = closeErr
+	}
+}
+
 func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 	var rdr io.Reader
 	var data []byte
@@ -86,14 +93,8 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 			if rdr != nil {
 				data = make([]byte, 4+mc.maxWriteSize)
 
-				if rdc, ok := rdr.(io.ReadCloser); ok {
-					defer func() {
-						if err == nil {
-							err = rdc.Close()
-						} else {
-							rdc.Close()
-						}
-					}()
+				if cl, ok := rdr.(io.Closer); ok {
+					defer deferredClose(&err, cl)
 				}
 			} else {
 				err = fmt.Errorf("Reader '%s' is <nil>", name)
@@ -108,13 +109,7 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 			var fi os.FileInfo
 
 			if file, err = os.Open(name); err == nil {
-				defer func() {
-					if err == nil {
-						err = file.Close()
-					} else {
-						file.Close()
-					}
-				}()
+				defer deferredClose(&err, file)
 
 				// get file size
 				if fi, err = file.Stat(); err == nil {
