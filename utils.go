@@ -109,7 +109,7 @@ func parseDSN(dsn string) (cfg *config, err error) {
 				// Find the first '(' in dsn[j+1:i]
 				for k = j + 1; k < i; k++ {
 					if dsn[k] == '(' {
-						// dsn[i-1] must be == ')' if an adress is specified
+						// dsn[i-1] must be == ')' if an address is specified
 						if dsn[i-1] != ')' {
 							if strings.ContainsRune(dsn[k+1:i], ')') {
 								return nil, errInvalidDSNUnescaped
@@ -144,7 +144,7 @@ func parseDSN(dsn string) (cfg *config, err error) {
 		cfg.net = "tcp"
 	}
 
-	// Set default adress if empty
+	// Set default address if empty
 	if cfg.addr == "" {
 		switch cfg.net {
 		case "tcp":
