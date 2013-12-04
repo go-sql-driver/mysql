@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
+	"os"
 )
 
 var (
@@ -24,7 +26,25 @@ var (
 	errPktSync     = errors.New("Commands out of sync. You can't run this command now")
 	errPktSyncMul  = errors.New("Commands out of sync. Did you run multiple statements at once?")
 	errPktTooLarge = errors.New("Packet for query is too large. You can change this value on the server by adjusting the 'max_allowed_packet' variable.")
+	errBusyBuffer  = errors.New("Busy buffer")
+
+	errLog Logger = log.New(os.Stderr, "[MySQL] ", log.Ldate|log.Ltime|log.Lshortfile)
 )
+
+// Logger is used to log critical error messages.
+type Logger interface {
+	Print(v ...interface{})
+}
+
+// SetLogger is used to set the logger for critical errors.
+// The initial logger is stderr.
+func SetLogger(logger Logger) error {
+	if logger == nil {
+		return errors.New("logger is nil")
+	}
+	errLog = logger
+	return nil
+}
 
 // MySQLError is an error type which represents a single MySQL error
 type MySQLError struct {

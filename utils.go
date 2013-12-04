@@ -16,15 +16,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 )
 
 var (
-	errLog            *log.Logger            // Error Logger
 	tlsConfigRegister map[string]*tls.Config // Register for custom tls.Configs
 
 	errInvalidDSNUnescaped = errors.New("Invalid DSN: Did you forget to escape a param value?")
@@ -32,7 +29,6 @@ var (
 )
 
 func init() {
-	errLog = log.New(os.Stderr, "[MySQL] ", log.Ldate|log.Ltime|log.Lshortfile)
 	tlsConfigRegister = make(map[string]*tls.Config)
 }
 
@@ -678,5 +674,5 @@ func appendLengthEncodedInteger(b []byte, n uint64) []byte {
 		return append(b, 0xfd, byte(n), byte(n>>8), byte(n>>16))
 	}
 	return append(b, 0xfe, byte(n), byte(n>>8), byte(n>>16), byte(n>>24),
-			byte(n>>32), byte(n>>40), byte(n>>48), byte(n>>56))
+		byte(n>>32), byte(n>>40), byte(n>>48), byte(n>>56))
 }
