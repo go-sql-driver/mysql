@@ -29,7 +29,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		// Read packet header
 		data, err := mc.buf.readNext(4)
 		if err != nil {
-			errLog.Print(err.Error())
+			errLog.Print(err)
 			mc.Close()
 			return nil, driver.ErrBadConn
 		}
@@ -38,7 +38,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		pktLen := int(uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16)
 
 		if pktLen < 1 {
-			errLog.Print(errMalformPkt.Error())
+			errLog.Print(errMalformPkt)
 			mc.Close()
 			return nil, driver.ErrBadConn
 		}
@@ -56,7 +56,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		// Read packet body [pktLen bytes]
 		data, err = mc.buf.readNext(pktLen)
 		if err != nil {
-			errLog.Print(err.Error())
+			errLog.Print(err)
 			mc.Close()
 			return nil, driver.ErrBadConn
 		}
@@ -113,9 +113,9 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 
 		// Handle error
 		if err == nil { // n != len(data)
-			errLog.Print(errMalformPkt.Error())
+			errLog.Print(errMalformPkt)
 		} else {
-			errLog.Print(err.Error())
+			errLog.Print(err)
 		}
 		return driver.ErrBadConn
 	}
@@ -228,7 +228,7 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	data := mc.buf.takeSmallBuffer(pktLen + 4)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(errBusyBuffer.Error())
+		errLog.Print(errBusyBuffer)
 		return driver.ErrBadConn
 	}
 
@@ -299,7 +299,7 @@ func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 	data := mc.buf.takeSmallBuffer(pktLen + 4)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(errBusyBuffer.Error())
+		errLog.Print(errBusyBuffer)
 		return driver.ErrBadConn
 	}
 
@@ -320,7 +320,7 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	data := mc.buf.takeSmallBuffer(4 + 1)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(errBusyBuffer.Error())
+		errLog.Print(errBusyBuffer)
 		return driver.ErrBadConn
 	}
 
@@ -339,7 +339,7 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	data := mc.buf.takeBuffer(pktLen + 4)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(errBusyBuffer.Error())
+		errLog.Print(errBusyBuffer)
 		return driver.ErrBadConn
 	}
 
@@ -360,7 +360,7 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	data := mc.buf.takeSmallBuffer(4 + 1 + 4)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(errBusyBuffer.Error())
+		errLog.Print(errBusyBuffer)
 		return driver.ErrBadConn
 	}
 
@@ -751,7 +751,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	}
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(errBusyBuffer.Error())
+		errLog.Print(errBusyBuffer)
 		return driver.ErrBadConn
 	}
 

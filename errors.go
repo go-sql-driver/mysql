@@ -15,7 +15,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"sync"
 )
 
 var (
@@ -28,10 +27,8 @@ var (
 	errPktSyncMul  = errors.New("Commands out of sync. Did you run multiple statements at once?")
 	errPktTooLarge = errors.New("Packet for query is too large. You can change this value on the server by adjusting the 'max_allowed_packet' variable.")
 	errBusyBuffer  = errors.New("Busy buffer")
-	errNoLogger    = errors.New("logger is nil")
 
-	errLog     Logger = log.New(os.Stderr, "[MySQL] ", log.Ldate|log.Ltime|log.Lshortfile)
-	errLogLock        = &sync.Mutex{}
+	errLog Logger = log.New(os.Stderr, "[MySQL] ", log.Ldate|log.Ltime|log.Lshortfile)
 )
 
 // Logger is used to log critical error messages.
@@ -43,11 +40,9 @@ type Logger interface {
 // The initial logger is stderr.
 func SetLogger(logger Logger) error {
 	if logger == nil {
-		return errNoLogger
+		return errors.New("logger is nil")
 	}
-	errLogLock.Lock()
 	errLog = logger
-	errLogLock.Unlock()
 	return nil
 }
 
