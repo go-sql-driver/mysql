@@ -1,3 +1,9 @@
+## Version 1.2 (pending)
+
+New Features:
+
+ - Logging of critical errors is configurable with `SetLogger`
+
 ## Version 1.1 (2013-11-02)
 
 Changes:
