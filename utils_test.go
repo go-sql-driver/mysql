@@ -9,9 +9,9 @@
 package mysql
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
-	"bytes"
 	"time"
 )
 
@@ -57,11 +57,12 @@ func TestDSNParser(t *testing.T) {
 
 func TestDSNParserInvalid(t *testing.T) {
 	var invalidDSNs = []string{
-		"@net(addr/",  // no closing brace
-		"@tcp(/",      // no closing brace
-		"tcp(/",       // no closing brace
-		"(/",          // no closing brace
-		"net(addr)//", // unescaped
+		"@net(addr/",                  // no closing brace
+		"@tcp(/",                      // no closing brace
+		"tcp(/",                       // no closing brace
+		"(/",                          // no closing brace
+		"net(addr)//",                 // unescaped
+		"user:pass@tcp(1.2.3.4:3306)", // no trailing slash
 		//"/dbname?arg=/some/unescaped/path",
 	}
 
@@ -126,8 +127,8 @@ func TestScanNullTime(t *testing.T) {
 
 func TestLengthEncodedInteger(t *testing.T) {
 	var integerTests = []struct {
-	        num     uint64
-	        encoded []byte
+		num     uint64
+		encoded []byte
 	}{
 		{0x0000000000000000, []byte{0x00}},
 		{0x0000000000000012, []byte{0x12}},
@@ -155,7 +156,7 @@ func TestLengthEncodedInteger(t *testing.T) {
 			t.Errorf("%x: expected size %d, got %d", tst.encoded, len(tst.encoded), numLen)
 		}
 		encoded := appendLengthEncodedInteger(nil, num)
-		if (!bytes.Equal(encoded, tst.encoded)) {
+		if !bytes.Equal(encoded, tst.encoded) {
 			t.Errorf("%v: expected %x, got %x", num, tst.encoded, encoded)
 		}
 	}

@@ -26,6 +26,7 @@ var (
 
 	errInvalidDSNUnescaped = errors.New("Invalid DSN: Did you forget to escape a param value?")
 	errInvalidDSNAddr      = errors.New("Invalid DSN: Network Address not terminated (missing closing brace)")
+	errInvalidDSNNoSlash   = errors.New("Invalid DSN: Missing the slash separating the database name")
 )
 
 func init() {
@@ -77,8 +78,10 @@ func parseDSN(dsn string) (cfg *config, err error) {
 
 	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
 	// Find the last '/' (since the password or the net addr might contain a '/')
+	foundSlash := false
 	for i := len(dsn) - 1; i >= 0; i-- {
 		if dsn[i] == '/' {
+			foundSlash = true
 			var j, k int
 
 			// left part is empty if i <= 0
@@ -133,6 +136,10 @@ func parseDSN(dsn string) (cfg *config, err error) {
 
 			break
 		}
+	}
+
+	if !foundSlash && len(dsn) > 0 {
+		return nil, errInvalidDSNNoSlash
 	}
 
 	// Set default network if empty
