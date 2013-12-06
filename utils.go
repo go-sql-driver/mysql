@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/url"
 	"strings"
 	"time"
@@ -330,16 +329,15 @@ func scrambleOldPassword(scramble, password []byte) []byte {
 	for i := 0; i <= len(out); i++ {
 		s1 = (s1*3 + s2) & myRndMaxVal
 		s2 = (s1 + s2 + 33) & myRndMaxVal
-		f64 := math.Floor(31 * (float64(s1) / myRndMaxVal))
+		b := byte(uint64(s1) * 31 / myRndMaxVal)
 		if i < len(out) {
-			// calculate byte in output array
-			out[i] = byte(f64 + 64)
+			// b is byte in output array
+			out[i] = b + 64
 		} else {
-			// calculate an additional byte that all output
+			// b is an additional byte that all output
 			// bytes are xored with
-			xor := byte(f64)
 			for i := range out {
-				out[i] ^= xor
+				out[i] ^= b
 			}
 		}
 	}
