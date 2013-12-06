@@ -296,7 +296,7 @@ func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 
 	// Calculate the packet lenght and add a tailing 0
 	pktLen := len(scrambleBuff) + 1
-	data := mc.buf.takeSmallBuffer(pktLen + 4)
+	data := mc.buf.takeSmallBuffer(4 + pktLen)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print(errBusyBuffer)
@@ -305,6 +305,7 @@ func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 
 	// Add the scrambled password [null terminated string]
 	copy(data[4:], scrambleBuff)
+	data[4+pktLen-1] = 0x00
 
 	return mc.writePacket(data)
 }
