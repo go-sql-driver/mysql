@@ -188,9 +188,13 @@ func (mc *mysqlConn) readInitPacket() ([]byte, error) {
 		//	return
 		//}
 		//return errMalformPkt
+		return cipher, nil
 	}
 
-	return cipher, nil
+	// make a memory safe copy of the cipher slice
+	var b [8]byte
+	copy(b[:], cipher)
+	return b[:], nil
 }
 
 // Client Authentication Packet
