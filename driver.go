@@ -56,6 +56,22 @@ func (d *MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Enable TCP Keepalives on TCP connections
+	if tc, ok := mc.netConn.(*net.TCPConn); ok {
+		if err := tc.SetKeepAlive(true); err != nil {
+			mc.Close()
+			return nil, err
+		}
+		if mc.cfg.keepalivePeriod > 0 {
+			err := tc.SetKeepAlivePeriod(mc.cfg.keepalivePeriod)
+			if err != nil {
+				mc.Close()
+				return nil, err
+			}
+		}
+	}
+
 	mc.buf = newBuffer(mc.netConn)
 
 	// Reading Handshake Initialization Packet

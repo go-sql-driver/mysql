@@ -204,6 +204,13 @@ func parseDSNParams(cfg *config, params string) (err error) {
 				return fmt.Errorf("Invalid Bool value: %s", value)
 			}
 
+		// TCP Keepalive Period
+		case "keepalivePeriod":
+			cfg.keepalivePeriod, err = time.ParseDuration(value)
+			if err != nil {
+				return
+			}
+
 		// Time Location
 		case "loc":
 			if value, err = url.QueryUnescape(value); err != nil {
