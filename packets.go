@@ -1048,7 +1048,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 			if rows.mc.parseTime {
 				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.loc)
 			} else {
-				dest[i], err = formatBinaryDate(num, data[pos:])
+				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], false)
 			}
 
 			if err == nil {
@@ -1116,7 +1116,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 			if rows.mc.parseTime {
 				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.loc)
 			} else {
-				dest[i], err = formatBinaryDateTime(num, data[pos:])
+				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], true)
 			}
 
 			if err == nil {
