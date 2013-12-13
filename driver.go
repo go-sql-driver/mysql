@@ -63,13 +63,6 @@ func (d *MySQLDriver) Open(dsn string) (driver.Conn, error) {
 			mc.Close()
 			return nil, err
 		}
-		if mc.cfg.keepalivePeriod > 0 {
-			err := tc.SetKeepAlivePeriod(mc.cfg.keepalivePeriod)
-			if err != nil {
-				mc.Close()
-				return nil, err
-			}
-		}
 	}
 
 	mc.buf = newBuffer(mc.netConn)

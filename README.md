@@ -198,16 +198,6 @@ Default:        OS default
 *Driver* side connection timeout. The value must be a string of decimal numbers, each with optional fraction and a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*. To set a server side timeout, use the parameter [`wait_timeout`](http://dev.mysql.com/doc/refman/5.6/en/server-system-variables.html#sysvar_wait_timeout).
 
 
-##### `keepalivePeriod`
-
-```
-Type:           decimal number
-Default:        OS default
-```
-
-*Driver* side TCP keepalive period; how often to send a TCP packet to verify that the connection to the server is still open. The value must be a string of decimal numbers, each with optional fraction and a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*.
-
-
 ##### `tls`
 
 ```

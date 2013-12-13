@@ -40,7 +40,6 @@ type config struct {
 	params            map[string]string
 	loc               *time.Location
 	timeout           time.Duration
-	keepalivePeriod   time.Duration
 	tls               *tls.Config
 	allowAllFiles     bool
 	allowOldPasswords bool
