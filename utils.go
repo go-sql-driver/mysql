@@ -505,10 +505,9 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 
 func formatBinaryDateTime(src []byte, withTime bool) (driver.Value, error) {
 	const zeroDateTimeMicros = "0000-00-00 00:00:00.000000"
-	srclen := len(src)
 	var dst []byte
 	if withTime {
-		if srclen == 11 {
+		if len(src) == 11 {
 			dst = []byte(zeroDateTimeMicros)
 		} else {
 			dst = []byte(zeroDateTimeMicros[:19])
@@ -516,7 +515,7 @@ func formatBinaryDateTime(src []byte, withTime bool) (driver.Value, error) {
 	} else {
 		dst = []byte(zeroDateTimeMicros[:10])
 	}
-	switch srclen {
+	switch len(src) {
 	case 11:
 		microsecs := binary.LittleEndian.Uint32(src[7:11])
 		dst[20] += byte((microsecs / 100000) % 10)
@@ -559,7 +558,7 @@ func formatBinaryDateTime(src []byte, withTime bool) (driver.Value, error) {
 	} else {
 		mode = "DATE"
 	}
-	return nil, fmt.Errorf("invalid %s-packet length %d", mode, srclen)
+	return nil, fmt.Errorf("invalid %s-packet length %d", mode, len(src))
 }
 
 /******************************************************************************
