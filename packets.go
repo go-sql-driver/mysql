@@ -203,7 +203,6 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	// Adjust client flags based on server support
 	clientFlags := clientProtocol41 |
 		clientSecureConn |
-		clientLongPassword |
 		clientTransactions |
 		clientLocalFiles |
 		mc.flags&clientLongFlag
