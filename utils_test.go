@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"testing"
 	"time"
@@ -179,4 +180,33 @@ func TestOldPass(t *testing.T) {
 			t.Errorf("Failed old password %q", tuple.pass)
 		}
 	}
+}
+
+func TestFormatBinaryDateTime(t *testing.T) {
+	rawDate := [11]byte{}
+	binary.LittleEndian.PutUint16(rawDate[:2], 1978)   // years
+	rawDate[2] = 12                                    // months
+	rawDate[3] = 30                                    // days
+	rawDate[4] = 15                                    // hours
+	rawDate[5] = 46                                    // minutes
+	rawDate[6] = 23                                    // seconds
+	binary.LittleEndian.PutUint32(rawDate[7:], 987654) // microseconds
+	expect := func(expected string, length int, withTime bool) {
+		actual, _ := formatBinaryDateTime(rawDate[:length], withTime)
+		bytes, ok := actual.([]byte)
+		if !ok {
+			t.Errorf("formatBinaryDateTime must return []byte, was %T", actual)
+		}
+		if string(bytes) != expected {
+			t.Errorf(
+				"expected %q, got %q for length %d, withTime %v",
+				bytes, actual, length, withTime,
+			)
+		}
+	}
+	expect("0000-00-00", 0, false)
+	expect("0000-00-00 00:00:00", 0, true)
+	expect("1978-12-30", 4, false)
+	expect("1978-12-30 15:46:23", 7, true)
+	expect("1978-12-30 15:46:23.987654", 11, true)
 }
