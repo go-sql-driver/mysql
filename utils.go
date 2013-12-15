@@ -503,62 +503,84 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 	return nil, fmt.Errorf("Invalid DATETIME-packet length %d", num)
 }
 
+// zeroDateTime is used in formatBinaryDateTime to avoid an allocation
+// if the DATE or DATETIME has the zero value.
+// It must never be changed.
+// The current behavior depends on database/sql copying the result.
+var zeroDateTime = []byte("0000-00-00 00:00:00")
+
 func formatBinaryDateTime(src []byte, withTime bool) (driver.Value, error) {
-	const zeroDateTimeMicros = "0000-00-00 00:00:00.000000"
+	if len(src) == 0 {
+		if withTime {
+			return zeroDateTime, nil
+		}
+		return zeroDateTime[:10], nil
+	}
 	var dst []byte
 	if withTime {
 		if len(src) == 11 {
-			dst = []byte(zeroDateTimeMicros)
+			dst = []byte("0000-00-00 00:00:00.000000")
 		} else {
-			dst = []byte(zeroDateTimeMicros[:19])
+			dst = []byte("0000-00-00 00:00:00")
 		}
 	} else {
-		dst = []byte(zeroDateTimeMicros[:10])
+		dst = []byte("0000-00-00")
 	}
 	switch len(src) {
 	case 11:
 		microsecs := binary.LittleEndian.Uint32(src[7:11])
-		dst[20] += byte((microsecs / 100000) % 10)
-		dst[21] += byte((microsecs / 10000) % 10)
-		dst[22] += byte((microsecs / 1000) % 10)
-		dst[23] += byte((microsecs / 100) % 10)
-		dst[24] += byte((microsecs / 10) % 10)
-		dst[25] += byte(microsecs % 10)
+		tmp32 := microsecs / 10
+		dst[25] += byte(microsecs - 10*tmp32)
+		tmp32, microsecs = tmp32/10, tmp32
+		dst[24] += byte(microsecs - 10*tmp32)
+		tmp32, microsecs = tmp32/10, tmp32
+		dst[23] += byte(microsecs - 10*tmp32)
+		tmp32, microsecs = tmp32/10, tmp32
+		dst[22] += byte(microsecs - 10*tmp32)
+		tmp32, microsecs = tmp32/10, tmp32
+		dst[21] += byte(microsecs - 10*tmp32)
+		dst[20] += byte(microsecs / 10)
 		fallthrough
 	case 7:
-		hour := src[4]
-		minute := src[5]
 		second := src[6]
-		dst[11] += (hour / 10) % 10
-		dst[12] += hour % 10
-		dst[14] += (minute / 10) % 10
-		dst[15] += minute % 10
-		dst[17] += (second / 10) % 10
-		dst[18] += second % 10
+		tmp := second / 10
+		dst[18] += second - 10*tmp
+		dst[17] += tmp
+		minute := src[5]
+		tmp = minute / 10
+		dst[15] += minute - 10*tmp
+		dst[14] += tmp
+		hour := src[4]
+		tmp = hour / 10
+		dst[12] += hour - 10*tmp
+		dst[11] += tmp
 		fallthrough
 	case 4:
-		year := binary.LittleEndian.Uint16(src[:2])
-		month := src[2]
 		day := src[3]
-		dst[0] += byte((year / 1000) % 10)
-		dst[1] += byte((year / 100) % 10)
-		dst[2] += byte((year / 10) % 10)
-		dst[3] += byte(year % 10)
-		dst[5] += (month / 10) % 10
-		dst[6] += month % 10
-		dst[8] += (day / 10) % 10
-		dst[9] += day % 10
-		return dst, nil
-	case 0:
+		tmp := day / 10
+		dst[9] += day - 10*tmp
+		dst[8] += tmp
+		month := src[2]
+		tmp = month / 10
+		dst[6] += month - 10*tmp
+		dst[5] += tmp
+		year := binary.LittleEndian.Uint16(src[:2])
+		tmp16 := year / 10
+		dst[3] += byte(year - 10*tmp16)
+		tmp16, year = tmp16/10, tmp16
+		dst[2] += byte(year - 10*tmp16)
+		tmp16, year = tmp16/10, tmp16
+		dst[1] += byte(year - 10*tmp16)
+		dst[0] += byte(tmp16)
 		return dst, nil
 	}
-	var mode string
+	var t string
 	if withTime {
-		mode = "DATETIME"
+		t = "DATETIME"
 	} else {
-		mode = "DATE"
+		t = "DATE"
 	}
-	return nil, fmt.Errorf("invalid %s-packet length %d", mode, len(src))
+	return nil, fmt.Errorf("invalid %s-packet length %d", t, len(src))
 }
 
 /******************************************************************************
