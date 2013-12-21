@@ -17,7 +17,7 @@ func (tx *mysqlTx) Commit() (err error) {
 		return errInvalidConn
 	}
 	err = tx.mc.exec("COMMIT")
-	tx.startTx = false
+	tx.mc.startTx = false
 	tx.mc = nil
 	return
 }
@@ -27,7 +27,7 @@ func (tx *mysqlTx) Rollback() (err error) {
 		return errInvalidConn
 	}
 	err = tx.mc.exec("ROLLBACK")
-	tx.startTx = false
+	tx.mc.startTx = false
 	tx.mc = nil
 	return
 }
