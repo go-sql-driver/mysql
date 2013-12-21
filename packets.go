@@ -797,8 +797,16 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		pos++
 
 		// type of each parameter [len(args)*2 bytes]
-		paramTypes := data[pos:]
+		oldPos := pos
 		pos += (len(args) << 1)
+
+		// extend data as necessary
+		if pos > len(data) {
+			data = append(data, make([]byte, pos-len(data))...)
+			mc.buf.buf = data
+		}
+
+		paramTypes := data[oldPos:]
 
 		// value of each parameter [n bytes]
 		paramValues := data[pos:pos]
