@@ -29,6 +29,7 @@ type mysqlConn struct {
 	sequence         uint8
 	parseTime        bool
 	strict           bool
+	startTx          bool
 }
 
 type config struct {
@@ -102,12 +103,16 @@ func (mc *mysqlConn) Begin() (driver.Tx, error) {
 		errLog.Print(errInvalidConn)
 		return nil, driver.ErrBadConn
 	}
+	/*
 	err := mc.exec("START TRANSACTION")
 	if err == nil {
 		return &mysqlTx{mc}, err
 	}
 
 	return nil, err
+	*/
+	mc.startTx = true
+	return &mysqlTx{mc}, nil
 }
 
 func (mc *mysqlConn) Close() (err error) {
@@ -120,6 +125,7 @@ func (mc *mysqlConn) Close() (err error) {
 
 	mc.cfg = nil
 	mc.buf = nil
+	mc.startTx = false
 
 	return
 }
@@ -129,6 +135,16 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 		errLog.Print(errInvalidConn)
 		return nil, driver.ErrBadConn
 	}
+
+	// Start tx lazily
+	if mc.startTx {
+		mc.startTx = false
+		err := mc.exec("START TRANSACTION")
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Send command
 	err := mc.writeCommandPacketStr(comStmtPrepare, query)
 	if err != nil {
@@ -161,6 +177,21 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		errLog.Print(errInvalidConn)
 		return nil, driver.ErrBadConn
 	}
+
+	// Start tx lazily
+	if mc.startTx {
+		mc.startTx = false
+		var err error
+		if strings.HasPrefix(strings.ToUpper(query), "SET TRANSACTION ISOLATION LEVEL") {
+			err = mc.exec(query + "; START TRANSACTION")
+		} else {
+			err = mc.exec("START TRANSACTION")
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if len(args) == 0 { // no args, fastpath
 		mc.affectedRows = 0
 		mc.insertId = 0
@@ -206,6 +237,16 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 		errLog.Print(errInvalidConn)
 		return nil, driver.ErrBadConn
 	}
+
+	// Start tx lazily
+	if mc.startTx {
+		mc.startTx = false
+		err := mc.exec("START TRANSACTION")
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if len(args) == 0 { // no args, fastpath
 		// Send command
 		err := mc.writeCommandPacketStr(comQuery, query)
