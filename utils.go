@@ -162,7 +162,7 @@ func parseDSN(dsn string) (cfg *config, err error) {
 
 	// Set default location if empty
 	if cfg.loc == nil {
-		cfg.loc = time.UTC
+		cfg.loc = time.Local
 	}
 
 	return
