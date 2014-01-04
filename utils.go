@@ -209,9 +209,22 @@ func parseDSNParams(cfg *config, params string) (err error) {
 			if value, err = url.QueryUnescape(value); err != nil {
 				return
 			}
-			cfg.loc, err = time.LoadLocation(value)
-			if err != nil {
-				return
+
+			// Support numeric time zone offsets format as follows:
+			// -0700 ±hhmm
+			if len(value) == 5 && (value[0] == '+' || value[0] == '-') {
+				var t time.Time
+				t, err = time.Parse("-0700", value)
+				if err != nil {
+					return
+				}
+				cfg.loc = t.Location()
+
+			} else {
+				cfg.loc, err = time.LoadLocation(value)
+				if err != nil {
+					return
+				}
 			}
 
 		// Dial Timeout
