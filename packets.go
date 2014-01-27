@@ -789,13 +789,13 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 	if len(args) > 0 {
 		pos := minPktLen
-		// NULL-bitmap [(len(args)+7)/8 bytes]
+
 		var nullMask []byte
 		if maskLen, typesLen := (len(args)+7)/8, 1+2*len(args); pos+maskLen+typesLen >= len(data) {
-			// buffer has to be extended but we don't know by how much
-			// so we depend on append after nullMask fits.
-			// The default size didn't suffice and we have to deal with a lot of columns,
-			// so allocation size is hard to guess.
+			// buffer has to be extended but we don't know by how much so
+			// we depend on append after all data with known sizes fit.
+			// We stop at that because we deal with a lot of columns here
+			// which makes the required allocation size hard to guess.
 			tmp := make([]byte, pos+maskLen+typesLen)
 			copy(tmp[:pos], data[:pos])
 			data = tmp
@@ -824,7 +824,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		for i, arg := range args {
 			// build NULL-bitmap
 			if arg == nil {
-				nullMask[i/8] |= 1 << (uint(i) & 7) // |= 1 << uint(i)
+				nullMask[i/8] |= 1 << (uint(i) & 7)
 				paramTypes[i+i] = fieldTypeNULL
 				paramTypes[i+i+1] = 0x00
 				continue
@@ -894,7 +894,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				}
 
 				// Handle []byte(nil) as a NULL value
-				nullMask[i/8] |= 1 << (uint(i) & 7) // |= 1 << uint(i)
+				nullMask[i/8] |= 1 << (uint(i) & 7)
 				paramTypes[i+i] = fieldTypeNULL
 				paramTypes[i+i+1] = 0x00
 
