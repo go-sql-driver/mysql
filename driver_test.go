@@ -1211,11 +1211,11 @@ func TestStmtMultiRows(t *testing.T) {
 }
 
 func TestPreparedManyCols(t *testing.T) {
-	const repetitions = 32 // defaultBufSize
+	const numParams = defaultBufSize
 	runTests(t, dsn, func(dbt *DBTest) {
-		query := "SELECT ?" + strings.Repeat(",?", repetitions-1)
-		values := make([]sql.NullString, repetitions)
-		params := make([]interface{}, repetitions)
+		query := "SELECT ?" + strings.Repeat(",?", numParams-1)
+		values := make([]sql.NullString, numParams)
+		params := make([]interface{}, numParams)
 		for i := range values {
 			params[i] = &values[i]
 		}
