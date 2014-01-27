@@ -1210,6 +1210,29 @@ func TestStmtMultiRows(t *testing.T) {
 	})
 }
 
+func TestPreparedManyCols(t *testing.T) {
+	const repetitions = 1024
+	runTests(t, dsn, func(dbt *DBTest) {
+		query := "SELECT ?" + strings.Repeat(",?", repetitions-1)
+		values := make([]sql.NullString, repetitions)
+		params := make([]interface{}, repetitions)
+		for i := range values {
+			params[i] = &values[i]
+		}
+		stmt, err := dbt.db.Prepare(query)
+		if err != nil {
+			dbt.Fatal(err)
+		}
+		defer stmt.Close()
+		rows, err := stmt.Query(params...)
+		if err != nil {
+			stmt.Close()
+			dbt.Fatal(err)
+		}
+		defer rows.Close()
+	})
+}
+
 func TestConcurrent(t *testing.T) {
 	if enabled, _ := readBool(os.Getenv("MYSQL_TEST_CONCURRENT")); !enabled {
 		t.Skip("MYSQL_TEST_CONCURRENT env var not set")
