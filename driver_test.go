@@ -1211,7 +1211,7 @@ func TestStmtMultiRows(t *testing.T) {
 }
 
 func TestPreparedManyCols(t *testing.T) {
-	const repetitions = 1024
+	const repetitions = 32 // defaultBufSize
 	runTests(t, dsn, func(dbt *DBTest) {
 		query := "SELECT ?" + strings.Repeat(",?", repetitions-1)
 		values := make([]sql.NullString, repetitions)
