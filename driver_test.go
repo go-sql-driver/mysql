@@ -1210,6 +1210,30 @@ func TestStmtMultiRows(t *testing.T) {
 	})
 }
 
+// Regression test for
+// * more than 32 NULL parameters (issue 209)
+// * more parameters than fit into the buffer (issue 201)
+func TestPreparedManyCols(t *testing.T) {
+	const numParams = defaultBufSize
+	runTests(t, dsn, func(dbt *DBTest) {
+		query := "SELECT ?" + strings.Repeat(",?", numParams-1)
+		stmt, err := dbt.db.Prepare(query)
+		if err != nil {
+			dbt.Fatal(err)
+		}
+		defer stmt.Close()
+		// create more parameters than fit into the buffer
+		// which will take nil-values
+		params := make([]interface{}, numParams)
+		rows, err := stmt.Query(params...)
+		if err != nil {
+			stmt.Close()
+			dbt.Fatal(err)
+		}
+		defer rows.Close()
+	})
+}
+
 func TestConcurrent(t *testing.T) {
 	if enabled, _ := readBool(os.Getenv("MYSQL_TEST_CONCURRENT")); !enabled {
 		t.Skip("MYSQL_TEST_CONCURRENT env var not set")
