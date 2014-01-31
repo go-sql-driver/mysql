@@ -4,6 +4,11 @@ New Features:
 
  - Logging of critical errors is configurable with `SetLogger`
 
+Bugfixes:
+
+ - Allow more than 32 parameters in prepared statements
+
+
 ## Version 1.1 (2013-11-02)
 
 Changes:
