@@ -99,7 +99,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 
 func (mc *mysqlConn) Begin() (driver.Tx, error) {
 	if mc.netConn == nil {
-		errLog.Print(errInvalidConn)
+		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	err := mc.exec("START TRANSACTION")
@@ -130,7 +130,7 @@ func (mc *mysqlConn) Close() (err error) {
 
 func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	if mc.netConn == nil {
-		errLog.Print(errInvalidConn)
+		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	// Send command
@@ -162,7 +162,7 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
 	if mc.netConn == nil {
-		errLog.Print(errInvalidConn)
+		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	if len(args) == 0 { // no args, fastpath
@@ -207,7 +207,7 @@ func (mc *mysqlConn) exec(query string) error {
 
 func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, error) {
 	if mc.netConn == nil {
-		errLog.Print(errInvalidConn)
+		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	if len(args) == 0 { // no args, fastpath
