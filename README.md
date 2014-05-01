@@ -111,6 +111,8 @@ For Unix domain sockets the address is the absolute path to the MySQL-Server-soc
 #### Parameters
 *Parameters are case-sensitive!*
 
+Notice that any of `true`, `TRUE`, `True` or `1` is accepted to stand for a true boolean value. Not surprisingly, false can be specified as any of: `false`, `FALSE`, `False` or `0`.
+
 ##### `allowAllFiles`
 
 ```
@@ -129,7 +131,7 @@ Type:           bool
 Valid Values:   true, false
 Default:        false
 ```
-`allowAllFiles=true` allows the usage of the insecure old password method. This should be avoided, but is necessary in some cases. See also [the old_passwords wiki page](https://github.com/go-sql-driver/mysql/wiki/old_passwords).
+`allowOldPasswords=true` allows the usage of the insecure old password method. This should be avoided, but is necessary in some cases. See also [the old_passwords wiki page](https://github.com/go-sql-driver/mysql/wiki/old_passwords).
 
 ##### `charset`
 
