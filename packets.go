@@ -38,7 +38,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		pktLen := int(uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16)
 
 		if pktLen < 1 {
-			errLog.Print(errMalformPkt)
+			errLog.Print(ErrMalformPkt)
 			mc.Close()
 			return nil, driver.ErrBadConn
 		}
@@ -46,9 +46,9 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		// Check Packet Sync [8 bit]
 		if data[3] != mc.sequence {
 			if data[3] > mc.sequence {
-				return nil, errPktSyncMul
+				return nil, ErrPktSyncMul
 			} else {
-				return nil, errPktSync
+				return nil, ErrPktSync
 			}
 		}
 		mc.sequence++
@@ -81,7 +81,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 	pktLen := len(data) - 4
 
 	if pktLen > mc.maxPacketAllowed {
-		return errPktTooLarge
+		return ErrPktTooLarge
 	}
 
 	for {
@@ -113,7 +113,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 
 		// Handle error
 		if err == nil { // n != len(data)
-			errLog.Print(errMalformPkt)
+			errLog.Print(ErrMalformPkt)
 		} else {
 			errLog.Print(err)
 		}
@@ -159,10 +159,10 @@ func (mc *mysqlConn) readInitPacket() ([]byte, error) {
 	// capability flags (lower 2 bytes) [2 bytes]
 	mc.flags = clientFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
 	if mc.flags&clientProtocol41 == 0 {
-		return nil, errOldProtocol
+		return nil, ErrOldProtocol
 	}
 	if mc.flags&clientSSL == 0 && mc.cfg.tls != nil {
-		return nil, errNoTLS
+		return nil, ErrNoTLS
 	}
 	pos += 2
 
@@ -195,7 +195,7 @@ func (mc *mysqlConn) readInitPacket() ([]byte, error) {
 		//if data[len(data)-1] == 0 {
 		//	return
 		//}
-		//return errMalformPkt
+		//return ErrMalformPkt
 		return cipher, nil
 	}
 
@@ -240,7 +240,7 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	data := mc.buf.takeSmallBuffer(pktLen + 4)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(errBusyBuffer)
+		errLog.Print(ErrBusyBuffer)
 		return driver.ErrBadConn
 	}
 
@@ -311,7 +311,7 @@ func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 	data := mc.buf.takeSmallBuffer(4 + pktLen)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(errBusyBuffer)
+		errLog.Print(ErrBusyBuffer)
 		return driver.ErrBadConn
 	}
 
@@ -333,7 +333,7 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	data := mc.buf.takeSmallBuffer(4 + 1)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(errBusyBuffer)
+		errLog.Print(ErrBusyBuffer)
 		return driver.ErrBadConn
 	}
 
@@ -352,7 +352,7 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	data := mc.buf.takeBuffer(pktLen + 4)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(errBusyBuffer)
+		errLog.Print(ErrBusyBuffer)
 		return driver.ErrBadConn
 	}
 
@@ -373,7 +373,7 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	data := mc.buf.takeSmallBuffer(4 + 1 + 4)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(errBusyBuffer)
+		errLog.Print(ErrBusyBuffer)
 		return driver.ErrBadConn
 	}
 
@@ -406,7 +406,7 @@ func (mc *mysqlConn) readResultOK() error {
 
 		case iEOF:
 			// someone is using old_passwords
-			return errOldPassword
+			return ErrOldPassword
 
 		default: // Error otherwise
 			return mc.handleErrorPacket(data)
@@ -438,7 +438,7 @@ func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
 			return int(num), nil
 		}
 
-		return 0, errMalformPkt
+		return 0, ErrMalformPkt
 	}
 	return 0, err
 }
@@ -447,7 +447,7 @@ func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
 // http://dev.mysql.com/doc/internals/en/generic-response-packets.html#packet-ERR_Packet
 func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 	if data[0] != iERR {
-		return errMalformPkt
+		return ErrMalformPkt
 	}
 
 	// 0xff [1 byte]
@@ -765,7 +765,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	}
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(errBusyBuffer)
+		errLog.Print(ErrBusyBuffer)
 		return driver.ErrBadConn
 	}
 

@@ -84,7 +84,7 @@ func (d *MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	err = mc.readResultOK()
 	if err != nil {
 		// Retry with old authentication method, if allowed
-		if mc.cfg != nil && mc.cfg.allowOldPasswords && err == errOldPassword {
+		if mc.cfg != nil && mc.cfg.allowOldPasswords && err == ErrOldPassword {
 			if err = mc.writeOldAuthPacket(cipher); err != nil {
 				mc.Close()
 				return nil, err

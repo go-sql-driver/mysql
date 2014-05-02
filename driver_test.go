@@ -827,7 +827,7 @@ func TestStrict(t *testing.T) {
 func TestTLS(t *testing.T) {
 	tlsTest := func(dbt *DBTest) {
 		if err := dbt.db.Ping(); err != nil {
-			if err == errNoTLS {
+			if err == ErrNoTLS {
 				dbt.Skip("Server does not support TLS")
 			} else {
 				dbt.Fatalf("Error on Ping: %s", err.Error())

@@ -46,7 +46,7 @@ func (rows *mysqlRows) Close() error {
 		return nil
 	}
 	if mc.netConn == nil {
-		return errInvalidConn
+		return ErrInvalidConn
 	}
 
 	// Remove unread packets from stream
@@ -58,7 +58,7 @@ func (rows *mysqlRows) Close() error {
 func (rows *binaryRows) Next(dest []driver.Value) error {
 	if mc := rows.mc; mc != nil {
 		if mc.netConn == nil {
-			return errInvalidConn
+			return ErrInvalidConn
 		}
 
 		// Fetch next row from stream
@@ -73,7 +73,7 @@ func (rows *binaryRows) Next(dest []driver.Value) error {
 func (rows *textRows) Next(dest []driver.Value) error {
 	if mc := rows.mc; mc != nil {
 		if mc.netConn == nil {
-			return errInvalidConn
+			return ErrInvalidConn
 		}
 
 		// Fetch next row from stream
