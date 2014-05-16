@@ -251,7 +251,7 @@ user@cloudsql(project-id:instance-name)/dbname
 
 TCP using default port (3306) on localhost:
 ```
-user:password@tcp/dbname&charset=utf8mb4,utf8&sys_var=esc%40ped
+user:password@tcp/dbname?charset=utf8mb4,utf8&sys_var=esc%40ped
 ```
 
 Use the default protocol (tcp) and host (localhost:3306):
