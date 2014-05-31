@@ -17,6 +17,7 @@ import (
 	"os"
 )
 
+// Various errors the driver might return. Can change between driver versions.
 var (
 	ErrInvalidConn = errors.New("Invalid Connection")
 	ErrMalformPkt  = errors.New("Malformed Packet")
@@ -27,9 +28,9 @@ var (
 	ErrPktSyncMul  = errors.New("Commands out of sync. Did you run multiple statements at once?")
 	ErrPktTooLarge = errors.New("Packet for query is too large. You can change this value on the server by adjusting the 'max_allowed_packet' variable.")
 	ErrBusyBuffer  = errors.New("Busy buffer")
-
-	errLog Logger = log.New(os.Stderr, "[MySQL] ", log.Ldate|log.Ltime|log.Lshortfile)
 )
+
+var errLog Logger = log.New(os.Stderr, "[MySQL] ", log.Ldate|log.Ltime|log.Lshortfile)
 
 // Logger is used to log critical error messages.
 type Logger interface {
@@ -37,7 +38,7 @@ type Logger interface {
 }
 
 // SetLogger is used to set the logger for critical errors.
-// The initial logger is stderr.
+// The initial logger is os.Stderr.
 func SetLogger(logger Logger) error {
 	if logger == nil {
 		return errors.New("logger is nil")
@@ -85,7 +86,7 @@ type MysqlWarning struct {
 }
 
 func (mc *mysqlConn) getWarnings() (err error) {
-	rows, err := mc.Query("SHOW WARNINGS", []driver.Value{})
+	rows, err := mc.Query("SHOW WARNINGS", nil)
 	if err != nil {
 		return
 	}
@@ -93,27 +94,23 @@ func (mc *mysqlConn) getWarnings() (err error) {
 	var warnings = MySQLWarnings{}
 	var values = make([]driver.Value, 3)
 
-	var warning MysqlWarning
-	var raw []byte
-	var ok bool
-
 	for {
 		err = rows.Next(values)
 		switch err {
 		case nil:
-			warning = MysqlWarning{}
+			warning := MysqlWarning{}
 
-			if raw, ok = values[0].([]byte); ok {
+			if raw, ok := values[0].([]byte); ok {
 				warning.Level = string(raw)
 			} else {
 				warning.Level = fmt.Sprintf("%s", values[0])
 			}
-			if raw, ok = values[1].([]byte); ok {
+			if raw, ok := values[1].([]byte); ok {
 				warning.Code = string(raw)
 			} else {
 				warning.Code = fmt.Sprintf("%s", values[1])
 			}
-			if raw, ok = values[2].([]byte); ok {
+			if raw, ok := values[2].([]byte); ok {
 				warning.Message = string(raw)
 			} else {
 				warning.Message = fmt.Sprintf("%s", values[0])
