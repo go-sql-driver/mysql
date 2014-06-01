@@ -2,15 +2,29 @@
 
 Changes:
 
- - Version v1 of the driver is will not be maintained anymore. Go 1.0 now is not supported by this driver anymore.
+ - Version v1 of the driver is will not be maintained anymore. Go 1.0 now is not supported by this driver anymore
+ - The errors are now exported to allow easy checking from application code
+ - Enabled TCP Keepalives on TCP connections
+ - Optimized INFILE handling (better buffer size calculation, lazy init, ...)
+ - The DSN parser now also checks for a missing separating slash
+ - Faster binary date / datetime to string formatting
+ - The MySQLWarning type is now also exported
+ - mysqlConn.Close now returns the first error encountered
+ - writePacket() now automatically writes the packet size to the header
+ - readPacket() now uses an iterative approach instead of the recursive approach to merge splitted packets
 
 New Features:
 
  - Logging of critical errors is configurable with `SetLogger`
+ - Google CloudSQL support
 
 Bugfixes:
 
  - Allow more than 32 parameters in prepared statements
+ - Various old_password fixes
+ - Fixed TestConcurrent test to pass Go's race detection
+ - Fixed appendLengthEncodedInteger for large numbers
+ - Renamed readLengthEnodedString to readLengthEncodedString and skipLengthEnodedString to skipLengthEncodedString (fixed typo)
 
 
 ## Version 1.1 (2013-11-02)
