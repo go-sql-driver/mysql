@@ -28,3 +28,9 @@ func TestSetLogger(t *testing.T) {
 		t.Errorf("expected %q, got %q", expected, actual)
 	}
 }
+
+func TestErrorsStrictIgnoreNotes(t *testing.T) {
+	runTests(t, dsn+"&sql_notes=false", func(dbt *DBTest) {
+		dbt.mustExec("DROP TABLE IF EXISTS does_not_exist")
+	})
+}
