@@ -52,7 +52,7 @@ $ go get github.com/go-sql-driver/mysql
 ```
 Make sure [Git is installed](http://git-scm.com/downloads) on your machine and in your system's `PATH`.
 
-*`go get` installs the latest tagged release*
+*`go get` installs the [latest tagged release](https://github.com/go-sql-driver/mysql/releases)*
 
 ## Usage
 _Go MySQL Driver_ is an implementation of Go's `database/sql/driver` interface. You only need to import the driver and can use the full [`database/sql`](http://golang.org/pkg/database/sql) API then.
