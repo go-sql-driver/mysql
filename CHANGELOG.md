@@ -1,5 +1,9 @@
 ## Version 1.2 (pending)
 
+Changes:
+
+ - Version v1 of the driver is will not be maintained anymore. Go 1.0 now is not supported by this driver anymore.
+
 New Features:
 
  - Logging of critical errors is configurable with `SetLogger`

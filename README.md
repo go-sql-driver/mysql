@@ -40,7 +40,7 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
   * Optional `time.Time` parsing
 
 ## Requirements
-  * Go 1.1 or higher (use [v1.0](https://github.com/go-sql-driver/mysql/tags) for Go 1.0.x)
+  * Go 1.1 or higher
   * MySQL (Version 4.1 or higher), MariaDB or Percona Server
 
 ---------------------------------------
