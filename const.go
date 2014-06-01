@@ -130,13 +130,3 @@ const (
 	flagUnknown3
 	flagUnknown4
 )
-
-const (
-	collation_ascii_general_ci   byte = 11
-	collation_utf8_general_ci    byte = 33
-	collation_utf8mb4_general_ci byte = 45
-	collation_utf8mb4_bin        byte = 46
-	collation_latin1_general_ci  byte = 48
-	collation_binary             byte = 63
-	collation_utf8mb4_unicode_ci byte = 224
-)

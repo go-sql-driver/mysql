@@ -143,6 +143,22 @@ Default:        none
 
 Sets the charset used for client-server interaction (`"SET NAMES <value>"`). If multiple charsets are set (separated by a comma), the following charset is used if setting the charset failes. This enables support for `utf8mb4` ([introduced in MySQL 5.5.3](http://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)) with fallback to `utf8` for older servers (`charset=utf8mb4,utf8`).
 
+*Please note:*
+
+Usage of the `charset` parameter is discouraged because it issues queries.
+Unless you need the fallback behavior, please use `collation` instead.
+
+##### `collation`
+
+```
+Type:           string
+Valid Values:   <name>
+Default:        utf8_general_ci
+```
+
+Sets the collation used for client-server interaction on connection. In contrast to `charset`, `collation` does not issue queries. If the specified collation is unavailable on the target server, the connection will fail.
+
+A list of valid charsets for a server is retrievable with `SHOW COLLATION`.
 
 ##### `clientFoundRows`
 

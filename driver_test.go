@@ -938,6 +938,49 @@ func TestFailingCharset(t *testing.T) {
 	})
 }
 
+func TestCollation(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL-Server not running on %s", netAddr)
+	}
+
+	defaultCollation := "utf8_general_ci"
+	tests := []string{
+		"",               // do not set
+		defaultCollation, // driver default
+		"latin1_general_ci",
+		"binary",
+		"utf8mb4_general_ci",
+	}
+	cdsn := dsn
+	for _, collation := range tests {
+		var expected string
+		if collation != "" {
+			cdsn += "&collation=" + collation
+			expected = collation
+		} else {
+			expected = defaultCollation
+		}
+		runTests(t, cdsn, func(dbt *DBTest) {
+			rows := dbt.mustQuery("SELECT @@collation_connection")
+			defer rows.Close()
+
+			if !rows.Next() {
+				dbt.Fatalf("Error getting connection collation: %s", rows.Err())
+			}
+
+			var got string
+			err := rows.Scan(&got)
+			if err != nil {
+				dbt.Fatal(err)
+			}
+
+			if got != expected {
+				dbt.Fatalf("Expected connection collation %s but got %s", expected, got)
+			}
+		})
+	}
+}
+
 func TestRawBytesResultExceedsBuffer(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		// defaultBufSize from buffer.go
