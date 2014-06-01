@@ -1254,7 +1254,7 @@ func TestConcurrent(t *testing.T) {
 
 		var fatalError string
 		var once sync.Once
-		fatal := func(s string, vals ...interface{}) {
+		fatalf := func(s string, vals ...interface{}) {
 			once.Do(func() {
 				fatalError = fmt.Sprintf(s, vals...)
 			})
@@ -1269,7 +1269,7 @@ func TestConcurrent(t *testing.T) {
 
 				if err != nil {
 					if err.Error() != "Error 1040: Too many connections" {
-						fatal("Error on Conn %d: %s", id, err.Error())
+						fatalf("Error on Conn %d: %s", id, err.Error())
 					}
 					return
 				}
@@ -1277,13 +1277,13 @@ func TestConcurrent(t *testing.T) {
 				// keep the connection busy until all connections are open
 				for remaining > 0 {
 					if _, err = tx.Exec("DO 1"); err != nil {
-						fatal("Error on Conn %d: %s", id, err.Error())
+						fatalf("Error on Conn %d: %s", id, err.Error())
 						return
 					}
 				}
 
 				if err = tx.Commit(); err != nil {
-					fatal("Error on Conn %d: %s", id, err.Error())
+					fatalf("Error on Conn %d: %s", id, err.Error())
 					return
 				}
 
