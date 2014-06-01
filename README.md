@@ -141,11 +141,9 @@ Valid Values:   <name>
 Default:        none
 ```
 
-Sets the charset used for client-server interaction (`"SET NAMES <value>"`). If multiple charsets are set (separated by a comma), the following charset is used if setting the charset failes. This enables support for `utf8mb4` ([introduced in MySQL 5.5.3](http://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)) with fallback to `utf8` for older servers (`charset=utf8mb4,utf8`).
+Sets the charset used for client-server interaction (`"SET NAMES <value>"`). If multiple charsets are set (separated by a comma), the following charset is used if setting the charset failes. This enables for example support for `utf8mb4` ([introduced in MySQL 5.5.3](http://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)) with fallback to `utf8` for older servers (`charset=utf8mb4,utf8`).
 
-*Please note:*
-
-Usage of the `charset` parameter is discouraged because it issues queries.
+Usage of the `charset` parameter is discouraged because it issues additional queries to the server.
 Unless you need the fallback behavior, please use `collation` instead.
 
 ##### `collation`
@@ -156,7 +154,7 @@ Valid Values:   <name>
 Default:        utf8_general_ci
 ```
 
-Sets the collation used for client-server interaction on connection. In contrast to `charset`, `collation` does not issue queries. If the specified collation is unavailable on the target server, the connection will fail.
+Sets the collation used for client-server interaction on connection. In contrast to `charset`, `collation` does not issue additional queries. If the specified collation is unavailable on the target server, the connection will fail.
 
 A list of valid charsets for a server is retrievable with `SHOW COLLATION`.
 
@@ -259,7 +257,7 @@ user:password@/dbname?strict=true&sql_notes=false
 
 TCP via IPv6:
 ```
-user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname?timeout=90s
+user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname?timeout=90s&collation=utf8mb4_unicode_ci
 ```
 
 TCP on a remote host, e.g. Amazon RDS:
@@ -311,7 +309,11 @@ Alternatively you can use the [`NullTime`](http://godoc.org/github.com/go-sql-dr
 
 
 ### Unicode support
-Since version 1.1 Go-MySQL-Driver automatically uses the collation `utf8_general_ci` by default. Adding `&charset=utf8` (alias for `SET NAMES utf8`) to the DSN is not necessary anymore in most cases.
+Since version 1.1 Go-MySQL-Driver automatically uses the collation `utf8_general_ci` by default.
+
+Other collations / charsets can be set using the [`collation`](#collation) DSN parameter.
+
+Version 1.0 of the driver recommended adding `&charset=utf8` (alias for `SET NAMES utf8`) to the DSN to enable proper UTF-8 support. This is not necessary anymore. The [`collation`](#collation) parameter should be preferred to set another collation / charset than the default.
 
 See http://dev.mysql.com/doc/refman/5.7/en/charset-unicode.html for more details on MySQL's Unicode support.
 
