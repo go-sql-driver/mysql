@@ -944,33 +944,28 @@ func TestCollation(t *testing.T) {
 	}
 
 	defaultCollation := "utf8_general_ci"
-	tests := []string{
+	testCollations := []string{
 		"",               // do not set
 		defaultCollation, // driver default
 		"latin1_general_ci",
 		"binary",
+		"utf8_unicode_ci",
 		"utf8mb4_general_ci",
 	}
-	cdsn := dsn
-	for _, collation := range tests {
-		var expected string
+
+	for _, collation := range testCollations {
+		var expected, tdsn string
 		if collation != "" {
-			cdsn += "&collation=" + collation
+			tdsn = dsn + "&collation=" + collation
 			expected = collation
 		} else {
+			tdsn = dsn
 			expected = defaultCollation
 		}
-		runTests(t, cdsn, func(dbt *DBTest) {
-			rows := dbt.mustQuery("SELECT @@collation_connection")
-			defer rows.Close()
 
-			if !rows.Next() {
-				dbt.Fatalf("Error getting connection collation: %s", rows.Err())
-			}
-
+		runTests(t, tdsn, func(dbt *DBTest) {
 			var got string
-			err := rows.Scan(&got)
-			if err != nil {
+			if err := dbt.db.QueryRow("SELECT @@collation_connection").Scan(&got); err != nil {
 				dbt.Fatal(err)
 			}
 

@@ -257,7 +257,7 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	data[11] = 0x00
 
 	// Charset [1 byte]
-	data[12] = mc.collation
+	data[12] = mc.cfg.collation
 
 	// SSL Connection Request Packet
 	// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::SSLRequest

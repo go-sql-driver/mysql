@@ -27,7 +27,6 @@ type mysqlConn struct {
 	maxWriteSize     int
 	flags            clientFlag
 	sequence         uint8
-	collation        byte
 	parseTime        bool
 	strict           bool
 }
@@ -40,31 +39,18 @@ type config struct {
 	dbname            string
 	params            map[string]string
 	loc               *time.Location
-	timeout           time.Duration
 	tls               *tls.Config
+	timeout           time.Duration
+	collation         uint8
 	allowAllFiles     bool
 	allowOldPasswords bool
 	clientFoundRows   bool
 }
 
-// Handles parameters set in DSN
+// Handles parameters set in DSN after the connection is established
 func (mc *mysqlConn) handleParams() (err error) {
 	for param, val := range mc.cfg.params {
 		switch param {
-		// Collation
-		case "collation":
-			collation, ok := collations[val]
-			if !ok {
-				// Note possibility for false negatives:
-				// could be caused although the collation is valid
-				// if the collations map does not contain entries
-				// the server supports.
-				err = errors.New("unknown collation")
-				return
-			}
-			mc.collation = collation
-			break
-
 		// Charset
 		case "charset":
 			charsets := strings.Split(val, ",")

@@ -40,7 +40,6 @@ func (d *MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	mc := &mysqlConn{
 		maxPacketAllowed: maxPacketSize,
 		maxWriteSize:     maxPacketSize - 1,
-		collation:        defaultCollation,
 	}
 	mc.cfg, err = parseDSN(dsn)
 	if err != nil {

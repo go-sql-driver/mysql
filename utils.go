@@ -72,7 +72,11 @@ func DeregisterTLSConfig(key string) {
 
 // parseDSN parses the DSN string to a config
 func parseDSN(dsn string) (cfg *config, err error) {
-	cfg = new(config)
+	// New config with some default values
+	cfg = &config{
+		loc:       time.UTC,
+		collation: defaultCollation,
+	}
 
 	// TODO: use strings.IndexByte when we can depend on Go 1.2
 
@@ -160,11 +164,6 @@ func parseDSN(dsn string) (cfg *config, err error) {
 
 	}
 
-	// Set default location if empty
-	if cfg.loc == nil {
-		cfg.loc = time.UTC
-	}
-
 	return
 }
 
@@ -188,6 +187,14 @@ func parseDSNParams(cfg *config, params string) (err error) {
 				return fmt.Errorf("Invalid Bool value: %s", value)
 			}
 
+		// Use old authentication mode (pre MySQL 4.1)
+		case "allowOldPasswords":
+			var isBool bool
+			cfg.allowOldPasswords, isBool = readBool(value)
+			if !isBool {
+				return fmt.Errorf("Invalid Bool value: %s", value)
+			}
+
 		// Switch "rowsAffected" mode
 		case "clientFoundRows":
 			var isBool bool
@@ -196,13 +203,18 @@ func parseDSNParams(cfg *config, params string) (err error) {
 				return fmt.Errorf("Invalid Bool value: %s", value)
 			}
 
-		// Use old authentication mode (pre MySQL 4.1)
-		case "allowOldPasswords":
-			var isBool bool
-			cfg.allowOldPasswords, isBool = readBool(value)
-			if !isBool {
-				return fmt.Errorf("Invalid Bool value: %s", value)
+		// Collation
+		case "collation":
+			collation, ok := collations[value]
+			if !ok {
+				// Note possibility for false negatives:
+				// could be triggered  although the collation is valid if the
+				// collations map does not contain entries the server supports.
+				err = errors.New("unknown collation")
+				return
 			}
+			cfg.collation = collation
+			break
 
 		// Time Location
 		case "loc":

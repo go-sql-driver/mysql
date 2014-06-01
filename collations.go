@@ -8,12 +8,10 @@
 
 package mysql
 
-const collationUtf8GeneralCi = 33
+const defaultCollation byte = 33 // utf8_general_ci
 
-const defaultCollation byte = collationUtf8GeneralCi
-
-// A list of available collations and associated charsets to update this map
-// is available in MySQL with the query
+// A list of available collations mapped to the internal ID.
+// To update this map use the following MySQL query:
 //     SELECT COLLATION_NAME, ID FROM information_schema.COLLATIONS
 var collations = map[string]byte{
 	"big5_chinese_ci":          1,
@@ -47,7 +45,7 @@ var collations = map[string]byte{
 	"latin5_turkish_ci":        30,
 	"latin1_german2_ci":        31,
 	"armscii8_general_ci":      32,
-	"utf8_general_ci":          collationUtf8GeneralCi,
+	"utf8_general_ci":          33,
 	"cp1250_czech_cs":          34,
 	"ucs2_general_ci":          35,
 	"cp866_general_ci":         36,
