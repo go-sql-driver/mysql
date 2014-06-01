@@ -187,7 +187,9 @@ Valid Values:   true, false
 Default:        false
 ```
 
-`strict=true` enables strict mode. MySQL warnings are treated as errors.
+`strict=true` enables the strict mode in which MySQL warnings are treated as errors.
+
+By default MySQL also treats notes as warnings. Use [`sql_notes=false`](http://dev.mysql.com/doc/refman/5.7/en/server-system-variables.html#sysvar_sql_notes) to ignore notes. See the [examples](#examples) for an DSN example.
 
 
 ##### `timeout`
@@ -232,6 +234,11 @@ root:pw@unix(/tmp/mysql.sock)/myDatabase?loc=Local
 
 ```
 user:password@tcp(localhost:5555)/dbname?tls=skip-verify&autocommit=true
+```
+
+Use the [strict mode](#strict) but ignore notes:
+```
+user:password@/dbname?strict=true&sql_notes=false
 ```
 
 TCP via IPv6:
