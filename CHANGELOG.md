@@ -2,7 +2,7 @@
 
 Changes:
 
- - Version v1 of the driver is will not be maintained anymore. Go 1.0 is no longer supported by this driver
+ - Version v1 of the driver will not be maintained anymore. Go 1.0 is no longer supported by this driver
  - Exported errors to allow easy checking from application code
  - Enabled TCP Keepalives on TCP connections
  - Optimized INFILE handling (better buffer size calculation, lazy init, ...)
