@@ -15,6 +15,7 @@ Changes:
 
 New Features:
 
+ - Setting the connection collation is possible with the `collation` DSN parameter. This parameter should be preferred over the `charset` parameter
  - Logging of critical errors is configurable with `SetLogger`
  - Google CloudSQL support
 
