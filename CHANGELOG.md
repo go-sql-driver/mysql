@@ -2,6 +2,7 @@
 
 Changes:
 
+ - We switched back to a "rolling release". `go get` installs the current master branch again
  - Version v1 of the driver will not be maintained anymore. Go 1.0 is no longer supported by this driver
  - Exported errors to allow easy checking from application code
  - Enabled TCP Keepalives on TCP connections
