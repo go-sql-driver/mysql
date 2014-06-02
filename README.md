@@ -41,7 +41,7 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
 
 ## Requirements
   * Go 1.1 or higher
-  * MySQL (Version 4.1 or higher), MariaDB, Percona Server, Google CloudSQL or Sphinx (Version 2.2.3 or higher)
+  * MySQL (4.1+), MariaDB, Percona Server, Google CloudSQL or Sphinx (2.2.3+)
 
 ---------------------------------------
 
