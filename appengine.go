@@ -16,10 +16,5 @@ import (
 )
 
 func init() {
-	if dials == nil {
-		dials = make(map[string]dialFunc)
-	}
-	dials["cloudsql"] = func(cfg *config) (net.Conn, error) {
-		return cloudsql.Dial(cfg.addr)
-	}
+	RegisterDial("cloudsql", cloudsql.Dial)
 }
