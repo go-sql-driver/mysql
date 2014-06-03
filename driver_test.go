@@ -327,96 +327,139 @@ func TestString(t *testing.T) {
 	})
 }
 
-func TestDateTime(t *testing.T) {
-	type testmode struct {
-		selectSuffix string
-		args         []interface{}
-	}
-	type timetest struct {
-		in      interface{}
-		sOut    string
-		tOut    time.Time
-		tIsZero bool
-	}
-	type tester func(dbt *DBTest, rows *sql.Rows,
-		test *timetest, sqltype, resulttype, mode string)
-	type setup struct {
-		vartype   string
-		dsnSuffix string
-		test      tester
-	}
-	var (
-		modes = map[string]*testmode{
-			"text":   &testmode{},
-			"binary": &testmode{" WHERE 1 = ?", []interface{}{1}},
-		}
-		timetests = map[string][]*timetest{
-			"DATE": {
-				{sDate, sDate, tDate, false},
-				{sDate0, sDate0, tDate0, true},
-				{tDate, sDate, tDate, false},
-				{tDate0, sDate0, tDate0, true},
-			},
-			"DATETIME": {
-				{sDateTime, sDateTime, tDateTime, false},
-				{sDateTime0, sDateTime0, tDate0, true},
-				{tDateTime, sDateTime, tDateTime, false},
-				{tDate0, sDateTime0, tDate0, true},
-			},
-		}
-		setups = []*setup{
-			{"string", "&parseTime=false", func(
-				dbt *DBTest, rows *sql.Rows, test *timetest, sqltype, resulttype, mode string) {
-				var sOut string
-				if err := rows.Scan(&sOut); err != nil {
-					dbt.Errorf("%s (%s %s): %s", sqltype, resulttype, mode, err.Error())
-				} else if test.sOut != sOut {
-					dbt.Errorf("%s (%s %s): %s != %s", sqltype, resulttype, mode, test.sOut, sOut)
-				}
-			}},
-			{"time.Time", "&parseTime=true", func(
-				dbt *DBTest, rows *sql.Rows, test *timetest, sqltype, resulttype, mode string) {
-				var tOut time.Time
-				if err := rows.Scan(&tOut); err != nil {
-					dbt.Errorf("%s (%s %s): %s", sqltype, resulttype, mode, err.Error())
-				} else if test.tOut != tOut || test.tIsZero != tOut.IsZero() {
-					dbt.Errorf("%s (%s %s): %s [%t] != %s [%t]", sqltype, resulttype, mode, test.tOut, test.tIsZero, tOut, tOut.IsZero())
-				}
-			}},
-		}
-	)
+type timeTests struct {
+	dbtype  string
+	tlayout string
+	tests   []timeTest
+}
 
-	var s *setup
-	testTime := func(dbt *DBTest) {
-		var rows *sql.Rows
-		for sqltype, tests := range timetests {
-			dbt.mustExec("CREATE TABLE test (value " + sqltype + ")")
-			for _, test := range tests {
-				for mode, q := range modes {
-					dbt.mustExec("TRUNCATE test")
-					dbt.mustExec("INSERT INTO test VALUES (?)", test.in)
-					rows = dbt.mustQuery("SELECT value FROM test"+q.selectSuffix, q.args...)
-					if rows.Next() {
-						s.test(dbt, rows, test, sqltype, s.vartype, mode)
-					} else {
-						if err := rows.Err(); err != nil {
-							dbt.Errorf("%s (%s %s): %s",
-								sqltype, s.vartype, mode, err.Error())
-						} else {
-							dbt.Errorf("%s (%s %s): no data",
-								sqltype, s.vartype, mode)
-						}
+type timeTest struct {
+	s string
+	t time.Time
+}
+
+func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, binaryProtocol bool) {
+	const queryBin = `SELECT CAST(? AS %[2]s)`
+	const queryTxt = `SELECT CAST("%[1]s" AS %[2]s)`
+	var rows *sql.Rows
+	var protocol string
+	if binaryProtocol {
+		protocol = "binary"
+		rows = dbt.mustQuery(fmt.Sprintf(queryBin, t.s, dbtype), t.t)
+	} else {
+		protocol = "text"
+		rows = dbt.mustQuery(fmt.Sprintf(queryTxt, t.s, dbtype))
+	}
+	defer rows.Close()
+	var err error
+	if !rows.Next() {
+		err = rows.Err()
+		if err == nil {
+			err = fmt.Errorf("no data")
+		}
+		dbt.Errorf("%s [%s]: %s",
+			dbtype, protocol, err,
+		)
+		return
+	}
+	var dst interface{}
+	err = rows.Scan(&dst)
+	if err != nil {
+		dbt.Errorf("%s [%s]: %s",
+			dbtype, protocol, err,
+		)
+		return
+	}
+	switch val := dst.(type) {
+	case []uint8:
+		str := string(val)
+		if str == t.s {
+			return
+		}
+		dbt.Errorf("%s to string [%s]: expected '%s', got '%s'",
+			dbtype, protocol,
+			t.s, str,
+		)
+	case time.Time:
+		if val == t.t {
+			return
+		}
+		dbt.Errorf("%s to string [%s]: expected '%s', got '%s'",
+			dbtype, protocol,
+			t.s, val.Format(tlayout),
+		)
+	default:
+		dbt.Errorf("%s [%s]: unhandled type %T (is '%s')",
+			dbtype, protocol, val, val,
+		)
+	}
+}
+
+func TestDateTime(t *testing.T) {
+	afterTime0 := func(d string) time.Time {
+		dur, err := time.ParseDuration(d)
+		if err != nil {
+			panic(err)
+		}
+		return time.Time{}.Add(dur)
+	}
+	// NOTE: MySQL rounds DATETIME(x) up - but that's not included in the tests
+	format := "2006-01-02 15:04:05.999999"
+	t0 := time.Time{}
+	tstr0 := "0000-00-00 00:00:00.000000"
+	testcases := []timeTests{
+		{"DATE", format[:10], []timeTest{
+			{t: time.Date(2011, 11, 20, 0, 0, 0, 0, time.UTC)},
+			{t: t0, s: tstr0[:10]},
+		}},
+		{"DATETIME", format[:19], []timeTest{
+			{t: time.Date(2011, 11, 20, 21, 27, 37, 0, time.UTC)},
+			{t: t0, s: tstr0[:19]},
+		}},
+		{"DATETIME(1)", format[:21], []timeTest{
+			{t: time.Date(2011, 11, 20, 21, 27, 37, 100000000, time.UTC)},
+			{t: t0, s: tstr0[:21]},
+		}},
+		{"DATETIME(6)", format, []timeTest{
+			{t: time.Date(2011, 11, 20, 21, 27, 37, 123456000, time.UTC)},
+			{t: t0, s: tstr0},
+		}},
+		{"TIME", format[11:19], []timeTest{
+			{t: afterTime0("12345s")},
+			{t: afterTime0("-12345s")},
+			{t: t0, s: tstr0[11:19]},
+		}},
+		{"TIME(1)", format[11:21], []timeTest{
+			{t: afterTime0("12345600ms")},
+			{t: afterTime0("-12345600ms")},
+			{t: t0, s: tstr0[11:21]},
+		}},
+		{"TIME(6)", format[11:], []timeTest{
+			{t: afterTime0("1234567890123000ns")},
+			{t: afterTime0("-1234567890123000ns")},
+			{t: t0, s: tstr0[11:]},
+		}},
+	}
+	dsns := map[string]bool{
+		dsn + "&parseTime=true":                               true,
+		dsn + "&sql_mode=ALLOW_INVALID_DATES&parseTime=true":  true,
+		dsn + "&parseTime=false":                              false,
+		dsn + "&sql_mode=ALLOW_INVALID_DATES&parseTime=false": false,
+	}
+	for testdsn, parseTime := range dsns {
+		var _ = parseTime
+		runTests(t, testdsn, func(dbt *DBTest) {
+			for _, setups := range testcases {
+				for _, setup := range setups.tests {
+					if setup.s == "" {
+						// fill time string where Go can reliable produce it
+						setup.s = setup.t.Format(setups.tlayout)
 					}
+					setup.run(dbt, setups.dbtype, setups.tlayout, true)
+					setup.run(dbt, setups.dbtype, setups.tlayout, false)
 				}
 			}
-			dbt.mustExec("DROP TABLE IF EXISTS test")
-		}
-	}
-
-	timeDsn := dsn + "&sql_mode=ALLOW_INVALID_DATES"
-	for _, v := range setups {
-		s = v
-		runTests(t, timeDsn+s.dsnSuffix, testTime)
+		})
 	}
 }
 
@@ -1010,9 +1053,10 @@ func TestTimezoneConversion(t *testing.T) {
 		dbt.mustExec("CREATE TABLE test (ts TIMESTAMP)")
 
 		// Insert local time into database (should be converted)
+		utc, _ := time.LoadLocation("UTC")
 		usCentral, _ := time.LoadLocation("US/Central")
-		now := time.Now().In(usCentral)
-		dbt.mustExec("INSERT INTO test VALUE (?)", now)
+		reftime := time.Date(2014, 05, 30, 18, 03, 17, 0, utc).In(usCentral)
+		dbt.mustExec("INSERT INTO test VALUE (?)", reftime)
 
 		// Retrieve time from DB
 		rows := dbt.mustQuery("SELECT ts FROM test")
@@ -1020,59 +1064,23 @@ func TestTimezoneConversion(t *testing.T) {
 			dbt.Fatal("Didn't get any rows out")
 		}
 
-		var nowDB time.Time
-		err := rows.Scan(&nowDB)
+		var dbTime time.Time
+		err := rows.Scan(&dbTime)
 		if err != nil {
 			dbt.Fatal("Err", err)
 		}
 
 		// Check that dates match
-		if now.Unix() != nowDB.Unix() {
+		if reftime.Unix() != dbTime.Unix() {
 			dbt.Errorf("Times don't match.\n")
-			dbt.Errorf(" Now(%v)=%v\n", usCentral, now)
-			dbt.Errorf(" Now(UTC)=%v\n", nowDB)
+			dbt.Errorf(" Now(%v)=%v\n", usCentral, reftime)
+			dbt.Errorf(" Now(UTC)=%v\n", dbTime)
 		}
 	}
 
 	for _, tz := range zones {
 		runTests(t, dsn+"&parseTime=true&loc="+url.QueryEscape(tz), tzTest)
 	}
-}
-
-// This tests for https://github.com/go-sql-driver/mysql/pull/139
-//
-// An extra (invisible) nil byte was being added to the beginning of positive
-// time strings.
-func TestTimeSign(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
-		var sTimes = []struct {
-			value     string
-			fieldType string
-		}{
-			{"12:34:56", "TIME"},
-			{"-12:34:56", "TIME"},
-			// As described in http://dev.mysql.com/doc/refman/5.6/en/fractional-seconds.html
-			// they *should* work, but only in 5.6+.
-			// { "12:34:56.789", "TIME(3)" },
-			// { "-12:34:56.789", "TIME(3)" },
-		}
-
-		for _, sTime := range sTimes {
-			dbt.db.Exec("DROP TABLE IF EXISTS test")
-			dbt.mustExec("CREATE TABLE test (id INT, time_field " + sTime.fieldType + ")")
-			dbt.mustExec("INSERT INTO test (id, time_field) VALUES(1, '" + sTime.value + "')")
-			rows := dbt.mustQuery("SELECT time_field FROM test WHERE id = ?", 1)
-			if rows.Next() {
-				var oTime string
-				rows.Scan(&oTime)
-				if oTime != sTime.value {
-					dbt.Errorf(`time values differ: got %q, expected %q.`, oTime, sTime.value)
-				}
-			} else {
-				dbt.Error("expecting at least one row.")
-			}
-		}
-	})
 }
 
 // Special cases

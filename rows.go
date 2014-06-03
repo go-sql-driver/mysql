@@ -14,9 +14,11 @@ import (
 )
 
 type mysqlField struct {
-	fieldType byte
-	flags     fieldFlag
 	name      string
+	length    uint32 // length as string: DATETIME(4) => 24
+	flags     fieldFlag
+	fieldType byte
+	decimals  byte // numeric precision: DATETIME(4) => 4, also for DECIMAL etc.
 }
 
 type mysqlRows struct {

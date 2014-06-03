@@ -29,6 +29,9 @@ var (
 	errInvalidDSNNoSlash   = errors.New("Invalid DSN: Missing the slash separating the database name")
 )
 
+// timeFormat must not be changed
+var timeFormat = "2006-01-02 15:04:05.999999"
+
 func init() {
 	tlsConfigRegister = make(map[string]*tls.Config)
 }
@@ -451,17 +454,13 @@ func (nt NullTime) Value() (driver.Value, error) {
 }
 
 func parseDateTime(str string, loc *time.Location) (t time.Time, err error) {
+	base := "0000-00-00 00:00:00.0000000"
 	switch len(str) {
-	case 10: // YYYY-MM-DD
-		if str == "0000-00-00" {
+	case 10, 19, 21, 22, 23, 24, 25, 26: // up to "YYYY-MM-DD HH:MM:SS.MMMMMM"
+		if str == base[:len(str)] {
 			return
 		}
-		t, err = time.Parse(timeFormat[:10], str)
-	case 19: // YYYY-MM-DD HH:MM:SS
-		if str == "0000-00-00 00:00:00" {
-			return
-		}
-		t, err = time.Parse(timeFormat, str)
+		t, err = time.Parse(timeFormat[:len(str)], str)
 	default:
 		err = fmt.Errorf("Invalid Time-String: %s", str)
 		return
@@ -519,24 +518,22 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 // if the DATE or DATETIME has the zero value.
 // It must never be changed.
 // The current behavior depends on database/sql copying the result.
-var zeroDateTime = []byte("0000-00-00 00:00:00")
+var zeroDateTime = []byte("0000-00-00 00:00:00.000000")
 
-func formatBinaryDateTime(src []byte, withTime bool) (driver.Value, error) {
+func formatBinaryDateTime(src []byte, length uint8) (driver.Value, error) {
 	if len(src) == 0 {
-		if withTime {
-			return zeroDateTime, nil
-		}
-		return zeroDateTime[:10], nil
+		return zeroDateTime[:length], nil
 	}
 	var dst []byte
-	if withTime {
-		if len(src) == 11 {
-			dst = []byte("0000-00-00 00:00:00.000000")
-		} else {
-			dst = []byte("0000-00-00 00:00:00")
-		}
-	} else {
+	switch length {
+	case 10:
 		dst = []byte("0000-00-00")
+	case 19:
+		dst = []byte("0000-00-00 00:00:00")
+	case 21, 22, 23, 24, 25, 26:
+		dst = []byte("0000-00-00 00:00:00.000000")
+	default:
+		return nil, fmt.Errorf("illegal datetime length %d", length)
 	}
 	switch len(src) {
 	case 11:
@@ -584,10 +581,10 @@ func formatBinaryDateTime(src []byte, withTime bool) (driver.Value, error) {
 		tmp16, year = tmp16/10, tmp16
 		dst[1] += byte(year - 10*tmp16)
 		dst[0] += byte(tmp16)
-		return dst, nil
+		return dst[:length], nil
 	}
 	var t string
-	if withTime {
+	if length >= 19 {
 		t = "DATETIME"
 	} else {
 		t = "DATE"

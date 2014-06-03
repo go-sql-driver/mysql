@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strconv"
 	"time"
 )
 
@@ -557,20 +558,24 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 			return nil, err
 		}
 
-		// Filler [1 byte]
-		// Charset [16 bit uint]
-		// Length [32 bit uint]
-		pos += n + 1 + 2 + 4
+		// Filler [uint8]
+		// Charset [charset, collation uint8]
+		pos += n + 1 + 2
 
-		// Field type [byte]
+		// Length [uint32]
+		columns[i].length = binary.LittleEndian.Uint32(data[pos : pos+4])
+		pos += 4
+
+		// Field type [uint8]
 		columns[i].fieldType = data[pos]
 		pos++
 
-		// Flags [16 bit uint]
+		// Flags [uint16]
 		columns[i].flags = fieldFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
-		//pos += 2
+		pos += 2
 
-		// Decimals [8 bit uint]
+		// Decimals [uint8]
+		columns[i].decimals = data[pos]
 		//pos++
 
 		// Default value [len coded binary]
@@ -950,6 +955,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 // http://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html
 func (rows *binaryRows) readRow(dest []driver.Value) error {
+	timestr := "00:00:00.000000"
 	data, err := rows.mc.readPacket()
 	if err != nil {
 		return err
@@ -1068,7 +1074,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 			if rows.mc.parseTime {
 				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.loc)
 			} else {
-				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], false)
+				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], 10)
 			}
 
 			if err == nil {
@@ -1088,7 +1094,11 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 					dest[i] = nil
 					continue
 				} else {
-					dest[i] = []byte("00:00:00")
+					length := uint8(8)
+					if rows.columns[i].decimals > 0 {
+						length += 1 + uint8(rows.columns[i].decimals)
+					}
+					dest[i] = []byte(timestr[:length])
 					continue
 				}
 			}
@@ -1109,8 +1119,9 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 				pos += 8
 				continue
 			case 12:
+				decimals := strconv.FormatInt(int64(rows.columns[i].decimals), 10)
 				dest[i] = []byte(fmt.Sprintf(
-					sign+"%02d:%02d:%02d.%06d",
+					sign+"%02d:%02d:%02d.%0"+decimals+"d",
 					uint16(data[pos+1])*24+uint16(data[pos+5]),
 					data[pos+6],
 					data[pos+7],
@@ -1136,7 +1147,11 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 			if rows.mc.parseTime {
 				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.loc)
 			} else {
-				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], true)
+				length := uint8(19)
+				if rows.columns[i].decimals > 0 {
+					length += 1 + uint8(rows.columns[i].decimals)
+				}
+				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], length)
 			}
 
 			if err == nil {
