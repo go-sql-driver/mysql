@@ -12,7 +12,6 @@ package mysql
 
 import (
 	"appengine/cloudsql"
-	"net"
 )
 
 func init() {
