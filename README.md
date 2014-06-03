@@ -4,9 +4,9 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
 
 ![Go-MySQL-Driver logo](https://raw.github.com/wiki/go-sql-driver/mysql/gomysql_m.png "Golang Gopher holding the MySQL Dolphin")
 
-**Current tagged Release:** Version 1.1 (November 02, 2013)
+**Latest stable Release:** [Version 1.1 (November 02, 2013)](https://github.com/go-sql-driver/mysql/releases)
 
-[![Build Status](https://travis-ci.org/go-sql-driver/mysql.png?branch=master)](https://travis-ci.org/go-sql-driver/mysql) *(master branch)*
+[![Build Status](https://travis-ci.org/go-sql-driver/mysql.png?branch=master)](https://travis-ci.org/go-sql-driver/mysql)
 
 ---------------------------------------
   * [Features](#features)
@@ -51,8 +51,6 @@ Simple install the package to your [$GOPATH](http://code.google.com/p/go-wiki/wi
 $ go get github.com/go-sql-driver/mysql
 ```
 Make sure [Git is installed](http://git-scm.com/downloads) on your machine and in your system's `PATH`.
-
-*`go get` installs the [latest tagged release](https://github.com/go-sql-driver/mysql/releases)*
 
 ## Usage
 _Go MySQL Driver_ is an implementation of Go's `database/sql/driver` interface. You only need to import the driver and can use the full [`database/sql`](http://golang.org/pkg/database/sql) API then.
