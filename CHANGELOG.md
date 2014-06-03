@@ -1,4 +1,4 @@
-## Version 1.2 (pending)
+## Version 1.2 (2014-06-03)
 
 Changes:
 
