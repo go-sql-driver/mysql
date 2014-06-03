@@ -33,7 +33,7 @@ var dials map[string]dialFunc
 // Open new Connection.
 // See https://github.com/go-sql-driver/mysql#dsn-data-source-name for how
 // the DSN string is formated
-func (d *MySQLDriver) Open(dsn string) (driver.Conn, error) {
+func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	var err error
 
 	// New mysqlConn
