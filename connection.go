@@ -18,7 +18,7 @@ import (
 )
 
 type mysqlConn struct {
-	buf              *buffer
+	buf              buffer
 	netConn          net.Conn
 	affectedRows     uint64
 	insertId         uint64
@@ -124,7 +124,7 @@ func (mc *mysqlConn) Close() (err error) {
 	}
 
 	mc.cfg = nil
-	mc.buf = nil
+	mc.buf.rd = nil
 
 	return
 }
