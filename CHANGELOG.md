@@ -16,6 +16,7 @@ Changes:
 
 New Features:
 
+ - `RegisterDial` allows the usage of a custom dial function to establish the network connection
  - Setting the connection collation is possible with the `collation` DSN parameter. This parameter should be preferred over the `charset` parameter
  - Logging of critical errors is configurable with `SetLogger`
  - Google CloudSQL support
