@@ -24,9 +24,9 @@ type buffer struct {
 	length int
 }
 
-func newBuffer(rd io.Reader) *buffer {
+func newBuffer(rd io.Reader) buffer {
 	var b [defaultBufSize]byte
-	return &buffer{
+	return buffer{
 		buf: b[:],
 		rd:  rd,
 	}
