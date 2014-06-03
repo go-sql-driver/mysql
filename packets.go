@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"strconv"
 	"time"
 )
 
@@ -1103,35 +1102,36 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 				}
 			}
 
-			var sign string
+			var result string
 			if data[pos] == 1 {
-				sign = "-"
+				result = "-"
 			}
-
+			var microsecs uint32
 			switch num {
 			case 8:
-				dest[i] = []byte(fmt.Sprintf(
-					sign+"%02d:%02d:%02d",
+				result += fmt.Sprintf(
+					"%02d:%02d:%02d",
 					uint16(data[pos+1])*24+uint16(data[pos+5]),
 					data[pos+6],
 					data[pos+7],
-				))
+				)
 				pos += 8
-				continue
 			case 12:
-				decimals := strconv.FormatInt(int64(rows.columns[i].decimals), 10)
-				dest[i] = []byte(fmt.Sprintf(
-					sign+"%02d:%02d:%02d.%0"+decimals+"d",
+				result += fmt.Sprintf(
+					"%02d:%02d:%02d",
 					uint16(data[pos+1])*24+uint16(data[pos+5]),
 					data[pos+6],
 					data[pos+7],
-					binary.LittleEndian.Uint32(data[pos+8:pos+12]),
-				))
+				)
+				microsecs = binary.LittleEndian.Uint32(data[pos+8 : pos+12])
 				pos += 12
-				continue
 			default:
 				return fmt.Errorf("Invalid TIME-packet length %d", num)
 			}
+			if decimals := rows.columns[i].decimals; decimals > 0 {
+				result += fmt.Sprintf(".%06d", microsecs)[:1+decimals]
+			}
+			dest[i] = []byte(result)
 
 		// Timestamp YYYY-MM-DD HH:MM:SS[.fractal]
 		case fieldTypeTimestamp, fieldTypeDateTime:
