@@ -1128,7 +1128,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 			default:
 				return fmt.Errorf("Invalid TIME-packet length %d", num)
 			}
-			if decimals := rows.columns[i].decimals; decimals > 0 {
+			if decimals := rows.columns[i].decimals; decimals > 0 && decimals <= 6 {
 				result += fmt.Sprintf(".%06d", microsecs)[:1+decimals]
 			}
 			dest[i] = []byte(result)
