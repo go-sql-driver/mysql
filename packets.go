@@ -1094,7 +1094,9 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 					case 1, 2, 3, 4, 5, 6:
 						dstlen = 19 + 1 + decimals
 					default:
-						panic(fmt.Sprintf("%#v", rows.columns[i]))
+						panic(fmt.Sprintf("unexpected decimals value in column %d: %#v",
+							i, rows.columns[i],
+						))
 					}
 				}
 				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], dstlen, false)

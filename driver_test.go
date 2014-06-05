@@ -338,9 +338,37 @@ type timeTest struct {
 	t time.Time
 }
 
-func (t timeTest) genQuery(dbtype string, binaryProtocol bool) string {
+type timeMode byte
+
+func (t timeMode) String() string {
+	switch t {
+	case binaryString:
+		return "binary:string"
+	case binaryTime:
+		return "binary:time.Time"
+	case textString:
+		return "text:string"
+	}
+	panic("unsupported timeMode")
+}
+
+func (t timeMode) Binary() bool {
+	switch t {
+	case binaryString, binaryTime:
+		return true
+	}
+	return false
+}
+
+const (
+	binaryString timeMode = iota
+	binaryTime
+	textString
+)
+
+func (t timeTest) genQuery(dbtype string, mode timeMode) string {
 	var inner string
-	if binaryProtocol {
+	if mode.Binary() {
 		inner = "?"
 	} else {
 		inner = `"%s"`
@@ -351,17 +379,15 @@ func (t timeTest) genQuery(dbtype string, binaryProtocol bool) string {
 	return `SELECT CAST(` + inner + ` AS ` + dbtype + `)`
 }
 
-func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, mode int) {
+func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, mode timeMode) {
 	var rows *sql.Rows
-	query := t.genQuery(dbtype, mode < 2)
-	var protocol = "binary"
+	query := t.genQuery(dbtype, mode)
 	switch mode {
-	case 0:
+	case binaryString:
 		rows = dbt.mustQuery(query, t.s)
-	case 1:
+	case binaryTime:
 		rows = dbt.mustQuery(query, t.t)
-	case 2:
-		protocol = "text"
+	case textString:
 		query = fmt.Sprintf(query, t.s)
 		rows = dbt.mustQuery(query)
 	default:
@@ -374,13 +400,13 @@ func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, mode int) {
 		if err == nil {
 			err = fmt.Errorf("no data")
 		}
-		dbt.Errorf("%s [%s]: %s", dbtype, protocol, err)
+		dbt.Errorf("%s [%s]: %s", dbtype, mode, err)
 		return
 	}
 	var dst interface{}
 	err = rows.Scan(&dst)
 	if err != nil {
-		dbt.Errorf("%s [%s]: %s", dbtype, protocol, err)
+		dbt.Errorf("%s [%s]: %s", dbtype, mode, err)
 		return
 	}
 	switch val := dst.(type) {
@@ -389,22 +415,22 @@ func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, mode int) {
 		if str == t.s {
 			return
 		}
-		dbt.Errorf("%s to string [%s]: expected %q, got %q",
-			dbtype, protocol,
+		dbt.Errorf("%s [%s] to string: expected %q, got %q",
+			dbtype, mode,
 			t.s, str,
 		)
 	case time.Time:
 		if val == t.t {
 			return
 		}
-		dbt.Errorf("%s to string [%s]: expected %q, got %q",
-			dbtype, protocol,
+		dbt.Errorf("%s [%s] to string: expected %q, got %q",
+			dbtype, mode,
 			t.s, val.Format(tlayout),
 		)
 	default:
 		fmt.Printf("%#v\n", []interface{}{dbtype, tlayout, mode, t.s, t.t})
 		dbt.Errorf("%s [%s]: unhandled type %T (is '%v')",
-			dbtype, protocol,
+			dbtype, mode,
 			val, val,
 		)
 	}
@@ -514,13 +540,13 @@ func TestDateTime(t *testing.T) {
 					continue
 				}
 				for _, setup := range setups.tests {
-					timeArgBinary := true
+					allowBinTime := true
 					if setup.s == "" {
 						// fill time string whereever Go can reliable produce it
 						setup.s = setup.t.Format(setups.tlayout)
 					} else if setup.s[0] == '!' {
 						// skip tests using setup.t as source in queries
-						timeArgBinary = false
+						allowBinTime = false
 						// fix setup.s - remove the "!"
 						setup.s = setup.s[1:]
 					}
@@ -528,11 +554,11 @@ func TestDateTime(t *testing.T) {
 						// skip disallowed 0000-00-00 date
 						continue
 					}
-					setup.run(dbt, setups.dbtype, setups.tlayout, 0)
-					if timeArgBinary {
-						setup.run(dbt, setups.dbtype, setups.tlayout, 1)
+					setup.run(dbt, setups.dbtype, setups.tlayout, textString)
+					setup.run(dbt, setups.dbtype, setups.tlayout, binaryString)
+					if allowBinTime {
+						setup.run(dbt, setups.dbtype, setups.tlayout, binaryTime)
 					}
-					setup.run(dbt, setups.dbtype, setups.tlayout, 2)
 				}
 			}
 		})
