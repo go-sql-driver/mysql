@@ -520,76 +520,140 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 // The current behavior depends on database/sql copying the result.
 var zeroDateTime = []byte("0000-00-00 00:00:00.000000")
 
-func formatBinaryDateTime(src []byte, length uint8) (driver.Value, error) {
+func formatBinaryDateTime(src []byte, length uint8, justTime bool) (driver.Value, error) {
+	// length expects the deterministic length of the zero value,
+	// negative time and 100+ hours are automatically added if needed
+	const pairs = "00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899"
 	if len(src) == 0 {
+		if justTime {
+			return zeroDateTime[11 : 11+length], nil
+		}
 		return zeroDateTime[:length], nil
 	}
-	var dst []byte
-	switch length {
-	case 10:
-		dst = []byte("0000-00-00")
-	case 19:
-		dst = []byte("0000-00-00 00:00:00")
-	case 21, 22, 23, 24, 25, 26:
-		dst = []byte("0000-00-00 00:00:00.000000")
-	default:
-		return nil, fmt.Errorf("illegal datetime length %d", length)
-	}
-	switch len(src) {
-	case 11:
-		microsecs := binary.LittleEndian.Uint32(src[7:11])
-		tmp32 := microsecs / 10
-		dst[25] += byte(microsecs - 10*tmp32)
-		tmp32, microsecs = tmp32/10, tmp32
-		dst[24] += byte(microsecs - 10*tmp32)
-		tmp32, microsecs = tmp32/10, tmp32
-		dst[23] += byte(microsecs - 10*tmp32)
-		tmp32, microsecs = tmp32/10, tmp32
-		dst[22] += byte(microsecs - 10*tmp32)
-		tmp32, microsecs = tmp32/10, tmp32
-		dst[21] += byte(microsecs - 10*tmp32)
-		dst[20] += byte(microsecs / 10)
-		fallthrough
-	case 7:
-		second := src[6]
-		tmp := second / 10
-		dst[18] += second - 10*tmp
-		dst[17] += tmp
-		minute := src[5]
-		tmp = minute / 10
-		dst[15] += minute - 10*tmp
-		dst[14] += tmp
-		hour := src[4]
-		tmp = hour / 10
-		dst[12] += hour - 10*tmp
-		dst[11] += tmp
-		fallthrough
-	case 4:
-		day := src[3]
-		tmp := day / 10
-		dst[9] += day - 10*tmp
-		dst[8] += tmp
-		month := src[2]
-		tmp = month / 10
-		dst[6] += month - 10*tmp
-		dst[5] += tmp
-		year := binary.LittleEndian.Uint16(src[:2])
-		tmp16 := year / 10
-		dst[3] += byte(year - 10*tmp16)
-		tmp16, year = tmp16/10, tmp16
-		dst[2] += byte(year - 10*tmp16)
-		tmp16, year = tmp16/10, tmp16
-		dst[1] += byte(year - 10*tmp16)
-		dst[0] += byte(tmp16)
-		return dst[:length], nil
-	}
-	var t string
-	if length >= 19 {
-		t = "DATETIME"
+	var dst []byte          // return value
+	var pt, p1, p2, p3 byte // current digit pair
+	var zOffs byte          // offset of value in zeroDateTime
+	if justTime {
+		switch length {
+		case
+			8,                      // time (can be up to 10 when negative and 100+ hours)
+			10, 11, 12, 13, 14, 15: // time with fractional seconds
+		default:
+			return nil, fmt.Errorf("illegal TIME length %d", length)
+		}
+		switch len(src) {
+		case 8, 12:
+		default:
+			return nil, fmt.Errorf("Invalid TIME-packet length %d", len(src))
+		}
+		// +2 to enable negative time and 100+ hours
+		dst = make([]byte, 0, length+2)
+		if src[0] == 1 {
+			dst = append(dst, '-')
+		}
+		if src[1] != 0 {
+			hour := uint16(src[1])*24 + uint16(src[5])
+			pt = byte(hour / 100)
+			p1 = byte(hour - 100*uint16(pt))
+			dst = append(dst, '0'+pt)
+		} else {
+			p1 = src[5]
+		}
+		zOffs = 11
+		src = src[6:]
 	} else {
-		t = "DATE"
+		switch length {
+		case 10, 19, 21, 22, 23, 24, 25, 26:
+		default:
+			t := "DATE"
+			if length > 10 {
+				t += "TIME"
+			}
+			return nil, fmt.Errorf("illegal %s length %d", t, length)
+		}
+		switch len(src) {
+		case 4, 7, 11:
+		default:
+			t := "DATE"
+			if length > 10 {
+				t += "TIME"
+			}
+			return nil, fmt.Errorf("illegal %s-packet length %d", t, len(src))
+		}
+		dst = make([]byte, 0, length)
+		// start with the date
+		year := binary.LittleEndian.Uint16(src[:2])
+		pt = byte(year / 100)
+		p1 = byte(year - 100*uint16(pt))
+		p2, p3 = src[2], src[3]
+		dst = append(dst,
+			pairs[2*pt], pairs[2*pt+1],
+			pairs[2*p1], pairs[2*p1+1], '-',
+			pairs[2*p2], pairs[2*p2+1], '-',
+			pairs[2*p3], pairs[2*p3+1],
+		)
+		if length == 10 {
+			return dst, nil
+		}
+		if len(src) == 4 {
+			return append(dst, zeroDateTime[10:length]...), nil
+		}
+		dst = append(dst, ' ')
+		p1 = src[4] // hour
+		src = src[5:]
 	}
-	return nil, fmt.Errorf("invalid %s-packet length %d", t, len(src))
+	// p1 is 2-digit hour, src is after hour
+	p2, p3 = src[0], src[1]
+	dst = append(dst,
+		pairs[2*p1], pairs[2*p1+1], ':',
+		pairs[2*p2], pairs[2*p2+1], ':',
+		pairs[2*p3], pairs[2*p3+1],
+	)
+	if length <= byte(len(dst)) {
+		return dst, nil
+	}
+	src = src[2:]
+	if len(src) == 0 {
+		return append(dst, zeroDateTime[19:zOffs+length]...), nil
+	}
+	microsecs := binary.LittleEndian.Uint32(src[:4])
+	p1 = byte(microsecs / 10000)
+	microsecs -= 10000 * uint32(p1)
+	p2 = byte(microsecs / 100)
+	microsecs -= 100 * uint32(p2)
+	p3 = byte(microsecs)
+	switch decimals := zOffs + length - 20; decimals {
+	default:
+		return append(dst, '.',
+			pairs[2*p1], pairs[2*p1+1],
+			pairs[2*p2], pairs[2*p2+1],
+			pairs[2*p3], pairs[2*p3+1],
+		), nil
+	case 1:
+		return append(dst, '.',
+			pairs[2*p1],
+		), nil
+	case 2:
+		return append(dst, '.',
+			pairs[2*p1], pairs[2*p1+1],
+		), nil
+	case 3:
+		return append(dst, '.',
+			pairs[2*p1], pairs[2*p1+1],
+			pairs[2*p2],
+		), nil
+	case 4:
+		return append(dst, '.',
+			pairs[2*p1], pairs[2*p1+1],
+			pairs[2*p2], pairs[2*p2+1],
+		), nil
+	case 5:
+		return append(dst, '.',
+			pairs[2*p1], pairs[2*p1+1],
+			pairs[2*p2], pairs[2*p2+1],
+			pairs[2*p3],
+		), nil
+	}
 }
 
 /******************************************************************************

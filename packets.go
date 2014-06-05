@@ -954,7 +954,6 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 // http://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html
 func (rows *binaryRows) readRow(dest []driver.Value) error {
-	timestr := "00:00:00.000000"
 	data, err := rows.mc.readPacket()
 	if err != nil {
 		return err
@@ -1060,98 +1059,43 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 			}
 			return err
 
-		// Date YYYY-MM-DD
-		case fieldTypeDate, fieldTypeNewDate:
+		case
+			fieldTypeDate, fieldTypeNewDate, // Date YYYY-MM-DD
+			fieldTypeTime,                         // Time [-][H]HH:MM:SS[.fractal]
+			fieldTypeTimestamp, fieldTypeDateTime: // Timestamp YYYY-MM-DD HH:MM:SS[.fractal]
+
 			num, isNull, n := readLengthEncodedInteger(data[pos:])
 			pos += n
 
-			if isNull {
+			switch {
+			case isNull:
 				dest[i] = nil
 				continue
-			}
-
-			if rows.mc.parseTime {
-				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.loc)
-			} else {
-				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], 10)
-			}
-
-			if err == nil {
-				pos += int(num)
-				continue
-			} else {
-				return err
-			}
-
-		// Time [-][H]HH:MM:SS[.fractal]
-		case fieldTypeTime:
-			num, isNull, n := readLengthEncodedInteger(data[pos:])
-			pos += n
-
-			if num == 0 {
-				if isNull {
-					dest[i] = nil
-					continue
-				} else {
-					length := uint8(8)
-					if rows.columns[i].decimals > 0 {
-						length += 1 + uint8(rows.columns[i].decimals)
-					}
-					dest[i] = []byte(timestr[:length])
-					continue
+			case rows.columns[i].fieldType == fieldTypeTime:
+				// database/sql does not support an equivalent to TIME, return a string
+				var dstlen uint8
+				switch decimals := rows.columns[i].decimals; decimals {
+				case 0x00, 0x1f:
+					dstlen = 8
+				case 1, 2, 3, 4, 5, 6:
+					dstlen = 8 + 1 + decimals
 				}
-			}
-
-			var result string
-			if data[pos] == 1 {
-				result = "-"
-			}
-			var microsecs uint32
-			switch num {
-			case 8:
-				result += fmt.Sprintf(
-					"%02d:%02d:%02d",
-					uint16(data[pos+1])*24+uint16(data[pos+5]),
-					data[pos+6],
-					data[pos+7],
-				)
-				pos += 8
-			case 12:
-				result += fmt.Sprintf(
-					"%02d:%02d:%02d",
-					uint16(data[pos+1])*24+uint16(data[pos+5]),
-					data[pos+6],
-					data[pos+7],
-				)
-				microsecs = binary.LittleEndian.Uint32(data[pos+8 : pos+12])
-				pos += 12
+				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], dstlen, true)
+			case rows.mc.parseTime:
+				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.loc)
 			default:
-				return fmt.Errorf("Invalid TIME-packet length %d", num)
-			}
-			if decimals := rows.columns[i].decimals; decimals > 0 && decimals <= 6 {
-				result += fmt.Sprintf(".%06d", microsecs)[:1+decimals]
-			}
-			dest[i] = []byte(result)
-
-		// Timestamp YYYY-MM-DD HH:MM:SS[.fractal]
-		case fieldTypeTimestamp, fieldTypeDateTime:
-			num, isNull, n := readLengthEncodedInteger(data[pos:])
-
-			pos += n
-
-			if isNull {
-				dest[i] = nil
-				continue
-			}
-
-			if rows.mc.parseTime {
-				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.loc)
-			} else {
-				length := uint8(19)
-				if rows.columns[i].decimals > 0 {
-					length += 1 + uint8(rows.columns[i].decimals)
+				var dstlen uint8
+				if rows.columns[i].fieldType == fieldTypeDate {
+					dstlen = 10
+				} else {
+					switch decimals := rows.columns[i].decimals; decimals {
+					case 0x00, 0x1f:
+						dstlen = 19
+					case 1, 2, 3, 4, 5, 6:
+						dstlen = 19 + 1 + decimals
+					}
 				}
-				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], length)
+				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], dstlen, false)
 			}
 
 			if err == nil {

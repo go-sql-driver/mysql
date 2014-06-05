@@ -334,7 +334,7 @@ type timeTests struct {
 }
 
 type timeTest struct {
-	s string
+	s string // leading "!": do not use t as value in queries
 	t time.Time
 }
 
@@ -351,15 +351,21 @@ func (t timeTest) genQuery(dbtype string, binaryProtocol bool) string {
 	return `SELECT CAST(` + inner + ` AS ` + dbtype + `)`
 }
 
-func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, binaryProtocol bool) {
+func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, mode int) {
 	var rows *sql.Rows
-	var protocol string
-	if query := t.genQuery(dbtype, binaryProtocol); binaryProtocol {
-		protocol = "binary"
+	query := t.genQuery(dbtype, mode < 2)
+	var protocol = "binary"
+	switch mode {
+	case 0:
+		rows = dbt.mustQuery(query, t.s)
+	case 1:
 		rows = dbt.mustQuery(query, t.t)
-	} else {
+	case 2:
 		protocol = "text"
-		rows = dbt.mustQuery(fmt.Sprintf(query, t.s))
+		query = fmt.Sprintf(query, t.s)
+		rows = dbt.mustQuery(query)
+	default:
+		panic("unsupported mode")
 	}
 	defer rows.Close()
 	var err error
@@ -368,17 +374,13 @@ func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, binaryProtocol bool) 
 		if err == nil {
 			err = fmt.Errorf("no data")
 		}
-		dbt.Errorf("%s [%s]: %s",
-			dbtype, protocol, err,
-		)
+		dbt.Errorf("%s [%s]: %s", dbtype, protocol, err)
 		return
 	}
 	var dst interface{}
 	err = rows.Scan(&dst)
 	if err != nil {
-		dbt.Errorf("%s [%s]: %s",
-			dbtype, protocol, err,
-		)
+		dbt.Errorf("%s [%s]: %s", dbtype, protocol, err)
 		return
 	}
 	switch val := dst.(type) {
@@ -387,7 +389,7 @@ func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, binaryProtocol bool) 
 		if str == t.s {
 			return
 		}
-		dbt.Errorf("%s to string [%s]: expected '%s', got '%s'",
+		dbt.Errorf("%s to string [%s]: expected %q, got %q",
 			dbtype, protocol,
 			t.s, str,
 		)
@@ -395,13 +397,15 @@ func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, binaryProtocol bool) 
 		if val == t.t {
 			return
 		}
-		dbt.Errorf("%s to string [%s]: expected '%s', got '%s'",
+		dbt.Errorf("%s to string [%s]: expected %q, got %q",
 			dbtype, protocol,
 			t.s, val.Format(tlayout),
 		)
 	default:
-		dbt.Errorf("%s [%s]: unhandled type %T (is '%s')",
-			dbtype, protocol, val, val,
+		fmt.Printf("%#v\n", []interface{}{dbtype, tlayout, mode, t.s, t.t})
+		dbt.Errorf("%s [%s]: unhandled type %T (is '%v')",
+			dbtype, protocol,
+			val, val,
 		)
 	}
 }
@@ -428,6 +432,10 @@ func TestDateTime(t *testing.T) {
 			{t: time.Date(2011, 11, 20, 21, 27, 37, 0, time.UTC)},
 			{t: t0, s: tstr0[:19]},
 		}},
+		{"DATETIME(0)", format[:21], []timeTest{
+			{t: time.Date(2011, 11, 20, 21, 27, 37, 0, time.UTC)},
+			{t: t0, s: tstr0[:19]},
+		}},
 		{"DATETIME(1)", format[:21], []timeTest{
 			{t: time.Date(2011, 11, 20, 21, 27, 37, 100000000, time.UTC)},
 			{t: t0, s: tstr0[:21]},
@@ -438,20 +446,37 @@ func TestDateTime(t *testing.T) {
 		}},
 		{"TIME", format[11:19], []timeTest{
 			{t: afterTime(t0, "12345s")},
-			{t: afterTime(t0, "-12345s")},
+			{s: "!-12:34:56"},
+			{s: "!-838:59:59"},
+			{s: "!838:59:59"},
+			{t: t0, s: tstr0[11:19]},
+		}},
+		{"TIME(0)", format[11:19], []timeTest{
+			{t: afterTime(t0, "12345s")},
+			{s: "!-12:34:56"},
+			{s: "!-838:59:59"},
+			{s: "!838:59:59"},
 			{t: t0, s: tstr0[11:19]},
 		}},
 		{"TIME(1)", format[11:21], []timeTest{
 			{t: afterTime(t0, "12345600ms")},
-			{t: afterTime(t0, "-12345600ms")},
+			{s: "!-12:34:56.7"},
+			{s: "!-838:59:58.9"},
+			{s: "!838:59:58.9"},
 			{t: t0, s: tstr0[11:21]},
 		}},
 		{"TIME(6)", format[11:], []timeTest{
 			{t: afterTime(t0, "1234567890123000ns")},
-			{t: afterTime(t0, "-1234567890123000ns")},
+			{s: "!-12:34:56.789012"},
+			{s: "!-838:59:58.999999"},
+			{s: "!838:59:58.999999"},
 			{t: t0, s: tstr0[11:]},
 		}},
 		{"TIMESTAMP", format[:19], []timeTest{
+			{t: afterTime(ts0, "12345s")},
+			{t: ts0, s: "1970-01-01 00:00:00"},
+		}},
+		{"TIMESTAMP(0)", format[:19], []timeTest{
 			{t: afterTime(ts0, "12345s")},
 			{t: ts0, s: "1970-01-01 00:00:00"},
 		}},
@@ -464,38 +489,50 @@ func TestDateTime(t *testing.T) {
 			{t: ts0, s: "1970-01-01 00:00:00.000000"},
 		}},
 	}
-	dsns := map[string]bool{
-		dsn + "&parseTime=true":                               true,
-		dsn + "&sql_mode=ALLOW_INVALID_DATES&parseTime=true":  true,
-		dsn + "&parseTime=false":                              false,
-		dsn + "&sql_mode=ALLOW_INVALID_DATES&parseTime=false": false,
+	dsns := []string{
+		dsn + "&parseTime=true",
+		dsn + "&parseTime=false",
 	}
-	var withFrac bool
-	if db, err := sql.Open("mysql", dsn); err != nil {
-		t.Fatal(err)
-	} else {
-		rows, err := db.Query(`SELECT CAST("00:00:00.123" AS TIME(3)) = "00:00:00.123"`)
-		if err == nil {
-			withFrac = true
-			rows.Close()
-		}
-		db.Close()
-	}
-	for testdsn, parseTime := range dsns {
-		var _ = parseTime
+	for _, testdsn := range dsns {
 		runTests(t, testdsn, func(dbt *DBTest) {
+			var withFrac, allowsZero bool
+			var rows *sql.Rows
+			var err error
+			rows, err = dbt.db.Query(`SELECT CAST("00:00:00.1" AS TIME(1)) = "00:00:00.1"`)
+			if err == nil {
+				rows.Scan(&withFrac)
+				rows.Close()
+			}
+			rows, err = dbt.db.Query(`SELECT CAST("0000-00-00" AS DATE) = "0000-00-00"`)
+			if err == nil {
+				rows.Scan(&allowsZero)
+				rows.Close()
+			}
 			for _, setups := range testcases {
 				if t := setups.dbtype; !withFrac && t[len(t)-1:] == ")" {
-					// skip fractional tests if unsupported by DB
+					// skip fractional second tests if unsupported by server
 					continue
 				}
 				for _, setup := range setups.tests {
+					timeArgBinary := true
 					if setup.s == "" {
 						// fill time string whereever Go can reliable produce it
 						setup.s = setup.t.Format(setups.tlayout)
+					} else if setup.s[0] == '!' {
+						// skip tests using setup.t as source in queries
+						timeArgBinary = false
+						// fix setup.s - remove the "!"
+						setup.s = setup.s[1:]
 					}
-					setup.run(dbt, setups.dbtype, setups.tlayout, true)
-					setup.run(dbt, setups.dbtype, setups.tlayout, false)
+					if !allowsZero && setup.s == tstr0[:len(setup.s)] {
+						// skip disallowed 0000-00-00 date
+						continue
+					}
+					setup.run(dbt, setups.dbtype, setups.tlayout, 0)
+					if timeArgBinary {
+						setup.run(dbt, setups.dbtype, setups.tlayout, 1)
+					}
+					setup.run(dbt, setups.dbtype, setups.tlayout, 2)
 				}
 			}
 		})

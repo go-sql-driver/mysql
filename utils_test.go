@@ -192,7 +192,7 @@ func TestFormatBinaryDateTime(t *testing.T) {
 	rawDate[6] = 23                                    // seconds
 	binary.LittleEndian.PutUint32(rawDate[7:], 987654) // microseconds
 	expect := func(expected string, inlen, outlen uint8) {
-		actual, _ := formatBinaryDateTime(rawDate[:inlen], outlen)
+		actual, _ := formatBinaryDateTime(rawDate[:inlen], outlen, false)
 		bytes, ok := actual.([]byte)
 		if !ok {
 			t.Errorf("formatBinaryDateTime must return []byte, was %T", actual)
