@@ -374,9 +374,9 @@ func (t timeTest) genQuery(dbtype string, mode timeMode) string {
 		inner = `"%s"`
 	}
 	if len(dbtype) >= 9 && dbtype[:9] == "TIMESTAMP" {
-		return `SELECT TIMESTAMPADD(SECOND,0,CAST(` + inner + ` AS DATETIME` + dbtype[9:] + `))`
+		return `SELECT timestampadd(second,0,cast(` + inner + ` as DATETIME` + dbtype[9:] + `))`
 	}
-	return `SELECT CAST(` + inner + ` AS ` + dbtype + `)`
+	return `SELECT cast(` + inner + ` as ` + dbtype + `)`
 }
 
 func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, mode timeMode) {
@@ -524,14 +524,21 @@ func TestDateTime(t *testing.T) {
 			var withFrac, allowsZero bool
 			var rows *sql.Rows
 			var err error
-			rows, err = dbt.db.Query(`SELECT CAST("00:00:00.1" AS TIME(1)) = "00:00:00.1"`)
+			rows, err = dbt.db.Query(`SELECT cast("00:00:00.1" as TIME(1)) = "00:00:00.1"`)
 			if err == nil {
 				rows.Scan(&withFrac)
 				rows.Close()
 			}
-			rows, err = dbt.db.Query(`SELECT CAST("0000-00-00" AS DATE) = "0000-00-00"`)
+			rows, err = dbt.db.Query(`SELECT cast("0000-00-00" as DATE) = "0000-00-00"`)
 			if err == nil {
 				rows.Scan(&allowsZero)
+				rows.Close()
+			}
+			// Fix for TravisCI with its "special" MySQL version
+			var datetimeAutofracs bool
+			rows, err = dbt.db.Query(`SELECT length(concat('',cast(? as DATETIME))) != 19`, "2011-11-20 21:27:37")
+			if err == nil {
+				rows.Scan(&datetimeAutofracs)
 				rows.Close()
 			}
 			for _, setups := range testcases {
@@ -552,6 +559,9 @@ func TestDateTime(t *testing.T) {
 					}
 					if !allowsZero && setup.s == tstr0[:len(setup.s)] {
 						// skip disallowed 0000-00-00 date
+						continue
+					}
+					if datetimeAutofracs && setups.dbtype == "DATETIME" && setup.t != t0 {
 						continue
 					}
 					setup.run(dbt, setups.dbtype, setups.tlayout, textString)
