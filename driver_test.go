@@ -415,6 +415,12 @@ func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, mode timeMode) {
 		if str == t.s {
 			return
 		}
+		if mode.Binary() && dbtype == "DATETIME" && len(str) == 26 && str[:19] == t.s {
+			// a fix mainly for TravisCI:
+			// accept full microsecond resolution in result for DATETIME columns
+			// where the binary protocol was used
+			return
+		}
 		dbt.Errorf("%s [%s] to string: expected %q, got %q",
 			dbtype, mode,
 			t.s, str,
@@ -534,13 +540,6 @@ func TestDateTime(t *testing.T) {
 				rows.Scan(&allowsZero)
 				rows.Close()
 			}
-			// Fix for TravisCI with its "special" MySQL version
-			var datetimeAutofracs bool
-			rows, err = dbt.db.Query(`SELECT length(concat('',cast(? as DATETIME))) != 19`, "2011-11-20 21:27:37")
-			if err == nil {
-				rows.Scan(&datetimeAutofracs)
-				rows.Close()
-			}
 			for _, setups := range testcases {
 				if t := setups.dbtype; !withFrac && t[len(t)-1:] == ")" {
 					// skip fractional second tests if unsupported by server
@@ -559,9 +558,6 @@ func TestDateTime(t *testing.T) {
 					}
 					if !allowsZero && setup.s == tstr0[:len(setup.s)] {
 						// skip disallowed 0000-00-00 date
-						continue
-					}
-					if datetimeAutofracs && setups.dbtype == "DATETIME" && setup.t != t0 {
 						continue
 					}
 					setup.run(dbt, setups.dbtype, setups.tlayout, textString)
