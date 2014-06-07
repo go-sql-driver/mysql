@@ -523,7 +523,8 @@ var zeroDateTime = []byte("0000-00-00 00:00:00.000000")
 func formatBinaryDateTime(src []byte, length uint8, justTime bool) (driver.Value, error) {
 	// length expects the deterministic length of the zero value,
 	// negative time and 100+ hours are automatically added if needed
-	const pairs = "00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899"
+	const digits01 = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
+	const digits10 = "0000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999"
 	if len(src) == 0 {
 		if justTime {
 			return zeroDateTime[11 : 11+length], nil
@@ -555,7 +556,7 @@ func formatBinaryDateTime(src []byte, length uint8, justTime bool) (driver.Value
 			hour := uint16(src[1])*24 + uint16(src[5])
 			pt = byte(hour / 100)
 			p1 = byte(hour - 100*uint16(pt))
-			dst = append(dst, '0'+pt)
+			dst = append(dst, digits01[pt])
 		} else {
 			p1 = src[5]
 		}
@@ -587,10 +588,10 @@ func formatBinaryDateTime(src []byte, length uint8, justTime bool) (driver.Value
 		p1 = byte(year - 100*uint16(pt))
 		p2, p3 = src[2], src[3]
 		dst = append(dst,
-			pairs[2*pt], pairs[2*pt+1],
-			pairs[2*p1], pairs[2*p1+1], '-',
-			pairs[2*p2], pairs[2*p2+1], '-',
-			pairs[2*p3], pairs[2*p3+1],
+			digits10[pt], digits01[pt],
+			digits10[p1], digits01[p1], '-',
+			digits10[p2], digits01[p2], '-',
+			digits10[p3], digits01[p3],
 		)
 		if length == 10 {
 			return dst, nil
@@ -605,9 +606,9 @@ func formatBinaryDateTime(src []byte, length uint8, justTime bool) (driver.Value
 	// p1 is 2-digit hour, src is after hour
 	p2, p3 = src[0], src[1]
 	dst = append(dst,
-		pairs[2*p1], pairs[2*p1+1], ':',
-		pairs[2*p2], pairs[2*p2+1], ':',
-		pairs[2*p3], pairs[2*p3+1],
+		digits10[p1], digits01[p1], ':',
+		digits10[p2], digits01[p2], ':',
+		digits10[p3], digits01[p3],
 	)
 	if length <= byte(len(dst)) {
 		return dst, nil
@@ -625,33 +626,33 @@ func formatBinaryDateTime(src []byte, length uint8, justTime bool) (driver.Value
 	switch decimals := zOffs + length - 20; decimals {
 	default:
 		return append(dst, '.',
-			pairs[2*p1], pairs[2*p1+1],
-			pairs[2*p2], pairs[2*p2+1],
-			pairs[2*p3], pairs[2*p3+1],
+			digits10[p1], digits01[p1],
+			digits10[p2], digits01[p2],
+			digits10[p3], digits01[p3],
 		), nil
 	case 1:
 		return append(dst, '.',
-			pairs[2*p1],
+			digits10[p1],
 		), nil
 	case 2:
 		return append(dst, '.',
-			pairs[2*p1], pairs[2*p1+1],
+			digits10[p1], digits01[p1],
 		), nil
 	case 3:
 		return append(dst, '.',
-			pairs[2*p1], pairs[2*p1+1],
-			pairs[2*p2],
+			digits10[p1], digits01[p1],
+			digits10[p2],
 		), nil
 	case 4:
 		return append(dst, '.',
-			pairs[2*p1], pairs[2*p1+1],
-			pairs[2*p2], pairs[2*p2+1],
+			digits10[p1], digits01[p1],
+			digits10[p2], digits01[p2],
 		), nil
 	case 5:
 		return append(dst, '.',
-			pairs[2*p1], pairs[2*p1+1],
-			pairs[2*p2], pairs[2*p2+1],
-			pairs[2*p3],
+			digits10[p1], digits01[p1],
+			digits10[p2], digits01[p2],
+			digits10[p3],
 		), nil
 	}
 }
