@@ -30,7 +30,7 @@ var (
 )
 
 // timeFormat must not be changed
-var timeFormat = "2006-01-02 15:04:05.999999"
+const timeFormat = "2006-01-02 15:04:05.999999"
 
 func init() {
 	tlsConfigRegister = make(map[string]*tls.Config)
