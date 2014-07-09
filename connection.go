@@ -225,6 +225,8 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 				if resLen > 0 {
 					// Columns
 					rows.columns, err = mc.readColumns(resLen)
+				} else {
+					return emptyRows{}, nil
 				}
 				return rows, err
 			}
