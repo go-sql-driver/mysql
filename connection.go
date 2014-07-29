@@ -110,7 +110,18 @@ func (mc *mysqlConn) Begin() (driver.Tx, error) {
 
 	return nil, err
 }
+func (mc *mysqlConn) BeginWithSnapShot() (driver.Tx, error) {
+	if mc.netConn == nil {
+		errLog.Print(ErrInvalidConn)
+		return nil, driver.ErrBadConn
+	}
+	err := mc.exec("START TRANSACTION WITH CONSISTENT SNAPSHOT")
+	if err == nil {
+		return &mysqlTx{mc}, err
+	}
 
+	return nil, err
+}
 func (mc *mysqlConn) Close() (err error) {
 	// Makes Close idempotent
 	if mc.netConn != nil {
