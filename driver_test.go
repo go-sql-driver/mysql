@@ -117,6 +117,17 @@ func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows)
 	return rows
 }
 
+func TestEmptyQuery(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		// just a comment, no query
+		rows := dbt.mustQuery("--")
+		// will hang before #255
+		if rows.Next() {
+			dbt.Errorf("Next on rows must be false")
+		}
+	})
+}
+
 func TestCRUD(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		// Create Table

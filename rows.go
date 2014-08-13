@@ -32,6 +32,8 @@ type textRows struct {
 	mysqlRows
 }
 
+type emptyRows struct{}
+
 func (rows *mysqlRows) Columns() []string {
 	columns := make([]string, len(rows.columns))
 	for i := range columns {
@@ -82,5 +84,17 @@ func (rows *textRows) Next(dest []driver.Value) error {
 		}
 		rows.mc = nil
 	}
+	return io.EOF
+}
+
+func (rows emptyRows) Columns() []string {
+	return nil
+}
+
+func (rows emptyRows) Close() error {
+	return nil
+}
+
+func (rows emptyRows) Next(dest []driver.Value) error {
 	return io.EOF
 }
