@@ -34,9 +34,11 @@ func newBuffer(rd io.Reader) buffer {
 
 // fill reads into the buffer until at least _need_ bytes are in it
 func (b *buffer) fill(need int) error {
+	n := b.length
+
 	// move existing data to the beginning
-	if b.length > 0 && b.idx > 0 {
-		copy(b.buf[0:b.length], b.buf[b.idx:])
+	if n > 0 && b.idx > 0 {
+		copy(b.buf[0:n], b.buf[b.idx:])
 	}
 
 	// grow buffer if necessary
@@ -52,19 +54,27 @@ func (b *buffer) fill(need int) error {
 	b.idx = 0
 
 	for {
-		n, err := b.rd.Read(b.buf[b.length:])
-		b.length += n
+		nn, err := b.rd.Read(b.buf[n:])
+		n += nn
 
-		if err == nil {
-			if b.length < need {
+		switch err {
+		case nil:
+			if n < need {
 				continue
 			}
+			b.length = n
 			return nil
+
+		case io.EOF:
+			if n >= need {
+				b.length = n
+				return nil
+			}
+			return io.ErrUnexpectedEOF
+
+		default:
+			return err
 		}
-		if b.length >= need && err == io.EOF {
-			return nil
-		}
-		return err
 	}
 }
 
