@@ -51,21 +51,9 @@ func (b *buffer) fill(need int) error {
 
 	b.idx = 0
 
-	for {
-		n, err := b.rd.Read(b.buf[b.length:])
-		b.length += n
-
-		if err == nil {
-			if b.length < need {
-				continue
-			}
-			return nil
-		}
-		if b.length >= need && err == io.EOF {
-			return nil
-		}
-		return err
-	}
+	n, err := io.ReadAtLeast(b.rd, b.buf[b.length:], need-b.length)
+	b.length += n
+	return err
 }
 
 // returns next N bytes from buffer.
