@@ -1076,6 +1076,11 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 					dstlen = 8
 				case 1, 2, 3, 4, 5, 6:
 					dstlen = 8 + 1 + decimals
+				default:
+					return fmt.Errorf(
+						"MySQL protocol error, illegal decimals value %d",
+						rows.columns[i].decimals,
+					)
 				}
 				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], dstlen, true)
 			case rows.mc.parseTime:
@@ -1091,9 +1096,10 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 					case 1, 2, 3, 4, 5, 6:
 						dstlen = 19 + 1 + decimals
 					default:
-						panic(fmt.Sprintf("unexpected decimals value in column %d: %#v",
-							i, rows.columns[i],
-						))
+						return fmt.Errorf(
+							"MySQL protocol error, illegal decimals value %d",
+							rows.columns[i].decimals,
+						)
 					}
 				}
 				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], dstlen, false)
