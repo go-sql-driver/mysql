@@ -29,9 +29,6 @@ var (
 	errInvalidDSNNoSlash   = errors.New("Invalid DSN: Missing the slash separating the database name")
 )
 
-// timeFormat must not be changed
-const timeFormat = "2006-01-02 15:04:05.999999"
-
 func init() {
 	tlsConfigRegister = make(map[string]*tls.Config)
 }

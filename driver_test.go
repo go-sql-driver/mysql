@@ -373,9 +373,6 @@ func (t timeTest) genQuery(dbtype string, mode timeMode) string {
 	} else {
 		inner = `"%s"`
 	}
-	if len(dbtype) >= 9 && dbtype[:9] == "TIMESTAMP" {
-		return `SELECT timestampadd(second,0,cast(` + inner + ` as DATETIME` + dbtype[9:] + `))`
-	}
 	return `SELECT cast(` + inner + ` as ` + dbtype + `)`
 }
 
@@ -453,7 +450,6 @@ func TestDateTime(t *testing.T) {
 	// NOTE: MySQL rounds DATETIME(x) up - but that's not included in the tests
 	format := "2006-01-02 15:04:05.999999"
 	t0 := time.Time{}
-	ts0 := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
 	tstr0 := "0000-00-00 00:00:00.000000"
 	testcases := []timeTests{
 		{"DATE", format[:10], []timeTest{
@@ -504,22 +500,6 @@ func TestDateTime(t *testing.T) {
 			{s: "!838:59:58.999999"},
 			{t: t0, s: tstr0[11:]},
 		}},
-		{"TIMESTAMP", format[:19], []timeTest{
-			{t: afterTime(ts0, "12345s")},
-			{t: ts0, s: "1970-01-01 00:00:00"},
-		}},
-		{"TIMESTAMP(0)", format[:19], []timeTest{
-			{t: afterTime(ts0, "12345s")},
-			{t: ts0, s: "1970-01-01 00:00:00"},
-		}},
-		{"TIMESTAMP(1)", format[:21], []timeTest{
-			{t: afterTime(ts0, "12345600ms")},
-			{t: ts0, s: "1970-01-01 00:00:00.0"},
-		}},
-		{"TIMESTAMP(6)", format, []timeTest{
-			{t: afterTime(ts0, "1234567890123000ns")},
-			{t: ts0, s: "1970-01-01 00:00:00.000000"},
-		}},
 	}
 	dsns := []string{
 		dsn + "&parseTime=true",
@@ -527,21 +507,22 @@ func TestDateTime(t *testing.T) {
 	}
 	for _, testdsn := range dsns {
 		runTests(t, testdsn, func(dbt *DBTest) {
-			var withFrac, allowsZero bool
+			microsecsSupported := false
+			zeroDateSupported := false
 			var rows *sql.Rows
 			var err error
 			rows, err = dbt.db.Query(`SELECT cast("00:00:00.1" as TIME(1)) = "00:00:00.1"`)
 			if err == nil {
-				rows.Scan(&withFrac)
+				rows.Scan(&microsecsSupported)
 				rows.Close()
 			}
 			rows, err = dbt.db.Query(`SELECT cast("0000-00-00" as DATE) = "0000-00-00"`)
 			if err == nil {
-				rows.Scan(&allowsZero)
+				rows.Scan(&zeroDateSupported)
 				rows.Close()
 			}
 			for _, setups := range testcases {
-				if t := setups.dbtype; !withFrac && t[len(t)-1:] == ")" {
+				if t := setups.dbtype; !microsecsSupported && t[len(t)-1:] == ")" {
 					// skip fractional second tests if unsupported by server
 					continue
 				}
@@ -556,7 +537,7 @@ func TestDateTime(t *testing.T) {
 						// fix setup.s - remove the "!"
 						setup.s = setup.s[1:]
 					}
-					if !allowsZero && setup.s == tstr0[:len(setup.s)] {
+					if !zeroDateSupported && setup.s == tstr0[:len(setup.s)] {
 						// skip disallowed 0000-00-00 date
 						continue
 					}
@@ -917,6 +898,17 @@ func TestFoundRows(t *testing.T) {
 func TestStrict(t *testing.T) {
 	// ALLOW_INVALID_DATES to get rid of stricter modes - we want to test for warnings, not errors
 	relaxedDsn := dsn + "&sql_mode=ALLOW_INVALID_DATES"
+	// make sure the MySQL version is recent enough with a separate connection
+	// before running the test
+	conn, err := MySQLDriver{}.Open(relaxedDsn)
+	if conn != nil {
+		conn.Close()
+	}
+	if me, ok := err.(*MySQLError); ok && me.Number == 1231 {
+		// Error 1231: Variable 'sql_mode' can't be set to the value of 'ALLOW_INVALID_DATES'
+		// => skip test, MySQL server version is too old
+		return
+	}
 	runTests(t, relaxedDsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (a TINYINT NOT NULL, b CHAR(4))")
 
@@ -1107,7 +1099,7 @@ func TestCollation(t *testing.T) {
 		"latin1_general_ci",
 		"binary",
 		"utf8_unicode_ci",
-		"utf8mb4_general_ci",
+		"cp1257_bin",
 	}
 
 	for _, collation := range testCollations {
