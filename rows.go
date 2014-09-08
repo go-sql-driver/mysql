@@ -14,9 +14,10 @@ import (
 )
 
 type mysqlField struct {
-	fieldType byte
-	flags     fieldFlag
 	name      string
+	flags     fieldFlag
+	fieldType byte
+	decimals  byte
 }
 
 type mysqlRows struct {

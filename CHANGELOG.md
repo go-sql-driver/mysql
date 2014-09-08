@@ -1,3 +1,14 @@
+## HEAD
+
+Changes:
+
+ - Use decimals field from MySQL to format time types
+
+Bugfixes:
+
+ - Enable microsecond resolution on TIME, DATETIME and TIMESTAMP
+
+
 ## Version 1.2 (2014-06-03)
 
 Changes:
