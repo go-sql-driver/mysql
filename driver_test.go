@@ -552,6 +552,58 @@ func TestDateTime(t *testing.T) {
 	}
 }
 
+func TestTimestampMicros(t *testing.T) {
+	format := "2006-01-02 15:04:05.999999"
+	f0 := format[:19]
+	f1 := format[:21]
+	f6 := format[:26]
+	runTests(t, dsn, func(dbt *DBTest) {
+		// check if microseconds are supported.
+		// Do not use timestamp(x) for that check - before 5.5.6, x would mean display width
+		// and not precision.
+		// Se last paragraph at http://dev.mysql.com/doc/refman/5.6/en/fractional-seconds.html
+		microsecsSupported := false
+		if rows, err := dbt.db.Query(`SELECT cast("00:00:00.1" as TIME(1)) = "00:00:00.1"`); err == nil {
+			rows.Scan(&microsecsSupported)
+			rows.Close()
+		}
+		if !microsecsSupported {
+			// skip test
+			return
+		}
+		_, err := dbt.db.Exec(`
+			CREATE TABLE test (
+				value0 TIMESTAMP NOT NULL DEFAULT '` + f0 + `',
+				value1 TIMESTAMP(1) NOT NULL DEFAULT '` + f1 + `',
+				value6 TIMESTAMP(6) NOT NULL DEFAULT '` + f6 + `'
+			)`,
+		)
+		if err != nil {
+			dbt.Error(err)
+		}
+		defer dbt.mustExec("DROP TABLE IF EXISTS test")
+		dbt.mustExec("INSERT INTO test SET value0=?, value1=?, value6=?", f0, f1, f6)
+		var res0, res1, res6 string
+		rows := dbt.mustQuery("SELECT * FROM test")
+		if !rows.Next() {
+			dbt.Errorf("test contained no selectable values")
+		}
+		err = rows.Scan(&res0, &res1, &res6)
+		if err != nil {
+			dbt.Error(err)
+		}
+		if res0 != f0 {
+			dbt.Errorf("expected %q, got %q", f0, res0)
+		}
+		if res1 != f1 {
+			dbt.Errorf("expected %q, got %q", f1, res1)
+		}
+		if res6 != f6 {
+			dbt.Errorf("expected %q, got %q", f6, res6)
+		}
+	})
+}
+
 func TestNULL(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		nullStmt, err := dbt.db.Prepare("SELECT NULL")
