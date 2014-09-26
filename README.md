@@ -334,9 +334,9 @@ Mozilla summarizes the license scope as follows:
 
 
 That means:
-  * You can **use** the **unchanged** source code both in private as also commercial
-  * You **needn't publish** the source code of your library as long the files licensed under the MPL 2.0 are **unchanged**
-  * You **must publish** the source code of any **changed files** licensed under the MPL 2.0 under a) the MPL 2.0 itself or b) a compatible license (e.g. GPL 3.0 or Apache License 2.0)
+  * You can **use** the **unchanged** source code both in private and commercially
+  * When distributing, you **must publish** the source code of any **changed files** licensed under the MPL 2.0 under a) the MPL 2.0 itself or b) a compatible license (e.g. GPL 3.0 or Apache License 2.0)
+  * You **needn't publish** the source code of your library as long as the files licensed under the MPL 2.0 are **unchanged**
 
 Please read the [MPL 2.0 FAQ](http://www.mozilla.org/MPL/2.0/FAQ.html) if you have further questions regarding the license.
 
