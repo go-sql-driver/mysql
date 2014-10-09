@@ -248,6 +248,10 @@ root:pw@unix(/tmp/mysql.sock)/myDatabase?loc=Local
 user:password@tcp(localhost:5555)/dbname?tls=skip-verify&autocommit=true
 ```
 
+```
+tom:123456@tcp(192.168.7.10:3306)/shop_user?charset=utf8
+```
+
 Use the [strict mode](#strict) but ignore notes:
 ```
 user:password@/dbname?strict=true&sql_notes=false
