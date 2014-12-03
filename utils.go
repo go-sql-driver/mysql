@@ -27,6 +27,7 @@ var (
 	errInvalidDSNUnescaped = errors.New("Invalid DSN: Did you forget to escape a param value?")
 	errInvalidDSNAddr      = errors.New("Invalid DSN: Network Address not terminated (missing closing brace)")
 	errInvalidDSNNoSlash   = errors.New("Invalid DSN: Missing the slash separating the database name")
+	errZeroDateTime        = errors.New("Invalid Datetime: 0000-00-00 00:00:00")
 )
 
 func init() {
@@ -426,15 +427,21 @@ func (nt *NullTime) Scan(value interface{}) (err error) {
 
 	switch v := value.(type) {
 	case time.Time:
-		nt.Time, nt.Valid = v, true
+		nt.Time, nt.Valid = v, !v.IsZero()
 		return
 	case []byte:
 		nt.Time, err = parseDateTime(string(v), time.UTC)
 		nt.Valid = (err == nil)
+		if err == errZeroDateTime {
+			err = nil
+		}
 		return
 	case string:
 		nt.Time, err = parseDateTime(v, time.UTC)
 		nt.Valid = (err == nil)
+		if err == errZeroDateTime {
+			err = nil
+		}
 		return
 	}
 
@@ -455,6 +462,7 @@ func parseDateTime(str string, loc *time.Location) (t time.Time, err error) {
 	switch len(str) {
 	case 10, 19, 21, 22, 23, 24, 25, 26: // up to "YYYY-MM-DD HH:MM:SS.MMMMMM"
 		if str == base[:len(str)] {
+			err = errZeroDateTime
 			return
 		}
 		t, err = time.Parse(timeFormat[:len(str)], str)
