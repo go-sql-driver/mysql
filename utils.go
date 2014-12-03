@@ -427,7 +427,7 @@ func (nt *NullTime) Scan(value interface{}) (err error) {
 
 	switch v := value.(type) {
 	case time.Time:
-		nt.Time, nt.Valid = v, true
+		nt.Time, nt.Valid = v, !v.IsZero()
 		return
 	case []byte:
 		nt.Time, err = parseDateTime(string(v), time.UTC)
