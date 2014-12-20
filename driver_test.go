@@ -128,6 +128,60 @@ func TestEmptyQuery(t *testing.T) {
 	})
 }
 
+func TestSimpleMultipleStatement(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		// Create Table
+		dbt.mustExec("CREATE TABLE test (value int(11))")
+
+		// Multiple Statement
+		query := "INSERT INTO test VALUES(1);INSERT INTO test VALUES(2);"
+		res := dbt.mustExec(query)
+		count, err := res.RowsAffected()
+		if err != nil {
+			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
+		}
+		if count != 2 {
+			dbt.Fatalf("Expected 2 affected rows, got %d", count)
+		}
+
+		id, err := res.LastInsertId()
+		if err != nil {
+			dbt.Fatalf("res.LastInsertId() returned error: %s", err.Error())
+		}
+		if id != 0 {
+			dbt.Fatalf("Expected InsertID 0, got %d", id)
+		}
+
+	})
+}
+func TestComplexMultipleStatement(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		// Multiple Statement
+		query, err := readFromExternalFile("complex_statement.sql")
+		if err != nil {
+			dbt.Fatalf("Unable to read external file, returned error : %s", err.Error())
+		}
+
+		res := dbt.mustExec(query)
+		count, err := res.RowsAffected()
+		if err != nil {
+			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
+		}
+		if count != 2 {
+			dbt.Fatalf("Expected 2 affected rows, got %d", count)
+		}
+
+		id, err := res.LastInsertId()
+		if err != nil {
+			dbt.Fatalf("res.LastInsertId() returned error: %s", err.Error())
+		}
+		if id != 0 {
+			dbt.Fatalf("Expected InsertID 0, got %d", id)
+		}
+
+	})
+}
+
 func TestCRUD(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		// Create Table
@@ -1537,4 +1591,9 @@ func TestCustomDial(t *testing.T) {
 	if _, err = db.Exec("DO 1"); err != nil {
 		t.Fatalf("Connection failed: %s", err.Error())
 	}
+}
+
+func readFromExternalFile(filename string) (string, error) {
+	content, err := ioutil.ReadFile("./tests/" + filename)
+	return string(content), err
 }

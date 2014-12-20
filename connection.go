@@ -167,17 +167,31 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		return nil, driver.ErrBadConn
 	}
 	if len(args) == 0 { // no args, fastpath
-		mc.affectedRows = 0
-		mc.insertId = 0
+		totalAffectedRows := int64(0)
+		lastInsertId := int64(0)
 
-		err := mc.exec(query)
-		if err == nil {
-			return &mysqlResult{
-				affectedRows: int64(mc.affectedRows),
-				insertId:     int64(mc.insertId),
-			}, err
+		queries := strings.Split(query, ";")
+		for _, singleQuery := range queries {
+			singleQuery := strings.TrimSpace(singleQuery)
+
+			if len(singleQuery) > 0 {
+				mc.affectedRows = 0
+				mc.insertId = 0
+
+				err := mc.exec(singleQuery)
+				if err != nil {
+					return nil, err
+				} else {
+					totalAffectedRows += int64(mc.affectedRows)
+					lastInsertId = int64(mc.insertId)
+				}
+			}
+
 		}
-		return nil, err
+		return &mysqlResult{
+			affectedRows: totalAffectedRows,
+			insertId:     lastInsertId,
+		}, nil
 	}
 
 	// with args, must use prepared stmt
