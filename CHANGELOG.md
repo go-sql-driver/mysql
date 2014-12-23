@@ -1,12 +1,44 @@
-## Version 1.2 (pending)
+## HEAD
+
+Changes:
+
+ - Use decimals field from MySQL to format time types
+
+Bugfixes:
+
+ - Enable microsecond resolution on TIME, DATETIME and TIMESTAMP
+
+
+## Version 1.2 (2014-06-03)
+
+Changes:
+
+ - We switched back to a "rolling release". `go get` installs the current master branch again
+ - Version v1 of the driver will not be maintained anymore. Go 1.0 is no longer supported by this driver
+ - Exported errors to allow easy checking from application code
+ - Enabled TCP Keepalives on TCP connections
+ - Optimized INFILE handling (better buffer size calculation, lazy init, ...)
+ - The DSN parser also checks for a missing separating slash
+ - Faster binary date / datetime to string formatting
+ - Also exported the MySQLWarning type
+ - mysqlConn.Close returns the first error encountered instead of ignoring all errors
+ - writePacket() automatically writes the packet size to the header
+ - readPacket() uses an iterative approach instead of the recursive approach to merge splitted packets
 
 New Features:
 
+ - `RegisterDial` allows the usage of a custom dial function to establish the network connection
+ - Setting the connection collation is possible with the `collation` DSN parameter. This parameter should be preferred over the `charset` parameter
  - Logging of critical errors is configurable with `SetLogger`
+ - Google CloudSQL support
 
 Bugfixes:
 
  - Allow more than 32 parameters in prepared statements
+ - Various old_password fixes
+ - Fixed TestConcurrent test to pass Go's race detection
+ - Fixed appendLengthEncodedInteger for large numbers
+ - Renamed readLengthEnodedString to readLengthEncodedString and skipLengthEnodedString to skipLengthEncodedString (fixed typo)
 
 
 ## Version 1.1 (2013-11-02)

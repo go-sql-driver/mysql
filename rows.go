@@ -14,9 +14,10 @@ import (
 )
 
 type mysqlField struct {
-	fieldType byte
-	flags     fieldFlag
 	name      string
+	flags     fieldFlag
+	fieldType byte
+	decimals  byte
 }
 
 type mysqlRows struct {
@@ -31,6 +32,8 @@ type binaryRows struct {
 type textRows struct {
 	mysqlRows
 }
+
+type emptyRows struct{}
 
 func (rows *mysqlRows) Columns() []string {
 	columns := make([]string, len(rows.columns))
@@ -82,5 +85,17 @@ func (rows *textRows) Next(dest []driver.Value) error {
 		}
 		rows.mc = nil
 	}
+	return io.EOF
+}
+
+func (rows emptyRows) Columns() []string {
+	return nil
+}
+
+func (rows emptyRows) Close() error {
+	return nil
+}
+
+func (rows emptyRows) Next(dest []driver.Value) error {
 	return io.EOF
 }

@@ -26,6 +26,11 @@ import (
 )
 
 var (
+	user      string
+	pass      string
+	prot      string
+	addr      string
+	dbname    string
 	dsn       string
 	netAddr   string
 	available bool
@@ -43,17 +48,18 @@ var (
 
 // See https://github.com/go-sql-driver/mysql/wiki/Testing
 func init() {
+	// get environment variables
 	env := func(key, defaultValue string) string {
 		if value := os.Getenv(key); value != "" {
 			return value
 		}
 		return defaultValue
 	}
-	user := env("MYSQL_TEST_USER", "root")
-	pass := env("MYSQL_TEST_PASS", "")
-	prot := env("MYSQL_TEST_PROT", "tcp")
-	addr := env("MYSQL_TEST_ADDR", "localhost:3306")
-	dbname := env("MYSQL_TEST_DBNAME", "gotest")
+	user = env("MYSQL_TEST_USER", "root")
+	pass = env("MYSQL_TEST_PASS", "")
+	prot = env("MYSQL_TEST_PROT", "tcp")
+	addr = env("MYSQL_TEST_ADDR", "localhost:3306")
+	dbname = env("MYSQL_TEST_DBNAME", "gotest")
 	netAddr = fmt.Sprintf("%s(%s)", prot, addr)
 	dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&strict=true", user, pass, netAddr, dbname)
 	c, err := net.Dial(prot, addr)
@@ -109,6 +115,17 @@ func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows)
 		dbt.fail("Query", query, err)
 	}
 	return rows
+}
+
+func TestEmptyQuery(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		// just a comment, no query
+		rows := dbt.mustQuery("--")
+		// will hang before #255
+		if rows.Next() {
+			dbt.Errorf("Next on rows must be false")
+		}
+	})
 }
 
 func TestCRUD(t *testing.T) {
@@ -321,97 +338,281 @@ func TestString(t *testing.T) {
 	})
 }
 
-func TestDateTime(t *testing.T) {
-	type testmode struct {
-		selectSuffix string
-		args         []interface{}
-	}
-	type timetest struct {
-		in      interface{}
-		sOut    string
-		tOut    time.Time
-		tIsZero bool
-	}
-	type tester func(dbt *DBTest, rows *sql.Rows,
-		test *timetest, sqltype, resulttype, mode string)
-	type setup struct {
-		vartype   string
-		dsnSuffix string
-		test      tester
-	}
-	var (
-		modes = map[string]*testmode{
-			"text":   &testmode{},
-			"binary": &testmode{" WHERE 1 = ?", []interface{}{1}},
-		}
-		timetests = map[string][]*timetest{
-			"DATE": {
-				{sDate, sDate, tDate, false},
-				{sDate0, sDate0, tDate0, true},
-				{tDate, sDate, tDate, false},
-				{tDate0, sDate0, tDate0, true},
-			},
-			"DATETIME": {
-				{sDateTime, sDateTime, tDateTime, false},
-				{sDateTime0, sDateTime0, tDate0, true},
-				{tDateTime, sDateTime, tDateTime, false},
-				{tDate0, sDateTime0, tDate0, true},
-			},
-		}
-		setups = []*setup{
-			{"string", "&parseTime=false", func(
-				dbt *DBTest, rows *sql.Rows, test *timetest, sqltype, resulttype, mode string) {
-				var sOut string
-				if err := rows.Scan(&sOut); err != nil {
-					dbt.Errorf("%s (%s %s): %s", sqltype, resulttype, mode, err.Error())
-				} else if test.sOut != sOut {
-					dbt.Errorf("%s (%s %s): %s != %s", sqltype, resulttype, mode, test.sOut, sOut)
-				}
-			}},
-			{"time.Time", "&parseTime=true", func(
-				dbt *DBTest, rows *sql.Rows, test *timetest, sqltype, resulttype, mode string) {
-				var tOut time.Time
-				if err := rows.Scan(&tOut); err != nil {
-					dbt.Errorf("%s (%s %s): %s", sqltype, resulttype, mode, err.Error())
-				} else if test.tOut != tOut || test.tIsZero != tOut.IsZero() {
-					dbt.Errorf("%s (%s %s): %s [%t] != %s [%t]", sqltype, resulttype, mode, test.tOut, test.tIsZero, tOut, tOut.IsZero())
-				}
-			}},
-		}
-	)
+type timeTests struct {
+	dbtype  string
+	tlayout string
+	tests   []timeTest
+}
 
-	var s *setup
-	testTime := func(dbt *DBTest) {
-		var rows *sql.Rows
-		for sqltype, tests := range timetests {
-			dbt.mustExec("CREATE TABLE test (value " + sqltype + ")")
-			for _, test := range tests {
-				for mode, q := range modes {
-					dbt.mustExec("TRUNCATE test")
-					dbt.mustExec("INSERT INTO test VALUES (?)", test.in)
-					rows = dbt.mustQuery("SELECT value FROM test"+q.selectSuffix, q.args...)
-					if rows.Next() {
-						s.test(dbt, rows, test, sqltype, s.vartype, mode)
-					} else {
-						if err := rows.Err(); err != nil {
-							dbt.Errorf("%s (%s %s): %s",
-								sqltype, s.vartype, mode, err.Error())
-						} else {
-							dbt.Errorf("%s (%s %s): no data",
-								sqltype, s.vartype, mode)
-						}
+type timeTest struct {
+	s string // leading "!": do not use t as value in queries
+	t time.Time
+}
+
+type timeMode byte
+
+func (t timeMode) String() string {
+	switch t {
+	case binaryString:
+		return "binary:string"
+	case binaryTime:
+		return "binary:time.Time"
+	case textString:
+		return "text:string"
+	}
+	panic("unsupported timeMode")
+}
+
+func (t timeMode) Binary() bool {
+	switch t {
+	case binaryString, binaryTime:
+		return true
+	}
+	return false
+}
+
+const (
+	binaryString timeMode = iota
+	binaryTime
+	textString
+)
+
+func (t timeTest) genQuery(dbtype string, mode timeMode) string {
+	var inner string
+	if mode.Binary() {
+		inner = "?"
+	} else {
+		inner = `"%s"`
+	}
+	return `SELECT cast(` + inner + ` as ` + dbtype + `)`
+}
+
+func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, mode timeMode) {
+	var rows *sql.Rows
+	query := t.genQuery(dbtype, mode)
+	switch mode {
+	case binaryString:
+		rows = dbt.mustQuery(query, t.s)
+	case binaryTime:
+		rows = dbt.mustQuery(query, t.t)
+	case textString:
+		query = fmt.Sprintf(query, t.s)
+		rows = dbt.mustQuery(query)
+	default:
+		panic("unsupported mode")
+	}
+	defer rows.Close()
+	var err error
+	if !rows.Next() {
+		err = rows.Err()
+		if err == nil {
+			err = fmt.Errorf("no data")
+		}
+		dbt.Errorf("%s [%s]: %s", dbtype, mode, err)
+		return
+	}
+	var dst interface{}
+	err = rows.Scan(&dst)
+	if err != nil {
+		dbt.Errorf("%s [%s]: %s", dbtype, mode, err)
+		return
+	}
+	switch val := dst.(type) {
+	case []uint8:
+		str := string(val)
+		if str == t.s {
+			return
+		}
+		if mode.Binary() && dbtype == "DATETIME" && len(str) == 26 && str[:19] == t.s {
+			// a fix mainly for TravisCI:
+			// accept full microsecond resolution in result for DATETIME columns
+			// where the binary protocol was used
+			return
+		}
+		dbt.Errorf("%s [%s] to string: expected %q, got %q",
+			dbtype, mode,
+			t.s, str,
+		)
+	case time.Time:
+		if val == t.t {
+			return
+		}
+		dbt.Errorf("%s [%s] to string: expected %q, got %q",
+			dbtype, mode,
+			t.s, val.Format(tlayout),
+		)
+	default:
+		fmt.Printf("%#v\n", []interface{}{dbtype, tlayout, mode, t.s, t.t})
+		dbt.Errorf("%s [%s]: unhandled type %T (is '%v')",
+			dbtype, mode,
+			val, val,
+		)
+	}
+}
+
+func TestDateTime(t *testing.T) {
+	afterTime := func(t time.Time, d string) time.Time {
+		dur, err := time.ParseDuration(d)
+		if err != nil {
+			panic(err)
+		}
+		return t.Add(dur)
+	}
+	// NOTE: MySQL rounds DATETIME(x) up - but that's not included in the tests
+	format := "2006-01-02 15:04:05.999999"
+	t0 := time.Time{}
+	tstr0 := "0000-00-00 00:00:00.000000"
+	testcases := []timeTests{
+		{"DATE", format[:10], []timeTest{
+			{t: time.Date(2011, 11, 20, 0, 0, 0, 0, time.UTC)},
+			{t: t0, s: tstr0[:10]},
+		}},
+		{"DATETIME", format[:19], []timeTest{
+			{t: time.Date(2011, 11, 20, 21, 27, 37, 0, time.UTC)},
+			{t: t0, s: tstr0[:19]},
+		}},
+		{"DATETIME(0)", format[:21], []timeTest{
+			{t: time.Date(2011, 11, 20, 21, 27, 37, 0, time.UTC)},
+			{t: t0, s: tstr0[:19]},
+		}},
+		{"DATETIME(1)", format[:21], []timeTest{
+			{t: time.Date(2011, 11, 20, 21, 27, 37, 100000000, time.UTC)},
+			{t: t0, s: tstr0[:21]},
+		}},
+		{"DATETIME(6)", format, []timeTest{
+			{t: time.Date(2011, 11, 20, 21, 27, 37, 123456000, time.UTC)},
+			{t: t0, s: tstr0},
+		}},
+		{"TIME", format[11:19], []timeTest{
+			{t: afterTime(t0, "12345s")},
+			{s: "!-12:34:56"},
+			{s: "!-838:59:59"},
+			{s: "!838:59:59"},
+			{t: t0, s: tstr0[11:19]},
+		}},
+		{"TIME(0)", format[11:19], []timeTest{
+			{t: afterTime(t0, "12345s")},
+			{s: "!-12:34:56"},
+			{s: "!-838:59:59"},
+			{s: "!838:59:59"},
+			{t: t0, s: tstr0[11:19]},
+		}},
+		{"TIME(1)", format[11:21], []timeTest{
+			{t: afterTime(t0, "12345600ms")},
+			{s: "!-12:34:56.7"},
+			{s: "!-838:59:58.9"},
+			{s: "!838:59:58.9"},
+			{t: t0, s: tstr0[11:21]},
+		}},
+		{"TIME(6)", format[11:], []timeTest{
+			{t: afterTime(t0, "1234567890123000ns")},
+			{s: "!-12:34:56.789012"},
+			{s: "!-838:59:58.999999"},
+			{s: "!838:59:58.999999"},
+			{t: t0, s: tstr0[11:]},
+		}},
+	}
+	dsns := []string{
+		dsn + "&parseTime=true",
+		dsn + "&parseTime=false",
+	}
+	for _, testdsn := range dsns {
+		runTests(t, testdsn, func(dbt *DBTest) {
+			microsecsSupported := false
+			zeroDateSupported := false
+			var rows *sql.Rows
+			var err error
+			rows, err = dbt.db.Query(`SELECT cast("00:00:00.1" as TIME(1)) = "00:00:00.1"`)
+			if err == nil {
+				rows.Scan(&microsecsSupported)
+				rows.Close()
+			}
+			rows, err = dbt.db.Query(`SELECT cast("0000-00-00" as DATE) = "0000-00-00"`)
+			if err == nil {
+				rows.Scan(&zeroDateSupported)
+				rows.Close()
+			}
+			for _, setups := range testcases {
+				if t := setups.dbtype; !microsecsSupported && t[len(t)-1:] == ")" {
+					// skip fractional second tests if unsupported by server
+					continue
+				}
+				for _, setup := range setups.tests {
+					allowBinTime := true
+					if setup.s == "" {
+						// fill time string whereever Go can reliable produce it
+						setup.s = setup.t.Format(setups.tlayout)
+					} else if setup.s[0] == '!' {
+						// skip tests using setup.t as source in queries
+						allowBinTime = false
+						// fix setup.s - remove the "!"
+						setup.s = setup.s[1:]
+					}
+					if !zeroDateSupported && setup.s == tstr0[:len(setup.s)] {
+						// skip disallowed 0000-00-00 date
+						continue
+					}
+					setup.run(dbt, setups.dbtype, setups.tlayout, textString)
+					setup.run(dbt, setups.dbtype, setups.tlayout, binaryString)
+					if allowBinTime {
+						setup.run(dbt, setups.dbtype, setups.tlayout, binaryTime)
 					}
 				}
 			}
-			dbt.mustExec("DROP TABLE IF EXISTS test")
-		}
+		})
 	}
+}
 
-	timeDsn := dsn + "&sql_mode=ALLOW_INVALID_DATES"
-	for _, v := range setups {
-		s = v
-		runTests(t, timeDsn+s.dsnSuffix, testTime)
-	}
+func TestTimestampMicros(t *testing.T) {
+	format := "2006-01-02 15:04:05.999999"
+	f0 := format[:19]
+	f1 := format[:21]
+	f6 := format[:26]
+	runTests(t, dsn, func(dbt *DBTest) {
+		// check if microseconds are supported.
+		// Do not use timestamp(x) for that check - before 5.5.6, x would mean display width
+		// and not precision.
+		// Se last paragraph at http://dev.mysql.com/doc/refman/5.6/en/fractional-seconds.html
+		microsecsSupported := false
+		if rows, err := dbt.db.Query(`SELECT cast("00:00:00.1" as TIME(1)) = "00:00:00.1"`); err == nil {
+			rows.Scan(&microsecsSupported)
+			rows.Close()
+		}
+		if !microsecsSupported {
+			// skip test
+			return
+		}
+		_, err := dbt.db.Exec(`
+			CREATE TABLE test (
+				value0 TIMESTAMP NOT NULL DEFAULT '` + f0 + `',
+				value1 TIMESTAMP(1) NOT NULL DEFAULT '` + f1 + `',
+				value6 TIMESTAMP(6) NOT NULL DEFAULT '` + f6 + `'
+			)`,
+		)
+		if err != nil {
+			dbt.Error(err)
+		}
+		defer dbt.mustExec("DROP TABLE IF EXISTS test")
+		dbt.mustExec("INSERT INTO test SET value0=?, value1=?, value6=?", f0, f1, f6)
+		var res0, res1, res6 string
+		rows := dbt.mustQuery("SELECT * FROM test")
+		if !rows.Next() {
+			dbt.Errorf("test contained no selectable values")
+		}
+		err = rows.Scan(&res0, &res1, &res6)
+		if err != nil {
+			dbt.Error(err)
+		}
+		if res0 != f0 {
+			dbt.Errorf("expected %q, got %q", f0, res0)
+		}
+		if res1 != f1 {
+			dbt.Errorf("expected %q, got %q", f1, res1)
+		}
+		if res6 != f6 {
+			dbt.Errorf("expected %q, got %q", f6, res6)
+		}
+	})
 }
 
 func TestNULL(t *testing.T) {
@@ -760,6 +961,17 @@ func TestFoundRows(t *testing.T) {
 func TestStrict(t *testing.T) {
 	// ALLOW_INVALID_DATES to get rid of stricter modes - we want to test for warnings, not errors
 	relaxedDsn := dsn + "&sql_mode=ALLOW_INVALID_DATES"
+	// make sure the MySQL version is recent enough with a separate connection
+	// before running the test
+	conn, err := MySQLDriver{}.Open(relaxedDsn)
+	if conn != nil {
+		conn.Close()
+	}
+	if me, ok := err.(*MySQLError); ok && me.Number == 1231 {
+		// Error 1231: Variable 'sql_mode' can't be set to the value of 'ALLOW_INVALID_DATES'
+		// => skip test, MySQL server version is too old
+		return
+	}
 	runTests(t, relaxedDsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (a TINYINT NOT NULL, b CHAR(4))")
 
@@ -938,6 +1150,44 @@ func TestFailingCharset(t *testing.T) {
 	})
 }
 
+func TestCollation(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL-Server not running on %s", netAddr)
+	}
+
+	defaultCollation := "utf8_general_ci"
+	testCollations := []string{
+		"",               // do not set
+		defaultCollation, // driver default
+		"latin1_general_ci",
+		"binary",
+		"utf8_unicode_ci",
+		"cp1257_bin",
+	}
+
+	for _, collation := range testCollations {
+		var expected, tdsn string
+		if collation != "" {
+			tdsn = dsn + "&collation=" + collation
+			expected = collation
+		} else {
+			tdsn = dsn
+			expected = defaultCollation
+		}
+
+		runTests(t, tdsn, func(dbt *DBTest) {
+			var got string
+			if err := dbt.db.QueryRow("SELECT @@collation_connection").Scan(&got); err != nil {
+				dbt.Fatal(err)
+			}
+
+			if got != expected {
+				dbt.Fatalf("Expected connection collation %s but got %s", expected, got)
+			}
+		})
+	}
+}
+
 func TestRawBytesResultExceedsBuffer(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		// defaultBufSize from buffer.go
@@ -967,8 +1217,8 @@ func TestTimezoneConversion(t *testing.T) {
 
 		// Insert local time into database (should be converted)
 		usCentral, _ := time.LoadLocation("US/Central")
-		now := time.Now().In(usCentral)
-		dbt.mustExec("INSERT INTO test VALUE (?)", now)
+		reftime := time.Date(2014, 05, 30, 18, 03, 17, 0, time.UTC).In(usCentral)
+		dbt.mustExec("INSERT INTO test VALUE (?)", reftime)
 
 		// Retrieve time from DB
 		rows := dbt.mustQuery("SELECT ts FROM test")
@@ -976,59 +1226,23 @@ func TestTimezoneConversion(t *testing.T) {
 			dbt.Fatal("Didn't get any rows out")
 		}
 
-		var nowDB time.Time
-		err := rows.Scan(&nowDB)
+		var dbTime time.Time
+		err := rows.Scan(&dbTime)
 		if err != nil {
 			dbt.Fatal("Err", err)
 		}
 
 		// Check that dates match
-		if now.Unix() != nowDB.Unix() {
+		if reftime.Unix() != dbTime.Unix() {
 			dbt.Errorf("Times don't match.\n")
-			dbt.Errorf(" Now(%v)=%v\n", usCentral, now)
-			dbt.Errorf(" Now(UTC)=%v\n", nowDB)
+			dbt.Errorf(" Now(%v)=%v\n", usCentral, reftime)
+			dbt.Errorf(" Now(UTC)=%v\n", dbTime)
 		}
 	}
 
 	for _, tz := range zones {
 		runTests(t, dsn+"&parseTime=true&loc="+url.QueryEscape(tz), tzTest)
 	}
-}
-
-// This tests for https://github.com/go-sql-driver/mysql/pull/139
-//
-// An extra (invisible) nil byte was being added to the beginning of positive
-// time strings.
-func TestTimeSign(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
-		var sTimes = []struct {
-			value     string
-			fieldType string
-		}{
-			{"12:34:56", "TIME"},
-			{"-12:34:56", "TIME"},
-			// As described in http://dev.mysql.com/doc/refman/5.6/en/fractional-seconds.html
-			// they *should* work, but only in 5.6+.
-			// { "12:34:56.789", "TIME(3)" },
-			// { "-12:34:56.789", "TIME(3)" },
-		}
-
-		for _, sTime := range sTimes {
-			dbt.db.Exec("DROP TABLE IF EXISTS test")
-			dbt.mustExec("CREATE TABLE test (id INT, time_field " + sTime.fieldType + ")")
-			dbt.mustExec("INSERT INTO test (id, time_field) VALUES(1, '" + sTime.value + "')")
-			rows := dbt.mustQuery("SELECT time_field FROM test WHERE id = ?", 1)
-			if rows.Next() {
-				var oTime string
-				rows.Scan(&oTime)
-				if oTime != sTime.value {
-					dbt.Errorf(`time values differ: got %q, expected %q.`, oTime, sTime.value)
-				}
-			} else {
-				dbt.Error("expecting at least one row.")
-			}
-		}
-	})
 }
 
 // Special cases
@@ -1254,7 +1468,7 @@ func TestConcurrent(t *testing.T) {
 
 		var fatalError string
 		var once sync.Once
-		fatal := func(s string, vals ...interface{}) {
+		fatalf := func(s string, vals ...interface{}) {
 			once.Do(func() {
 				fatalError = fmt.Sprintf(s, vals...)
 			})
@@ -1269,7 +1483,7 @@ func TestConcurrent(t *testing.T) {
 
 				if err != nil {
 					if err.Error() != "Error 1040: Too many connections" {
-						fatal("Error on Conn %d: %s", id, err.Error())
+						fatalf("Error on Conn %d: %s", id, err.Error())
 					}
 					return
 				}
@@ -1277,13 +1491,13 @@ func TestConcurrent(t *testing.T) {
 				// keep the connection busy until all connections are open
 				for remaining > 0 {
 					if _, err = tx.Exec("DO 1"); err != nil {
-						fatal("Error on Conn %d: %s", id, err.Error())
+						fatalf("Error on Conn %d: %s", id, err.Error())
 						return
 					}
 				}
 
 				if err = tx.Commit(); err != nil {
-					fatal("Error on Conn %d: %s", id, err.Error())
+					fatalf("Error on Conn %d: %s", id, err.Error())
 					return
 				}
 
@@ -1301,4 +1515,26 @@ func TestConcurrent(t *testing.T) {
 
 		dbt.Logf("Reached %d concurrent connections\r\n", succeeded)
 	})
+}
+
+// Tests custom dial functions
+func TestCustomDial(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL-Server not running on %s", netAddr)
+	}
+
+	// our custom dial function which justs wraps net.Dial here
+	RegisterDial("mydial", func(addr string) (net.Conn, error) {
+		return net.Dial(prot, addr)
+	})
+
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@mydial(%s)/%s?timeout=30s&strict=true", user, pass, addr, dbname))
+	if err != nil {
+		t.Fatalf("Error connecting: %s", err.Error())
+	}
+	defer db.Close()
+
+	if _, err = db.Exec("DO 1"); err != nil {
+		t.Fatalf("Connection failed: %s", err.Error())
+	}
 }

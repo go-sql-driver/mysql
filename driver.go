@@ -26,14 +26,26 @@ import (
 // In general the driver is used via the database/sql package.
 type MySQLDriver struct{}
 
-type dialFunc func(*config) (net.Conn, error)
+// DialFunc is a function which can be used to establish the network connection.
+// Custom dial functions must be registered with RegisterDial
+type DialFunc func(addr string) (net.Conn, error)
 
-var dials map[string]dialFunc
+var dials map[string]DialFunc
+
+// RegisterDial registers a custom dial function. It can then be used by the
+// network address mynet(addr), where mynet is the registered new network.
+// addr is passed as a parameter to the dial function.
+func RegisterDial(net string, dial DialFunc) {
+	if dials == nil {
+		dials = make(map[string]DialFunc)
+	}
+	dials[net] = dial
+}
 
 // Open new Connection.
 // See https://github.com/go-sql-driver/mysql#dsn-data-source-name for how
 // the DSN string is formated
-func (d *MySQLDriver) Open(dsn string) (driver.Conn, error) {
+func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	var err error
 
 	// New mysqlConn
@@ -48,7 +60,7 @@ func (d *MySQLDriver) Open(dsn string) (driver.Conn, error) {
 
 	// Connect to Server
 	if dial, ok := dials[mc.cfg.net]; ok {
-		mc.netConn, err = dial(mc.cfg)
+		mc.netConn, err = dial(mc.cfg.addr)
 	} else {
 		nd := net.Dialer{Timeout: mc.cfg.timeout}
 		mc.netConn, err = nd.Dial(mc.cfg.net, mc.cfg.addr)

@@ -257,7 +257,7 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	data[11] = 0x00
 
 	// Charset [1 byte]
-	data[12] = collation_utf8_general_ci
+	data[12] = mc.cfg.collation
 
 	// SSL Connection Request Packet
 	// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::SSLRequest
@@ -557,20 +557,21 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 			return nil, err
 		}
 
-		// Filler [1 byte]
-		// Charset [16 bit uint]
-		// Length [32 bit uint]
+		// Filler [uint8]
+		// Charset [charset, collation uint8]
+		// Length [uint32]
 		pos += n + 1 + 2 + 4
 
-		// Field type [byte]
+		// Field type [uint8]
 		columns[i].fieldType = data[pos]
 		pos++
 
-		// Flags [16 bit uint]
+		// Flags [uint16]
 		columns[i].flags = fieldFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
-		//pos += 2
+		pos += 2
 
-		// Decimals [8 bit uint]
+		// Decimals [uint8]
+		columns[i].decimals = data[pos]
 		//pos++
 
 		// Default value [len coded binary]
@@ -1055,88 +1056,53 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 			}
 			return err
 
-		// Date YYYY-MM-DD
-		case fieldTypeDate, fieldTypeNewDate:
+		case
+			fieldTypeDate, fieldTypeNewDate, // Date YYYY-MM-DD
+			fieldTypeTime,                         // Time [-][H]HH:MM:SS[.fractal]
+			fieldTypeTimestamp, fieldTypeDateTime: // Timestamp YYYY-MM-DD HH:MM:SS[.fractal]
+
 			num, isNull, n := readLengthEncodedInteger(data[pos:])
 			pos += n
 
-			if isNull {
+			switch {
+			case isNull:
 				dest[i] = nil
 				continue
-			}
-
-			if rows.mc.parseTime {
-				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.loc)
-			} else {
-				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], false)
-			}
-
-			if err == nil {
-				pos += int(num)
-				continue
-			} else {
-				return err
-			}
-
-		// Time [-][H]HH:MM:SS[.fractal]
-		case fieldTypeTime:
-			num, isNull, n := readLengthEncodedInteger(data[pos:])
-			pos += n
-
-			if num == 0 {
-				if isNull {
-					dest[i] = nil
-					continue
-				} else {
-					dest[i] = []byte("00:00:00")
-					continue
+			case rows.columns[i].fieldType == fieldTypeTime:
+				// database/sql does not support an equivalent to TIME, return a string
+				var dstlen uint8
+				switch decimals := rows.columns[i].decimals; decimals {
+				case 0x00, 0x1f:
+					dstlen = 8
+				case 1, 2, 3, 4, 5, 6:
+					dstlen = 8 + 1 + decimals
+				default:
+					return fmt.Errorf(
+						"MySQL protocol error, illegal decimals value %d",
+						rows.columns[i].decimals,
+					)
 				}
-			}
-
-			var sign string
-			if data[pos] == 1 {
-				sign = "-"
-			}
-
-			switch num {
-			case 8:
-				dest[i] = []byte(fmt.Sprintf(
-					sign+"%02d:%02d:%02d",
-					uint16(data[pos+1])*24+uint16(data[pos+5]),
-					data[pos+6],
-					data[pos+7],
-				))
-				pos += 8
-				continue
-			case 12:
-				dest[i] = []byte(fmt.Sprintf(
-					sign+"%02d:%02d:%02d.%06d",
-					uint16(data[pos+1])*24+uint16(data[pos+5]),
-					data[pos+6],
-					data[pos+7],
-					binary.LittleEndian.Uint32(data[pos+8:pos+12]),
-				))
-				pos += 12
-				continue
-			default:
-				return fmt.Errorf("Invalid TIME-packet length %d", num)
-			}
-
-		// Timestamp YYYY-MM-DD HH:MM:SS[.fractal]
-		case fieldTypeTimestamp, fieldTypeDateTime:
-			num, isNull, n := readLengthEncodedInteger(data[pos:])
-
-			pos += n
-
-			if isNull {
-				dest[i] = nil
-				continue
-			}
-
-			if rows.mc.parseTime {
+				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], dstlen, true)
+			case rows.mc.parseTime:
 				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.loc)
-			} else {
-				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], true)
+			default:
+				var dstlen uint8
+				if rows.columns[i].fieldType == fieldTypeDate {
+					dstlen = 10
+				} else {
+					switch decimals := rows.columns[i].decimals; decimals {
+					case 0x00, 0x1f:
+						dstlen = 19
+					case 1, 2, 3, 4, 5, 6:
+						dstlen = 19 + 1 + decimals
+					default:
+						return fmt.Errorf(
+							"MySQL protocol error, illegal decimals value %d",
+							rows.columns[i].decimals,
+						)
+					}
+				}
+				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], dstlen, false)
 			}
 
 			if err == nil {

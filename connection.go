@@ -18,7 +18,7 @@ import (
 )
 
 type mysqlConn struct {
-	buf              *buffer
+	buf              buffer
 	netConn          net.Conn
 	affectedRows     uint64
 	insertId         uint64
@@ -39,14 +39,15 @@ type config struct {
 	dbname            string
 	params            map[string]string
 	loc               *time.Location
-	timeout           time.Duration
 	tls               *tls.Config
+	timeout           time.Duration
+	collation         uint8
 	allowAllFiles     bool
 	allowOldPasswords bool
 	clientFoundRows   bool
 }
 
-// Handles parameters set in DSN
+// Handles parameters set in DSN after the connection is established
 func (mc *mysqlConn) handleParams() (err error) {
 	for param, val := range mc.cfg.params {
 		switch param {
@@ -123,7 +124,7 @@ func (mc *mysqlConn) Close() (err error) {
 	}
 
 	mc.cfg = nil
-	mc.buf = nil
+	mc.buf.rd = nil
 
 	return
 }
@@ -221,10 +222,12 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 				rows := new(textRows)
 				rows.mc = mc
 
-				if resLen > 0 {
-					// Columns
-					rows.columns, err = mc.readColumns(resLen)
+				if resLen == 0 {
+					// no columns, no more data
+					return emptyRows{}, nil
 				}
+				// Columns
+				rows.columns, err = mc.readColumns(resLen)
 				return rows, err
 			}
 		}
