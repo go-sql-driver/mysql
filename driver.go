@@ -39,7 +39,9 @@ func RegisterDial(net string, dial DialFunc) {
 	if dials == nil {
 		dials = make(map[string]DialFunc)
 	}
-	dials[net] = dial
+	if _, ok := dials[net]; !ok {
+		dials[net] = dial
+	}
 }
 
 // Open new Connection.
