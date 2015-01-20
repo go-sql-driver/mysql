@@ -130,3 +130,25 @@ const (
 	flagUnknown3
 	flagUnknown4
 )
+
+// http://dev.mysql.com/doc/internals/en/status-flags.html
+
+type statusFlag uint16
+
+const (
+	statusInTrans statusFlag = 1 << iota
+	statusInAutocommit
+	statusUnknown1
+	statusMoreResultsExists
+	statusNoGoodIndexUsed
+	statusNoIndexUsed
+	statusCursorExists
+	statusLastRowSent
+	statusDbDropped
+	statusNoBackslashEscapes
+	statusMetadataChanged
+	statusQueryWasSlow
+	statusPsOutParams
+	statusInTransReadonly
+	statusSessionStateChanged
+)

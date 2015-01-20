@@ -180,6 +180,14 @@ func parseDSNParams(cfg *config, params string) (err error) {
 		// cfg params
 		switch value := param[1]; param[0] {
 
+		// Enable client side placeholder substitution
+		case "substitutePlaceholder":
+			var isBool bool
+			cfg.substitutePlaceholder, isBool = readBool(value)
+			if !isBool {
+				return fmt.Errorf("Invalid Bool value: %s", value)
+			}
+
 		// Disable INFILE whitelist / enable all files
 		case "allowAllFiles":
 			var isBool bool

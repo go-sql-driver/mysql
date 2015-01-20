@@ -87,10 +87,19 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 
 	db.Exec("DROP TABLE IF EXISTS test")
 
+	dbp, err := sql.Open("mysql", dsn+"&substitutePlaceholder=true")
+	if err != nil {
+		t.Fatalf("Error connecting: %s", err.Error())
+	}
+	defer dbp.Close()
+
 	dbt := &DBTest{t, db}
+	dbtp := &DBTest{t, dbp}
 	for _, test := range tests {
 		test(dbt)
 		dbt.db.Exec("DROP TABLE IF EXISTS test")
+		test(dbtp)
+		dbtp.db.Exec("DROP TABLE IF EXISTS test")
 	}
 }
 
