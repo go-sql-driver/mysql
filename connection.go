@@ -265,6 +265,13 @@ func (mc *mysqlConn) buildQuery(query string, args []driver.Value) (string, erro
 			return "", driver.ErrSkip
 		}
 	}
+	pktSize := len(query) + 4 // 4 bytes for header.
+	for _, p := range parts {
+		pktSize += len(p)
+	}
+	if pktSize > mc.maxPacketAllowed {
+		return "", driver.ErrSkip
+	}
 	return strings.Join(parts, ""), nil
 }
 
