@@ -34,19 +34,20 @@ type mysqlConn struct {
 }
 
 type config struct {
-	user              string
-	passwd            string
-	net               string
-	addr              string
-	dbname            string
-	params            map[string]string
-	loc               *time.Location
-	tls               *tls.Config
-	timeout           time.Duration
-	collation         uint8
-	allowAllFiles     bool
-	allowOldPasswords bool
-	clientFoundRows   bool
+	user                  string
+	passwd                string
+	net                   string
+	addr                  string
+	dbname                string
+	params                map[string]string
+	loc                   *time.Location
+	tls                   *tls.Config
+	timeout               time.Duration
+	collation             uint8
+	allowAllFiles         bool
+	allowOldPasswords     bool
+	clientFoundRows       bool
+	substitutePlaceholder bool
 }
 
 // Handles parameters set in DSN after the connection is established
@@ -281,6 +282,9 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		return nil, driver.ErrBadConn
 	}
 	if len(args) != 0 {
+		if !mc.cfg.substitutePlaceholder {
+			return nil, driver.ErrSkip
+		}
 		// try client-side prepare to reduce roundtrip
 		prepared, err := mc.buildQuery(query, args)
 		if err != nil {
@@ -329,6 +333,9 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 		return nil, driver.ErrBadConn
 	}
 	if len(args) != 0 {
+		if !mc.cfg.substitutePlaceholder {
+			return nil, driver.ErrSkip
+		}
 		// try client-side prepare to reduce roundtrip
 		prepared, err := mc.buildQuery(query, args)
 		if err != nil {
