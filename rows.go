@@ -14,6 +14,7 @@ import (
 )
 
 type mysqlField struct {
+	tableName string
 	name      string
 	flags     fieldFlag
 	fieldType byte
@@ -37,8 +38,14 @@ type emptyRows struct{}
 
 func (rows *mysqlRows) Columns() []string {
 	columns := make([]string, len(rows.columns))
-	for i := range columns {
-		columns[i] = rows.columns[i].name
+	if rows.mc.cfg.columnsWithAlias {
+		for i := range columns {
+			columns[i] = rows.columns[i].tableName + "." + rows.columns[i].name
+		}
+	} else {
+		for i := range columns {
+			columns[i] = rows.columns[i].name
+		}
 	}
 	return columns
 }

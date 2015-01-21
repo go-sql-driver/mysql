@@ -530,11 +530,20 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 		pos += n
 
 		// Table [len coded string]
-		n, err = skipLengthEncodedString(data[pos:])
-		if err != nil {
-			return nil, err
+		if mc.cfg.columnsWithAlias {
+			tableName, _, n, err := readLengthEncodedString(data[pos:])
+			if err != nil {
+				return nil, err
+			}
+			pos += n
+			columns[i].tableName = string(tableName)
+		} else {
+			n, err = skipLengthEncodedString(data[pos:])
+			if err != nil {
+				return nil, err
+			}
+			pos += n
 		}
-		pos += n
 
 		// Original table [len coded string]
 		n, err = skipLengthEncodedString(data[pos:])

@@ -166,6 +166,21 @@ Default:        false
 
 `clientFoundRows=true` causes an UPDATE to return the number of matching rows instead of the number of rows changed.
 
+##### `columnsWithAlias`
+
+```
+Type:           bool
+Valid Values:   true, false
+Default:        false
+```
+
+When `columnsWithAlias` is true, calls to `sql.Rows.Columns()` will return the table alias and the column name separated by a dot. For example:
+
+```
+SELECT u.id FROM users as u
+```
+
+will return `u.id` instead of just `id` if `columnsWithAlias=true`.
 
 ##### `loc`
 

@@ -45,6 +45,7 @@ type config struct {
 	allowAllFiles     bool
 	allowOldPasswords bool
 	clientFoundRows   bool
+	columnsWithAlias  bool
 }
 
 // Handles parameters set in DSN after the connection is established

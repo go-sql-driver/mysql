@@ -216,6 +216,13 @@ func parseDSNParams(cfg *config, params string) (err error) {
 			}
 			cfg.collation = collation
 			break
+		
+		case "columnsWithAlias":
+			var isBool bool
+			cfg.columnsWithAlias, isBool = readBool(value)
+			if !isBool {
+				return fmt.Errorf("Invalid Bool value: %s", value)
+			}
 
 		// Time Location
 		case "loc":
