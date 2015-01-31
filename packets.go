@@ -484,6 +484,7 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 	mc.insertId, _, m = readLengthEncodedInteger(data[1+n:])
 
 	// server_status [2 bytes]
+	mc.status = statusFlag(data[1+n+m]) | statusFlag(data[1+n+m+1])<<8
 
 	// warning count [2 bytes]
 	if !mc.strict {
