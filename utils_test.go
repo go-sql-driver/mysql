@@ -252,3 +252,42 @@ func TestFormatBinaryDateTime(t *testing.T) {
 	expect("1978-12-30 15:46:23", 7, 19)
 	expect("1978-12-30 15:46:23.987654", 11, 26)
 }
+
+func TestEscapeString(t *testing.T) {
+	expect := func(expected, value string) {
+		actual := string(EscapeString([]byte(value)))
+		if actual != expected {
+			t.Errorf(
+				"expected %s, got %s",
+				expected, actual,
+			)
+		}
+	}
+
+	expect("foo\\0bar", "foo\x00bar")
+	expect("foo\\nbar", "foo\nbar")
+	expect("foo\\rbar", "foo\rbar")
+	expect("foo\\Zbar", "foo\x1abar")
+	expect("foo\\\"bar", "foo\"bar")
+	expect("foo\\\\bar", "foo\\bar")
+	expect("foo\\'bar", "foo'bar")
+}
+
+func TestEscapeQuotes(t *testing.T) {
+	expect := func(expected, value string) {
+		actual := string(EscapeQuotes([]byte(value)))
+		if actual != expected {
+			t.Errorf(
+				"expected %s, got %s",
+				expected, actual,
+			)
+		}
+	}
+
+	expect("foo\x00bar", "foo\x00bar") // not affected
+	expect("foo\nbar", "foo\nbar")     // not affected
+	expect("foo\rbar", "foo\rbar")     // not affected
+	expect("foo\x1abar", "foo\x1abar") // not affected
+	expect("foo''bar", "foo'bar")      // affected
+	expect("foo\"bar", "foo\"bar")     // not affected
+}
