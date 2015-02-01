@@ -617,28 +617,31 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 		pos += n
 		if err == nil {
 			if !isNull {
-				if !mc.parseTime {
+				// @todo hacky fix, please make it better
+				if i > len(rows.columns)-1 {
 					continue
-				} else {
-					switch rows.columns[i].fieldType {
-					case fieldTypeTimestamp, fieldTypeDateTime,
-						fieldTypeDate, fieldTypeNewDate:
-						dest[i], err = parseDateTime(
-							string(dest[i].([]byte)),
-							mc.cfg.loc,
-						)
-						if err == nil {
-							continue
-						}
-					case fieldTypeFloat:
-						val, err := strconv.ParseFloat(string(dest[i].([]byte)), 32)
-						dest[i] = float32(val)
-						if err == nil {
-							continue
-						}
-					default:
+				}
+				switch rows.columns[i].fieldType {
+				case fieldTypeTimestamp, fieldTypeDateTime,
+					fieldTypeDate, fieldTypeNewDate:
+					if !mc.parseTime {
 						continue
 					}
+					dest[i], err = parseDateTime(
+						string(dest[i].([]byte)),
+						mc.cfg.loc,
+					)
+					if err == nil {
+						continue
+					}
+				case fieldTypeFloat:
+					val, err := strconv.ParseFloat(string(dest[i].([]byte)), 32)
+					dest[i] = float32(val)
+					if err == nil {
+						continue
+					}
+				default:
+					continue
 				}
 
 			} else {
