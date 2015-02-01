@@ -1276,6 +1276,7 @@ func TestSelectFloatToFloat64(t *testing.T) {
 	}
 
 	runTests(t, dsn, createTest("SELECT f FROM test WHERE 1=?", 1))
+	runTests(t, dsn+"&parseTime=true", createTest("SELECT IFNULL(f, 0) f FROM test"))
 }
 
 // Special cases
