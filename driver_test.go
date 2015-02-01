@@ -1245,6 +1245,39 @@ func TestTimezoneConversion(t *testing.T) {
 	}
 }
 
+func TestSelectFloatToFloat64(t *testing.T) {
+	createTest := func(query string, args ...interface{}) func(dbt *DBTest) {
+		return func(dbt *DBTest) {
+			v := float64(0.050551)
+
+			// Create table
+			dbt.mustExec("CREATE TABLE test (f FLOAT)")
+			dbt.mustExec("INSERT INTO test VALUE (?)", v)
+
+			// Retrieve
+			rows := dbt.mustQuery(query, args...)
+			if !rows.Next() {
+				dbt.Fatal("Didn't get any rows out")
+			}
+
+			var f float64
+			err := rows.Scan(&f)
+			if err != nil {
+				dbt.Fatal("Err", err)
+			}
+
+			// Check that dates match
+			if f != v {
+				dbt.Errorf("Float values don't match.\n")
+				dbt.Errorf(" Inserted: %v\n", v)
+				dbt.Errorf(" Selected: %v\n", f)
+			}
+		}
+	}
+
+	runTests(t, dsn, createTest("SELECT f FROM test WHERE 1=?", 1))
+}
+
 // Special cases
 
 func TestRowsClose(t *testing.T) {
