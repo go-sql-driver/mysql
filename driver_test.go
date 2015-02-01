@@ -1547,3 +1547,33 @@ func TestCustomDial(t *testing.T) {
 		t.Fatalf("Connection failed: %s", err.Error())
 	}
 }
+
+func TestSqlInjection(t *testing.T) {
+	createTest := func(arg string) func(dbt *DBTest) {
+		return func(dbt *DBTest) {
+			dbt.mustExec("CREATE TABLE test (v INTEGER)")
+			dbt.mustExec("INSERT INTO test VALUES (?)", 1)
+
+			var v int
+			// NULL can't be equal to anything, the idea here is to inject query so it returns row
+			// This test verifies that EscapeQuotes and EscapeStrings are working properly
+			err := dbt.db.QueryRow("SELECT v FROM test WHERE NULL = ?", arg).Scan(&v)
+			if err == sql.ErrNoRows {
+				return // success, sql injection failed
+			} else if err == nil {
+				dbt.Errorf("Sql injection successful with arg: %s", arg)
+			} else {
+				dbt.Errorf("Error running query with arg: %s; err: %s", err.Error())
+			}
+		}
+	}
+
+	dsns := []string{
+		dsn,
+		dsn + "&sql_mode=NO_BACKSLASH_ESCAPES",
+	}
+	for _, testdsn := range dsns {
+		runTests(t, testdsn, createTest("1 OR 1=1"))
+		runTests(t, testdsn, createTest("' OR '1'='1"))
+	}
+}
