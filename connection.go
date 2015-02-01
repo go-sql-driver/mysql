@@ -165,60 +165,15 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	return stmt, err
 }
 
+// https://github.com/mysql/mysql-server/blob/mysql-5.7.5/libmysql/libmysql.c#L1150-L1156
 func (mc *mysqlConn) escapeBytes(v []byte) string {
-	buf := make([]byte, len(v)*2+2)
-	buf[0] = '\''
-	pos := 1
+	var escape func([]byte) []byte
 	if mc.status&statusNoBackslashEscapes == 0 {
-		for _, c := range v {
-			switch c {
-			case '\x00':
-				buf[pos] = '\\'
-				buf[pos+1] = '0'
-				pos += 2
-			case '\n':
-				buf[pos] = '\\'
-				buf[pos+1] = 'n'
-				pos += 2
-			case '\r':
-				buf[pos] = '\\'
-				buf[pos+1] = 'r'
-				pos += 2
-			case '\x1a':
-				buf[pos] = '\\'
-				buf[pos+1] = 'Z'
-				pos += 2
-			case '\'':
-				buf[pos] = '\\'
-				buf[pos+1] = '\''
-				pos += 2
-			case '"':
-				buf[pos] = '\\'
-				buf[pos+1] = '"'
-				pos += 2
-			case '\\':
-				buf[pos] = '\\'
-				buf[pos+1] = '\\'
-				pos += 2
-			default:
-				buf[pos] = c
-				pos += 1
-			}
-		}
+		escape = EscapeString
 	} else {
-		for _, c := range v {
-			if c == '\'' {
-				buf[pos] = '\''
-				buf[pos+1] = '\''
-				pos += 2
-			} else {
-				buf[pos] = c
-				pos++
-			}
-		}
+		escape = EscapeQuotes
 	}
-	buf[pos] = '\''
-	return string(buf[:pos+1])
+	return "'" + string(escape(v)) + "'"
 }
 
 func (mc *mysqlConn) buildQuery(query string, args []driver.Value) (string, error) {
