@@ -1275,10 +1275,15 @@ func TestSelectFloatToFloat64(t *testing.T) {
 		}
 	}
 
-	runTests(t, dsn, createTest("SELECT f FROM test"))
-	runTests(t, dsn, createTest("SELECT f FROM test WHERE 1=?", 1))
-	runTests(t, dsn+"&parseTime=true", createTest("SELECT IFNULL(f, 0) f FROM test"))
-	runTests(t, dsn, createTest("SELECT IFNULL(f, 0) f FROM test"))
+	dsns := []string{
+		dsn + "&parseTime=true",
+		dsn + "&parseTime=false",
+	}
+	for _, testdsn := range dsns {
+		runTests(t, testdsn, createTest("SELECT f FROM test"))              // not prepared statement
+		runTests(t, testdsn, createTest("SELECT f FROM test WHERE 1=?", 1)) // prepared statement
+		runTests(t, testdsn, createTest("SELECT IFNULL(f, 0) f FROM test")) // not prepared statement with IFNULL
+	}
 }
 
 // Special cases
