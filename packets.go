@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strconv"
 	"time"
 )
 
@@ -626,6 +627,12 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 							string(dest[i].([]byte)),
 							mc.cfg.loc,
 						)
+						if err == nil {
+							continue
+						}
+					case fieldTypeFloat:
+						val, err := strconv.ParseFloat(string(dest[i].([]byte)), 32)
+						dest[i] = float32(val)
 						if err == nil {
 							continue
 						}
