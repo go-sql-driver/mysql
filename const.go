@@ -68,7 +68,7 @@ const (
 	comBinlogDump
 	comTableDump
 	comConnectOut
-	comRegiserSlave
+	comRegisterSlave
 	comStmtPrepare
 	comStmtExecute
 	comStmtSendLongData
