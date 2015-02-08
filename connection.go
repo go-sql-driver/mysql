@@ -179,16 +179,18 @@ func (mc *mysqlConn) escapeBytes(buf, v []byte) []byte {
 	return buf
 }
 
+// estimateParamLength calculates upper bound of string length from types.
 func estimateParamLength(args []driver.Value) (int, bool) {
 	l := 0
 	for _, a := range args {
 		switch v := a.(type) {
 		case int64, float64:
-			l += 20
+			// 24 (-1.7976931348623157e+308) may be upper bound. But I'm not sure.
+			l += 25
 		case bool:
-			l += 5
+			l += 1 // 0 or 1
 		case time.Time:
-			l += 30
+			l += 30 // '1234-12-23 12:34:56.777777'
 		case string:
 			l += len(v)*2 + 2
 		case []byte:
