@@ -11,10 +11,13 @@ package mysql
 import (
 	"bytes"
 	"database/sql"
+	"database/sql/driver"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 type TB testing.B
@@ -208,5 +211,29 @@ func BenchmarkRoundtripBin(b *testing.B) {
 			b.Errorf("mismatch")
 		}
 		rows.Close()
+	}
+}
+
+func BenchmarkInterpolation(b *testing.B) {
+	mc := &mysqlConn{
+		cfg:              &config{interpolateParams: true},
+		maxPacketAllowed: maxPacketSize,
+		maxWriteSize:     maxPacketSize - 1,
+	}
+
+	args := []driver.Value{
+		42424242,
+		math.Pi,
+		false,
+		time.Unix(1423411542, 807015000),
+		[]byte("bytes containing special chars ' \" \a \x00"),
+		"string containing special chars ' \" \a \x00",
+	}
+	q := "SELECT ?, ?, ?, ?, ?, ?"
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mc.interpolateParams(q, args)
 	}
 }
