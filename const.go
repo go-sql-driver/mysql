@@ -138,7 +138,7 @@ type statusFlag uint16
 const (
 	statusInTrans statusFlag = 1 << iota
 	statusInAutocommit
-	statusUnknown1
+	statusReserved // Not in documentation
 	statusMoreResultsExists
 	statusNoGoodIndexUsed
 	statusNoIndexUsed

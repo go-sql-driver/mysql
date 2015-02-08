@@ -176,7 +176,7 @@ func (mc *mysqlConn) escapeBytes(v []byte) string {
 	return "'" + string(escape(v)) + "'"
 }
 
-func (mc *mysqlConn) buildQuery(query string, args []driver.Value) (string, error) {
+func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (string, error) {
 	chunks := strings.Split(query, "?")
 	if len(chunks) != len(args)+1 {
 		return "", driver.ErrSkip
@@ -196,7 +196,7 @@ func (mc *mysqlConn) buildQuery(query string, args []driver.Value) (string, erro
 		case int64:
 			parts[pos] = strconv.FormatInt(v, 10)
 		case float64:
-			parts[pos] = strconv.FormatFloat(v, 'f', -1, 64)
+			parts[pos] = strconv.FormatFloat(v, 'g', -1, 64)
 		case bool:
 			if v {
 				parts[pos] = "1"
@@ -242,7 +242,7 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 			return nil, driver.ErrSkip
 		}
 		// try client-side prepare to reduce roundtrip
-		prepared, err := mc.buildQuery(query, args)
+		prepared, err := mc.interpolateParams(query, args)
 		if err != nil {
 			return nil, err
 		}
@@ -293,7 +293,7 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 			return nil, driver.ErrSkip
 		}
 		// try client-side prepare to reduce roundtrip
-		prepared, err := mc.buildQuery(query, args)
+		prepared, err := mc.interpolateParams(query, args)
 		if err != nil {
 			return nil, err
 		}
