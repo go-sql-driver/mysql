@@ -181,9 +181,9 @@ func parseDSNParams(cfg *config, params string) (err error) {
 		switch value := param[1]; param[0] {
 
 		// Enable client side placeholder substitution
-		case "substitutePlaceholder":
+		case "interpolateParams":
 			var isBool bool
-			cfg.substitutePlaceholder, isBool = readBool(value)
+			cfg.interpolateParams, isBool = readBool(value)
 			if !isBool {
 				return fmt.Errorf("Invalid Bool value: %s", value)
 			}
