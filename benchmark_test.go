@@ -45,7 +45,11 @@ func initDB(b *testing.B, queries ...string) *sql.DB {
 	db := tb.checkDB(sql.Open("mysql", dsn))
 	for _, query := range queries {
 		if _, err := db.Exec(query); err != nil {
-			b.Fatalf("Error on %q: %v", query, err)
+			if w, ok := err.(MySQLWarnings); ok {
+				b.Logf("Warning on %q: %v", query, w)
+			} else {
+				b.Fatalf("Error on %q: %v", query, err)
+			}
 		}
 	}
 	return db
