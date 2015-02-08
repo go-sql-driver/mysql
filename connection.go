@@ -208,6 +208,9 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 				parts[pos] = "'0000-00-00'"
 			} else {
 				fmt := "'2006-01-02 15:04:05.999999'"
+				if v.Nanosecond() == 0 {
+					fmt = "'2006-01-02 15:04:05'"
+				}
 				parts[pos] = v.In(mc.cfg.loc).Format(fmt)
 			}
 		case []byte:
