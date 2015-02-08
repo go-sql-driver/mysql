@@ -240,12 +240,50 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 			if v.IsZero() {
 				buf = append(buf, []byte("'0000-00-00'")...)
 			} else {
-				fmt := "'2006-01-02 15:04:05.999999'"
-				if v.Nanosecond() == 0 {
-					fmt = "'2006-01-02 15:04:05'"
+				v := v.In(mc.cfg.loc)
+				year := v.Year()
+				month := v.Month()
+				day := v.Day()
+				hour := v.Hour()
+				minute := v.Minute()
+				second := v.Second()
+				micro := v.Nanosecond() / 1000
+
+				buf = append(buf, []byte{
+					byte('\''),
+					byte('0' + year/1000),
+					byte('0' + year/100%10),
+					byte('0' + year/10%10),
+					byte('0' + year%10),
+					byte('-'),
+					byte('0' + month/10),
+					byte('0' + month%10),
+					byte('-'),
+					byte('0' + day/10),
+					byte('0' + day%10),
+					byte(' '),
+					byte('0' + hour/10),
+					byte('0' + hour%10),
+					byte(':'),
+					byte('0' + minute/10),
+					byte('0' + minute%10),
+					byte(':'),
+					byte('0' + second/10),
+					byte('0' + second%10),
+				}...)
+
+				if micro != 0 {
+					buf = append(buf, []byte{
+						byte('.'),
+						byte('0' + micro/100000),
+						byte('0' + micro/10000%10),
+						byte('0' + micro/1000%10),
+						byte('0' + micro/100%10),
+						byte('0' + micro/10%10),
+						byte('0' + micro%10),
+					}...)
 				}
-				s := v.In(mc.cfg.loc).Format(fmt)
-				buf = append(buf, []byte(s)...)
+				buf = append(buf, '\'')
 			}
 		case []byte:
 			if v == nil {
