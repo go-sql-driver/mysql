@@ -210,8 +210,8 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 	buf := make([]byte, 0, estimated)
 	argPos := 0
 
-	// Go 1.5 will optimize range([]byte(string)) to skip allocation.
-	for _, c := range []byte(query) {
+	for i := 0; i < len(query); i++ {
+		c := query[i]
 		if c != '?' {
 			buf = append(buf, c)
 			continue
