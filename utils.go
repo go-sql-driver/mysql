@@ -812,9 +812,16 @@ func appendLengthEncodedInteger(b []byte, n uint64) []byte {
 // characters, and turning others into specific escape sequences, such as
 // turning newlines into \n and null bytes into \0.
 // https://github.com/mysql/mysql-server/blob/mysql-5.7.5/mysys/charset.c#L823-L932
-func EscapeString(v []byte) []byte {
-	buf := make([]byte, len(v)*2)
-	pos := 0
+func escapeString(buf, v []byte) []byte {
+	pos := len(buf)
+	end := pos + len(v)*2
+	if cap(buf) < end {
+		n := make([]byte, pos+end)
+		copy(n, buf)
+		buf = n
+	}
+	buf = buf[0:end]
+
 	for _, c := range v {
 		switch c {
 		case '\x00':
@@ -859,9 +866,16 @@ func EscapeString(v []byte) []byte {
 // it contains. This is used when the NO_BACKSLASH_ESCAPES SQL_MODE is in
 // effect on the server.
 // https://github.com/mysql/mysql-server/blob/mysql-5.7.5/mysys/charset.c#L963-L1038
-func EscapeQuotes(v []byte) []byte {
-	buf := make([]byte, len(v)*2)
-	pos := 0
+func escapeQuotes(buf, v []byte) []byte {
+	pos := len(buf)
+	end := pos + len(v)*2
+	if cap(buf) < end {
+		n := make([]byte, pos+end)
+		copy(n, buf)
+		buf = n
+	}
+	buf = buf[0:end]
+
 	for _, c := range v {
 		if c == '\'' {
 			buf[pos] = '\''
