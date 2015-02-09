@@ -812,7 +812,7 @@ func appendLengthEncodedInteger(b []byte, n uint64) []byte {
 // characters, and turning others into specific escape sequences, such as
 // turning newlines into \n and null bytes into \0.
 // https://github.com/mysql/mysql-server/blob/mysql-5.7.5/mysys/charset.c#L823-L932
-func escapeString(buf, v []byte) []byte {
+func escapeBackslash(buf, v []byte) []byte {
 	pos := len(buf)
 	end := pos + len(v)*2
 	if cap(buf) < end {

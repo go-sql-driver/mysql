@@ -167,16 +167,13 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 
 // https://github.com/mysql/mysql-server/blob/mysql-5.7.5/libmysql/libmysql.c#L1150-L1156
 func (mc *mysqlConn) escapeBytes(buf, v []byte) []byte {
-	var escape func([]byte, []byte) []byte
+	buf = append(buf, '\'')
 	if mc.status&statusNoBackslashEscapes == 0 {
-		escape = escapeString
+		buf = escapeBackslash(buf, v)
 	} else {
-		escape = escapeQuotes
+		buf = escapeQuotes(buf, v)
 	}
-	buf = append(buf, '\'')
-	buf = escape(buf, v)
-	buf = append(buf, '\'')
-	return buf
+	return append(buf, '\'')
 }
 
 // estimateParamLength calculates upper bound of string length from types.

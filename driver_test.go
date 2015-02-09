@@ -1556,7 +1556,7 @@ func TestSqlInjection(t *testing.T) {
 
 			var v int
 			// NULL can't be equal to anything, the idea here is to inject query so it returns row
-			// This test verifies that EscapeQuotes and EscapeStrings are working properly
+			// This test verifies that escapeQuotes and escapeBackslash are working properly
 			err := dbt.db.QueryRow("SELECT v FROM test WHERE NULL = ?", arg).Scan(&v)
 			if err == sql.ErrNoRows {
 				return // success, sql injection failed
@@ -1583,7 +1583,7 @@ func TestInsertRetrieveEscapedData(t *testing.T) {
 	testData := func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v VARCHAR(255))")
 
-		// All sequences that are escaped by EscapeQuotes and EscapeString
+		// All sequences that are escaped by escapeQuotes and escapeBackslash
 		v := "foo \x00\n\r\x1a\"'\\"
 		dbt.mustExec("INSERT INTO test VALUES (?)", v)
 
