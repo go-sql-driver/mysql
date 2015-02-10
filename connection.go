@@ -253,6 +253,8 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 			} else {
 				v := v.In(mc.cfg.loc)
 				year := v.Year()
+				year100 := year / 100
+				year1 := year % 100
 				month := v.Month()
 				day := v.Day()
 				hour := v.Hour()
@@ -261,37 +263,30 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 				micro := v.Nanosecond() / 1000
 
 				buf = append(buf, []byte{
-					byte('\''),
-					byte('0' + year/1000),
-					byte('0' + year/100%10),
-					byte('0' + year/10%10),
-					byte('0' + year%10),
-					byte('-'),
-					byte('0' + month/10),
-					byte('0' + month%10),
-					byte('-'),
-					byte('0' + day/10),
-					byte('0' + day%10),
-					byte(' '),
-					byte('0' + hour/10),
-					byte('0' + hour%10),
-					byte(':'),
-					byte('0' + minute/10),
-					byte('0' + minute%10),
-					byte(':'),
-					byte('0' + second/10),
-					byte('0' + second%10),
+					'\'',
+					digits10[year100], digits01[year100],
+					digits10[year1], digits01[year1],
+					'-',
+					digits10[month], digits01[month],
+					'-',
+					digits10[day], digits01[day],
+					' ',
+					digits10[hour], digits01[hour],
+					':',
+					digits10[minute], digits01[minute],
+					':',
+					digits10[second], digits01[second],
 				}...)
 
 				if micro != 0 {
+					micro10000 := micro / 10000
+					micro100 := micro / 100 % 100
+					micro1 := micro % 100
 					buf = append(buf, []byte{
-						byte('.'),
-						byte('0' + micro/100000),
-						byte('0' + micro/10000%10),
-						byte('0' + micro/1000%10),
-						byte('0' + micro/100%10),
-						byte('0' + micro/10%10),
-						byte('0' + micro%10),
+						'.',
+						digits10[micro10000], digits01[micro10000],
+						digits10[micro100], digits01[micro100],
+						digits10[micro1], digits01[micro1],
 					}...)
 				}
 				buf = append(buf, '\'')

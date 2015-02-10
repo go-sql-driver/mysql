@@ -540,11 +540,12 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 // The current behavior depends on database/sql copying the result.
 var zeroDateTime = []byte("0000-00-00 00:00:00.000000")
 
+const digits01 = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
+const digits10 = "0000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999"
+
 func formatBinaryDateTime(src []byte, length uint8, justTime bool) (driver.Value, error) {
 	// length expects the deterministic length of the zero value,
 	// negative time and 100+ hours are automatically added if needed
-	const digits01 = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
-	const digits10 = "0000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999"
 	if len(src) == 0 {
 		if justTime {
 			return zeroDateTime[11 : 11+length], nil
