@@ -169,9 +169,19 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 func (mc *mysqlConn) escapeBytes(buf, v []byte) []byte {
 	buf = append(buf, '\'')
 	if mc.status&statusNoBackslashEscapes == 0 {
-		buf = escapeBackslash(buf, v)
+		buf = escapeBytesBackslash(buf, v)
 	} else {
-		buf = escapeQuotes(buf, v)
+		buf = escapeBytesQuotes(buf, v)
+	}
+	return append(buf, '\'')
+}
+
+func (mc *mysqlConn) escapeString(buf []byte, v string) []byte {
+	buf = append(buf, '\'')
+	if mc.status&statusNoBackslashEscapes == 0 {
+		buf = escapeStringBackslash(buf, v)
+	} else {
+		buf = escapeStringQuotes(buf, v)
 	}
 	return append(buf, '\'')
 }
@@ -293,7 +303,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 				buf = mc.escapeBytes(buf, v)
 			}
 		case string:
-			buf = mc.escapeBytes(buf, []byte(v))
+			buf = mc.escapeString(buf, v)
 		default:
 			return "", driver.ErrSkip
 		}

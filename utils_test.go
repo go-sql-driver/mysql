@@ -255,7 +255,7 @@ func TestFormatBinaryDateTime(t *testing.T) {
 
 func TestEscapeBackslash(t *testing.T) {
 	expect := func(expected, value string) {
-		actual := string(escapeBackslash([]byte{}, []byte(value)))
+		actual := string(escapeBytesBackslash([]byte{}, []byte(value)))
 		if actual != expected {
 			t.Errorf(
 				"expected %s, got %s",
@@ -275,7 +275,7 @@ func TestEscapeBackslash(t *testing.T) {
 
 func TestEscapeQuotes(t *testing.T) {
 	expect := func(expected, value string) {
-		actual := string(escapeQuotes([]byte{}, []byte(value)))
+		actual := string(escapeBytesQuotes([]byte{}, []byte(value)))
 		if actual != expected {
 			t.Errorf(
 				"expected %s, got %s",
