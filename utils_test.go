@@ -262,6 +262,14 @@ func TestEscapeBackslash(t *testing.T) {
 				expected, actual,
 			)
 		}
+
+		actual = string(escapeStringBackslash([]byte{}, value))
+		if actual != expected {
+			t.Errorf(
+				"expected %s, got %s",
+				expected, actual,
+			)
+		}
 	}
 
 	expect("foo\\0bar", "foo\x00bar")
@@ -276,6 +284,14 @@ func TestEscapeBackslash(t *testing.T) {
 func TestEscapeQuotes(t *testing.T) {
 	expect := func(expected, value string) {
 		actual := string(escapeBytesQuotes([]byte{}, []byte(value)))
+		if actual != expected {
+			t.Errorf(
+				"expected %s, got %s",
+				expected, actual,
+			)
+		}
+
+		actual = string(escapeStringQuotes([]byte{}, value))
 		if actual != expected {
 			t.Errorf(
 				"expected %s, got %s",
