@@ -210,17 +210,19 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 	argPos := 0
 
 	for i := 0; i < len(query); i++ {
-		c := query[i]
-		if c != '?' {
-			buf = append(buf, c)
-			continue
+		q := strings.IndexByte(query[i:], '?')
+		if q == -1 {
+			buf = append(buf, query[i:]...)
+			break
 		}
+		buf = append(buf, query[i:i+q]...)
+		i += q
 
 		arg := args[argPos]
 		argPos++
 
 		if arg == nil {
-			buf = append(buf, []byte("NULL")...)
+			buf = append(buf, "NULL"...)
 			continue
 		}
 
@@ -237,7 +239,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 			}
 		case time.Time:
 			if v.IsZero() {
-				buf = append(buf, []byte("'0000-00-00'")...)
+				buf = append(buf, "'0000-00-00'"...)
 			} else {
 				v := v.In(mc.cfg.loc)
 				year := v.Year()
@@ -286,7 +288,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 			}
 		case []byte:
 			if v == nil {
-				buf = append(buf, []byte("NULL")...)
+				buf = append(buf, "NULL"...)
 			} else {
 				buf = mc.escapeBytes(buf, v)
 			}
