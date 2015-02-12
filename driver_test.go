@@ -91,6 +91,10 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	var db2 *sql.DB
 	if _, err := parseDSN(dsn2); err != errInvalidDSNUnsafeCollation {
 		db2, err = sql.Open("mysql", dsn2)
+		if err != nil {
+			t.Fatalf("Error connecting: %s", err.Error())
+		}
+		defer db2.Close()
 	}
 
 	dbt := &DBTest{t, db}
