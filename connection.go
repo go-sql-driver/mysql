@@ -165,27 +165,6 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	return stmt, err
 }
 
-// https://github.com/mysql/mysql-server/blob/mysql-5.7.5/libmysql/libmysql.c#L1150-L1156
-func (mc *mysqlConn) escapeBytes(buf, v []byte) []byte {
-	buf = append(buf, '\'')
-	if mc.status&statusNoBackslashEscapes == 0 {
-		buf = escapeBytesBackslash(buf, v)
-	} else {
-		buf = escapeBytesQuotes(buf, v)
-	}
-	return append(buf, '\'')
-}
-
-func (mc *mysqlConn) escapeString(buf []byte, v string) []byte {
-	buf = append(buf, '\'')
-	if mc.status&statusNoBackslashEscapes == 0 {
-		buf = escapeStringBackslash(buf, v)
-	} else {
-		buf = escapeStringQuotes(buf, v)
-	}
-	return append(buf, '\'')
-}
-
 // estimateParamLength calculates upper bound of string length from types.
 func estimateParamLength(args []driver.Value) (int, bool) {
 	l := 0
@@ -296,10 +275,22 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 			if v == nil {
 				buf = append(buf, "NULL"...)
 			} else {
-				buf = mc.escapeBytes(buf, v)
+				buf = append(buf, '\'')
+				if mc.status&statusNoBackslashEscapes == 0 {
+					buf = escapeBytesBackslash(buf, v)
+				} else {
+					buf = escapeBytesQuotes(buf, v)
+				}
+				buf = append(buf, '\'')
 			}
 		case string:
-			buf = mc.escapeString(buf, v)
+			buf = append(buf, '\'')
+			if mc.status&statusNoBackslashEscapes == 0 {
+				buf = escapeStringBackslash(buf, v)
+			} else {
+				buf = escapeStringQuotes(buf, v)
+			}
+			buf = append(buf, '\'')
 		default:
 			return "", driver.ErrSkip
 		}
