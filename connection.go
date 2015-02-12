@@ -314,7 +314,7 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		if !mc.cfg.interpolateParams {
 			return nil, driver.ErrSkip
 		}
-		// try client-side prepare to reduce roundtrip
+		// try to interpolate the parameters to save extra roundtrips for preparing and closing a statement
 		prepared, err := mc.interpolateParams(query, args)
 		if err != nil {
 			return nil, err
