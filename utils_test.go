@@ -116,6 +116,43 @@ func TestDSNWithCustomTLS(t *testing.T) {
 	DeregisterTLSConfig("utils_test")
 }
 
+func TestDSNUnsafeCollation(t *testing.T) {
+	_, err := parseDSN("/dbname?collation=gbk_chinese_ci&interpolateParams=true")
+	if err != errInvalidDSNUnsafeCollation {
+		t.Error("Expected %v, Got %v", errInvalidDSNUnsafeCollation, err)
+	}
+
+	_, err = parseDSN("/dbname?collation=gbk_chinese_ci&interpolateParams=false")
+	if err != nil {
+		t.Error("Expected %v, Got %v", nil, err)
+	}
+
+	_, err = parseDSN("/dbname?collation=gbk_chinese_ci")
+	if err != nil {
+		t.Error("Expected %v, Got %v", nil, err)
+	}
+
+	_, err = parseDSN("/dbname?collation=ascii_bin&interpolateParams=true")
+	if err != nil {
+		t.Error("Expected %v, Got %v", nil, err)
+	}
+
+	_, err = parseDSN("/dbname?collation=latin1_german1_ci&interpolateParams=true")
+	if err != nil {
+		t.Error("Expected %v, Got %v", nil, err)
+	}
+
+	_, err = parseDSN("/dbname?collation=utf8_general_ci&interpolateParams=true")
+	if err != nil {
+		t.Error("Expected %v, Got %v", nil, err)
+	}
+
+	_, err = parseDSN("/dbname?collation=utf8mb4_general_ci&interpolateParams=true")
+	if err != nil {
+		t.Error("Expected %v, Got %v", nil, err)
+	}
+}
+
 func BenchmarkParseDSN(b *testing.B) {
 	b.ReportAllocs()
 

@@ -25,9 +25,10 @@ import (
 var (
 	tlsConfigRegister map[string]*tls.Config // Register for custom tls.Configs
 
-	errInvalidDSNUnescaped = errors.New("Invalid DSN: Did you forget to escape a param value?")
-	errInvalidDSNAddr      = errors.New("Invalid DSN: Network Address not terminated (missing closing brace)")
-	errInvalidDSNNoSlash   = errors.New("Invalid DSN: Missing the slash separating the database name")
+	errInvalidDSNUnescaped       = errors.New("Invalid DSN: Did you forget to escape a param value?")
+	errInvalidDSNAddr            = errors.New("Invalid DSN: Network Address not terminated (missing closing brace)")
+	errInvalidDSNNoSlash         = errors.New("Invalid DSN: Missing the slash separating the database name")
+	errInvalidDSNUnsafeCollation = errors.New("Invalid DSN: interpolateParams can be used with ascii, latin1, utf8 and utf8mb4 charset")
 )
 
 func init() {
@@ -145,6 +146,32 @@ func parseDSN(dsn string) (cfg *config, err error) {
 
 	if !foundSlash && len(dsn) > 0 {
 		return nil, errInvalidDSNNoSlash
+	}
+
+	if cfg.interpolateParams && cfg.collation != defaultCollation {
+		// A whitelist of collations which safe to interpolate parameters.
+		// ASCII and latin-1 are safe since they are single byte encoding.
+		// utf-8 is safe since it doesn't conatins ASCII characters in trailing bytes.
+		safeCollations := []string{"ascii_", "latin1_", "utf8_", "utf8mb4_"}
+
+		var collationName string
+		for name, collation := range collations {
+			if collation == cfg.collation {
+				collationName = name
+				break
+			}
+		}
+
+		safe := false
+		for _, p := range safeCollations {
+			if strings.HasPrefix(collationName, p) {
+				safe = true
+				break
+			}
+		}
+		if !safe {
+			return nil, errInvalidDSNUnsafeCollation
+		}
 	}
 
 	// Set default network if empty

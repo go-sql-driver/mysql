@@ -87,19 +87,21 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 
 	db.Exec("DROP TABLE IF EXISTS test")
 
-	dbp, err := sql.Open("mysql", dsn+"&interpolateParams=true")
-	if err != nil {
-		t.Fatalf("Error connecting: %s", err.Error())
+	dsn2 := dsn + "&interpolateParams=true"
+	var db2 *sql.DB
+	if _, err := parseDSN(dsn2); err != errInvalidDSNUnsafeCollation {
+		db2, err = sql.Open("mysql", dsn2)
 	}
-	defer dbp.Close()
 
 	dbt := &DBTest{t, db}
-	dbtp := &DBTest{t, dbp}
+	dbt2 := &DBTest{t, db2}
 	for _, test := range tests {
 		test(dbt)
 		dbt.db.Exec("DROP TABLE IF EXISTS test")
-		test(dbtp)
-		dbtp.db.Exec("DROP TABLE IF EXISTS test")
+		if db2 != nil {
+			test(dbt2)
+			dbt2.db.Exec("DROP TABLE IF EXISTS test")
+		}
 	}
 }
 
@@ -864,7 +866,7 @@ func TestLoadData(t *testing.T) {
 					dbt.Fatalf("%d != %d", i, id)
 				}
 				if values[i-1] != value {
-					dbt.Fatalf("%s != %s", values[i-1], value)
+					dbt.Fatalf("%q != %q", values[i-1], value)
 				}
 			}
 			err = rows.Err()
@@ -889,7 +891,7 @@ func TestLoadData(t *testing.T) {
 
 		// Local File
 		RegisterLocalFile(file.Name())
-		dbt.mustExec(fmt.Sprintf("LOAD DATA LOCAL INFILE '%q' INTO TABLE test", file.Name()))
+		dbt.mustExec(fmt.Sprintf("LOAD DATA LOCAL INFILE %q INTO TABLE test", file.Name()))
 		verifyLoadDataResult()
 		// negative test
 		_, err = dbt.db.Exec("LOAD DATA LOCAL INFILE 'doesnotexist' INTO TABLE test")
