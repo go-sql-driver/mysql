@@ -835,6 +835,19 @@ func appendLengthEncodedInteger(b []byte, n uint64) []byte {
 		byte(n>>32), byte(n>>40), byte(n>>48), byte(n>>56))
 }
 
+// reserveBuffer checks cap(buf) and expand buffer to len(buf) + appendSize.
+// If cap(buf) is not enough, reallocate new buffer.
+func reserveBuffer(buf []byte, appendSize int) []byte {
+	newSize := len(buf) + appendSize
+	if cap(buf) < newSize {
+		// Grow buffer exponentially
+		newBuf := make([]byte, len(buf)*2+appendSize)
+		copy(newBuf, buf)
+		buf = newBuf
+	}
+	return buf[:newSize]
+}
+
 // escapeBytesBackslash escapes []byte with backslashes (\)
 // This escapes the contents of a string (provided as []byte) by adding backslashes before special
 // characters, and turning others into specific escape sequences, such as
@@ -842,13 +855,7 @@ func appendLengthEncodedInteger(b []byte, n uint64) []byte {
 // https://github.com/mysql/mysql-server/blob/mysql-5.7.5/mysys/charset.c#L823-L932
 func escapeBytesBackslash(buf, v []byte) []byte {
 	pos := len(buf)
-	end := pos + len(v)*2
-	if cap(buf) < end {
-		n := make([]byte, pos+end)
-		copy(n, buf)
-		buf = n
-	}
-	buf = buf[0:end]
+	buf = reserveBuffer(buf, len(v)*2)
 
 	for _, c := range v {
 		switch c {
@@ -892,13 +899,7 @@ func escapeBytesBackslash(buf, v []byte) []byte {
 // escapeStringBackslash is similar to escapeBytesBackslash but for string.
 func escapeStringBackslash(buf []byte, v string) []byte {
 	pos := len(buf)
-	end := pos + len(v)*2
-	if cap(buf) < end {
-		n := make([]byte, pos+end)
-		copy(n, buf)
-		buf = n
-	}
-	buf = buf[0:end]
+	buf = reserveBuffer(buf, len(v)*2)
 
 	for i := 0; i < len(v); i++ {
 		c := v[i]
@@ -947,13 +948,7 @@ func escapeStringBackslash(buf []byte, v string) []byte {
 // https://github.com/mysql/mysql-server/blob/mysql-5.7.5/mysys/charset.c#L963-L1038
 func escapeBytesQuotes(buf, v []byte) []byte {
 	pos := len(buf)
-	end := pos + len(v)*2
-	if cap(buf) < end {
-		n := make([]byte, pos+end)
-		copy(n, buf)
-		buf = n
-	}
-	buf = buf[0:end]
+	buf = reserveBuffer(buf, len(v)*2)
 
 	for _, c := range v {
 		if c == '\'' {
@@ -972,13 +967,7 @@ func escapeBytesQuotes(buf, v []byte) []byte {
 // escapeStringQuotes is similar to escapeBytesQuotes but for string.
 func escapeStringQuotes(buf []byte, v string) []byte {
 	pos := len(buf)
-	end := pos + len(v)*2
-	if cap(buf) < end {
-		n := make([]byte, pos+end)
-		copy(n, buf)
-		buf = n
-	}
-	buf = buf[0:end]
+	buf = reserveBuffer(buf, len(v)*2)
 
 	for i := 0; i < len(v); i++ {
 		c := v[i]
