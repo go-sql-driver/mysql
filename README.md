@@ -190,7 +190,7 @@ Valid Values:   true, false
 Default:        false
 ```
 
-When `interpolateParams` is true, calls to `sql.Db.Query()` and `sql.Db.Exec()` with params interpolates placeholders (`?`) with given params. This reduces roundtrips to database compared with `interpolateParams=false` since it uses prapre, exec and close to support parameters.
+When `interpolateParams` is true, calls to `sql.Db.Query()` and `sql.Db.Exec()` with params interpolates placeholders (`?`) with given params. This reduces roundtrips to database compared with `interpolateParams=false` since it uses prepare, exec and close to support parameters.
 
 NOTE: It make SQL injection vulnerability when connection encoding is not utf8.
 
