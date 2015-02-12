@@ -148,30 +148,8 @@ func parseDSN(dsn string) (cfg *config, err error) {
 		return nil, errInvalidDSNNoSlash
 	}
 
-	if cfg.interpolateParams && cfg.collation != defaultCollation {
-		// A whitelist of collations which safe to interpolate parameters.
-		// ASCII and latin-1 are safe since they are single byte encoding.
-		// utf-8 is safe since it doesn't conatins ASCII characters in trailing bytes.
-		safeCollations := []string{"ascii_", "latin1_", "utf8_", "utf8mb4_"}
-
-		var collationName string
-		for name, collation := range collations {
-			if collation == cfg.collation {
-				collationName = name
-				break
-			}
-		}
-
-		safe := false
-		for _, p := range safeCollations {
-			if strings.HasPrefix(collationName, p) {
-				safe = true
-				break
-			}
-		}
-		if !safe {
-			return nil, errInvalidDSNUnsafeCollation
-		}
+	if cfg.interpolateParams && unsafeCollations[cfg.collation] {
+		return nil, errInvalidDSNUnsafeCollation
 	}
 
 	// Set default network if empty
