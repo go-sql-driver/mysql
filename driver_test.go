@@ -87,10 +87,25 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 
 	db.Exec("DROP TABLE IF EXISTS test")
 
+	dsn2 := dsn + "&interpolateParams=true"
+	var db2 *sql.DB
+	if _, err := parseDSN(dsn2); err != errInvalidDSNUnsafeCollation {
+		db2, err = sql.Open("mysql", dsn2)
+		if err != nil {
+			t.Fatalf("Error connecting: %s", err.Error())
+		}
+		defer db2.Close()
+	}
+
 	dbt := &DBTest{t, db}
+	dbt2 := &DBTest{t, db2}
 	for _, test := range tests {
 		test(dbt)
 		dbt.db.Exec("DROP TABLE IF EXISTS test")
+		if db2 != nil {
+			test(dbt2)
+			dbt2.db.Exec("DROP TABLE IF EXISTS test")
+		}
 	}
 }
 
@@ -855,7 +870,7 @@ func TestLoadData(t *testing.T) {
 					dbt.Fatalf("%d != %d", i, id)
 				}
 				if values[i-1] != value {
-					dbt.Fatalf("%s != %s", values[i-1], value)
+					dbt.Fatalf("%q != %q", values[i-1], value)
 				}
 			}
 			err = rows.Err()
@@ -880,7 +895,7 @@ func TestLoadData(t *testing.T) {
 
 		// Local File
 		RegisterLocalFile(file.Name())
-		dbt.mustExec(fmt.Sprintf("LOAD DATA LOCAL INFILE '%q' INTO TABLE test", file.Name()))
+		dbt.mustExec(fmt.Sprintf("LOAD DATA LOCAL INFILE %q INTO TABLE test", file.Name()))
 		verifyLoadDataResult()
 		// negative test
 		_, err = dbt.db.Exec("LOAD DATA LOCAL INFILE 'doesnotexist' INTO TABLE test")
@@ -1536,5 +1551,64 @@ func TestCustomDial(t *testing.T) {
 
 	if _, err = db.Exec("DO 1"); err != nil {
 		t.Fatalf("Connection failed: %s", err.Error())
+	}
+}
+
+func TestSqlInjection(t *testing.T) {
+	createTest := func(arg string) func(dbt *DBTest) {
+		return func(dbt *DBTest) {
+			dbt.mustExec("CREATE TABLE test (v INTEGER)")
+			dbt.mustExec("INSERT INTO test VALUES (?)", 1)
+
+			var v int
+			// NULL can't be equal to anything, the idea here is to inject query so it returns row
+			// This test verifies that escapeQuotes and escapeBackslash are working properly
+			err := dbt.db.QueryRow("SELECT v FROM test WHERE NULL = ?", arg).Scan(&v)
+			if err == sql.ErrNoRows {
+				return // success, sql injection failed
+			} else if err == nil {
+				dbt.Errorf("Sql injection successful with arg: %s", arg)
+			} else {
+				dbt.Errorf("Error running query with arg: %s; err: %s", arg, err.Error())
+			}
+		}
+	}
+
+	dsns := []string{
+		dsn,
+		dsn + "&sql_mode=NO_BACKSLASH_ESCAPES",
+	}
+	for _, testdsn := range dsns {
+		runTests(t, testdsn, createTest("1 OR 1=1"))
+		runTests(t, testdsn, createTest("' OR '1'='1"))
+	}
+}
+
+// Test if inserted data is correctly retrieved after being escaped
+func TestInsertRetrieveEscapedData(t *testing.T) {
+	testData := func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (v VARCHAR(255))")
+
+		// All sequences that are escaped by escapeQuotes and escapeBackslash
+		v := "foo \x00\n\r\x1a\"'\\"
+		dbt.mustExec("INSERT INTO test VALUES (?)", v)
+
+		var out string
+		err := dbt.db.QueryRow("SELECT v FROM test").Scan(&out)
+		if err != nil {
+			dbt.Fatalf("%s", err.Error())
+		}
+
+		if out != v {
+			dbt.Errorf("%q != %q", out, v)
+		}
+	}
+
+	dsns := []string{
+		dsn,
+		dsn + "&sql_mode=NO_BACKSLASH_ESCAPES",
+	}
+	for _, testdsn := range dsns {
+		runTests(t, testdsn, testData)
 	}
 }
