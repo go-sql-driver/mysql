@@ -38,6 +38,7 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
   * Intelligent `LONG DATA` handling in prepared statements
   * Secure `LOAD DATA LOCAL INFILE` support with file Whitelisting and `io.Reader` support
   * Optional `time.Time` parsing
+  * Optional placeholder interpolation
 
 ## Requirements
   * Go 1.2 or higher
@@ -192,8 +193,7 @@ Default:        false
 
 If `interpolateParams` is true, placeholders (`?`) in calls to `db.Query()` and `db.Exec()` are interpolated into a single query string with given parameters. This reduces the number of roundtrips, since the driver has to prepare a statement, execute it with given parameters and close the statement again with `interpolateParams=false`.
 
-NOTE: *This may introduce a SQL injection vulnerability when connection encoding is multibyte encoding except for UTF-8 (e.g. CP932)!*
-(See http://stackoverflow.com/a/12118602/3430118)
+*This can not be used together with the multibyte encodings BIG5, CP932, GB2312, GBK or SJIS. These are blacklisted as they may [introduce a SQL injection vulnerability](http://stackoverflow.com/a/12118602/3430118)!*
 
 ##### `loc`
 
