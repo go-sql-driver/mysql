@@ -165,37 +165,14 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	return stmt, err
 }
 
-// estimateParamLength calculates upper bound of string length from types.
-func estimateParamLength(args []driver.Value) (int, bool) {
-	l := 0
-	for _, a := range args {
-		switch v := a.(type) {
-		case int64, float64:
-			// 24 (-1.7976931348623157e+308) may be upper bound. But I'm not sure.
-			l += 25
-		case bool:
-			l += 1 // 0 or 1
-		case time.Time:
-			l += 30 // '1234-12-23 12:34:56.777777'
-		case string:
-			l += len(v)*2 + 2
-		case []byte:
-			l += len(v)*2 + 2
-		default:
-			return 0, false
-		}
-	}
-	return l, true
-}
-
 func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (string, error) {
-	estimated, ok := estimateParamLength(args)
-	if !ok {
-		return "", driver.ErrSkip
+	buf := mc.buf.takeCompleteBuffer()
+	if buf == nil {
+		// can not take the buffer. Something must be wrong with the connection
+		errLog.Print(ErrBusyBuffer)
+		return "", driver.ErrBadConn
 	}
-	estimated += len(query)
-
-	buf := make([]byte, 0, estimated)
+	buf = buf[:0]
 	argPos := 0
 
 	for i := 0; i < len(query); i++ {
