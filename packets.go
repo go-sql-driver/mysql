@@ -603,7 +603,12 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 
 	// EOF Packet
 	if data[0] == iEOF && len(data) == 5 {
+		rows.mc = nil
 		return io.EOF
+	}
+	if data[0] == iERR {
+		rows.mc = nil
+		return mc.handleErrorPacket(data)
 	}
 
 	// RowSet Packet
@@ -968,6 +973,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 
 	// packet indicator [1 byte]
 	if data[0] != iOK {
+		rows.mc = nil
 		// EOF Packet
 		if data[0] == iEOF && len(data) == 5 {
 			return io.EOF
