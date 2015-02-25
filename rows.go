@@ -72,10 +72,7 @@ func (rows *binaryRows) Next(dest []driver.Value) error {
 		}
 
 		// Fetch next row from stream
-		if err := rows.readRow(dest); err != io.EOF {
-			return err
-		}
-		rows.mc = nil
+		return rows.readRow(dest)
 	}
 	return io.EOF
 }
@@ -87,10 +84,7 @@ func (rows *textRows) Next(dest []driver.Value) error {
 		}
 
 		// Fetch next row from stream
-		if err := rows.readRow(dest); err != io.EOF {
-			return err
-		}
-		rows.mc = nil
+		return rows.readRow(dest)
 	}
 	return io.EOF
 }
