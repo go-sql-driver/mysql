@@ -2,11 +2,20 @@
 
 Changes:
 
- - Use decimals field from MySQL to format time types
+ - Go 1.1 is no longer supported
+ - Use decimals field from MySQL to format time types (#249)
+ - Buffer optimizations (#269)
+ - TLS ServerName defaults to the host (#283)
 
 Bugfixes:
 
- - Enable microsecond resolution on TIME, DATETIME and TIMESTAMP
+ - Enable microsecond resolution on TIME, DATETIME and TIMESTAMP (#249)
+ - Fixed handling of queries without columns and rows (#255)
+ - Fixed a panic when SetKeepAlive() failed (#298)
+
+New Features:
+ - Support for returning table alias on Columns() (#289)
+ - Placeholder interpolation, can be actived with the DSN parameter `interpolateParams=true` (#309, #318)
 
 
 ## Version 1.2 (2014-06-03)

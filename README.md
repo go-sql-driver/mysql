@@ -38,9 +38,10 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
   * Intelligent `LONG DATA` handling in prepared statements
   * Secure `LOAD DATA LOCAL INFILE` support with file Whitelisting and `io.Reader` support
   * Optional `time.Time` parsing
+  * Optional placeholder interpolation
 
 ## Requirements
-  * Go 1.1 or higher
+  * Go 1.2 or higher
   * MySQL (4.1+), MariaDB, Percona Server, Google CloudSQL or Sphinx (2.2.3+)
 
 ---------------------------------------
@@ -166,6 +167,33 @@ Default:        false
 
 `clientFoundRows=true` causes an UPDATE to return the number of matching rows instead of the number of rows changed.
 
+##### `columnsWithAlias`
+
+```
+Type:           bool
+Valid Values:   true, false
+Default:        false
+```
+
+When `columnsWithAlias` is true, calls to `sql.Rows.Columns()` will return the table alias and the column name separated by a dot. For example:
+
+```
+SELECT u.id FROM users as u
+```
+
+will return `u.id` instead of just `id` if `columnsWithAlias=true`.
+
+##### `interpolateParams`
+
+```
+Type:           bool
+Valid Values:   true, false
+Default:        false
+```
+
+If `interpolateParams` is true, placeholders (`?`) in calls to `db.Query()` and `db.Exec()` are interpolated into a single query string with given parameters. This reduces the number of roundtrips, since the driver has to prepare a statement, execute it with given parameters and close the statement again with `interpolateParams=false`.
+
+*This can not be used together with the multibyte encodings BIG5, CP932, GB2312, GBK or SJIS. These are blacklisted as they may [introduce a SQL injection vulnerability](http://stackoverflow.com/a/12118602/3430118)!*
 
 ##### `loc`
 

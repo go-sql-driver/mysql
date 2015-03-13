@@ -484,6 +484,7 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 	mc.insertId, _, m = readLengthEncodedInteger(data[1+n:])
 
 	// server_status [2 bytes]
+	mc.status = statusFlag(data[1+n+m]) | statusFlag(data[1+n+m+1])<<8
 
 	// warning count [2 bytes]
 	if !mc.strict {
@@ -530,11 +531,20 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 		pos += n
 
 		// Table [len coded string]
-		n, err = skipLengthEncodedString(data[pos:])
-		if err != nil {
-			return nil, err
+		if mc.cfg.columnsWithAlias {
+			tableName, _, n, err := readLengthEncodedString(data[pos:])
+			if err != nil {
+				return nil, err
+			}
+			pos += n
+			columns[i].tableName = string(tableName)
+		} else {
+			n, err = skipLengthEncodedString(data[pos:])
+			if err != nil {
+				return nil, err
+			}
+			pos += n
 		}
-		pos += n
 
 		// Original table [len coded string]
 		n, err = skipLengthEncodedString(data[pos:])
@@ -593,7 +603,12 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 
 	// EOF Packet
 	if data[0] == iEOF && len(data) == 5 {
+		rows.mc = nil
 		return io.EOF
+	}
+	if data[0] == iERR {
+		rows.mc = nil
+		return mc.handleErrorPacket(data)
 	}
 
 	// RowSet Packet
@@ -958,6 +973,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 
 	// packet indicator [1 byte]
 	if data[0] != iOK {
+		rows.mc = nil
 		// EOF Packet
 		if data[0] == iEOF && len(data) == 5 {
 			return io.EOF
