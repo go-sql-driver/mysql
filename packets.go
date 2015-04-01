@@ -632,10 +632,16 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 							string(dest[i].([]byte)),
 							mc.cfg.loc,
 						)
-						if mc.invalidTimeAsZero {
-							dest[i] = time.Time{}
-							err = nil
+
+						if err != nil && mc.invalidTimeAsZero {
+							//in some mysql configurations - possible to store dates in not valid format,
+							//so we just will interpretate them as zero-date
+							if _, ok := err.(*time.ParseError); ok {
+								dest[i] = time.Time{}
+								err = nil
+							}
 						}
+
 						if err == nil {
 							continue
 						}
