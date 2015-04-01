@@ -19,19 +19,19 @@ import (
 )
 
 type mysqlConn struct {
-	buf              buffer
-	netConn          net.Conn
-	affectedRows     uint64
-	insertId         uint64
-	cfg              *config
-	maxPacketAllowed int
-	maxWriteSize     int
-	flags            clientFlag
-	status           statusFlag
-	sequence         uint8
-	parseTime        bool
+	buf               buffer
+	netConn           net.Conn
+	affectedRows      uint64
+	insertId          uint64
+	cfg               *config
+	maxPacketAllowed  int
+	maxWriteSize      int
+	flags             clientFlag
+	status            statusFlag
+	sequence          uint8
+	parseTime         bool
 	invalidTimeAsZero bool
-	strict           bool
+	strict            bool
 }
 
 type config struct {
