@@ -30,6 +30,7 @@ type mysqlConn struct {
 	status           statusFlag
 	sequence         uint8
 	parseTime        bool
+	invalidTimeAsZero bool
 	strict           bool
 }
 
@@ -73,6 +74,14 @@ func (mc *mysqlConn) handleParams() (err error) {
 		case "parseTime":
 			var isBool bool
 			mc.parseTime, isBool = readBool(val)
+			if !isBool {
+				return errors.New("Invalid Bool value: " + val)
+			}
+
+		// time.Time parsing
+		case "invalidTimeAsZero":
+			var isBool bool
+			mc.invalidTimeAsZero, isBool = readBool(val)
 			if !isBool {
 				return errors.New("Invalid Bool value: " + val)
 			}

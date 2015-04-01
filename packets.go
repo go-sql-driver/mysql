@@ -632,6 +632,10 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 							string(dest[i].([]byte)),
 							mc.cfg.loc,
 						)
+						if mc.invalidTimeAsZero {
+							dest[i] = time.Time{}
+							err = nil
+						}
 						if err == nil {
 							continue
 						}
