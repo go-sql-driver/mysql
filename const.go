@@ -45,6 +45,8 @@ const (
 	clientSecureConn
 	clientMultiStatements
 	clientMultiResults
+	clientPSMultiResults
+	clientPluginAuth
 )
 
 const (
