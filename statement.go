@@ -148,11 +148,11 @@ func (converter) ConvertValue(v interface{}) (driver.Value, error) {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
 		return int64(rv.Uint()), nil
 	case reflect.Uint64:
-		val := rv.Uint()
-		if val < (^uint64(0) >> 1) {
-			return int64(val), nil
+		u64 := rv.Uint()
+		if u64 >= 1<<63 {
+			return fmt.Sprintf("%d", rv.Uint()), nil
 		}
-		return fmt.Sprintf("%d", rv.Uint()), nil
+		return int64(u64), nil
 	case reflect.Float32, reflect.Float64:
 		return rv.Float(), nil
 	}
