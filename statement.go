@@ -10,6 +10,8 @@ package mysql
 
 import (
 	"database/sql/driver"
+	"fmt"
+	"reflect"
 )
 
 type mysqlStmt struct {
@@ -32,6 +34,10 @@ func (stmt *mysqlStmt) Close() error {
 
 func (stmt *mysqlStmt) NumInput() int {
 	return stmt.paramCount
+}
+
+func (stmt *mysqlStmt) ColumnConverter(idx int) driver.ValueConverter {
+	return converter{}
 }
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
@@ -109,4 +115,46 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 	}
 
 	return rows, err
+}
+
+type converter struct{}
+
+func (converter) ConvertValue(v interface{}) (driver.Value, error) {
+	if driver.IsValue(v) {
+		return v, nil
+	}
+
+	if svi, ok := v.(driver.Valuer); ok {
+		sv, err := svi.Value()
+		if err != nil {
+			return nil, err
+		}
+		if !driver.IsValue(sv) {
+			return nil, fmt.Errorf("non-Value type %T returned from Value", sv)
+		}
+		return sv, nil
+	}
+
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Ptr:
+		// indirect pointers
+		if rv.IsNil() {
+			return nil, nil
+		}
+		return driver.DefaultParameterConverter.ConvertValue(rv.Elem().Interface())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return rv.Int(), nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+		return int64(rv.Uint()), nil
+	case reflect.Uint64:
+		val := rv.Uint()
+		if val < (^uint64(0) >> 1) {
+			return int64(val), nil
+		}
+		return fmt.Sprintf("%d", rv.Uint()), nil
+	case reflect.Float32, reflect.Float64:
+		return rv.Float(), nil
+	}
+	return nil, fmt.Errorf("unsupported type %T, a %s", v, rv.Kind())
 }
