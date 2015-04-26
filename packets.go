@@ -16,6 +16,9 @@ import (
 	"fmt"
 	"io"
 	"math"
+        "os"
+	"path"
+	"runtime"
 	"time"
 )
 
@@ -219,6 +222,7 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 		clientTransactions |
 		clientLocalFiles |
 		clientPluginAuth |
+		clientConnectAttrs |
 		mc.flags&clientLongFlag
 
 	if mc.cfg.clientFoundRows {
@@ -233,7 +237,23 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	// User Password
 	scrambleBuff := scramblePassword(cipher, []byte(mc.cfg.passwd))
 
+	attrs := map[string]string {
+	    "_os":          runtime.GOOS,
+	    "_client_name": "Go-MySQL-Driver",
+	    "_pid":         pid,
+	    "_platform":    runtime.GOARCH,
+	    "program_name": path.Base(os.Args[0]),
+        }
+
+	attrlen := 0
+	for attrname, attrvalue := range attrs {
+		attrlen += len(attrname) + len(attrvalue)
+		// one byte to store attrname length and one byte to store attrvalue length
+		attrlen += 2
+	}
+
 	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.user) + 1 + 1 + len(scrambleBuff) + 21 + 1
+	pktLen += attrlen + 1 // one byte to store the total length of attrs
 
 	// To specify a db name
 	if n := len(mc.cfg.dbname); n > 0 {
@@ -305,6 +325,19 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	// Assume native client during response
 	pos += copy(data[pos:], "mysql_native_password")
 	data[pos] = 0x00
+        pos++
+
+	// Connection attributes
+	data[pos] = byte(attrlen)
+	pos++
+
+	for attrname, attrvalue := range attrs {
+		data[pos] = byte(len(attrname))
+		pos += 1 + copy(data[pos+1:], attrname)
+
+		data[pos] = byte(len(attrvalue))
+		pos += 1 + copy(data[pos+1:], attrvalue)
+	}
 
 	// Send Auth packet
 	return mc.writePacket(data)
