@@ -42,15 +42,16 @@ type Config struct {
 	ReadTimeout  time.Duration     // I/O read timeout
 	WriteTimeout time.Duration     // I/O write timeout
 
-	AllowAllFiles           bool // Allow all files to be used with LOAD DATA LOCAL INFILE
-	AllowCleartextPasswords bool // Allows the cleartext client side plugin
-	AllowOldPasswords       bool // Allows the old insecure password method
-	ClientFoundRows         bool // Return number of matching rows instead of rows changed
-	ColumnsWithAlias        bool // Prepend table alias to column names
-	InterpolateParams       bool // Interpolate placeholders into query string
-	MultiStatements         bool // Allow multiple statements in one query
-	ParseTime               bool // Parse time values to time.Time
-	Strict                  bool // Return warnings as errors
+	AllowAllFiles           bool              // Allow all files to be used with LOAD DATA LOCAL INFILE
+	AllowCleartextPasswords bool              // Allows the cleartext client side plugin
+	AllowOldPasswords       bool              // Allows the old insecure password method
+	ClientFoundRows         bool              // Return number of matching rows instead of rows changed
+	ColumnsWithAlias        bool              // Prepend table alias to column names
+	InterpolateParams       bool              // Interpolate placeholders into query string
+	MultiStatements         bool              // Allow multiple statements in one query
+	ParseTime               bool              // Parse time values to time.Time
+	Strict                  bool              // Return warnings as errors
+	ConnAttrs               map[string]string // Connection Attributes
 }
 
 // FormatDSN formats the given Config into a DSN string which can be passed to
@@ -220,6 +221,27 @@ func (cfg *Config) FormatDSN() string {
 			buf.WriteString("?writeTimeout=")
 		}
 		buf.WriteString(cfg.WriteTimeout.String())
+	}
+
+	if len(cfg.ConnAttrs) != 0 {
+		if hasParam {
+			buf.WriteString("&connattrs=(")
+		} else {
+			hasParam = true
+			buf.WriteString("?connattrs=(")
+		}
+		firstAttr := true
+		for attrname, attrvalue := range cfg.ConnAttrs {
+			if firstAttr {
+				firstAttr = false
+			} else {
+				buf.WriteString(",")
+			}
+			buf.WriteString(attrname)
+			buf.WriteString("=")
+			buf.WriteString(attrvalue)
+		}
+		buf.WriteString(")")
 	}
 
 	// other params
@@ -496,7 +518,17 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			if err != nil {
 				return
 			}
-
+		case "connattrs":
+			if cfg.ConnAttrs == nil {
+				cfg.ConnAttrs = make(map[string]string)
+			}
+			for _, conn_v := range strings.Split(strings.Trim(value, "()"), ",") {
+				attr := strings.SplitN(conn_v, "=", 2)
+				if len(attr) != 2 {
+					return fmt.Errorf("Invalid connection attribute: %s", conn_v)
+				}
+				cfg.ConnAttrs[attr[0]] = attr[1]
+			}
 		default:
 			// lazy init
 			if cfg.Params == nil {

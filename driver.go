@@ -20,6 +20,9 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"net"
+	"os"
+	"os/user"
+	"strconv"
 )
 
 // MySQLDriver is exported to make the driver directly accessible.
@@ -29,6 +32,10 @@ type MySQLDriver struct{}
 // DialFunc is a function which can be used to establish the network connection.
 // Custom dial functions must be registered with RegisterDial
 type DialFunc func(addr string) (net.Conn, error)
+
+var pid string
+var os_user string
+var os_user_full string
 
 var dials map[string]DialFunc
 
@@ -163,5 +170,11 @@ func handleAuthResult(mc *mysqlConn, cipher []byte) error {
 }
 
 func init() {
+	pid = strconv.Itoa(os.Getpid())
+	os_user_entry, err := user.Current()
+	if err == nil {
+		os_user_full = os_user_entry.Name
+		os_user = os_user_entry.Username
+	}
 	sql.Register("mysql", &MySQLDriver{})
 }
