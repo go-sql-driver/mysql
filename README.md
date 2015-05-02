@@ -205,6 +205,8 @@ Default:        UTC
 
 Sets the location for time.Time values (when using `parseTime=true`). *"Local"* sets the system's location. See [time.LoadLocation](http://golang.org/pkg/time/#LoadLocation) for details.
 
+Note that this sets the location for time.Time values but does not change MySQL's [time_zone setting](https://dev.mysql.com/doc/refman/5.5/en/time-zone-support.html). For that see the [time_zone system variable](#system-variables), which can also be set as a DSN parameter.
+
 Please keep in mind, that param values must be [url.QueryEscape](http://golang.org/pkg/net/url/#QueryEscape)'ed. Alternatively you can manually replace the `/` with `%2F`. For example `US/Pacific` would be `loc=US%2FPacific`.
 
 
@@ -257,7 +259,7 @@ Default:        false
 
 All other parameters are interpreted as system variables:
   * `autocommit`: `"SET autocommit=<value>"`
-  * `time_zone`: `"SET time_zone=<value>"`
+  * [`time_zone`](https://dev.mysql.com/doc/refman/5.5/en/time-zone-support.html): `"SET time_zone=<value>"`
   * [`tx_isolation`](https://dev.mysql.com/doc/refman/5.5/en/server-system-variables.html#sysvar_tx_isolation): `"SET tx_isolation=<value>"`
   * `param`: `"SET <param>=<value>"`
 
