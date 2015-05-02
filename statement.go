@@ -124,17 +124,6 @@ func (converter) ConvertValue(v interface{}) (driver.Value, error) {
 		return v, nil
 	}
 
-	if svi, ok := v.(driver.Valuer); ok {
-		sv, err := svi.Value()
-		if err != nil {
-			return nil, err
-		}
-		if !driver.IsValue(sv) {
-			return nil, fmt.Errorf("non-Value type %T returned from Value", sv)
-		}
-		return sv, nil
-	}
-
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.Ptr:
@@ -150,7 +139,7 @@ func (converter) ConvertValue(v interface{}) (driver.Value, error) {
 	case reflect.Uint64:
 		u64 := rv.Uint()
 		if u64 >= 1<<63 {
-			return fmt.Sprintf("%d", rv.Uint()), nil
+			return fmt.Sprintf("%d", u64), nil
 		}
 		return int64(u64), nil
 	case reflect.Float32, reflect.Float64:
