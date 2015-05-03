@@ -337,12 +337,12 @@ func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 func (mc *mysqlConn) writeClearAuthPacket() error {
 	// Calculate the packet length and add a tailing 0
 	pktLen := len(mc.cfg.passwd) + 1
-        data := mc.buf.takeSmallBuffer(4 + pktLen)
-        if data == nil {
-                // can not take the buffer. Something must be wrong with the connection
-                errLog.Print(ErrBusyBuffer)
-                return driver.ErrBadConn
-        }
+	data := mc.buf.takeSmallBuffer(4 + pktLen)
+	if data == nil {
+		// can not take the buffer. Something must be wrong with the connection
+		errLog.Print(ErrBusyBuffer)
+		return driver.ErrBadConn
+	}
 
 	// Add the clear password [null terminated string]
 	copy(data[4:], mc.cfg.passwd)
@@ -441,7 +441,7 @@ func (mc *mysqlConn) readResultOK() error {
 					return ErrOldPassword
 				} else if plugin == "mysql_clear_password" {
 					// using clear text password
-					return ErrClearPassword
+					return ErrCleartextPassword
 				} else {
 					return ErrUnknownPlugin
 				}

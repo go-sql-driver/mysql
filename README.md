@@ -123,14 +123,14 @@ Default:        false
 `allowAllFiles=true` disables the file Whitelist for `LOAD DATA LOCAL INFILE` and allows *all* files.
 [*Might be insecure!*](http://dev.mysql.com/doc/refman/5.7/en/load-data-local.html)
 
-##### `allowClearPasswords`
+##### `allowCleartextPasswords`
 
 ```
 Type:           bool
 Valid Values:   true, false
 Default:        false
 ```
-`allowClearPasswords=true` allows the usage of the cleartext client side plugin. This can be insecure but is required by the [PAM authentication plugin](http://dev.mysql.com/doc/refman/5.5/en/pam-authentication-plugin.html).
+`allowCleartextPasswords=true` allows the usage of the cleartext client side plugin. This can be insecure but is required by the [PAM authentication plugin](http://dev.mysql.com/doc/refman/5.5/en/pam-authentication-plugin.html).
 
 ##### `allowOldPasswords`
 

@@ -107,7 +107,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 				mc.Close()
 				return nil, err
 			}
-		} else if mc.cfg != nil && mc.cfg.allowClearPasswords && err == ErrClearPassword {
+		} else if mc.cfg != nil && mc.cfg.allowCleartextPasswords && err == ErrCleartextPassword {
 			if err = mc.writeClearAuthPacket(); err != nil {
 				mc.Close()
 				return nil, err

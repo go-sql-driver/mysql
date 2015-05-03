@@ -202,9 +202,9 @@ func parseDSNParams(cfg *config, params string) (err error) {
 			}
 
 		// Use cleartext authentication mode (MySQL 5.5.10+)
-		case "allowClearPasswords":
+		case "allowCleartextPasswords":
 			var isBool bool
-			cfg.allowClearPasswords, isBool = readBool(value)
+			cfg.allowCleartextPasswords, isBool = readBool(value)
 			if !isBool {
 				return fmt.Errorf("Invalid Bool value: %s", value)
 			}
