@@ -38,7 +38,7 @@ type emptyRows struct{}
 
 func (rows *mysqlRows) Columns() []string {
 	columns := make([]string, len(rows.columns))
-	if rows.mc.cfg.columnsWithAlias {
+	if rows.mc != nil && rows.mc.cfg.columnsWithAlias {
 		for i := range columns {
 			columns[i] = rows.columns[i].tableName + "." + rows.columns[i].name
 		}
@@ -61,6 +61,12 @@ func (rows *mysqlRows) Close() error {
 
 	// Remove unread packets from stream
 	err := mc.readUntilEOF()
+	if err == nil {
+		if err = mc.discardMoreResultsIfExists(); err != nil {
+			return err
+		}
+	}
+
 	rows.mc = nil
 	return err
 }
