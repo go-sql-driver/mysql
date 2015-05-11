@@ -46,6 +46,7 @@ type Config struct {
 	ClientFoundRows         bool // Return number of matching rows instead of rows changed
 	ColumnsWithAlias        bool // Prepend table alias to column names
 	InterpolateParams       bool // Interpolate placeholders into query string
+	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
 	Strict                  bool // Return warnings as errors
 }
@@ -233,6 +234,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			cfg.Loc, err = time.LoadLocation(value)
 			if err != nil {
 				return
+			}
+
+		// multiple statements in one query
+		case "multiStatements":
+			var isBool bool
+			cfg.MultiStatements, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
 			}
 
 		// time.Time parsing

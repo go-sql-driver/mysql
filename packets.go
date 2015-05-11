@@ -236,6 +236,10 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 		clientFlags |= clientSSL
 	}
 
+	if mc.cfg.MultiStatements {
+		clientFlags |= clientMultiStatements
+	}
+
 	// User Password
 	scrambleBuff := scramblePassword(cipher, []byte(mc.cfg.Passwd))
 
