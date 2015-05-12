@@ -278,6 +278,13 @@ func parseDSNParams(cfg *config, params string) (err error) {
 				}
 			}
 
+		case "multiStatements":
+			var isBool bool
+			cfg.multiStatements, isBool = readBool(value)
+			if !isBool {
+				return fmt.Errorf("Invalid Bool value: %s", value)
+			}
+
 		default:
 			// lazy init
 			if cfg.params == nil {
