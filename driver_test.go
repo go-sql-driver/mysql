@@ -55,10 +55,10 @@ func init() {
 		}
 		return defaultValue
 	}
-	user = env("MYSQL_TEST_USER", "galaxy")
-	pass = env("MYSQL_TEST_PASS", "nPyOfX80gHQ2R7gFzo2t")
+	user = env("MYSQL_TEST_USER", "root")
+	pass = env("MYSQL_TEST_PASS", "")
 	prot = env("MYSQL_TEST_PROT", "tcp")
-	addr = env("MYSQL_TEST_ADDR", "107.167.186.193:3306")
+	addr = env("MYSQL_TEST_ADDR", "localhost:3306")
 	dbname = env("MYSQL_TEST_DBNAME", "gotest")
 	netAddr = fmt.Sprintf("%s(%s)", prot, addr)
 	dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&strict=true", user, pass, netAddr, dbname)
@@ -288,7 +288,7 @@ func TestMultiQuery(t *testing.T) {
 		}
 
 		// Update
-		res = dbt.mustExec("UPDATE test SET value = 3 WHERE id = 1; UPDATE test SET value = 4 WHERE id = 1;")
+		res = dbt.mustExec("UPDATE test SET value = 3 WHERE id = 1; UPDATE test SET value = 4 WHERE id = 1; UPDATE test SET value = 5 WHERE id = 1;")
 		count, err = res.RowsAffected()
 		if err != nil {
 			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
@@ -303,7 +303,7 @@ func TestMultiQuery(t *testing.T) {
 		if rows.Next() {
 			rows.Scan(&out)
 			if 4 != out {
-				dbt.Errorf("4 != %t", out)
+				dbt.Errorf("5 != %t", out)
 			}
 
 			if rows.Next() {
@@ -312,6 +312,8 @@ func TestMultiQuery(t *testing.T) {
 		} else {
 			dbt.Error("no data")
 		}
+
+		// fmt.Println("TestMultiQuery OK")
 
 	})
 }
