@@ -55,6 +55,7 @@ func init() {
 		}
 		return defaultValue
 	}
+	user = env("MYSQL_TEST_USER", "root")
 	pass = env("MYSQL_TEST_PASS", "")
 	prot = env("MYSQL_TEST_PROT", "tcp")
 	addr = env("MYSQL_TEST_ADDR", "localhost:3306")
