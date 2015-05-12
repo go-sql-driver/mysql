@@ -55,14 +55,9 @@ func init() {
 		}
 		return defaultValue
 	}
-	user = env("MYSQL_TEST_USER", "galaxy")
-	pass = env("MYSQL_TEST_PASS", "nPyOfX80gHQ2R7gFzo2t")
+	pass = env("MYSQL_TEST_PASS", "")
 	prot = env("MYSQL_TEST_PROT", "tcp")
-	addr = env("MYSQL_TEST_ADDR", "107.167.186.193:3306")
-	// user = env("MYSQL_TEST_USER", "root")
-	// pass = env("MYSQL_TEST_PASS", "")
-	// prot = env("MYSQL_TEST_PROT", "tcp")
-	// addr = env("MYSQL_TEST_ADDR", "localhost:3306")
+	addr = env("MYSQL_TEST_ADDR", "localhost:3306")
 	dbname = env("MYSQL_TEST_DBNAME", "gotest")
 	netAddr = fmt.Sprintf("%s(%s)", prot, addr)
 	dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&strict=true", user, pass, netAddr, dbname)
