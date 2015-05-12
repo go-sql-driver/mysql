@@ -55,10 +55,10 @@ func init() {
 		}
 		return defaultValue
 	}
-	user = env("MYSQL_TEST_USER", "root")
-	pass = env("MYSQL_TEST_PASS", "")
+	user = env("MYSQL_TEST_USER", "galaxy")
+	pass = env("MYSQL_TEST_PASS", "nPyOfX80gHQ2R7gFzo2t")
 	prot = env("MYSQL_TEST_PROT", "tcp")
-	addr = env("MYSQL_TEST_ADDR", "localhost:3306")
+	addr = env("MYSQL_TEST_ADDR", "107.167.186.193:3306")
 	dbname = env("MYSQL_TEST_DBNAME", "gotest")
 	netAddr = fmt.Sprintf("%s(%s)", prot, addr)
 	dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&strict=true", user, pass, netAddr, dbname)
@@ -72,6 +72,28 @@ func init() {
 type DBTest struct {
 	*testing.T
 	db *sql.DB
+}
+
+func runTestsWithMultiStatement(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
+	if !available {
+		t.Skipf("MySQL-Server not running on %s", netAddr)
+	}
+
+	dsn3 := dsn + "&multiStatements=true"
+	var db3 *sql.DB
+	if _, err := parseDSN(dsn3); err != errInvalidDSNUnsafeCollation {
+		db3, err = sql.Open("mysql", dsn3)
+		if err != nil {
+			t.Fatalf("Error connecting: %s", err.Error())
+		}
+		defer db3.Close()
+	}
+
+	dbt3 := &DBTest{t, db3}
+	for _, test := range tests {
+		test(dbt3)
+		dbt3.db.Exec("DROP TABLE IF EXISTS test")
+	}
 }
 
 func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
@@ -97,14 +119,29 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 		defer db2.Close()
 	}
 
+	dsn3 := dsn + "&multiStatements=true"
+	var db3 *sql.DB
+	if _, err := parseDSN(dsn3); err != errInvalidDSNUnsafeCollation {
+		db3, err = sql.Open("mysql", dsn3)
+		if err != nil {
+			t.Fatalf("Error connecting: %s", err.Error())
+		}
+		defer db3.Close()
+	}
+
 	dbt := &DBTest{t, db}
 	dbt2 := &DBTest{t, db2}
+	dbt3 := &DBTest{t, db3}
 	for _, test := range tests {
 		test(dbt)
 		dbt.db.Exec("DROP TABLE IF EXISTS test")
 		if db2 != nil {
 			test(dbt2)
 			dbt2.db.Exec("DROP TABLE IF EXISTS test")
+		}
+		if db3 != nil {
+			test(dbt3)
+			dbt3.db.Exec("DROP TABLE IF EXISTS test")
 		}
 	}
 }
@@ -232,6 +269,50 @@ func TestCRUD(t *testing.T) {
 		if count != 0 {
 			dbt.Fatalf("Expected 0 affected row, got %d", count)
 		}
+	})
+}
+
+func TestMultiQuery(t *testing.T) {
+	runTestsWithMultiStatement(t, dsn, func(dbt *DBTest) {
+		// Create Table
+		dbt.mustExec("CREATE TABLE `test` (`id` int(11) NOT NULL, `value` int(11) NOT NULL) ")
+
+		// Create Data
+		res := dbt.mustExec("INSERT INTO test VALUES (1, 1)")
+		count, err := res.RowsAffected()
+		if err != nil {
+			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
+		}
+		if count != 1 {
+			dbt.Fatalf("Expected 1 affected row, got %d", count)
+		}
+
+		// Update
+		res = dbt.mustExec("UPDATE test SET value = 3 WHERE id = 1; UPDATE test SET value = 4 WHERE id = 1;")
+		count, err = res.RowsAffected()
+		if err != nil {
+			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
+		}
+		if count != 1 {
+			dbt.Fatalf("Expected 1 affected row, got %d", count)
+		}
+
+		// Read
+		var out int
+		rows := dbt.mustQuery("SELECT value FROM test WHERE id=1;")
+		if rows.Next() {
+			rows.Scan(&out)
+			if 4 != out {
+				dbt.Errorf("4 != %t", out)
+			}
+
+			if rows.Next() {
+				dbt.Error("unexpected data")
+			}
+		} else {
+			dbt.Error("no data")
+		}
+
 	})
 }
 

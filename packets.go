@@ -474,6 +474,32 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 	}
 }
 
+func readStatus(b []byte) statusFlag {
+	return statusFlag(b[0]) | statusFlag(b[1])<<8
+}
+
+func (mc *mysqlConn) discardMoreResultsIfExists() error {
+	for mc.status&statusMoreResultsExists != 0 {
+		resLen, err := mc.readResultSetHeaderPacket()
+		if err != nil {
+			return err
+		}
+		if resLen > 0 {
+			// columns
+			if err := mc.readUntilEOF(); err != nil {
+				return err
+			}
+			// rows
+			if err := mc.readUntilEOF(); err != nil {
+				return err
+			}
+		} else {
+			mc.status &^= statusMoreResultsExists
+		}
+	}
+	return nil
+}
+
 // Ok Packet
 // http://dev.mysql.com/doc/internals/en/generic-response-packets.html#packet-OK_Packet
 func (mc *mysqlConn) handleOkPacket(data []byte) error {
@@ -488,7 +514,9 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 	mc.insertId, _, m = readLengthEncodedInteger(data[1+n:])
 
 	// server_status [2 bytes]
-	mc.status = statusFlag(data[1+n+m]) | statusFlag(data[1+n+m+1])<<8
+	// mc.status = statusFlag(data[1+n+m]) | statusFlag(data[1+n+m+1])<<8
+	mc.status = readStatus(data[1+n+m : 1+n+m+2])
+	mc.discardMoreResultsIfExists()
 
 	// warning count [2 bytes]
 	if !mc.strict {
