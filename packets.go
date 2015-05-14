@@ -214,6 +214,7 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 		clientLongPassword |
 		clientTransactions |
 		clientLocalFiles |
+		clientPluginAuth |
 		mc.flags&clientLongFlag
 
 	if mc.cfg.clientFoundRows {
