@@ -80,6 +80,7 @@ func BenchmarkQuery(b *testing.B) {
 	var wg sync.WaitGroup
 	wg.Add(concurrencyLevel)
 	defer wg.Wait()
+	b.ResetTimer()
 	b.StartTimer()
 
 	for i := 0; i < concurrencyLevel; i++ {
@@ -117,6 +118,7 @@ func BenchmarkExec(b *testing.B) {
 	var wg sync.WaitGroup
 	wg.Add(concurrencyLevel)
 	defer wg.Wait()
+	b.ResetTimer()
 	b.StartTimer()
 
 	for i := 0; i < concurrencyLevel; i++ {
@@ -232,8 +234,9 @@ func BenchmarkInterpolation(b *testing.B) {
 		time.Unix(1423411542, 807015000),
 		[]byte("bytes containing special chars ' \" \a \x00"),
 		"string containing special chars ' \" \a \x00",
+		uint64(math.MaxUint64),
 	}
-	q := "SELECT ?, ?, ?, ?, ?, ?"
+	q := "SELECT ?, ?, ?, ?, ?, ?, ?"
 
 	b.ReportAllocs()
 	b.ResetTimer()

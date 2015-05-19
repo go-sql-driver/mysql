@@ -268,6 +268,8 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 				buf = escapeStringQuotes(buf, v)
 			}
 			buf = append(buf, '\'')
+		case uint64:
+			buf = strconv.AppendUint(buf, v, 10)
 		default:
 			return "", driver.ErrSkip
 		}
