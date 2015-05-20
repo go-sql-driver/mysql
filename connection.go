@@ -269,6 +269,9 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 			}
 			buf = append(buf, '\'')
 		case uint64:
+			if v >= 1<<63 {
+				return "", driver.ErrSkip
+			}
 			buf = strconv.AppendUint(buf, v, 10)
 		default:
 			return "", driver.ErrSkip

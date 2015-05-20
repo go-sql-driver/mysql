@@ -234,7 +234,7 @@ func BenchmarkInterpolation(b *testing.B) {
 		time.Unix(1423411542, 807015000),
 		[]byte("bytes containing special chars ' \" \a \x00"),
 		"string containing special chars ' \" \a \x00",
-		uint64(math.MaxUint64),
+		uint64(1<<63 - 1),
 	}
 	q := "SELECT ?, ?, ?, ?, ?, ?, ?"
 
