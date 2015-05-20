@@ -193,31 +193,8 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 		}
 
 		switch v := arg.(type) {
-		case int8:
-			buf = strconv.AppendInt(buf, int64(v), 10)
-		case int16:
-			buf = strconv.AppendInt(buf, int64(v), 10)
-		case int32:
-			buf = strconv.AppendInt(buf, int64(v), 10)
-		case int:
-			buf = strconv.AppendInt(buf, int64(v), 10)
 		case int64:
 			buf = strconv.AppendInt(buf, v, 10)
-		case uint8:
-			buf = strconv.AppendUint(buf, uint64(v), 10)
-		case uint16:
-			buf = strconv.AppendUint(buf, uint64(v), 10)
-		case uint32:
-			buf = strconv.AppendUint(buf, uint64(v), 10)
-		case uint:
-			buf = strconv.AppendUint(buf, uint64(v), 10)
-		case uint64:
-			if v >= 1<<63 {
-				return "", driver.ErrSkip
-			}
-			buf = strconv.AppendUint(buf, v, 10)
-		case float32:
-			buf = strconv.AppendFloat(buf, float64(v), 'g', -1, 32)
 		case float64:
 			buf = strconv.AppendFloat(buf, v, 'g', -1, 64)
 		case bool:
