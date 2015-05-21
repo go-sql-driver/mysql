@@ -234,9 +234,8 @@ func BenchmarkInterpolation(b *testing.B) {
 		time.Unix(1423411542, 807015000),
 		[]byte("bytes containing special chars ' \" \a \x00"),
 		"string containing special chars ' \" \a \x00",
-		uint64(math.MaxUint64),
 	}
-	q := "SELECT ?, ?, ?, ?, ?, ?, ?"
+	q := "SELECT ?, ?, ?, ?, ?, ?"
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -244,6 +243,31 @@ func BenchmarkInterpolation(b *testing.B) {
 		_, err := mc.interpolateParams(q, args)
 		if err != nil {
 			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkColumnConverter(b *testing.B) {
+	c := converter{}
+	args := []interface{}{
+		int64(42424242),
+		float64(math.Pi),
+		false,
+		time.Unix(1423411542, 807015000),
+		[]byte("bytes containing special chars ' \" \a \x00"),
+		"string containing special chars ' \" \a \x00",
+		uint64(math.MaxUint64),
+		uint64(123123123123123),
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for j := 0; j < len(args); j++ {
+			_, err := c.ConvertValue(args[j])
+			if err != nil {
+				b.Fatal(err)
+			}
 		}
 	}
 }
