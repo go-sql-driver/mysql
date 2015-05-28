@@ -214,6 +214,7 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 		clientLongPassword |
 		clientTransactions |
 		clientLocalFiles |
+		clientConnectAttrs |
 		mc.flags&clientLongFlag
 
 	if mc.cfg.clientFoundRows {
@@ -228,7 +229,12 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	// User Password
 	scrambleBuff := scramblePassword(cipher, []byte(mc.cfg.passwd))
 
+	attrname := []byte("_client_name")
+	attrvalue := []byte("Go MySQL Driver")
+	attrlen := len(attrname) + len(attrvalue) + 2
+
 	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.user) + 1 + 1 + len(scrambleBuff)
+	pktLen += len(attrname) + len(attrvalue) + 3
 
 	// To specify a db name
 	if n := len(mc.cfg.dbname); n > 0 {
@@ -295,6 +301,17 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 		pos += copy(data[pos:], mc.cfg.dbname)
 		data[pos] = 0x00
 	}
+	pos++
+
+	// Connection attributes
+	data[pos] = byte(attrlen)
+	pos++
+
+	data[pos] = byte(len(attrname))
+	pos += 1 + copy(data[pos+1:], attrname)
+
+	data[pos] = byte(len(attrvalue))
+	pos += 1 + copy(data[pos+1:], attrvalue)
 
 	// Send Auth packet
 	return mc.writePacket(data)
