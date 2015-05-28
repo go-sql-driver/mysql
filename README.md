@@ -157,6 +157,16 @@ Sets the collation used for client-server interaction on connection. In contrast
 
 A list of valid charsets for a server is retrievable with `SHOW COLLATION`.
 
+##### `connattrs`
+
+```
+Type:           comma seperated string of name/value pairs
+Valid Values:   (<name1>=<value1>,<name2>=<value2>,...)
+Default:        none
+```
+
+Sends custom connection attributes to the server.
+
 ##### `clientFoundRows`
 
 ```

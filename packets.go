@@ -239,6 +239,9 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	attrs["_pid"] = strconv.Itoa(os.Getpid())
 	attrs["_platform"] = runtime.GOARCH
 	attrs["program_name"] = path.Base(os.Args[0])
+	for cfganame, cfgaval := range mc.cfg.connattrs {
+		attrs[cfganame] = cfgaval
+	}
 
 	attrlen := 0
 	for attrname, attrvalue := range attrs {
