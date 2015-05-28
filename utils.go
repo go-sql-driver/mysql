@@ -277,6 +277,17 @@ func parseDSNParams(cfg *config, params string) (err error) {
 					return fmt.Errorf("Invalid value / unknown config name: %s", value)
 				}
 			}
+		case "connattrs":
+			if cfg.connattrs == nil {
+				cfg.connattrs = make(map[string]string)
+			}
+			for _, conn_v := range strings.Split(strings.TrimSuffix(strings.TrimPrefix(value, "("),")"), ",") {
+				attr := strings.SplitN(conn_v, "=", 2)
+				if len(attr) != 2 {
+					return fmt.Errorf("Invalid connection attribute: %s", conn_v)
+				}
+				cfg.connattrs[attr[0]] = attr[1]
+			}
 
 		default:
 			// lazy init
