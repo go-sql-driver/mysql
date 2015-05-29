@@ -130,7 +130,7 @@ Type:           bool
 Valid Values:   true, false
 Default:        false
 ```
-`allowCleartextPasswords=true` allows the usage of the cleartext client side plugin. This can be insecure but is required by the [PAM authentication plugin](http://dev.mysql.com/doc/refman/5.5/en/pam-authentication-plugin.html).
+`allowCleartextPasswords=true` allows the usage of the cleartext client side plugin. This can be insecure but is required by the [PAM authentication plugin](http://dev.mysql.com/doc/en/pam-authentication-plugin.html).
 
 ##### `allowOldPasswords`
 
