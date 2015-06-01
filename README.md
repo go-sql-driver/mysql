@@ -130,7 +130,8 @@ Type:           bool
 Valid Values:   true, false
 Default:        false
 ```
-`allowCleartextPasswords=true` allows the usage of the cleartext client side plugin. This can be insecure but is required by the [PAM authentication plugin](http://dev.mysql.com/doc/en/pam-authentication-plugin.html).
+
+`allowCleartextPasswords=true` allows using the [cleartext client side plugin](http://dev.mysql.com/doc/en/cleartext-authentication-plugin.html) if required by an account, such as one defined with the [PAM authentication plugin](http://dev.mysql.com/doc/en/pam-authentication-plugin.html). Sending passwords in clear text may be a security problem in some configurations. To avoid problems if there is any possibility that the password would be intercepted, clients should connect to MySQL Server using a method that protects the password. Possibilities include [TLS / SSL] (http://dev.mysql.com/doc/en/ssl-connections.html#tls), IPsec, or a private network.
 
 ##### `allowOldPasswords`
 
