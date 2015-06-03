@@ -19,18 +19,19 @@ import (
 )
 
 type mysqlConn struct {
-	buf              buffer
-	netConn          net.Conn
-	affectedRows     uint64
-	insertId         uint64
-	cfg              *config
-	maxPacketAllowed int
-	maxWriteSize     int
-	flags            clientFlag
-	status           statusFlag
-	sequence         uint8
-	parseTime        bool
-	strict           bool
+	buf               buffer
+	netConn           net.Conn
+	affectedRows      uint64
+	insertId          uint64
+	cfg               *config
+	maxPacketAllowed  int
+	maxWriteSize      int
+	flags             clientFlag
+	status            statusFlag
+	sequence          uint8
+	parseTime         bool
+	invalidTimeAsZero bool
+	strict            bool
 }
 
 type config struct {
@@ -74,6 +75,14 @@ func (mc *mysqlConn) handleParams() (err error) {
 		case "parseTime":
 			var isBool bool
 			mc.parseTime, isBool = readBool(val)
+			if !isBool {
+				return errors.New("Invalid Bool value: " + val)
+			}
+
+		// time.Time parsing
+		case "invalidTimeAsZero":
+			var isBool bool
+			mc.invalidTimeAsZero, isBool = readBool(val)
 			if !isBool {
 				return errors.New("Invalid Bool value: " + val)
 			}
