@@ -12,6 +12,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"reflect"
+	"strconv"
 )
 
 type mysqlStmt struct {
@@ -139,7 +140,7 @@ func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
 	case reflect.Uint64:
 		u64 := rv.Uint()
 		if u64 >= 1<<63 {
-			return fmt.Sprintf("%d", u64), nil
+			return strconv.FormatUint(u64, 10), nil
 		}
 		return int64(u64), nil
 	case reflect.Float32, reflect.Float64:
