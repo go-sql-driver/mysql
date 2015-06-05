@@ -971,7 +971,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				}
 
 			case time.Time:
-				if v.IsZero() {
+				if stmt.mc.strict && v.IsZero() {
 					nullMask[i/8] |= 1 << (uint(i) & 7)
 					paramTypes[i+i] = fieldTypeNULL
 					paramTypes[i+i+1] = 0x00
