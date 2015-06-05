@@ -80,8 +80,6 @@ func parseDSN(dsn string) (cfg *config, err error) {
 		collation: defaultCollation,
 	}
 
-	// TODO: use strings.IndexByte when we can depend on Go 1.2
-
 	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
 	// Find the last '/' (since the password or the net addr might contain a '/')
 	foundSlash := false
@@ -197,6 +195,14 @@ func parseDSNParams(cfg *config, params string) (err error) {
 		case "allowAllFiles":
 			var isBool bool
 			cfg.allowAllFiles, isBool = readBool(value)
+			if !isBool {
+				return fmt.Errorf("Invalid Bool value: %s", value)
+			}
+
+		// Use cleartext authentication mode (MySQL 5.5.10+)
+		case "allowCleartextPasswords":
+			var isBool bool
+			cfg.allowCleartextPasswords, isBool = readBool(value)
 			if !isBool {
 				return fmt.Errorf("Invalid Bool value: %s", value)
 			}
