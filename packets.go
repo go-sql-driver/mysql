@@ -930,15 +930,18 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				}
 
 			case time.Time:
+				if v.IsZero() {
+					nullMask[i/8] |= 1 << (uint(i) & 7)
+					paramTypes[i+i] = fieldTypeNULL
+					paramTypes[i+i+1] = 0x00
+					continue
+				}
+
 				paramTypes[i+i] = fieldTypeString
 				paramTypes[i+i+1] = 0x00
 
 				var val []byte
-				if v.IsZero() {
-					val = []byte("0000-00-00")
-				} else {
-					val = []byte(v.In(mc.cfg.loc).Format(timeFormat))
-				}
+				val = []byte(v.In(mc.cfg.loc).Format(timeFormat))
 
 				paramValues = appendLengthEncodedInteger(paramValues,
 					uint64(len(val)),
