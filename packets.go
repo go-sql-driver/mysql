@@ -982,7 +982,11 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				paramTypes[i+i+1] = 0x00
 
 				var val []byte
-				val = []byte(v.In(mc.cfg.loc).Format(timeFormat))
+				if v.IsZero() {
+					val = []byte("0000-00-00")
+				} else {
+					val = []byte(v.In(mc.cfg.loc).Format(timeFormat))
+				}
 
 				paramValues = appendLengthEncodedInteger(paramValues,
 					uint64(len(val)),
