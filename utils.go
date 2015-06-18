@@ -777,6 +777,9 @@ func skipLengthEncodedString(b []byte) (int, error) {
 
 // returns the number read, whether the value is NULL and the number of bytes read
 func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
+	if len(b) == 0 {
+		return 0, true, 1
+	}
 	switch b[0] {
 
 	// 251: NULL
