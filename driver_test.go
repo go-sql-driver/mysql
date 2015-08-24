@@ -833,8 +833,8 @@ func TestLongData(t *testing.T) {
 		maxAllowedPacketSize--
 
 		// don't get too ambitious
-		if maxAllowedPacketSize > 1<<25 {
-			maxAllowedPacketSize = 1 << 25
+		if maxAllowedPacketSize > 1<<23 {
+			maxAllowedPacketSize = 1 << 23
 		}
 
 		dbt.mustExec("CREATE TABLE test (value LONGBLOB)")
