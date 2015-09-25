@@ -100,6 +100,12 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		data[3] = mc.sequence
 
 		// Write packet
+		if mc.cfg.WriteTimeout > 0 {
+			if err := mc.netConn.SetWriteDeadline(time.Now().Add(mc.cfg.WriteTimeout)); err != nil {
+				return err
+			}
+		}
+
 		n, err := mc.netConn.Write(data[:4+size])
 		if err == nil && n == 4+size {
 			mc.sequence++

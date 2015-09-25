@@ -81,7 +81,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		}
 	}
 
-	mc.buf = newBuffer(mc.netConn)
+	mc.buf = newBuffer(mc.netConn, mc.cfg)
 
 	// Reading Handshake Initialization Packet
 	cipher, err := mc.readInitPacket()
