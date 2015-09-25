@@ -260,6 +260,19 @@ func parseDSNParams(cfg *config, params string) (err error) {
 				return
 			}
 
+		// I/O Timeouts
+		case "read_timeout":
+			cfg.readTimeout, err = time.ParseDuration(value)
+			if err != nil {
+				return
+			}
+
+		case "write_timeout":
+			cfg.writeTimeout, err = time.ParseDuration(value)
+			if err != nil {
+				return
+			}
+
 		// TLS-Encryption
 		case "tls":
 			boolValue, isBool := readBool(value)

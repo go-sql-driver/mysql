@@ -9,6 +9,8 @@
 package mysql
 
 import "io"
+import "net"
+import "time"
 
 const defaultBufSize = 4096
 
@@ -22,13 +24,15 @@ type buffer struct {
 	rd     io.Reader
 	idx    int
 	length int
+	cfg    *config
 }
 
-func newBuffer(rd io.Reader) buffer {
+func newBuffer(rd io.Reader, cfg *config) buffer {
 	var b [defaultBufSize]byte
 	return buffer{
 		buf: b[:],
 		rd:  rd,
+		cfg: cfg,
 	}
 }
 
@@ -54,6 +58,12 @@ func (b *buffer) fill(need int) error {
 	b.idx = 0
 
 	for {
+		if conn, ok := b.rd.(net.Conn); ok && b.cfg.readTimeout > 0 {
+			if err := conn.SetReadDeadline(time.Now().Add(b.cfg.readTimeout)); err != nil {
+				return err
+			}
+		}
+
 		nn, err := b.rd.Read(b.buf[n:])
 		n += nn
 
