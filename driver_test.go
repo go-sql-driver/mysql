@@ -1018,7 +1018,7 @@ func TestFoundRows(t *testing.T) {
 
 func TestStrict(t *testing.T) {
 	// ALLOW_INVALID_DATES to get rid of stricter modes - we want to test for warnings, not errors
-	relaxedDsn := dsn + "&sql_mode=ALLOW_INVALID_DATES"
+	relaxedDsn := dsn + "&sql_mode='ALLOW_INVALID_DATES,NO_AUTO_CREATE_USER'"
 	// make sure the MySQL version is recent enough with a separate connection
 	// before running the test
 	conn, err := MySQLDriver{}.Open(relaxedDsn)
@@ -1643,7 +1643,7 @@ func TestSqlInjection(t *testing.T) {
 
 	dsns := []string{
 		dsn,
-		dsn + "&sql_mode=NO_BACKSLASH_ESCAPES",
+		dsn + "&sql_mode='NO_BACKSLASH_ESCAPES,NO_AUTO_CREATE_USER'",
 	}
 	for _, testdsn := range dsns {
 		runTests(t, testdsn, createTest("1 OR 1=1"))
@@ -1673,7 +1673,7 @@ func TestInsertRetrieveEscapedData(t *testing.T) {
 
 	dsns := []string{
 		dsn,
-		dsn + "&sql_mode=NO_BACKSLASH_ESCAPES",
+		dsn + "&sql_mode='NO_BACKSLASH_ESCAPES,NO_AUTO_CREATE_USER'",
 	}
 	for _, testdsn := range dsns {
 		runTests(t, testdsn, testData)
