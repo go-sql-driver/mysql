@@ -253,12 +253,8 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 			if v == nil {
 				buf = append(buf, "NULL"...)
 			} else {
-				buf = append(buf, '\'')
-				if mc.status&statusNoBackslashEscapes == 0 {
-					buf = escapeBytesBackslash(buf, v)
-				} else {
-					buf = escapeBytesQuotes(buf, v)
-				}
+				buf = append(buf, "X'"...)
+				buf = escapeBytes(buf, v)
 				buf = append(buf, '\'')
 			}
 		case string:

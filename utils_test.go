@@ -290,17 +290,24 @@ func TestFormatBinaryDateTime(t *testing.T) {
 	expect("1978-12-30 15:46:23.987654", 11, 26)
 }
 
-func TestEscapeBackslash(t *testing.T) {
-	expect := func(expected, value string) {
-		actual := string(escapeBytesBackslash([]byte{}, []byte(value)))
+func TestEscapeBytes(t *testing.T) {
+	expect := func(expected string, value []byte) {
+		actual := string(escapeBytes([]byte{}, value))
 		if actual != expected {
 			t.Errorf(
 				"expected %s, got %s",
 				expected, actual,
 			)
 		}
+	}
 
-		actual = string(escapeStringBackslash([]byte{}, value))
+	expect("666F6F00626172", []byte{'f', 'o', 'o', '\x00', 'b', 'a', 'r'})
+	expect("012BFDC5", []byte{'\x01', '\x2b', '\xfd', '\xc5'})
+}
+
+func TestEscapeBackslash(t *testing.T) {
+	expect := func(expected, value string) {
+		actual := string(escapeStringBackslash([]byte{}, value))
 		if actual != expected {
 			t.Errorf(
 				"expected %s, got %s",
@@ -320,15 +327,7 @@ func TestEscapeBackslash(t *testing.T) {
 
 func TestEscapeQuotes(t *testing.T) {
 	expect := func(expected, value string) {
-		actual := string(escapeBytesQuotes([]byte{}, []byte(value)))
-		if actual != expected {
-			t.Errorf(
-				"expected %s, got %s",
-				expected, actual,
-			)
-		}
-
-		actual = string(escapeStringQuotes([]byte{}, value))
+		actual := string(escapeStringQuotes([]byte{}, value))
 		if actual != expected {
 			t.Errorf(
 				"expected %s, got %s",
