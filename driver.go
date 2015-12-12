@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"net"
+	"time"
 )
 
 // This struct is exported to make the driver directly accessible.
@@ -71,6 +72,9 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 
 	// Enable TCP Keepalives on TCP connections
 	if tc, ok := mc.netConn.(*net.TCPConn); ok {
+		timeout := time.Now().Add(mc.cfg.timeout)
+		tc.SetReadDeadline(timeout)
+		tc.SetDeadline(timeout)
 		if err := tc.SetKeepAlive(true); err != nil {
 			// Don't send COM_QUIT before handshake.
 			mc.netConn.Close()
