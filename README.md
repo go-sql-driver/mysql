@@ -49,7 +49,7 @@ A MySQL-Driver for Go's [database/sql](http://golang.org/pkg/database/sql) packa
 ## Installation
 Simple install the package to your [$GOPATH](http://code.google.com/p/go-wiki/wiki/GOPATH "GOPATH") with the [go tool](http://golang.org/cmd/go/ "go command") from shell:
 ```bash
-$ go get github.com/go-sql-driver/mysql
+$ go get github.com/g/mysql
 ```
 Make sure [Git is installed](http://git-scm.com/downloads) on your machine and in your system's `PATH`.
 
