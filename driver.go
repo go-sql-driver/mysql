@@ -124,15 +124,15 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	return mc, nil
 }
 
-func handleAuthResult(mc *mysqlConn, cipher []byte) (err error) {
+func handleAuthResult(mc *mysqlConn, cipher []byte) error {
 	// Read Result Packet
-	err = mc.readResultOK()
+	err := mc.readResultOK()
 	if err == nil {
-		return // auth successful
+		return nil // auth successful
 	}
 
 	if mc.cfg == nil {
-		return // auth failed and retry not possible
+		return err // auth failed and retry not possible
 	}
 
 	// Retry auth if configured to do so.
@@ -141,7 +141,7 @@ func handleAuthResult(mc *mysqlConn, cipher []byte) (err error) {
 		// where this should work but doesn't; this is currently "wontfix":
 		// https://github.com/go-sql-driver/mysql/issues/184
 		if err = mc.writeOldAuthPacket(cipher); err != nil {
-			return
+			return err
 		}
 		err = mc.readResultOK()
 	} else if mc.cfg.allowCleartextPasswords && err == ErrCleartextPassword {
@@ -149,11 +149,11 @@ func handleAuthResult(mc *mysqlConn, cipher []byte) (err error) {
 		// http://dev.mysql.com/doc/refman/5.7/en/cleartext-authentication-plugin.html
 		// http://dev.mysql.com/doc/refman/5.7/en/pam-authentication-plugin.html
 		if err = mc.writeClearAuthPacket(); err != nil {
-			return
+			return err
 		}
 		err = mc.readResultOK()
 	}
-	return
+	return err
 }
 
 func init() {
