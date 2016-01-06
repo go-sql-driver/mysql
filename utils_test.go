@@ -13,6 +13,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
+	"net/url"
 	"testing"
 	"time"
 )
@@ -114,6 +115,23 @@ func TestDSNWithCustomTLS(t *testing.T) {
 	}
 
 	DeregisterTLSConfig("utils_test")
+}
+
+func TestDSNWithCustomTLS_queryEscape(t *testing.T) {
+	const configKey = "&%!:"
+	dsn := "user:password@tcp(localhost:5555)/dbname?tls=" + url.QueryEscape(configKey)
+	name := "foohost"
+	tlsCfg := tls.Config{ServerName: name}
+
+	RegisterTLSConfig(configKey, &tlsCfg)
+
+	cfg, err := parseDSN(dsn)
+
+	if err != nil {
+		t.Error(err.Error())
+	} else if cfg.tls.ServerName != name {
+		t.Errorf("Did not get the correct TLS ServerName (%s) parsing DSN (%s).", name, dsn)
+	}
 }
 
 func TestDSNUnsafeCollation(t *testing.T) {
