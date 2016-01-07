@@ -120,18 +120,27 @@ func (mc *mysqlConn) Close() (err error) {
 	// Makes Close idempotent
 	if mc.netConn != nil {
 		err = mc.writeCommandPacket(comQuit)
-		if err == nil {
-			err = mc.netConn.Close()
-		} else {
-			mc.netConn.Close()
+	}
+
+	mc.cleanup()
+
+	return
+}
+
+// Closes the network connection and unsets internal variables. Do not call this
+// function after successfully authentication, call Close instead. This function
+// is called before auth or on auth failure because MySQL will have already
+// closed the network connection.
+func (mc *mysqlConn) cleanup() {
+	// Makes cleanup idempotent
+	if mc.netConn != nil {
+		if err := mc.netConn.Close(); err != nil {
+			errLog.Print(err)
 		}
 		mc.netConn = nil
 	}
-
 	mc.cfg = nil
 	mc.buf.rd = nil
-
-	return
 }
 
 func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
@@ -253,7 +262,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 			if v == nil {
 				buf = append(buf, "NULL"...)
 			} else {
-				buf = append(buf, '\'')
+				buf = append(buf, "_binary'"...)
 				if mc.status&statusNoBackslashEscapes == 0 {
 					buf = escapeBytesBackslash(buf, v)
 				} else {
