@@ -43,6 +43,8 @@ type config struct {
 	loc                     *time.Location
 	tls                     *tls.Config
 	timeout                 time.Duration
+	readTimeout             time.Duration
+	writeTimeout            time.Duration
 	collation               uint8
 	allowAllFiles           bool
 	allowOldPasswords       bool
