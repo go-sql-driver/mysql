@@ -24,6 +24,7 @@ type mysqlConn struct {
 	cfg              *Config
 	maxPacketAllowed int
 	maxWriteSize     int
+	writeTimeout     time.Duration
 	flags            clientFlag
 	status           statusFlag
 	sequence         uint8
@@ -98,7 +99,7 @@ func (mc *mysqlConn) cleanup() {
 		mc.netConn = nil
 	}
 	mc.cfg = nil
-	mc.buf.rd = nil
+	mc.buf.nc = nil
 }
 
 func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {

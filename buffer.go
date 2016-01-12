@@ -8,9 +8,11 @@
 
 package mysql
 
-import "io"
-import "net"
-import "time"
+import (
+	"io"
+	"net"
+	"time"
+)
 
 const defaultBufSize = 4096
 
@@ -20,19 +22,18 @@ const defaultBufSize = 4096
 // The buffer is similar to bufio.Reader / Writer but zero-copy-ish
 // Also highly optimized for this particular use case.
 type buffer struct {
-	buf    []byte
-	rd     io.Reader
-	idx    int
-	length int
-	cfg    *Config
+	buf     []byte
+	nc      net.Conn
+	idx     int
+	length  int
+	timeout time.Duration
 }
 
-func newBuffer(rd io.Reader, cfg *Config) buffer {
+func newBuffer(nc net.Conn) buffer {
 	var b [defaultBufSize]byte
 	return buffer{
 		buf: b[:],
-		rd:  rd,
-		cfg: cfg,
+		nc:  nc,
 	}
 }
 
@@ -58,13 +59,13 @@ func (b *buffer) fill(need int) error {
 	b.idx = 0
 
 	for {
-		if conn, ok := b.rd.(net.Conn); ok && b.cfg.ReadTimeout > 0 {
-			if err := conn.SetReadDeadline(time.Now().Add(b.cfg.ReadTimeout)); err != nil {
+		if b.timeout > 0 {
+			if err := b.nc.SetReadDeadline(time.Now().Add(b.timeout)); err != nil {
 				return err
 			}
 		}
 
-		nn, err := b.rd.Read(b.buf[n:])
+		nn, err := b.nc.Read(b.buf[n:])
 		n += nn
 
 		switch err {

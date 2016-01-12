@@ -100,8 +100,8 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		data[3] = mc.sequence
 
 		// Write packet
-		if mc.cfg.WriteTimeout > 0 {
-			if err := mc.netConn.SetWriteDeadline(time.Now().Add(mc.cfg.WriteTimeout)); err != nil {
+		if mc.writeTimeout > 0 {
+			if err := mc.netConn.SetWriteDeadline(time.Now().Add(mc.writeTimeout)); err != nil {
 				return err
 			}
 		}
@@ -284,7 +284,7 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 			return err
 		}
 		mc.netConn = tlsConn
-		mc.buf.rd = tlsConn
+		mc.buf.nc = tlsConn
 	}
 
 	// Filler [23 bytes] (all 0x00)

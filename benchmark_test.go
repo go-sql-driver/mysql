@@ -215,16 +215,14 @@ func BenchmarkRoundtripBin(b *testing.B) {
 }
 
 func BenchmarkInterpolation(b *testing.B) {
-	cfg := &Config{
-		InterpolateParams: true,
-		Loc:               time.UTC,
-	}
-
 	mc := &mysqlConn{
-		cfg:              cfg,
+		cfg: &Config{
+			InterpolateParams: true,
+			Loc:               time.UTC,
+		},
 		maxPacketAllowed: maxPacketSize,
 		maxWriteSize:     maxPacketSize - 1,
-		buf:              newBuffer(nil, cfg),
+		buf:              newBuffer(nil),
 	}
 
 	args := []driver.Value{

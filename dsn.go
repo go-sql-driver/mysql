@@ -243,6 +243,13 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				return errors.New("Invalid Bool value: " + value)
 			}
 
+		// I/O read Timeout
+		case "readTimeout":
+			cfg.ReadTimeout, err = time.ParseDuration(value)
+			if err != nil {
+				return
+			}
+
 		// Strict mode
 		case "strict":
 			var isBool bool
@@ -254,19 +261,6 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		// Dial Timeout
 		case "timeout":
 			cfg.Timeout, err = time.ParseDuration(value)
-			if err != nil {
-				return
-			}
-
-		// I/O Timeouts
-		case "read_timeout":
-			cfg.ReadTimeout, err = time.ParseDuration(value)
-			if err != nil {
-				return
-			}
-
-		case "write_timeout":
-			cfg.WriteTimeout, err = time.ParseDuration(value)
 			if err != nil {
 				return
 			}
@@ -295,6 +289,13 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				} else {
 					return fmt.Errorf("Invalid value / unknown config name: %s", value)
 				}
+			}
+
+		// I/O write Timeout
+		case "writeTimeout":
+			cfg.WriteTimeout, err = time.ParseDuration(value)
+			if err != nil {
+				return
 			}
 
 		default:
