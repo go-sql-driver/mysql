@@ -53,17 +53,19 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		maxPacketAllowed: maxPacketSize,
 		maxWriteSize:     maxPacketSize - 1,
 	}
-	mc.cfg, err = parseDSN(dsn)
+	mc.cfg, err = ParseDSN(dsn)
 	if err != nil {
 		return nil, err
 	}
+	mc.parseTime = mc.cfg.ParseTime
+	mc.strict = mc.cfg.Strict
 
 	// Connect to Server
-	if dial, ok := dials[mc.cfg.net]; ok {
-		mc.netConn, err = dial(mc.cfg.addr)
+	if dial, ok := dials[mc.cfg.Net]; ok {
+		mc.netConn, err = dial(mc.cfg.Addr)
 	} else {
-		nd := net.Dialer{Timeout: mc.cfg.timeout}
-		mc.netConn, err = nd.Dial(mc.cfg.net, mc.cfg.addr)
+		nd := net.Dialer{Timeout: mc.cfg.Timeout}
+		mc.netConn, err = nd.Dial(mc.cfg.Net, mc.cfg.Addr)
 	}
 	if err != nil {
 		return nil, err
@@ -136,7 +138,7 @@ func handleAuthResult(mc *mysqlConn, cipher []byte) error {
 	}
 
 	// Retry auth if configured to do so.
-	if mc.cfg.allowOldPasswords && err == ErrOldPassword {
+	if mc.cfg.AllowOldPasswords && err == ErrOldPassword {
 		// Retry with old authentication method. Note: there are edge cases
 		// where this should work but doesn't; this is currently "wontfix":
 		// https://github.com/go-sql-driver/mysql/issues/184
@@ -144,7 +146,7 @@ func handleAuthResult(mc *mysqlConn, cipher []byte) error {
 			return err
 		}
 		err = mc.readResultOK()
-	} else if mc.cfg.allowCleartextPasswords && err == ErrCleartextPassword {
+	} else if mc.cfg.AllowCleartextPasswords && err == ErrCleartextPassword {
 		// Retry with clear text password for
 		// http://dev.mysql.com/doc/refman/5.7/en/cleartext-authentication-plugin.html
 		// http://dev.mysql.com/doc/refman/5.7/en/pam-authentication-plugin.html

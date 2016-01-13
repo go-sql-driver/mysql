@@ -124,7 +124,7 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 		fileRegisterLock.RLock()
 		fr := fileRegister[name]
 		fileRegisterLock.RUnlock()
-		if mc.cfg.allowAllFiles || fr {
+		if mc.cfg.AllowAllFiles || fr {
 			var file *os.File
 			var fi os.FileInfo
 

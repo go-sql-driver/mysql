@@ -216,9 +216,9 @@ func BenchmarkRoundtripBin(b *testing.B) {
 
 func BenchmarkInterpolation(b *testing.B) {
 	mc := &mysqlConn{
-		cfg: &config{
-			interpolateParams: true,
-			loc:               time.UTC,
+		cfg: &Config{
+			InterpolateParams: true,
+			Loc:               time.UTC,
 		},
 		maxPacketAllowed: maxPacketSize,
 		maxWriteSize:     maxPacketSize - 1,
