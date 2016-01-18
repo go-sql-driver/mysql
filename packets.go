@@ -161,7 +161,7 @@ func (mc *mysqlConn) readInitPacket() ([]byte, error) {
 	if mc.flags&clientProtocol41 == 0 {
 		return nil, ErrOldProtocol
 	}
-	if mc.flags&clientSSL == 0 && mc.cfg.tls != nil {
+	if mc.flags&clientSSL == 0 && mc.cfg.TLS != nil {
 		return nil, ErrNoTLS
 	}
 	pos += 2
@@ -221,22 +221,22 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 		clientPluginAuth |
 		mc.flags&clientLongFlag
 
-	if mc.cfg.clientFoundRows {
+	if mc.cfg.ClientFoundRows {
 		clientFlags |= clientFoundRows
 	}
 
 	// To enable TLS / SSL
-	if mc.cfg.tls != nil {
+	if mc.cfg.TLS != nil {
 		clientFlags |= clientSSL
 	}
 
 	// User Password
-	scrambleBuff := scramblePassword(cipher, []byte(mc.cfg.passwd))
+	scrambleBuff := scramblePassword(cipher, []byte(mc.cfg.Passwd))
 
-	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.user) + 1 + 1 + len(scrambleBuff) + 21 + 1
+	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1 + 1 + len(scrambleBuff) + 21 + 1
 
 	// To specify a db name
-	if n := len(mc.cfg.dbname); n > 0 {
+	if n := len(mc.cfg.DBName); n > 0 {
 		clientFlags |= clientConnectWithDB
 		pktLen += n + 1
 	}
@@ -262,18 +262,18 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	data[11] = 0x00
 
 	// Charset [1 byte]
-	data[12] = mc.cfg.collation
+	data[12] = mc.cfg.Collation
 
 	// SSL Connection Request Packet
 	// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::SSLRequest
-	if mc.cfg.tls != nil {
+	if mc.cfg.TLS != nil {
 		// Send TLS / SSL request packet
 		if err := mc.writePacket(data[:(4+4+1+23)+4]); err != nil {
 			return err
 		}
 
 		// Switch to TLS
-		tlsConn := tls.Client(mc.netConn, mc.cfg.tls)
+		tlsConn := tls.Client(mc.netConn, mc.cfg.TLS)
 		if err := tlsConn.Handshake(); err != nil {
 			return err
 		}
@@ -288,8 +288,8 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	}
 
 	// User [null terminated string]
-	if len(mc.cfg.user) > 0 {
-		pos += copy(data[pos:], mc.cfg.user)
+	if len(mc.cfg.User) > 0 {
+		pos += copy(data[pos:], mc.cfg.User)
 	}
 	data[pos] = 0x00
 	pos++
@@ -299,8 +299,8 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	pos += 1 + copy(data[pos+1:], scrambleBuff)
 
 	// Databasename [null terminated string]
-	if len(mc.cfg.dbname) > 0 {
-		pos += copy(data[pos:], mc.cfg.dbname)
+	if len(mc.cfg.DBName) > 0 {
+		pos += copy(data[pos:], mc.cfg.DBName)
 		data[pos] = 0x00
 		pos++
 	}
@@ -317,7 +317,7 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
 func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 	// User password
-	scrambleBuff := scrambleOldPassword(cipher, []byte(mc.cfg.passwd))
+	scrambleBuff := scrambleOldPassword(cipher, []byte(mc.cfg.Passwd))
 
 	// Calculate the packet length and add a tailing 0
 	pktLen := len(scrambleBuff) + 1
@@ -339,7 +339,7 @@ func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
 func (mc *mysqlConn) writeClearAuthPacket() error {
 	// Calculate the packet length and add a tailing 0
-	pktLen := len(mc.cfg.passwd) + 1
+	pktLen := len(mc.cfg.Passwd) + 1
 	data := mc.buf.takeSmallBuffer(4 + pktLen)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
@@ -348,7 +348,7 @@ func (mc *mysqlConn) writeClearAuthPacket() error {
 	}
 
 	// Add the clear password [null terminated string]
-	copy(data[4:], mc.cfg.passwd)
+	copy(data[4:], mc.cfg.Passwd)
 	data[4+pktLen-1] = 0x00
 
 	return mc.writePacket(data)
@@ -575,7 +575,7 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 		pos += n
 
 		// Table [len coded string]
-		if mc.cfg.columnsWithAlias {
+		if mc.cfg.ColumnsWithAlias {
 			tableName, _, n, err := readLengthEncodedString(data[pos:])
 			if err != nil {
 				return nil, err
@@ -674,7 +674,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 						fieldTypeDate, fieldTypeNewDate:
 						dest[i], err = parseDateTime(
 							string(dest[i].([]byte)),
-							mc.cfg.loc,
+							mc.cfg.Loc,
 						)
 						if err == nil {
 							continue
@@ -981,7 +981,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				if v.IsZero() {
 					val = []byte("0000-00-00")
 				} else {
-					val = []byte(v.In(mc.cfg.loc).Format(timeFormat))
+					val = []byte(v.In(mc.cfg.Loc).Format(timeFormat))
 				}
 
 				paramValues = appendLengthEncodedInteger(paramValues,
@@ -1144,7 +1144,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 				}
 				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], dstlen, true)
 			case rows.mc.parseTime:
-				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.loc)
+				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.Loc)
 			default:
 				var dstlen uint8
 				if rows.columns[i].fieldType == fieldTypeDate {
