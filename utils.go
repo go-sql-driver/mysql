@@ -23,10 +23,6 @@ var (
 	tlsConfigRegister map[string]*tls.Config // Register for custom tls.Configs
 )
 
-func init() {
-	tlsConfigRegister = make(map[string]*tls.Config)
-}
-
 // RegisterTLSConfig registers a custom tls.Config to be used with sql.Open.
 // Use the key as a value in the DSN where tls=value.
 //
@@ -55,13 +51,19 @@ func RegisterTLSConfig(key string, config *tls.Config) error {
 		return fmt.Errorf("Key '%s' is reserved", key)
 	}
 
+	if tlsConfigRegister == nil {
+		tlsConfigRegister = make(map[string]*tls.Config)
+	}
+
 	tlsConfigRegister[key] = config
 	return nil
 }
 
 // DeregisterTLSConfig removes the tls.Config associated with key.
 func DeregisterTLSConfig(key string) {
-	delete(tlsConfigRegister, key)
+	if tlsConfigRegister != nil {
+		delete(tlsConfigRegister, key)
+	}
 }
 
 // Returns the bool value of the input.
