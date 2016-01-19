@@ -48,7 +48,7 @@ var (
 //
 func RegisterTLSConfig(key string, config *tls.Config) error {
 	if _, isBool := readBool(key); isBool || strings.ToLower(key) == "skip-verify" {
-		return fmt.Errorf("Key '%s' is reserved", key)
+		return fmt.Errorf("key '%s' is reserved", key)
 	}
 
 	if tlsConfigRegister == nil {
@@ -260,7 +260,7 @@ func parseDateTime(str string, loc *time.Location) (t time.Time, err error) {
 		}
 		t, err = time.Parse(timeFormat[:len(str)], str)
 	default:
-		err = fmt.Errorf("Invalid Time-String: %s", str)
+		err = fmt.Errorf("invalid time string: %s", str)
 		return
 	}
 
@@ -309,7 +309,7 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 			loc,
 		), nil
 	}
-	return nil, fmt.Errorf("Invalid DATETIME-packet length %d", num)
+	return nil, fmt.Errorf("invalid DATETIME packet length %d", num)
 }
 
 // zeroDateTime is used in formatBinaryDateTime to avoid an allocation
@@ -344,7 +344,7 @@ func formatBinaryDateTime(src []byte, length uint8, justTime bool) (driver.Value
 		switch len(src) {
 		case 8, 12:
 		default:
-			return nil, fmt.Errorf("Invalid TIME-packet length %d", len(src))
+			return nil, fmt.Errorf("invalid TIME packet length %d", len(src))
 		}
 		// +2 to enable negative time and 100+ hours
 		dst = make([]byte, 0, length+2)
@@ -378,7 +378,7 @@ func formatBinaryDateTime(src []byte, length uint8, justTime bool) (driver.Value
 			if length > 10 {
 				t += "TIME"
 			}
-			return nil, fmt.Errorf("illegal %s-packet length %d", t, len(src))
+			return nil, fmt.Errorf("illegal %s packet length %d", t, len(src))
 		}
 		dst = make([]byte, 0, length)
 		// start with the date

@@ -139,12 +139,12 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 					} else if fileSize <= mc.maxPacketAllowed {
 						data = make([]byte, 4+mc.maxWriteSize)
 					} else {
-						err = fmt.Errorf("Local File '%s' too large: Size: %d, Max: %d", name, fileSize, mc.maxPacketAllowed)
+						err = fmt.Errorf("local file '%s' too large: size: %d, max: %d", name, fileSize, mc.maxPacketAllowed)
 					}
 				}
 			}
 		} else {
-			err = fmt.Errorf("Local File '%s' is not registered. Use the DSN parameter 'allowAllFiles=true' to allow all files", name)
+			err = fmt.Errorf("local file '%s' is not registered", name)
 		}
 	}
 
