@@ -27,16 +27,18 @@ var (
 
 // Config is a configuration parsed from a DSN string
 type Config struct {
-	User      string            // Username
-	Passwd    string            // Password
-	Net       string            // Network type
-	Addr      string            // Network address
-	DBName    string            // Database name
-	Params    map[string]string // Connection parameters
-	Loc       *time.Location    // Location for time.Time values
-	TLS       *tls.Config       // TLS configuration
-	Timeout   time.Duration     // Dial timeout
-	Collation uint8             // Connection collation
+	User         string            // Username
+	Passwd       string            // Password
+	Net          string            // Network type
+	Addr         string            // Network address
+	DBName       string            // Database name
+	Params       map[string]string // Connection parameters
+	Loc          *time.Location    // Location for time.Time values
+	TLS          *tls.Config       // TLS configuration
+	Timeout      time.Duration     // Dial timeout
+	ReadTimeout  time.Duration     // I/O read timeout
+	WriteTimeout time.Duration     // I/O write timeout
+	Collation    uint8             // Connection collation
 
 	AllowAllFiles           bool // Allow all files to be used with LOAD DATA LOCAL INFILE
 	AllowCleartextPasswords bool // Allows the cleartext client side plugin
@@ -241,6 +243,13 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				return errors.New("Invalid Bool value: " + value)
 			}
 
+		// I/O read Timeout
+		case "readTimeout":
+			cfg.ReadTimeout, err = time.ParseDuration(value)
+			if err != nil {
+				return
+			}
+
 		// Strict mode
 		case "strict":
 			var isBool bool
@@ -280,6 +289,13 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				} else {
 					return fmt.Errorf("Invalid value / unknown config name: %s", value)
 				}
+			}
+
+		// I/O write Timeout
+		case "writeTimeout":
+			cfg.WriteTimeout, err = time.ParseDuration(value)
+			if err != nil {
+				return
 			}
 
 		default:

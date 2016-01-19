@@ -83,6 +83,10 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 
 	mc.buf = newBuffer(mc.netConn)
 
+	// Set I/O timeouts
+	mc.buf.timeout = mc.cfg.ReadTimeout
+	mc.writeTimeout = mc.cfg.WriteTimeout
+
 	// Reading Handshake Initialization Packet
 	cipher, err := mc.readInitPacket()
 	if err != nil {
