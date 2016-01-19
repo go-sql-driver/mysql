@@ -47,9 +47,8 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		if data[3] != mc.sequence {
 			if data[3] > mc.sequence {
 				return nil, ErrPktSyncMul
-			} else {
-				return nil, ErrPktSync
 			}
+			return nil, ErrPktSync
 		}
 		mc.sequence++
 
@@ -539,13 +538,13 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 	// warning count [2 bytes]
 	if !mc.strict {
 		return nil
-	} else {
-		pos := 1 + n + m + 2
-		if binary.LittleEndian.Uint16(data[pos:pos+2]) > 0 {
-			return mc.getWarnings()
-		}
-		return nil
 	}
+
+	pos := 1 + n + m + 2
+	if binary.LittleEndian.Uint16(data[pos:pos+2]) > 0 {
+		return mc.getWarnings()
+	}
+	return nil
 }
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
@@ -742,13 +741,13 @@ func (stmt *mysqlStmt) readPrepareResultPacket() (uint16, error) {
 		// Warning count [16 bit uint]
 		if !stmt.mc.strict {
 			return columnCount, nil
-		} else {
-			// Check for warnings count > 0, only available in MySQL > 4.1
-			if len(data) >= 12 && binary.LittleEndian.Uint16(data[10:12]) > 0 {
-				return columnCount, stmt.mc.getWarnings()
-			}
-			return columnCount, nil
 		}
+
+		// Check for warnings count > 0, only available in MySQL > 4.1
+		if len(data) >= 12 && binary.LittleEndian.Uint16(data[10:12]) > 0 {
+			return columnCount, stmt.mc.getWarnings()
+		}
+		return columnCount, nil
 	}
 	return 0, err
 }

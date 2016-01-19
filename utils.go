@@ -642,7 +642,7 @@ func escapeBytesBackslash(buf, v []byte) []byte {
 			pos += 2
 		default:
 			buf[pos] = c
-			pos += 1
+			pos++
 		}
 	}
 
@@ -687,7 +687,7 @@ func escapeStringBackslash(buf []byte, v string) []byte {
 			pos += 2
 		default:
 			buf[pos] = c
-			pos += 1
+			pos++
 		}
 	}
 

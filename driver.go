@@ -4,7 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Go MySQL Driver - A MySQL-Driver for Go's database/sql package
+// Package mysql provides a MySQL driver for Go's database/sql package
 //
 // The driver should be used via the database/sql package:
 //
@@ -22,7 +22,7 @@ import (
 	"net"
 )
 
-// This struct is exported to make the driver directly accessible.
+// MySQLDriver is exported to make the driver directly accessible.
 // In general the driver is used via the database/sql package.
 type MySQLDriver struct{}
 

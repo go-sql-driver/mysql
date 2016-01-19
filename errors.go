@@ -32,7 +32,7 @@ var (
 	ErrBusyBuffer        = errors.New("Busy buffer")
 )
 
-var errLog Logger = log.New(os.Stderr, "[MySQL] ", log.Ldate|log.Ltime|log.Lshortfile)
+var errLog = Logger(log.New(os.Stderr, "[MySQL] ", log.Ldate|log.Ltime|log.Lshortfile))
 
 // Logger is used to log critical error messages.
 type Logger interface {
