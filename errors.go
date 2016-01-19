@@ -56,7 +56,7 @@ type MySQLError struct {
 }
 
 func (me *MySQLError) Error() string {
-	return fmt.Sprintf("error %d: %s", me.Number, me.Message)
+	return fmt.Sprintf("Error %d: %s", me.Number, me.Message)
 }
 
 // MySQLWarnings is an error type which represents a group of one or more MySQL
