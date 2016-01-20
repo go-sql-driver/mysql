@@ -219,6 +219,16 @@ Note that this sets the location for time.Time values but does not change MySQL'
 
 Please keep in mind, that param values must be [url.QueryEscape](http://golang.org/pkg/net/url/#QueryEscape)'ed. Alternatively you can manually replace the `/` with `%2F`. For example `US/Pacific` would be `loc=US%2FPacific`.
 
+##### `multiStatements`
+
+```
+Type:           bool
+Valid Values:   true, false
+Default:        false
+```
+
+Allow multiple statements in one query. While this allows batch queries, it also greatly increases the risk of SQL injections.
+
 
 ##### `parseTime`
 
