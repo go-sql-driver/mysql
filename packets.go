@@ -543,7 +543,9 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 
 	// server_status [2 bytes]
 	mc.status = readStatus(data[1+n+m : 1+n+m+2])
-	mc.discardMoreResultsIfExists()
+	if err := mc.discardMoreResultsIfExists(); err != nil {
+		return err
+	}
 
 	// warning count [2 bytes]
 	if !mc.strict {
