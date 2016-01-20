@@ -78,23 +78,23 @@ type DBTest struct {
 
 func runTestsWithMultiStatement(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	if !available {
-		t.Skipf("MySQL-Server not running on %s", netAddr)
+		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	dsn3 := dsn + "&multiStatements=true"
-	var db3 *sql.DB
-	if _, err := parseDSN(dsn3); err != errInvalidDSNUnsafeCollation {
-		db3, err = sql.Open("mysql", dsn3)
+	dsn += "&multiStatements=true"
+	var db *sql.DB
+	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
+		db, err = sql.Open("mysql", dsn)
 		if err != nil {
-			t.Fatalf("Error connecting: %s", err.Error())
+			t.Fatalf("error connecting: %s", err.Error())
 		}
-		defer db3.Close()
+		defer db.Close()
 	}
 
-	dbt3 := &DBTest{t, db3}
+	dbt := &DBTest{t, db}
 	for _, test := range tests {
-		test(dbt3)
-		dbt3.db.Exec("DROP TABLE IF EXISTS test")
+		test(dbt)
+		dbt.db.Exec("DROP TABLE IF EXISTS test")
 	}
 }
 
@@ -123,10 +123,10 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 
 	dsn3 := dsn + "&multiStatements=true"
 	var db3 *sql.DB
-	if _, err := parseDSN(dsn3); err != errInvalidDSNUnsafeCollation {
+	if _, err := ParseDSN(dsn3); err != errInvalidDSNUnsafeCollation {
 		db3, err = sql.Open("mysql", dsn3)
 		if err != nil {
-			t.Fatalf("Error connecting: %s", err.Error())
+			t.Fatalf("error connecting: %s", err.Error())
 		}
 		defer db3.Close()
 	}
@@ -286,7 +286,7 @@ func TestMultiQuery(t *testing.T) {
 			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
 		}
 		if count != 1 {
-			dbt.Fatalf("Expected 1 affected row, got %d", count)
+			dbt.Fatalf("expected 1 affected row, got %d", count)
 		}
 
 		// Update
@@ -296,7 +296,7 @@ func TestMultiQuery(t *testing.T) {
 			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
 		}
 		if count != 1 {
-			dbt.Fatalf("Expected 1 affected row, got %d", count)
+			dbt.Fatalf("expected 1 affected row, got %d", count)
 		}
 
 		// Read
