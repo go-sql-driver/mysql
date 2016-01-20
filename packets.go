@@ -563,7 +563,7 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 			if i == count {
 				return columns, nil
 			}
-			return nil, fmt.Errorf("columns count mismatch n:%d len:%d", count, len(columns))
+			return nil, fmt.Errorf("column count mismatch n:%d len:%d", count, len(columns))
 		}
 
 		// Catalog
@@ -809,7 +809,7 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	if len(args) != stmt.paramCount {
 		return fmt.Errorf(
-			"arguments count mismatch (got: %d; has: %d)",
+			"argument count mismatch (got: %d; has: %d)",
 			len(args),
 			stmt.paramCount,
 		)
