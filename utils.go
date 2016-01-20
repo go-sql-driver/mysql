@@ -23,10 +23,6 @@ var (
 	tlsConfigRegister map[string]*tls.Config // Register for custom tls.Configs
 )
 
-func init() {
-	tlsConfigRegister = make(map[string]*tls.Config)
-}
-
 // RegisterTLSConfig registers a custom tls.Config to be used with sql.Open.
 // Use the key as a value in the DSN where tls=value.
 //
@@ -52,7 +48,11 @@ func init() {
 //
 func RegisterTLSConfig(key string, config *tls.Config) error {
 	if _, isBool := readBool(key); isBool || strings.ToLower(key) == "skip-verify" {
-		return fmt.Errorf("Key '%s' is reserved", key)
+		return fmt.Errorf("key '%s' is reserved", key)
+	}
+
+	if tlsConfigRegister == nil {
+		tlsConfigRegister = make(map[string]*tls.Config)
 	}
 
 	tlsConfigRegister[key] = config
@@ -61,7 +61,9 @@ func RegisterTLSConfig(key string, config *tls.Config) error {
 
 // DeregisterTLSConfig removes the tls.Config associated with key.
 func DeregisterTLSConfig(key string) {
-	delete(tlsConfigRegister, key)
+	if tlsConfigRegister != nil {
+		delete(tlsConfigRegister, key)
+	}
 }
 
 // Returns the bool value of the input.
@@ -258,7 +260,7 @@ func parseDateTime(str string, loc *time.Location) (t time.Time, err error) {
 		}
 		t, err = time.Parse(timeFormat[:len(str)], str)
 	default:
-		err = fmt.Errorf("Invalid Time-String: %s", str)
+		err = fmt.Errorf("invalid time string: %s", str)
 		return
 	}
 
@@ -307,7 +309,7 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 			loc,
 		), nil
 	}
-	return nil, fmt.Errorf("Invalid DATETIME-packet length %d", num)
+	return nil, fmt.Errorf("invalid DATETIME packet length %d", num)
 }
 
 // zeroDateTime is used in formatBinaryDateTime to avoid an allocation
@@ -342,7 +344,7 @@ func formatBinaryDateTime(src []byte, length uint8, justTime bool) (driver.Value
 		switch len(src) {
 		case 8, 12:
 		default:
-			return nil, fmt.Errorf("Invalid TIME-packet length %d", len(src))
+			return nil, fmt.Errorf("invalid TIME packet length %d", len(src))
 		}
 		// +2 to enable negative time and 100+ hours
 		dst = make([]byte, 0, length+2)
@@ -376,7 +378,7 @@ func formatBinaryDateTime(src []byte, length uint8, justTime bool) (driver.Value
 			if length > 10 {
 				t += "TIME"
 			}
-			return nil, fmt.Errorf("illegal %s-packet length %d", t, len(src))
+			return nil, fmt.Errorf("illegal %s packet length %d", t, len(src))
 		}
 		dst = make([]byte, 0, length)
 		// start with the date
@@ -642,7 +644,7 @@ func escapeBytesBackslash(buf, v []byte) []byte {
 			pos += 2
 		default:
 			buf[pos] = c
-			pos += 1
+			pos++
 		}
 	}
 
@@ -687,7 +689,7 @@ func escapeStringBackslash(buf []byte, v string) []byte {
 			pos += 2
 		default:
 			buf[pos] = c
-			pos += 1
+			pos++
 		}
 	}
 

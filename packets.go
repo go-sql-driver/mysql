@@ -47,9 +47,8 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		if data[3] != mc.sequence {
 			if data[3] > mc.sequence {
 				return nil, ErrPktSyncMul
-			} else {
-				return nil, ErrPktSync
 			}
+			return nil, ErrPktSync
 		}
 		mc.sequence++
 
@@ -146,7 +145,7 @@ func (mc *mysqlConn) readInitPacket() ([]byte, error) {
 	// protocol version [1 byte]
 	if data[0] < minProtocolVersion {
 		return nil, fmt.Errorf(
-			"Unsupported MySQL Protocol Version %d. Protocol Version %d or higher is required",
+			"unsupported protocol version %d. Version %d or higher is required",
 			data[0],
 			minProtocolVersion,
 		)
@@ -539,13 +538,13 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 	// warning count [2 bytes]
 	if !mc.strict {
 		return nil
-	} else {
-		pos := 1 + n + m + 2
-		if binary.LittleEndian.Uint16(data[pos:pos+2]) > 0 {
-			return mc.getWarnings()
-		}
-		return nil
 	}
+
+	pos := 1 + n + m + 2
+	if binary.LittleEndian.Uint16(data[pos:pos+2]) > 0 {
+		return mc.getWarnings()
+	}
+	return nil
 }
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
@@ -564,7 +563,7 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 			if i == count {
 				return columns, nil
 			}
-			return nil, fmt.Errorf("ColumnsCount mismatch n:%d len:%d", count, len(columns))
+			return nil, fmt.Errorf("column count mismatch n:%d len:%d", count, len(columns))
 		}
 
 		// Catalog
@@ -742,13 +741,13 @@ func (stmt *mysqlStmt) readPrepareResultPacket() (uint16, error) {
 		// Warning count [16 bit uint]
 		if !stmt.mc.strict {
 			return columnCount, nil
-		} else {
-			// Check for warnings count > 0, only available in MySQL > 4.1
-			if len(data) >= 12 && binary.LittleEndian.Uint16(data[10:12]) > 0 {
-				return columnCount, stmt.mc.getWarnings()
-			}
-			return columnCount, nil
 		}
+
+		// Check for warnings count > 0, only available in MySQL > 4.1
+		if len(data) >= 12 && binary.LittleEndian.Uint16(data[10:12]) > 0 {
+			return columnCount, stmt.mc.getWarnings()
+		}
+		return columnCount, nil
 	}
 	return 0, err
 }
@@ -810,7 +809,7 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	if len(args) != stmt.paramCount {
 		return fmt.Errorf(
-			"Arguments count mismatch (Got: %d Has: %d)",
+			"argument count mismatch (got: %d; has: %d)",
 			len(args),
 			stmt.paramCount,
 		)
@@ -996,7 +995,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				paramValues = append(paramValues, val...)
 
 			default:
-				return fmt.Errorf("Can't convert type: %T", arg)
+				return fmt.Errorf("can not convert type: %T", arg)
 			}
 		}
 
@@ -1144,7 +1143,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 					dstlen = 8 + 1 + decimals
 				default:
 					return fmt.Errorf(
-						"MySQL protocol error, illegal decimals value %d",
+						"protocol error, illegal decimals value %d",
 						rows.columns[i].decimals,
 					)
 				}
@@ -1163,7 +1162,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 						dstlen = 19 + 1 + decimals
 					default:
 						return fmt.Errorf(
-							"MySQL protocol error, illegal decimals value %d",
+							"protocol error, illegal decimals value %d",
 							rows.columns[i].decimals,
 						)
 					}
@@ -1180,7 +1179,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 
 		// Please report if this happens!
 		default:
-			return fmt.Errorf("Unknown FieldType %d", rows.columns[i].fieldType)
+			return fmt.Errorf("unknown field type %d", rows.columns[i].fieldType)
 		}
 	}
 

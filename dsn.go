@@ -19,10 +19,10 @@ import (
 )
 
 var (
-	errInvalidDSNUnescaped       = errors.New("Invalid DSN: Did you forget to escape a param value?")
-	errInvalidDSNAddr            = errors.New("Invalid DSN: Network Address not terminated (missing closing brace)")
-	errInvalidDSNNoSlash         = errors.New("Invalid DSN: Missing the slash separating the database name")
-	errInvalidDSNUnsafeCollation = errors.New("Invalid DSN: interpolateParams can be used with ascii, latin1, utf8 and utf8mb4 charset")
+	errInvalidDSNUnescaped       = errors.New("invalid DSN: did you forget to escape a param value?")
+	errInvalidDSNAddr            = errors.New("invalid DSN: network address not terminated (missing closing brace)")
+	errInvalidDSNNoSlash         = errors.New("invalid DSN: missing the slash separating the database name")
+	errInvalidDSNUnsafeCollation = errors.New("invalid DSN: interpolateParams can not be used with unsafe collations")
 )
 
 // Config is a configuration parsed from a DSN string
@@ -141,7 +141,7 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 		case "unix":
 			cfg.Addr = "/tmp/mysql.sock"
 		default:
-			return nil, errors.New("Default addr for network '" + cfg.Net + "' unknown")
+			return nil, errors.New("default addr for network '" + cfg.Net + "' unknown")
 		}
 
 	}
@@ -166,7 +166,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			var isBool bool
 			cfg.AllowAllFiles, isBool = readBool(value)
 			if !isBool {
-				return fmt.Errorf("Invalid Bool value: %s", value)
+				return errors.New("invalid bool value: " + value)
 			}
 
 		// Use cleartext authentication mode (MySQL 5.5.10+)
@@ -174,7 +174,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			var isBool bool
 			cfg.AllowCleartextPasswords, isBool = readBool(value)
 			if !isBool {
-				return fmt.Errorf("Invalid Bool value: %s", value)
+				return errors.New("invalid bool value: " + value)
 			}
 
 		// Use old authentication mode (pre MySQL 4.1)
@@ -182,7 +182,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			var isBool bool
 			cfg.AllowOldPasswords, isBool = readBool(value)
 			if !isBool {
-				return fmt.Errorf("Invalid Bool value: %s", value)
+				return errors.New("invalid bool value: " + value)
 			}
 
 		// Switch "rowsAffected" mode
@@ -190,7 +190,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			var isBool bool
 			cfg.ClientFoundRows, isBool = readBool(value)
 			if !isBool {
-				return fmt.Errorf("Invalid Bool value: %s", value)
+				return errors.New("invalid bool value: " + value)
 			}
 
 		// Collation
@@ -210,19 +210,19 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			var isBool bool
 			cfg.ColumnsWithAlias, isBool = readBool(value)
 			if !isBool {
-				return fmt.Errorf("Invalid Bool value: %s", value)
+				return errors.New("invalid bool value: " + value)
 			}
 
 		// Compression
 		case "compress":
-			return errors.New("Compression not implemented yet")
+			return errors.New("compression not implemented yet")
 
 		// Enable client side placeholder substitution
 		case "interpolateParams":
 			var isBool bool
 			cfg.InterpolateParams, isBool = readBool(value)
 			if !isBool {
-				return fmt.Errorf("Invalid Bool value: %s", value)
+				return errors.New("invalid bool value: " + value)
 			}
 
 		// Time Location
@@ -240,7 +240,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			var isBool bool
 			cfg.ParseTime, isBool = readBool(value)
 			if !isBool {
-				return errors.New("Invalid Bool value: " + value)
+				return errors.New("invalid bool value: " + value)
 			}
 
 		// I/O read Timeout
@@ -255,7 +255,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			var isBool bool
 			cfg.Strict, isBool = readBool(value)
 			if !isBool {
-				return errors.New("Invalid Bool value: " + value)
+				return errors.New("invalid bool value: " + value)
 			}
 
 		// Dial Timeout
@@ -273,7 +273,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 					cfg.TLS = &tls.Config{}
 				}
 			} else if value, err := url.QueryUnescape(value); err != nil {
-				return fmt.Errorf("Invalid value for tls config name: %v", err)
+				return fmt.Errorf("invalid value for TLS config name: %v", err)
 			} else {
 				if strings.ToLower(value) == "skip-verify" {
 					cfg.TLS = &tls.Config{InsecureSkipVerify: true}
@@ -287,7 +287,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 					cfg.TLS = tlsConfig
 				} else {
-					return fmt.Errorf("Invalid value / unknown config name: %s", value)
+					return errors.New("invalid value / unknown config name: " + value)
 				}
 			}
 
