@@ -543,7 +543,7 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 
 	// server_status [2 bytes]
 	mc.status = readStatus(data[1+n+m : 1+n+m+2])
-	if err := mc.discardMoreResultsIfExists(); err != nil {
+	if err := mc.discardResults(); err != nil {
 		return err
 	}
 
@@ -666,7 +666,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 	if data[0] == iEOF && len(data) == 5 {
 		// server_status [2 bytes]
 		rows.mc.status = readStatus(data[3:])
-		if err := rows.mc.discardMoreResultsIfExists(); err != nil {
+		if err := rows.mc.discardResults(); err != nil {
 			return err
 		}
 		rows.mc = nil
@@ -1034,7 +1034,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	return mc.writePacket(data)
 }
 
-func (mc *mysqlConn) discardMoreResultsIfExists() error {
+func (mc *mysqlConn) discardResults() error {
 	for mc.status&statusMoreResultsExists != 0 {
 		resLen, err := mc.readResultSetHeaderPacket()
 		if err != nil {
@@ -1068,7 +1068,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 		// EOF Packet
 		if data[0] == iEOF && len(data) == 5 {
 			rows.mc.status = readStatus(data[3:])
-			if err := rows.mc.discardMoreResultsIfExists(); err != nil {
+			if err := rows.mc.discardResults(); err != nil {
 				return err
 			}
 			rows.mc = nil

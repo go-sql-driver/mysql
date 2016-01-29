@@ -66,7 +66,7 @@ func (rows *mysqlRows) Close() error {
 	// Remove unread packets from stream
 	err := mc.readUntilEOF()
 	if err == nil {
-		if err = mc.discardMoreResultsIfExists(); err != nil {
+		if err = mc.discardResults(); err != nil {
 			return err
 		}
 	}
