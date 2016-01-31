@@ -19,20 +19,20 @@ var testDSNs = []struct {
 	in  string
 	out string
 }{
-	{"username:password@protocol(address)/dbname?param=value", "&{User:username Passwd:password Net:protocol Addr:address DBName:dbname Params:map[param:value] Loc:UTC TLS:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 Collation:33 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
-	{"username:password@protocol(address)/dbname?param=value&columnsWithAlias=true", "&{User:username Passwd:password Net:protocol Addr:address DBName:dbname Params:map[param:value] Loc:UTC TLS:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 Collation:33 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:true InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
-	{"username:password@protocol(address)/dbname?param=value&columnsWithAlias=true&multiStatements=true", "&{User:username Passwd:password Net:protocol Addr:address DBName:dbname Params:map[param:value] Loc:UTC TLS:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 Collation:33 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:true InterpolateParams:false MultiStatements:true ParseTime:false Strict:false}"},
-	{"user@unix(/path/to/socket)/dbname?charset=utf8", "&{User:user Passwd: Net:unix Addr:/path/to/socket DBName:dbname Params:map[charset:utf8] Loc:UTC TLS:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 Collation:33 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
-	{"user:password@tcp(localhost:5555)/dbname?charset=utf8&tls=true", "&{User:user Passwd:password Net:tcp Addr:localhost:5555 DBName:dbname Params:map[charset:utf8] Loc:UTC TLS:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 Collation:33 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
-	{"user:password@tcp(localhost:5555)/dbname?charset=utf8mb4,utf8&tls=skip-verify", "&{User:user Passwd:password Net:tcp Addr:localhost:5555 DBName:dbname Params:map[charset:utf8mb4,utf8] Loc:UTC TLS:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 Collation:33 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
-	{"user:password@/dbname?loc=UTC&timeout=30s&readTimeout=1s&writeTimeout=1s&allowAllFiles=1&clientFoundRows=true&allowOldPasswords=TRUE&collation=utf8mb4_unicode_ci", "&{User:user Passwd:password Net:tcp Addr:127.0.0.1:3306 DBName:dbname Params:map[] Loc:UTC TLS:<nil> Timeout:30s ReadTimeout:1s WriteTimeout:1s Collation:224 AllowAllFiles:true AllowCleartextPasswords:false AllowOldPasswords:true ClientFoundRows:true ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
-	{"user:p@ss(word)@tcp([de:ad:be:ef::ca:fe]:80)/dbname?loc=Local", "&{User:user Passwd:p@ss(word) Net:tcp Addr:[de:ad:be:ef::ca:fe]:80 DBName:dbname Params:map[] Loc:Local TLS:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 Collation:33 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
-	{"/dbname", "&{User: Passwd: Net:tcp Addr:127.0.0.1:3306 DBName:dbname Params:map[] Loc:UTC TLS:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 Collation:33 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
-	{"@/", "&{User: Passwd: Net:tcp Addr:127.0.0.1:3306 DBName: Params:map[] Loc:UTC TLS:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 Collation:33 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
-	{"/", "&{User: Passwd: Net:tcp Addr:127.0.0.1:3306 DBName: Params:map[] Loc:UTC TLS:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 Collation:33 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
-	{"", "&{User: Passwd: Net:tcp Addr:127.0.0.1:3306 DBName: Params:map[] Loc:UTC TLS:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 Collation:33 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
-	{"user:p@/ssword@/", "&{User:user Passwd:p@/ssword Net:tcp Addr:127.0.0.1:3306 DBName: Params:map[] Loc:UTC TLS:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 Collation:33 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
-	{"unix/?arg=%2Fsome%2Fpath.ext", "&{User: Passwd: Net:unix Addr:/tmp/mysql.sock DBName: Params:map[arg:/some/path.ext] Loc:UTC TLS:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 Collation:33 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
+	{"username:password@protocol(address)/dbname?param=value", "&{User:username Passwd:password Net:protocol Addr:address DBName:dbname Params:map[param:value] Collation:utf8_general_ci Loc:UTC TLSConfig: tls:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
+	{"username:password@protocol(address)/dbname?param=value&columnsWithAlias=true", "&{User:username Passwd:password Net:protocol Addr:address DBName:dbname Params:map[param:value] Collation:utf8_general_ci Loc:UTC TLSConfig: tls:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:true InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
+	{"username:password@protocol(address)/dbname?param=value&columnsWithAlias=true&multiStatements=true", "&{User:username Passwd:password Net:protocol Addr:address DBName:dbname Params:map[param:value] Collation:utf8_general_ci Loc:UTC TLSConfig: tls:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:true InterpolateParams:false MultiStatements:true ParseTime:false Strict:false}"},
+	{"user@unix(/path/to/socket)/dbname?charset=utf8", "&{User:user Passwd: Net:unix Addr:/path/to/socket DBName:dbname Params:map[charset:utf8] Collation:utf8_general_ci Loc:UTC TLSConfig: tls:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
+	{"user:password@tcp(localhost:5555)/dbname?charset=utf8&tls=true", "&{User:user Passwd:password Net:tcp Addr:localhost:5555 DBName:dbname Params:map[charset:utf8] Collation:utf8_general_ci Loc:UTC TLSConfig:true tls:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
+	{"user:password@tcp(localhost:5555)/dbname?charset=utf8mb4,utf8&tls=skip-verify", "&{User:user Passwd:password Net:tcp Addr:localhost:5555 DBName:dbname Params:map[charset:utf8mb4,utf8] Collation:utf8_general_ci Loc:UTC TLSConfig:skip-verify tls:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
+	{"user:password@/dbname?loc=UTC&timeout=30s&readTimeout=1s&writeTimeout=1s&allowAllFiles=1&clientFoundRows=true&allowOldPasswords=TRUE&collation=utf8mb4_unicode_ci", "&{User:user Passwd:password Net:tcp Addr:127.0.0.1:3306 DBName:dbname Params:map[] Collation:utf8mb4_unicode_ci Loc:UTC TLSConfig: tls:<nil> Timeout:30s ReadTimeout:1s WriteTimeout:1s AllowAllFiles:true AllowCleartextPasswords:false AllowOldPasswords:true ClientFoundRows:true ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
+	{"user:p@ss(word)@tcp([de:ad:be:ef::ca:fe]:80)/dbname?loc=Local", "&{User:user Passwd:p@ss(word) Net:tcp Addr:[de:ad:be:ef::ca:fe]:80 DBName:dbname Params:map[] Collation:utf8_general_ci Loc:Local TLSConfig: tls:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
+	{"/dbname", "&{User: Passwd: Net:tcp Addr:127.0.0.1:3306 DBName:dbname Params:map[] Collation:utf8_general_ci Loc:UTC TLSConfig: tls:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
+	{"@/", "&{User: Passwd: Net:tcp Addr:127.0.0.1:3306 DBName: Params:map[] Collation:utf8_general_ci Loc:UTC TLSConfig: tls:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
+	{"/", "&{User: Passwd: Net:tcp Addr:127.0.0.1:3306 DBName: Params:map[] Collation:utf8_general_ci Loc:UTC TLSConfig: tls:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
+	{"", "&{User: Passwd: Net:tcp Addr:127.0.0.1:3306 DBName: Params:map[] Collation:utf8_general_ci Loc:UTC TLSConfig: tls:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
+	{"user:p@/ssword@/", "&{User:user Passwd:p@/ssword Net:tcp Addr:127.0.0.1:3306 DBName: Params:map[] Collation:utf8_general_ci Loc:UTC TLSConfig: tls:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
+	{"unix/?arg=%2Fsome%2Fpath.ext", "&{User: Passwd: Net:unix Addr:/tmp/mysql.sock DBName: Params:map[arg:/some/path.ext] Collation:utf8_general_ci Loc:UTC TLSConfig: tls:<nil> Timeout:0 ReadTimeout:0 WriteTimeout:0 AllowAllFiles:false AllowCleartextPasswords:false AllowOldPasswords:false ClientFoundRows:false ColumnsWithAlias:false InterpolateParams:false MultiStatements:false ParseTime:false Strict:false}"},
 }
 
 func TestDSNParser(t *testing.T) {
@@ -47,7 +47,7 @@ func TestDSNParser(t *testing.T) {
 		}
 
 		// pointer not static
-		cfg.TLS = nil
+		cfg.tls = nil
 
 		res = fmt.Sprintf("%+v", cfg)
 		if res != tst.out {
@@ -74,6 +74,32 @@ func TestDSNParserInvalid(t *testing.T) {
 	}
 }
 
+func TestDSNReformat(t *testing.T) {
+	for i, tst := range testDSNs {
+		dsn1 := tst.in
+		cfg1, err := ParseDSN(dsn1)
+		if err != nil {
+			t.Error(err.Error())
+			continue
+		}
+		cfg1.tls = nil // pointer not static
+		res1 := fmt.Sprintf("%+v", cfg1)
+
+		dsn2 := cfg1.FormatDSN()
+		cfg2, err := ParseDSN(dsn2)
+		if err != nil {
+			t.Error(err.Error())
+			continue
+		}
+		cfg2.tls = nil // pointer not static
+		res2 := fmt.Sprintf("%+v", cfg2)
+
+		if res1 != res2 {
+			t.Errorf("%d. %q does not match %q", i, res2, res1)
+		}
+	}
+}
+
 func TestDSNWithCustomTLS(t *testing.T) {
 	baseDSN := "User:password@tcp(localhost:5555)/dbname?tls="
 	tlsCfg := tls.Config{}
@@ -96,7 +122,7 @@ func TestDSNWithCustomTLS(t *testing.T) {
 
 	if err != nil {
 		t.Error(err.Error())
-	} else if cfg.TLS.ServerName != name {
+	} else if cfg.tls.ServerName != name {
 		t.Errorf("did not get the correct TLS ServerName (%s) parsing DSN (%s).", name, tst)
 	}
 
@@ -107,14 +133,14 @@ func TestDSNWithCustomTLS(t *testing.T) {
 
 	if err != nil {
 		t.Error(err.Error())
-	} else if cfg.TLS.ServerName != name {
+	} else if cfg.tls.ServerName != name {
 		t.Errorf("did not get the correct ServerName (%s) parsing DSN (%s).", name, tst)
 	}
 
 	DeregisterTLSConfig("utils_test")
 }
 
-func TestDSNWithCustomTLS_queryEscape(t *testing.T) {
+func TestDSNWithCustomTLSQueryEscape(t *testing.T) {
 	const configKey = "&%!:"
 	dsn := "User:password@tcp(localhost:5555)/dbname?tls=" + url.QueryEscape(configKey)
 	name := "foohost"
@@ -126,7 +152,7 @@ func TestDSNWithCustomTLS_queryEscape(t *testing.T) {
 
 	if err != nil {
 		t.Error(err.Error())
-	} else if cfg.TLS.ServerName != name {
+	} else if cfg.tls.ServerName != name {
 		t.Errorf("did not get the correct TLS ServerName (%s) parsing DSN (%s).", name, dsn)
 	}
 }
