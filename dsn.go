@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"bytes"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -33,12 +34,13 @@ type Config struct {
 	Addr         string            // Network address
 	DBName       string            // Database name
 	Params       map[string]string // Connection parameters
+	Collation    string            // Connection collation
 	Loc          *time.Location    // Location for time.Time values
-	TLS          *tls.Config       // TLS configuration
+	TLSConfig    string            // TLS configuration name
+	tls          *tls.Config       // TLS configuration
 	Timeout      time.Duration     // Dial timeout
 	ReadTimeout  time.Duration     // I/O read timeout
 	WriteTimeout time.Duration     // I/O write timeout
-	Collation    uint8             // Connection collation
 
 	AllowAllFiles           bool // Allow all files to be used with LOAD DATA LOCAL INFILE
 	AllowCleartextPasswords bool // Allows the cleartext client side plugin
@@ -49,6 +51,194 @@ type Config struct {
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
 	Strict                  bool // Return warnings as errors
+}
+
+// FormatDSN formats the given Config into a DSN string which can be passed to
+// the driver.
+func (cfg *Config) FormatDSN() string {
+	var buf bytes.Buffer
+
+	// [username[:password]@]
+	if len(cfg.User) > 0 {
+		buf.WriteString(cfg.User)
+		if len(cfg.Passwd) > 0 {
+			buf.WriteByte(':')
+			buf.WriteString(cfg.Passwd)
+		}
+		buf.WriteByte('@')
+	}
+
+	// [protocol[(address)]]
+	if len(cfg.Net) > 0 {
+		buf.WriteString(cfg.Net)
+		if len(cfg.Addr) > 0 {
+			buf.WriteByte('(')
+			buf.WriteString(cfg.Addr)
+			buf.WriteByte(')')
+		}
+	}
+
+	// /dbname
+	buf.WriteByte('/')
+	buf.WriteString(cfg.DBName)
+
+	// [?param1=value1&...&paramN=valueN]
+	hasParam := false
+
+	if cfg.AllowAllFiles {
+		hasParam = true
+		buf.WriteString("?allowAllFiles=true")
+	}
+
+	if cfg.AllowCleartextPasswords {
+		if hasParam {
+			buf.WriteString("&allowCleartextPasswords=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?allowCleartextPasswords=true")
+		}
+	}
+
+	if cfg.AllowOldPasswords {
+		if hasParam {
+			buf.WriteString("&allowOldPasswords=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?allowOldPasswords=true")
+		}
+	}
+
+	if cfg.ClientFoundRows {
+		if hasParam {
+			buf.WriteString("&clientFoundRows=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?clientFoundRows=true")
+		}
+	}
+
+	if col := cfg.Collation; col != defaultCollation && len(col) > 0 {
+		if hasParam {
+			buf.WriteString("&collation=")
+		} else {
+			hasParam = true
+			buf.WriteString("?collation=")
+		}
+		buf.WriteString(col)
+	}
+
+	if cfg.ColumnsWithAlias {
+		if hasParam {
+			buf.WriteString("&columnsWithAlias=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?columnsWithAlias=true")
+		}
+	}
+
+	if cfg.InterpolateParams {
+		if hasParam {
+			buf.WriteString("&interpolateParams=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?interpolateParams=true")
+		}
+	}
+
+	if cfg.Loc != time.UTC && cfg.Loc != nil {
+		if hasParam {
+			buf.WriteString("&loc=")
+		} else {
+			hasParam = true
+			buf.WriteString("?loc=")
+		}
+		buf.WriteString(url.QueryEscape(cfg.Loc.String()))
+	}
+
+	if cfg.MultiStatements {
+		if hasParam {
+			buf.WriteString("&multiStatements=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?multiStatements=true")
+		}
+	}
+
+	if cfg.ParseTime {
+		if hasParam {
+			buf.WriteString("&parseTime=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?parseTime=true")
+		}
+	}
+
+	if cfg.ReadTimeout > 0 {
+		if hasParam {
+			buf.WriteString("&readTimeout=")
+		} else {
+			hasParam = true
+			buf.WriteString("?readTimeout=")
+		}
+		buf.WriteString(cfg.ReadTimeout.String())
+	}
+
+	if cfg.Strict {
+		if hasParam {
+			buf.WriteString("&strict=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?strict=true")
+		}
+	}
+
+	if cfg.Timeout > 0 {
+		if hasParam {
+			buf.WriteString("&timeout=")
+		} else {
+			hasParam = true
+			buf.WriteString("?timeout=")
+		}
+		buf.WriteString(cfg.Timeout.String())
+	}
+
+	if len(cfg.TLSConfig) > 0 {
+		if hasParam {
+			buf.WriteString("&tls=")
+		} else {
+			hasParam = true
+			buf.WriteString("?tls=")
+		}
+		buf.WriteString(url.QueryEscape(cfg.TLSConfig))
+	}
+
+	if cfg.WriteTimeout > 0 {
+		if hasParam {
+			buf.WriteString("&writeTimeout=")
+		} else {
+			hasParam = true
+			buf.WriteString("?writeTimeout=")
+		}
+		buf.WriteString(cfg.WriteTimeout.String())
+	}
+
+	// other params
+	if cfg.Params != nil {
+		for param, value := range cfg.Params {
+			if hasParam {
+				buf.WriteByte('&')
+			} else {
+				hasParam = true
+				buf.WriteByte('?')
+			}
+
+			buf.WriteString(param)
+			buf.WriteByte('=')
+			buf.WriteString(url.QueryEscape(value))
+		}
+	}
+
+	return buf.String()
 }
 
 // ParseDSN parses the DSN string to a Config
@@ -196,15 +386,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// Collation
 		case "collation":
-			collation, ok := collations[value]
-			if !ok {
-				// Note possibility for false negatives:
-				// could be triggered  although the collation is valid if the
-				// collations map does not contain entries the server supports.
-				err = errors.New("unknown collation")
-				return
-			}
-			cfg.Collation = collation
+			cfg.Collation = value
 			break
 
 		case "columnsWithAlias":
@@ -279,14 +461,21 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			boolValue, isBool := readBool(value)
 			if isBool {
 				if boolValue {
-					cfg.TLS = &tls.Config{}
+					cfg.TLSConfig = "true"
+					cfg.tls = &tls.Config{}
+				} else {
+					cfg.TLSConfig = "false"
 				}
-			} else if value, err := url.QueryUnescape(value); err != nil {
-				return fmt.Errorf("invalid value for TLS config name: %v", err)
+			} else if vl := strings.ToLower(value); vl == "skip-verify" {
+				cfg.TLSConfig = vl
+				cfg.tls = &tls.Config{InsecureSkipVerify: true}
 			} else {
-				if strings.ToLower(value) == "skip-verify" {
-					cfg.TLS = &tls.Config{InsecureSkipVerify: true}
-				} else if tlsConfig, ok := tlsConfigRegister[value]; ok {
+				name, err := url.QueryUnescape(value)
+				if err != nil {
+					return fmt.Errorf("invalid value for TLS config name: %v", err)
+				}
+
+				if tlsConfig, ok := tlsConfigRegister[name]; ok {
 					if len(tlsConfig.ServerName) == 0 && !tlsConfig.InsecureSkipVerify {
 						host, _, err := net.SplitHostPort(cfg.Addr)
 						if err == nil {
@@ -294,9 +483,10 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 						}
 					}
 
-					cfg.TLS = tlsConfig
+					cfg.TLSConfig = name
+					cfg.tls = tlsConfig
 				} else {
-					return errors.New("invalid value / unknown config name: " + value)
+					return errors.New("invalid value / unknown config name: " + name)
 				}
 			}
 
