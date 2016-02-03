@@ -93,6 +93,8 @@ This has the same effect as an empty DSN string:
 
 ```
 
+Alternatively, [Config.FormatDSN](https://godoc.org/github.com/go-sql-driver/mysql#FormatDSN) can be used to create a DSN string by filling a struct.
+
 #### Password
 Passwords can consist of any character. Escaping is **not** necessary.
 
