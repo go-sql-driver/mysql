@@ -9,15 +9,6 @@ Before creating a new Issue, please check first if a similar Issue [already exis
 By contributing to this project, you share your code under the Mozilla Public License 2, as specified in the LICENSE file.
 Don't forget to add yourself to the AUTHORS file.
 
-### Pull Requests Checklist
-
-Please check the following points before submitting your pull request:
-- [x] Code compiles correctly
-- [x] Created tests, if possible
-- [x] All tests pass
-- [x] Extended the README / documentation, if necessary
-- [x] Added yourself to the AUTHORS file
-
 ### Code Review
 
 Everyone is invited to review and comment on pull requests.
