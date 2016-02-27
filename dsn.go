@@ -71,11 +71,12 @@ func (cfg *Config) FormatDSN() string {
 	// [protocol[(address)]]
 	if len(cfg.Net) > 0 {
 		buf.WriteString(cfg.Net)
-		if len(cfg.Addr) > 0 {
-			buf.WriteByte('(')
-			buf.WriteString(cfg.Addr)
-			buf.WriteByte(')')
-		}
+	}
+
+	if len(cfg.Addr) > 0 {
+		buf.WriteByte('(')
+		buf.WriteString(cfg.Addr)
+		buf.WriteByte(')')
 	}
 
 	// /dbname
