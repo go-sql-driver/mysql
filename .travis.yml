@@ -7,5 +7,17 @@ go:
   - 1.5
   - tip
 
+matrix:
+  include:
+    - go: 1.5
+      addons:
+         mariadb: 5.5
+    - go: 1.5
+      addons:
+         mariadb: "10.0"
+    - go: 1.5
+      addons:
+         mariadb: 10.1
+
 before_script:
-  - mysql -e 'create database gotest;'
+  - mysql -e "create database /*M!50701 IF NOT EXISTS */ gotest;"
