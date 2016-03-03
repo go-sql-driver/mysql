@@ -365,7 +365,7 @@ func TestInt(t *testing.T) {
 	})
 }
 
-func TestFloat(t *testing.T) {
+func TestFloat32(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		types := [2]string{"FLOAT", "DOUBLE"}
 		in := float32(42.23)
@@ -379,6 +379,52 @@ func TestFloat(t *testing.T) {
 				rows.Scan(&out)
 				if in != out {
 					dbt.Errorf("%s: %g != %g", v, in, out)
+				}
+			} else {
+				dbt.Errorf("%s: no data", v)
+			}
+			dbt.mustExec("DROP TABLE IF EXISTS test")
+		}
+	})
+}
+
+func TestFloat64(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		types := [2]string{"FLOAT", "DOUBLE"}
+		var expected float64 = 42.23
+		var out float64
+		var rows *sql.Rows
+		for _, v := range types {
+			dbt.mustExec("CREATE TABLE test (value " + v + ")")
+			dbt.mustExec("INSERT INTO test VALUES (42.23)")
+			rows = dbt.mustQuery("SELECT value FROM test")
+			if rows.Next() {
+				rows.Scan(&out)
+				if expected != out {
+					dbt.Errorf("%s: %g != %g", v, expected, out)
+				}
+			} else {
+				dbt.Errorf("%s: no data", v)
+			}
+			dbt.mustExec("DROP TABLE IF EXISTS test")
+		}
+	})
+}
+
+func TestFloat64Placeholder(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		types := [2]string{"FLOAT", "DOUBLE"}
+		var expected float64 = 42.23
+		var out float64
+		var rows *sql.Rows
+		for _, v := range types {
+			dbt.mustExec("CREATE TABLE test (id int, value " + v + ")")
+			dbt.mustExec("INSERT INTO test VALUES (1, 42.23)")
+			rows = dbt.mustQuery("SELECT value FROM test WHERE id = ?", 1)
+			if rows.Next() {
+				rows.Scan(&out)
+				if expected != out {
+					dbt.Errorf("%s: %g != %g", v, expected, out)
 				}
 			} else {
 				dbt.Errorf("%s: no data", v)
