@@ -305,7 +305,7 @@ func TestMultiQuery(t *testing.T) {
 		if rows.Next() {
 			rows.Scan(&out)
 			if 5 != out {
-				dbt.Errorf("5 != %t", out)
+				dbt.Errorf("5 != %d", out)
 			}
 
 			if rows.Next() {
