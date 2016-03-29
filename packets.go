@@ -17,6 +17,9 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
+	"path"
+	"runtime"
 	"time"
 )
 
@@ -175,10 +178,15 @@ func (mc *mysqlConn) readInitPacket() ([]byte, error) {
 	if len(data) > pos {
 		// character set [1 byte]
 		// status flags [2 bytes]
+		pos += 1 + 2
+
 		// capability flags (upper 2 bytes) [2 bytes]
+		mc.flags |= (clientFlag(binary.LittleEndian.Uint16(data[pos:pos+2])) << 16)
+		pos += 2
+
 		// length of auth-plugin-data [1 byte]
 		// reserved (all [00]) [10 bytes]
-		pos += 1 + 2 + 2 + 1 + 10
+		pos += 1 + 10
 
 		// second part of the password cipher [mininum 13 bytes],
 		// where len=MAX(13, length of auth-plugin-data - 8)
@@ -245,6 +253,40 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	scrambleBuff := scramblePassword(cipher, []byte(mc.cfg.Passwd))
 
 	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1 + 1 + len(scrambleBuff) + 21 + 1
+
+	// Default connection attributes
+	attrlen := 0
+	var attrs map[string]string
+	if mc.flags&clientConnectAttrs != 0 {
+		clientFlags |= clientConnectAttrs
+
+		attrs = map[string]string{
+			"_os":          runtime.GOOS,
+			"_client_name": "Go-MySQL-Driver",
+			"_pid":         pid,
+			"_platform":    runtime.GOARCH,
+			"program_name": path.Base(os.Args[0]),
+		}
+		if len(os_user_full) > 0 {
+			attrs["_os_user_full"] = os_user_full
+		}
+		if len(os_user) > 0 {
+			attrs["_os_user"] = os_user
+		}
+
+		// Merge the custom attributes and the default attributes
+		for cfganame, cfgaval := range mc.cfg.ConnAttrs {
+			attrs[cfganame] = cfgaval
+		}
+
+		for attrname, attrvalue := range attrs {
+			attrlen += len(attrname) + len(attrvalue)
+			// one byte to store attrname length and one byte to store attrvalue length
+			attrlen += 2
+		}
+
+		pktLen += attrlen + 1 // one byte to store the total length of attrs
+	}
 
 	// To specify a db name
 	if n := len(mc.cfg.DBName); n > 0 {
@@ -326,6 +368,21 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	// Assume native client during response
 	pos += copy(data[pos:], "mysql_native_password")
 	data[pos] = 0x00
+	pos++
+
+	// Connection attributes
+	if attrlen > 0 {
+		data[pos] = byte(attrlen)
+		pos++
+
+		for attrname, attrvalue := range attrs {
+			data[pos] = byte(len(attrname))
+			pos += 1 + copy(data[pos+1:], attrname)
+
+			data[pos] = byte(len(attrvalue))
+			pos += 1 + copy(data[pos+1:], attrvalue)
+		}
+	}
 
 	// Send Auth packet
 	return mc.writePacket(data)
