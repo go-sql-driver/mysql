@@ -34,8 +34,8 @@ type MySQLDriver struct{}
 type DialFunc func(addr string) (net.Conn, error)
 
 var pid string
-var os_user string
-var os_user_full string
+var osUser string
+var osUserFull string
 
 var dials map[string]DialFunc
 
@@ -171,10 +171,10 @@ func handleAuthResult(mc *mysqlConn, cipher []byte) error {
 
 func init() {
 	pid = strconv.Itoa(os.Getpid())
-	os_user_entry, err := user.Current()
+	osUserEntry, err := user.Current()
 	if err == nil {
-		os_user_full = os_user_entry.Name
-		os_user = os_user_entry.Username
+		osUserFull = osUserEntry.Name
+		osUser = osUserEntry.Username
 	}
 	sql.Register("mysql", &MySQLDriver{})
 }

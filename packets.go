@@ -267,11 +267,11 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 			"_platform":    runtime.GOARCH,
 			"program_name": path.Base(os.Args[0]),
 		}
-		if len(os_user_full) > 0 {
-			attrs["_os_user_full"] = os_user_full
+		if len(osUserFull) > 0 {
+			attrs["_os_user_full"] = osUserFull
 		}
-		if len(os_user) > 0 {
-			attrs["_os_user"] = os_user
+		if len(osUser) > 0 {
+			attrs["_os_user"] = osUser
 		}
 
 		// Merge the custom attributes and the default attributes
