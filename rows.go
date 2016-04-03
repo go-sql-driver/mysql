@@ -22,8 +22,9 @@ type mysqlField struct {
 }
 
 type resultSet struct {
-	columns []mysqlField
-	done    bool
+	columns     []mysqlField
+	columnNames []string
+	done        bool
 }
 
 type mysqlRows struct {
@@ -40,6 +41,10 @@ type textRows struct {
 }
 
 func (rows *mysqlRows) Columns() []string {
+	if rows.rs.columnNames != nil {
+		return rows.rs.columnNames
+	}
+
 	columns := make([]string, len(rows.rs.columns))
 	if rows.mc != nil && rows.mc.cfg.ColumnsWithAlias {
 		for i := range columns {
@@ -54,6 +59,8 @@ func (rows *mysqlRows) Columns() []string {
 			columns[i] = rows.rs.columns[i].name
 		}
 	}
+
+	rows.rs.columnNames = columns
 	return columns
 }
 
