@@ -28,19 +28,20 @@ var (
 
 // Config is a configuration parsed from a DSN string
 type Config struct {
-	User         string            // Username
-	Passwd       string            // Password (requires User)
-	Net          string            // Network type
-	Addr         string            // Network address (requires Net)
-	DBName       string            // Database name
-	Params       map[string]string // Connection parameters
-	Collation    string            // Connection collation
-	Loc          *time.Location    // Location for time.Time values
-	TLSConfig    string            // TLS configuration name
-	tls          *tls.Config       // TLS configuration
-	Timeout      time.Duration     // Dial timeout
-	ReadTimeout  time.Duration     // I/O read timeout
-	WriteTimeout time.Duration     // I/O write timeout
+	User            string            // Username
+	Passwd          string            // Password (requires User)
+	Net             string            // Network type
+	Addr            string            // Network address (requires Net)
+	DBName          string            // Database name
+	Params          map[string]string // Connection parameters
+	Collation       string            // Connection collation
+	Loc             *time.Location    // Location for time.Time values
+	TLSConfig       string            // TLS configuration name
+	tls             *tls.Config       // TLS configuration
+	Timeout         time.Duration     // Dial timeout
+	KeepAlivePeriod time.Duration     // TCP keep alive period
+	ReadTimeout     time.Duration     // I/O read timeout
+	WriteTimeout    time.Duration     // I/O write timeout
 
 	AllowAllFiles           bool // Allow all files to be used with LOAD DATA LOCAL INFILE
 	AllowCleartextPasswords bool // Allows the cleartext client side plugin
@@ -143,6 +144,16 @@ func (cfg *Config) FormatDSN() string {
 			hasParam = true
 			buf.WriteString("?interpolateParams=true")
 		}
+	}
+
+	if cfg.KeepAlivePeriod > 0 {
+		if hasParam {
+			buf.WriteString("&keepAlivePeriod=")
+		} else {
+			hasParam = true
+			buf.WriteString("?keepAlivePeriod=")
+		}
+		buf.WriteString(cfg.KeepAlivePeriod.String())
 	}
 
 	if cfg.Loc != time.UTC && cfg.Loc != nil {
@@ -406,6 +417,13 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			cfg.InterpolateParams, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
+			}
+
+		// TCP keep alive period
+		case "keepAlivePeriod":
+			cfg.KeepAlivePeriod, err = time.ParseDuration(value)
+			if err != nil {
+				return
 			}
 
 		// Time Location
