@@ -207,6 +207,15 @@ If `interpolateParams` is true, placeholders (`?`) in calls to `db.Query()` and 
 
 *This can not be used together with the multibyte encodings BIG5, CP932, GB2312, GBK or SJIS. These are blacklisted as they may [introduce a SQL injection vulnerability](http://stackoverflow.com/a/12118602/3430118)!*
 
+##### `keepAlivePeriod`
+
+```
+Type:           decimal number
+Default:        OS default
+```
+
+*Driver* side TCP keepalive period. The value must be a decimal number with an unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*.
+
 ##### `loc`
 
 ```

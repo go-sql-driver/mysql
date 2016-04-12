@@ -73,7 +73,13 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 
 	// Enable TCP Keepalives on TCP connections
 	if tc, ok := mc.netConn.(*net.TCPConn); ok {
-		if err := tc.SetKeepAlive(true); err != nil {
+		err := tc.SetKeepAlive(true)
+
+		if err != nil && mc.cfg.KeepAlivePeriod > 0 {
+			err = tc.SetKeepAlivePeriod(mc.cfg.KeepAlivePeriod)
+		}
+
+		if err != nil {
 			// Don't send COM_QUIT before handshake.
 			mc.netConn.Close()
 			mc.netConn = nil
