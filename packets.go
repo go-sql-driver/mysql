@@ -535,6 +535,7 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 	//If error code is for Connection was killed, then return bad connection.
 	//https://mariadb.com/kb/en/mariadb/mariadb-error-codes/
 	if errno == 1927 {
+		errLog.Print(string(data[pos:]))
 		return driver.ErrBadConn
 	}
 
