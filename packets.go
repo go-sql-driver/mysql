@@ -50,6 +50,8 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 				return nil, ErrPktSyncMul
 			}
 
+			//When MySQL server is shutdown a packet with a zero sequence seems
+			//to be sent to the old connection which is read on next query.
 			if data[3] == 0 {
 				mc.Close()
 				return nil, driver.ErrBadConn
