@@ -53,7 +53,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 			//When MariaDB server is shutdown connection killed packet is sent
 			//with a zero sequence number.
 			//Continue to process it so the specific error can be detected.
-			if data[3] > 0 {
+			if data[3] != 0 {
 				return nil, ErrPktSync
 			}
 		}
