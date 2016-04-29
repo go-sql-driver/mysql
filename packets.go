@@ -49,8 +49,15 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 			if data[3] > mc.sequence {
 				return nil, ErrPktSyncMul
 			}
+
+			if data[3] == 0 {
+				mc.Close()
+				return nil, driver.ErrBadConn
+			}
+
 			return nil, ErrPktSync
 		}
+
 		mc.sequence++
 
 		// Read packet body [pktLen bytes]
