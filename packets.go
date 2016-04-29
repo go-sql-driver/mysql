@@ -50,14 +50,12 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 				return nil, ErrPktSyncMul
 			}
 
-			//When MySQL server is shutdown a packet with a zero sequence seems
-			//to be sent to the old connection which is read on next query.
-			if data[3] == 0 {
-				mc.Close()
-				return nil, driver.ErrBadConn
+			//When MariaDB server is shutdown connection killed packet is sent
+			//with a zero sequence number.
+			//Continue to process it so the specific error can be detected.
+			if data[3] > 0 {
+				return nil, ErrPktSync
 			}
-
-			return nil, ErrPktSync
 		}
 
 		mc.sequence++
@@ -532,6 +530,12 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 	if data[3] == 0x23 {
 		//sqlstate := string(data[4 : 4+5])
 		pos = 9
+	}
+
+	//If error code is for Connection was killed, then return bad connection.
+	//https://mariadb.com/kb/en/mariadb/mariadb-error-codes/
+	if errno == 1927 {
+		return driver.ErrBadConn
 	}
 
 	// Error Message [string]
