@@ -231,7 +231,7 @@ func BenchmarkParseDSN(b *testing.B) {
 }
 
 func TestUnescapeUser(t *testing.T) {
-	dsn := "testdb%25dbuser:password@tcp(localhost:5555)/?unEscapeUser=true"
+	dsn := "testdb%25dbuser:password@tcp(localhost:5555)/?unescapeUser=true"
 	user := "testdb%dbuser"
 	cfg, err := ParseDSN(dsn)
 

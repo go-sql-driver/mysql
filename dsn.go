@@ -51,7 +51,7 @@ type Config struct {
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
 	Strict                  bool // Return warnings as errors
-	UnEscapeUser            bool // UnEscape username such as testdb%25testuesr:password.....
+	UnescapeUser            bool // UnEscape username such as testdb%25testuesr:password.....
 }
 
 // FormatDSN formats the given Config into a DSN string which can be passed to
@@ -354,14 +354,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		switch value := param[1]; param[0] {
 
 		// Disable INFILE whitelist / enable all files
-		case "unEscapeUser":
+		case "unescapeUser":
 			var isBool bool
-			cfg.UnEscapeUser, isBool = readBool(value)
+			cfg.UnescapeUser, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}
 
-			if cfg.UnEscapeUser {
+			if cfg.UnescapeUser {
 				var err error
 				cfg.User, err = url.QueryUnescape(cfg.User)
 				if err != nil {

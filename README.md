@@ -299,6 +299,16 @@ Default:        0
 I/O write timeout. The value must be a decimal number with an unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
 
+##### `unescapeUser`
+
+```
+Type:           bool
+Default:        false
+```
+
+`unescapeUser=true` let the library unescape `user`, sometimes the dsn looks like "testdb%25dbuser..." .
+
+
 ##### System Variables
 
 All other parameters are interpreted as system variables:
