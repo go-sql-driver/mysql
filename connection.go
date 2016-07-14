@@ -144,6 +144,10 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 	buf = buf[:0]
 	argPos := 0
 
+	if len(args) != strings.Count(query, "?") {
+		return "", ErrArgsInvalid
+	}
+
 	for i := 0; i < len(query); i++ {
 		q := strings.IndexByte(query[i:], '?')
 		if q == -1 {
