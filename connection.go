@@ -26,6 +26,7 @@ type mysqlConn struct {
 	maxPacketAllowed int
 	maxWriteSize     int
 	flags            clientFlag
+	status           statusFlag
 	sequence         uint8
 	parseTime        bool
 	strict           bool

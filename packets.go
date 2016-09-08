@@ -214,6 +214,8 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 		clientLongPassword |
 		clientTransactions |
 		clientLocalFiles |
+		clientMultiStatements |
+		clientMultiResults |		
 		mc.flags&clientLongFlag
 
 	if mc.cfg.clientFoundRows {
@@ -470,6 +472,11 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 	}
 }
 
+// read status packet  by wonderfl from 
+func readStatus(b []byte) statusFlag {
+	return statusFlag(b[0]) | statusFlag(b[1])<<8
+}
+
 // Ok Packet
 // http://dev.mysql.com/doc/internals/en/generic-response-packets.html#packet-OK_Packet
 func (mc *mysqlConn) handleOkPacket(data []byte) error {
@@ -484,6 +491,10 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 	mc.insertId, _, m = readLengthEncodedInteger(data[1+n:])
 
 	// server_status [2 bytes]
+	mc.status = readStatus(data[1+n+m : 1+n+m+2])
+	if err := mc.discardResults(); err != nil {
+		return err
+	}	
 
 	// warning count [2 bytes]
 	if !mc.strict {
@@ -592,6 +603,13 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 
 	// EOF Packet
 	if data[0] == iEOF && len(data) == 5 {
+		// server_status [2 bytes]
+		rows.mc.status = readStatus(data[3:])
+		if err := rows.mc.discardResults(); err != nil {
+			return err
+		}
+
+		rows.mc = nil		
 		return io.EOF
 	}
 
@@ -644,6 +662,11 @@ func (mc *mysqlConn) readUntilEOF() error {
 		if err == nil && data[0] != iEOF {
 			continue
 		}
+
+		if err == nil && data[0] == iEOF && len(data) == 5 {
+			mc.status = readStatus(data[3:])
+		}
+
 		return err // Err or EOF
 	}
 }
@@ -948,6 +971,29 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	return mc.writePacket(data)
 }
 
+func (mc *mysqlConn) discardResults() error {
+	for mc.status & statusMoreResultsExists != 0 {
+		resLen, err := mc.readResultSetHeaderPacket()
+		if err != nil {
+			return err
+		}
+		if resLen > 0 {
+			// columns
+			if err := mc.readUntilEOF(); err != nil {
+				return err
+			}
+			// rows
+			if err := mc.readUntilEOF(); err != nil {
+				return err
+			}
+		} else {
+			mc.status &^= statusMoreResultsExists
+		}
+	}
+	return nil
+}
+
+
 // http://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html
 func (rows *binaryRows) readRow(dest []driver.Value) error {
 	data, err := rows.mc.readPacket()
@@ -959,8 +1005,14 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 	if data[0] != iOK {
 		// EOF Packet
 		if data[0] == iEOF && len(data) == 5 {
+			rows.mc.status = readStatus(data[3:])
+			if err := rows.mc.discardResults(); err != nil {
+				return err
+			}
+			rows.mc = nil
 			return io.EOF
 		}
+		rows.mc = nil
 
 		// Error otherwise
 		return rows.mc.handleErrorPacket(data)
