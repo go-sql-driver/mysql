@@ -339,7 +339,7 @@ id:password@tcp(your-amazonaws-uri.com:3306)/dbname
 
 Google Cloud SQL on App Engine:
 ```
-user@cloudsql(project-id:instance-name)/dbname
+user@cloudsql(project-id:region:instance-name)/dbname
 ```
 
 TCP using default port (3306) on localhost:
