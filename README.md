@@ -341,6 +341,7 @@ Google Cloud SQL on App Engine:
 ```
 user@cloudsql(project-id:region:instance-name)/dbname
 ```
+See: https://cloud.google.com/appengine/docs/go/cloud-sql/#Setting_up
 
 TCP using default port (3306) on localhost:
 ```
