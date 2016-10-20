@@ -299,6 +299,15 @@ Default:        0
 I/O write timeout. The value must be a decimal number with an unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
 
+##### `maxPacketAllowed`
+```
+Type:          decimal number
+Default:       0
+```
+
+Max MySQL packet size allowed in bytes. Use `maxPacketAllowed` == 0 to fetch the `max_allowed_packet` variable from server.
+
+
 ##### System Variables
 
 All other parameters are interpreted as system variables:
