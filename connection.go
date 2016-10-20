@@ -153,6 +153,9 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 		buf = append(buf, query[i:i+q]...)
 		i += q
 
+		if argPos >= len(args) {
+			return "", driver.ErrSkip
+		}
 		arg := args[argPos]
 		argPos++
 
