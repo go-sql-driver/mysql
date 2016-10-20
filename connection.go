@@ -135,6 +135,11 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 }
 
 func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (string, error) {
+	// Number of ? should be same to len(args)
+	if strings.Count(query, "?") != len(args) {
+		return "", driver.ErrSkip
+	}
+
 	buf := mc.buf.takeCompleteBuffer()
 	if buf == nil {
 		// can not take the buffer. Something must be wrong with the connection
