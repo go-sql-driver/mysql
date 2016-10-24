@@ -45,6 +45,7 @@ type Config struct {
 	AllowAllFiles           bool // Allow all files to be used with LOAD DATA LOCAL INFILE
 	AllowCleartextPasswords bool // Allows the cleartext client side plugin
 	AllowOldPasswords       bool // Allows the old insecure password method
+	AllowNativePasswords	bool // Allows mysql native password authentication method
 	ClientFoundRows         bool // Return number of matching rows instead of rows changed
 	ColumnsWithAlias        bool // Prepend table alias to column names
 	InterpolateParams       bool // Interpolate placeholders into query string
@@ -372,6 +373,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		case "allowOldPasswords":
 			var isBool bool
 			cfg.AllowOldPasswords, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+
+			// Use mysql native password authentication
+		case "allowNativePasswords":
+			var isBool bool
+			cfg.AllowNativePasswords, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}
