@@ -305,7 +305,7 @@ Type:          decimal number
 Default:       0
 ```
 
-Max MySQL packet size allowed in bytes. Use `maxPacketAllowed` == 0 to fetch the `max_allowed_packet` variable from server.
+Max packet size allowed in bytes. Use `maxPacketAllowed` = 0 to automatically fetch the `max_allowed_packet` variable from server.
 
 
 ##### System Variables
