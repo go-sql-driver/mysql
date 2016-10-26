@@ -22,7 +22,7 @@ type mysqlConn struct {
 	affectedRows     uint64
 	insertId         uint64
 	cfg              *Config
-	maxPacketAllowed int
+	maxAllowedPacket int
 	maxWriteSize     int
 	writeTimeout     time.Duration
 	flags            clientFlag
@@ -246,7 +246,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 			return "", driver.ErrSkip
 		}
 
-		if len(buf)+4 > mc.maxPacketAllowed {
+		if len(buf)+4 > mc.maxAllowedPacket {
 			return "", driver.ErrSkip
 		}
 	}

@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -28,19 +29,20 @@ var (
 
 // Config is a configuration parsed from a DSN string
 type Config struct {
-	User         string            // Username
-	Passwd       string            // Password (requires User)
-	Net          string            // Network type
-	Addr         string            // Network address (requires Net)
-	DBName       string            // Database name
-	Params       map[string]string // Connection parameters
-	Collation    string            // Connection collation
-	Loc          *time.Location    // Location for time.Time values
-	TLSConfig    string            // TLS configuration name
-	tls          *tls.Config       // TLS configuration
-	Timeout      time.Duration     // Dial timeout
-	ReadTimeout  time.Duration     // I/O read timeout
-	WriteTimeout time.Duration     // I/O write timeout
+	User             string            // Username
+	Passwd           string            // Password (requires User)
+	Net              string            // Network type
+	Addr             string            // Network address (requires Net)
+	DBName           string            // Database name
+	Params           map[string]string // Connection parameters
+	Collation        string            // Connection collation
+	Loc              *time.Location    // Location for time.Time values
+	MaxAllowedPacket int               // Max packet size allowed
+	TLSConfig        string            // TLS configuration name
+	tls              *tls.Config       // TLS configuration
+	Timeout          time.Duration     // Dial timeout
+	ReadTimeout      time.Duration     // I/O read timeout
+	WriteTimeout     time.Duration     // I/O write timeout
 
 	AllowAllFiles           bool // Allow all files to be used with LOAD DATA LOCAL INFILE
 	AllowCleartextPasswords bool // Allows the cleartext client side plugin
@@ -220,6 +222,17 @@ func (cfg *Config) FormatDSN() string {
 			buf.WriteString("?writeTimeout=")
 		}
 		buf.WriteString(cfg.WriteTimeout.String())
+	}
+
+	if cfg.MaxAllowedPacket > 0 {
+		if hasParam {
+			buf.WriteString("&maxAllowedPacket=")
+		} else {
+			hasParam = true
+			buf.WriteString("?maxAllowedPacket=")
+		}
+		buf.WriteString(strconv.Itoa(cfg.MaxAllowedPacket))
+
 	}
 
 	// other params
@@ -496,7 +509,11 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			if err != nil {
 				return
 			}
-
+		case "maxAllowedPacket":
+			cfg.MaxAllowedPacket, err = strconv.Atoi(value)
+			if err != nil {
+				return
+			}
 		default:
 			// lazy init
 			if cfg.Params == nil {

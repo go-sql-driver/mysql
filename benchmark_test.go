@@ -220,7 +220,7 @@ func BenchmarkInterpolation(b *testing.B) {
 			InterpolateParams: true,
 			Loc:               time.UTC,
 		},
-		maxPacketAllowed: maxPacketSize,
+		maxAllowedPacket: maxPacketSize,
 		maxWriteSize:     maxPacketSize - 1,
 		buf:              newBuffer(nil),
 	}

@@ -301,6 +301,15 @@ Default:        0
 I/O write timeout. The value must be a decimal number with an unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
 
+##### `maxAllowedPacket`
+```
+Type:          decimal number
+Default:       0
+```
+
+Max packet size allowed in bytes. Use `maxAllowedPacket=0` to automatically fetch the `max_allowed_packet` variable from server.
+
+
 ##### System Variables
 
 All other parameters are interpreted as system variables:
