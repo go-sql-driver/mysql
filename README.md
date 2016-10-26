@@ -267,7 +267,7 @@ Default:        false
 
 A server-side strict mode, which is safe for production use, can be set via the [`sql_mode`](https://dev.mysql.com/doc/refman/5.7/en/sql-mode.html) system variable.
 
-By default MySQL also treats notes as warnings. Use [`sql_notes=false`](http://dev.mysql.com/doc/refman/5.7/en/server-system-variables.html#sysvar_sql_notes) to ignore notes. See the [examples](#examples) for an DSN example.
+By default MySQL also treats notes as warnings. Use [`sql_notes=false`](http://dev.mysql.com/doc/refman/5.7/en/server-system-variables.html#sysvar_sql_notes) to ignore notes.
 
 
 ##### `timeout`
@@ -324,9 +324,9 @@ root:pw@unix(/tmp/mysql.sock)/myDatabase?loc=Local
 user:password@tcp(localhost:5555)/dbname?tls=skip-verify&autocommit=true
 ```
 
-Use the [strict mode](#strict) but ignore notes:
+Treat warnings as errors by setting the system variable [`sql_mode`](https://dev.mysql.com/doc/refman/5.7/en/sql-mode.html):
 ```
-user:password@/dbname?strict=true&sql_notes=false
+user:password@/dbname?sql_mode=TRADITIONAL
 ```
 
 TCP via IPv6:
