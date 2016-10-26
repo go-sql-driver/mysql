@@ -109,8 +109,8 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		return nil, err
 	}
 
-	if mc.cfg.MaxPacketAllowed > 0 {
-		mc.maxPacketAllowed = mc.cfg.MaxPacketAllowed
+	if mc.cfg.MaxAllowedPacket > 0 {
+		mc.maxPacketAllowed = mc.cfg.MaxAllowedPacket
 	} else {
 		// Get max allowed packet size
 		maxap, err := mc.getSystemVar("max_allowed_packet")

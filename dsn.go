@@ -52,7 +52,7 @@ type Config struct {
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
 	Strict                  bool // Return warnings as errors
-	MaxPacketAllowed	int  // Max packet size allowed
+	MaxAllowedPacket	int  // Max packet size allowed
 }
 
 // FormatDSN formats the given Config into a DSN string which can be passed to
@@ -224,14 +224,14 @@ func (cfg *Config) FormatDSN() string {
 		buf.WriteString(cfg.WriteTimeout.String())
 	}
 
-	if cfg.MaxPacketAllowed > 0 {
+	if cfg.MaxAllowedPacket > 0 {
 		if hasParam {
 			buf.WriteString("&maxPacketAllowed=")
 		} else {
 			hasParam = true
 			buf.WriteString("?maxPacketAllowed=")
 		}
-		buf.WriteString(strconv.Itoa(cfg.MaxPacketAllowed))
+		buf.WriteString(strconv.Itoa(cfg.MaxAllowedPacket))
 	
 	}
 
@@ -510,7 +510,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				return
 			}
 		case "maxPacketAllowed":
-			cfg.MaxPacketAllowed, err = strconv.Atoi(value)
+			cfg.MaxAllowedPacket, err = strconv.Atoi(value)
 			if err != nil {
 				return
 			}
