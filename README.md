@@ -221,6 +221,14 @@ Note that this sets the location for time.Time values but does not change MySQL'
 
 Please keep in mind, that param values must be [url.QueryEscape](http://golang.org/pkg/net/url/#QueryEscape)'ed. Alternatively you can manually replace the `/` with `%2F`. For example `US/Pacific` would be `loc=US%2FPacific`.
 
+##### `maxAllowedPacket`
+```
+Type:          decimal number
+Default:       0
+```
+
+Max packet size allowed in bytes. Use `maxAllowedPacket=0` to automatically fetch the `max_allowed_packet` variable from server.
+
 ##### `multiStatements`
 
 ```
@@ -232,7 +240,6 @@ Default:        false
 Allow multiple statements in one query. While this allows batch queries, it also greatly increases the risk of SQL injections. Only the result of the first query is returned, all other results are silently discarded.
 
 When `multiStatements` is used, `?` parameters must only be used in the first statement.
-
 
 ##### `parseTime`
 
@@ -254,7 +261,6 @@ Default:        0
 
 I/O read timeout. The value must be a decimal number with an unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
-
 ##### `strict`
 
 ```
@@ -267,7 +273,6 @@ Default:        false
 
 By default MySQL also treats notes as warnings. Use [`sql_notes=false`](http://dev.mysql.com/doc/refman/5.7/en/server-system-variables.html#sysvar_sql_notes) to ignore notes. See the [examples](#examples) for an DSN example.
 
-
 ##### `timeout`
 
 ```
@@ -276,7 +281,6 @@ Default:        OS default
 ```
 
 *Driver* side connection timeout. The value must be a decimal number with an unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*. To set a server side timeout, use the parameter [`wait_timeout`](http://dev.mysql.com/doc/refman/5.6/en/server-system-variables.html#sysvar_wait_timeout).
-
 
 ##### `tls`
 
@@ -288,7 +292,6 @@ Default:        false
 
 `tls=true` enables TLS / SSL encrypted connection to the server. Use `skip-verify` if you want to use a self-signed or invalid certificate (server side). Use a custom value registered with [`mysql.RegisterTLSConfig`](http://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).
 
-
 ##### `writeTimeout`
 
 ```
@@ -297,15 +300,6 @@ Default:        0
 ```
 
 I/O write timeout. The value must be a decimal number with an unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*.
-
-
-##### `maxAllowedPacket`
-```
-Type:          decimal number
-Default:       0
-```
-
-Max packet size allowed in bytes. Use `maxAllowedPacket=0` to automatically fetch the `max_allowed_packet` variable from server.
 
 
 ##### System Variables
