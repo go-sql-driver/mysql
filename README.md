@@ -144,14 +144,14 @@ Default:        false
 ```
 `allowOldPasswords=true` allows the usage of the insecure old password method. This should be avoided, but is necessary in some cases. See also [the old_passwords wiki page](https://github.com/go-sql-driver/mysql/wiki/old_passwords).
 
-##### `allowNativeasswords`
+##### `allowNativePasswords`
 
 ```
 Type:           bool
 Valid Values:   true, false
 Default:        false
 ```
-`allowNativeasswords=true` allows the usage of the mysql native password method..
+`allowNativePasswords=true` allows the usage of the mysql native password method.
 
 ##### `charset`
 

@@ -132,7 +132,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 
 func handleAuthResult(mc *mysqlConn) error {
 	// Read Result Packet
-	err, cipher := mc.readResultOK()
+	cipher, err := mc.readResultOK()
 	if err == nil {
 		return nil // auth successful
 	}
@@ -149,7 +149,7 @@ func handleAuthResult(mc *mysqlConn) error {
 		if err = mc.writeOldAuthPacket(cipher); err != nil {
 			return err
 		}
-		err, _ = mc.readResultOK()
+		_, err = mc.readResultOK()
 	} else if mc.cfg.AllowCleartextPasswords && err == ErrCleartextPassword {
 		// Retry with clear text password for
 		// http://dev.mysql.com/doc/refman/5.7/en/cleartext-authentication-plugin.html
@@ -157,12 +157,12 @@ func handleAuthResult(mc *mysqlConn) error {
 		if err = mc.writeClearAuthPacket(); err != nil {
 			return err
 		}
-		err, _ = mc.readResultOK()
+		_, err = mc.readResultOK()
 	} else if mc.cfg.AllowNativePasswords && err == ErrNativePassword {
 		if err = mc.writeNativeAuthPacket(cipher); err != nil {
 			return err
 		}
-		err, _ = mc.readResultOK()
+		_, err = mc.readResultOK()
 	}
 	return err
 }
