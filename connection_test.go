@@ -16,7 +16,7 @@ import (
 func TestInterpolateParams(t *testing.T) {
 	mc := &mysqlConn{
 		buf:              newBuffer(nil),
-		maxPacketAllowed: maxPacketSize,
+		maxAllowedPacket: maxPacketSize,
 		cfg: &Config{
 			InterpolateParams: true,
 		},
@@ -36,7 +36,7 @@ func TestInterpolateParams(t *testing.T) {
 func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
 	mc := &mysqlConn{
 		buf:              newBuffer(nil),
-		maxPacketAllowed: maxPacketSize,
+		maxAllowedPacket: maxPacketSize,
 		cfg: &Config{
 			InterpolateParams: true,
 		},
@@ -53,7 +53,7 @@ func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
 func TestInterpolateParamsPlaceholderInString(t *testing.T) {
 	mc := &mysqlConn{
 		buf:              newBuffer(nil),
-		maxPacketAllowed: maxPacketSize,
+		maxAllowedPacket: maxPacketSize,
 		cfg: &Config{
 			InterpolateParams: true,
 		},
