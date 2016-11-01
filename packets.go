@@ -372,6 +372,26 @@ func (mc *mysqlConn) writeClearAuthPacket() error {
 	return mc.writePacket(data)
 }
 
+//  Native password authentication method
+// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
+func (mc *mysqlConn) writeNativeAuthPacket(cipher []byte) error {
+	scrambleBuff := scramblePassword(cipher, []byte(mc.cfg.Passwd))
+
+	// Calculate the packet length and add a tailing 0
+	pktLen := len(scrambleBuff)
+	data := mc.buf.takeSmallBuffer(4 + pktLen)
+	if data == nil {
+		// can not take the buffer. Something must be wrong with the connection
+		errLog.Print(ErrBusyBuffer)
+		return driver.ErrBadConn
+	}
+
+	// Add the scramble
+	copy(data[4:], scrambleBuff)
+
+	return mc.writePacket(data)
+}
+
 /******************************************************************************
 *                             Command Packets                                 *
 ******************************************************************************/
@@ -445,36 +465,42 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 ******************************************************************************/
 
 // Returns error if Packet is not an 'Result OK'-Packet
-func (mc *mysqlConn) readResultOK() error {
+func (mc *mysqlConn) readResultOK() ([]byte, error) {
 	data, err := mc.readPacket()
 	if err == nil {
 		// packet indicator
 		switch data[0] {
 
 		case iOK:
-			return mc.handleOkPacket(data)
+			return nil, mc.handleOkPacket(data)
 
 		case iEOF:
 			if len(data) > 1 {
-				plugin := string(data[1:bytes.IndexByte(data, 0x00)])
+				pluginEndIndex := bytes.IndexByte(data, 0x00)
+				plugin := string(data[1:pluginEndIndex])
+				cipher := data[pluginEndIndex+1 : len(data)-1]
+
 				if plugin == "mysql_old_password" {
 					// using old_passwords
-					return ErrOldPassword
+					return cipher, ErrOldPassword
 				} else if plugin == "mysql_clear_password" {
 					// using clear text password
-					return ErrCleartextPassword
+					return cipher, ErrCleartextPassword
+				} else if plugin == "mysql_native_password" {
+					// using mysql default authentication method
+					return cipher, ErrNativePassword
 				} else {
-					return ErrUnknownPlugin
+					return cipher, ErrUnknownPlugin
 				}
 			} else {
-				return ErrOldPassword
+				return nil, ErrOldPassword
 			}
 
 		default: // Error otherwise
-			return mc.handleErrorPacket(data)
+			return nil, mc.handleErrorPacket(data)
 		}
 	}
-	return err
+	return nil, err
 }
 
 // Result Set Header Packet

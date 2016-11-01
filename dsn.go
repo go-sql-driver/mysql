@@ -46,6 +46,7 @@ type Config struct {
 
 	AllowAllFiles           bool // Allow all files to be used with LOAD DATA LOCAL INFILE
 	AllowCleartextPasswords bool // Allows the cleartext client side plugin
+	AllowNativePasswords    bool // Allows the native password authentication method
 	AllowOldPasswords       bool // Allows the old insecure password method
 	ClientFoundRows         bool // Return number of matching rows instead of rows changed
 	ColumnsWithAlias        bool // Prepend table alias to column names
@@ -98,6 +99,15 @@ func (cfg *Config) FormatDSN() string {
 		} else {
 			hasParam = true
 			buf.WriteString("?allowCleartextPasswords=true")
+		}
+	}
+
+	if cfg.AllowNativePasswords {
+		if hasParam {
+			buf.WriteString("&allowNativePasswords=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?allowNativePasswords=true")
 		}
 	}
 
@@ -377,6 +387,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		case "allowCleartextPasswords":
 			var isBool bool
 			cfg.AllowCleartextPasswords, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+
+		// Use native password authentication
+		case "allowNativePasswords":
+			var isBool bool
+			cfg.AllowNativePasswords, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}
