@@ -1855,3 +1855,50 @@ func TestUnixSocketAuthFail(t *testing.T) {
 		}
 	})
 }
+
+// See Issue #422
+func TestInterruptBySignal(t *testing.T) {
+	runTestsWithMultiStatement(t, dsn, func(dbt *DBTest) {
+		dbt.mustExec(`
+			DROP PROCEDURE IF EXISTS test_signal;
+			CREATE PROCEDURE test_signal(ret INT)
+			BEGIN
+				SELECT ret;
+				SIGNAL SQLSTATE
+					'45001'
+				SET
+					MESSAGE_TEXT = "an error",
+					MYSQL_ERRNO = 45001;
+			END
+		`)
+		defer dbt.mustExec("DROP PROCEDURE test_signal")
+
+		var val int
+
+		// text protocol
+		rows, err := dbt.db.Query("CALL test_signal(42)")
+		if err != nil {
+			dbt.Fatalf("error on text query: %s", err.Error())
+		}
+		for rows.Next() {
+			if err := rows.Scan(&val); err != nil {
+				dbt.Error(err)
+			} else if val != 42 {
+				dbt.Errorf("expected val to be 42")
+			}
+		}
+
+		// binary protocol
+		rows, err = dbt.db.Query("CALL test_signal(?)", 42)
+		if err != nil {
+			dbt.Fatalf("error on binary query: %s", err.Error())
+		}
+		for rows.Next() {
+			if err := rows.Scan(&val); err != nil {
+				dbt.Error(err)
+			} else if val != 42 {
+				dbt.Errorf("expected val to be 42")
+			}
+		}
+	})
+}
