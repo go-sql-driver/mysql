@@ -1,4 +1,4 @@
-## Version 1.3 (2016-11-16)
+## Version 1.3 (2016-12-01)
 
 Changes:
 
@@ -23,7 +23,7 @@ New Features:
  - Support for JSON field type (#414)
  - Support for multi-statements and multi-results (#411, #431)
  - DSN parameter to set the driver-side max_allowed_packet value manually (#489)
- - Native password authentication plugin support (#494)
+ - Native password authentication plugin support (#494, #524)
 
 Bugfixes:
 
