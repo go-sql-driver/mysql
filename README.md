@@ -260,11 +260,11 @@ Default:        false
 ##### `readTimeout`
 
 ```
-Type:           decimal number
+Type:           duration
 Default:        0
 ```
 
-I/O read timeout. The value must be a decimal number with an unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*.
+I/O read timeout. The value must be a decimal number with a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
 ##### `strict`
 
@@ -283,11 +283,11 @@ By default MySQL also treats notes as warnings. Use [`sql_notes=false`](http://d
 ##### `timeout`
 
 ```
-Type:           decimal number
+Type:           duration
 Default:        OS default
 ```
 
-*Driver* side connection timeout. The value must be a decimal number with an unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*. To set a server side timeout, use the parameter [`wait_timeout`](http://dev.mysql.com/doc/refman/5.6/en/server-system-variables.html#sysvar_wait_timeout).
+Timeout for establishing connections, aka dial timeout. The value must be a decimal number with a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*. To configure the duration after which connections are removed from the connection pool, use [*sql.DB.SetConnMaxLifetime](https://golang.org/pkg/database/sql/#DB.SetConnMaxLifetime).
 
 ##### `tls`
 
@@ -302,11 +302,11 @@ Default:        false
 ##### `writeTimeout`
 
 ```
-Type:           decimal number
+Type:           duration
 Default:        0
 ```
 
-I/O write timeout. The value must be a decimal number with an unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*.
+I/O write timeout. The value must be a decimal number with a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
 
 ##### System Variables
