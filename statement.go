@@ -110,10 +110,10 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 		// Columns
 		// If not cached, read them and cache them
 		if stmt.columns == nil {
-			rows.columns, err = mc.readColumns(resLen)
-			stmt.columns = rows.columns
+			rows.rs.columns, err = mc.readColumns(resLen)
+			stmt.columns = rows.rs.columns
 		} else {
-			rows.columns = stmt.columns
+			rows.rs.columns = stmt.columns
 			err = mc.readUntilEOF()
 		}
 	}

@@ -21,9 +21,14 @@ type mysqlField struct {
 	decimals  byte
 }
 
-type mysqlRows struct {
-	mc      *mysqlConn
+type resultSet struct {
 	columns []mysqlField
+	done    bool
+}
+
+type mysqlRows struct {
+	mc *mysqlConn
+	rs resultSet
 }
 
 type binaryRows struct {
@@ -37,24 +42,24 @@ type textRows struct {
 type emptyRows struct{}
 
 func (rows *mysqlRows) Columns() []string {
-	columns := make([]string, len(rows.columns))
+	columns := make([]string, len(rows.rs.columns))
 	if rows.mc != nil && rows.mc.cfg.ColumnsWithAlias {
 		for i := range columns {
-			if tableName := rows.columns[i].tableName; len(tableName) > 0 {
-				columns[i] = tableName + "." + rows.columns[i].name
+			if tableName := rows.rs.columns[i].tableName; len(tableName) > 0 {
+				columns[i] = tableName + "." + rows.rs.columns[i].name
 			} else {
-				columns[i] = rows.columns[i].name
+				columns[i] = rows.rs.columns[i].name
 			}
 		}
 	} else {
 		for i := range columns {
-			columns[i] = rows.columns[i].name
+			columns[i] = rows.rs.columns[i].name
 		}
 	}
 	return columns
 }
 
-func (rows *mysqlRows) Close() error {
+func (rows *mysqlRows) Close() (err error) {
 	mc := rows.mc
 	if mc == nil {
 		return nil
@@ -64,7 +69,9 @@ func (rows *mysqlRows) Close() error {
 	}
 
 	// Remove unread packets from stream
-	err := mc.readUntilEOF()
+	if !rows.rs.done {
+		err = mc.readUntilEOF()
+	}
 	if err == nil {
 		if err = mc.discardResults(); err != nil {
 			return err
@@ -99,6 +106,42 @@ func (rows *textRows) Next(dest []driver.Value) error {
 	return io.EOF
 }
 
+func (rows *textRows) HasNextResultSet() (b bool) {
+	if rows.mc == nil {
+		return false
+	}
+	return rows.mc.status&statusMoreResultsExists != 0
+}
+
+func (rows *textRows) NextResultSet() error {
+	if rows.mc == nil {
+		return io.EOF
+	}
+	if rows.mc.netConn == nil {
+		return ErrInvalidConn
+	}
+
+	// Remove unread packets from stream
+	if !rows.rs.done {
+		if err := rows.mc.readUntilEOF(); err != nil {
+			return err
+		}
+	}
+
+	if !rows.HasNextResultSet() {
+		return io.EOF
+	}
+	rows.rs = resultSet{}
+
+	resLen, err := rows.mc.readResultSetHeaderPacket()
+	if err != nil {
+		return err
+	}
+
+	rows.rs.columns, err = rows.mc.readColumns(resLen)
+	return err
+}
+
 func (rows emptyRows) Columns() []string {
 	return nil
 }
@@ -108,5 +151,13 @@ func (rows emptyRows) Close() error {
 }
 
 func (rows emptyRows) Next(dest []driver.Value) error {
+	return io.EOF
+}
+
+func (rows emptyRows) HasNextResultSet() bool {
+	return false
+}
+
+func (rows emptyRows) NextResultSet() error {
 	return io.EOF
 }

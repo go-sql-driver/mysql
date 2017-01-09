@@ -339,7 +339,7 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 				return emptyRows{}, nil
 			}
 			// Columns
-			rows.columns, err = mc.readColumns(resLen)
+			rows.rs.columns, err = mc.readColumns(resLen)
 			return rows, err
 		}
 	}
@@ -359,7 +359,7 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 	if err == nil {
 		rows := new(textRows)
 		rows.mc = mc
-		rows.columns = []mysqlField{{fieldType: fieldTypeVarChar}}
+		rows.rs.columns = []mysqlField{{fieldType: fieldTypeVarChar}}
 
 		if resLen > 0 {
 			// Columns
