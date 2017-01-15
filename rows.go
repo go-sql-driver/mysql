@@ -106,9 +106,11 @@ func (rows *mysqlRows) nextResultSet() (int, error) {
 		if err := rows.mc.readUntilEOF(); err != nil {
 			return 0, err
 		}
+		rows.rs.done = true
 	}
 
 	if !rows.HasNextResultSet() {
+		rows.mc = nil
 		return 0, io.EOF
 	}
 	rows.rs = resultSet{}

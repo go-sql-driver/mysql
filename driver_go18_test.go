@@ -167,3 +167,24 @@ func TestMultiResultSetNoSelect(t *testing.T) {
 		}
 	})
 }
+
+// tests if rows are set in a proper state if some results were ignored before
+// calling rows.NextResultSet.
+func TestSkipResults(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		rows := dbt.mustQuery("SELECT 1, 2")
+		defer rows.Close()
+
+		if !rows.Next() {
+			dbt.Error("expected row")
+		}
+
+		if rows.NextResultSet() {
+			dbt.Error("unexpected next result set")
+		}
+
+		if err := rows.Err(); err != nil {
+			dbt.Error("expected nil; got ", err)
+		}
+	})
+}
