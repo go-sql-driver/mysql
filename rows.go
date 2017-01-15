@@ -117,15 +117,25 @@ func (rows *mysqlRows) nextResultSet() (int, error) {
 	return rows.mc.readResultSetHeaderPacket()
 }
 
-func (rows *binaryRows) NextResultSet() error {
-	resLen, err := rows.nextResultSet()
+func (rows *mysqlRows) nextNotEmptyResultSet() (int, error) {
+	for {
+		resLen, err := rows.nextResultSet()
+		if err != nil {
+			return 0, err
+		}
+
+		if resLen > 0 {
+			return resLen, nil
+		}
+
+		rows.rs.done = true
+	}
+}
+
+func (rows *binaryRows) NextResultSet() (err error) {
+	resLen, err := rows.nextNotEmptyResultSet()
 	if err != nil {
 		return err
-	}
-
-	if resLen == 0 {
-		rows.rs.done = true
-		return rows.NextResultSet()
 	}
 
 	// get columns, if not cached, read them and cache them.
@@ -155,15 +165,10 @@ func (rows *binaryRows) Next(dest []driver.Value) error {
 	return io.EOF
 }
 
-func (rows *textRows) NextResultSet() error {
-	resLen, err := rows.nextResultSet()
+func (rows *textRows) NextResultSet() (err error) {
+	resLen, err := rows.nextNotEmptyResultSet()
 	if err != nil {
 		return err
-	}
-
-	if resLen == 0 {
-		rows.rs.done = true
-		return rows.NextResultSet()
 	}
 
 	rows.rs.columns, err = rows.mc.readColumns(resLen)
