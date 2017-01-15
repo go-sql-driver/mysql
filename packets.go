@@ -231,7 +231,6 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 		clientTransactions |
 		clientLocalFiles |
 		clientPluginAuth |
-		clientMultiStatements |
 		clientMultiResults |
 		mc.flags&clientLongFlag
 
@@ -585,8 +584,8 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 
 	// server_status [2 bytes]
 	mc.status = readStatus(data[1+n+m : 1+n+m+2])
-	if err := mc.discardResults(); err != nil {
-		return err
+	if mc.status&statusMoreResultsExists != 0 {
+		return nil
 	}
 
 	// warning count [2 bytes]
@@ -1098,8 +1097,6 @@ func (mc *mysqlConn) discardResults() error {
 			if err := mc.readUntilEOF(); err != nil {
 				return err
 			}
-		} else {
-			mc.status &^= statusMoreResultsExists
 		}
 	}
 	return nil
@@ -1118,15 +1115,10 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 		if data[0] == iEOF && len(data) == 5 {
 			rows.mc.status = readStatus(data[3:])
 			rows.rs.done = true
-			err = rows.mc.discardResults()
-			if err == nil {
-				err = io.EOF
-			} else {
-				// connection unusable
-				rows.mc.Close()
+			if !rows.HasNextResultSet() {
+				rows.mc = nil
 			}
-			rows.mc = nil
-			return err
+			return io.EOF
 		}
 		rows.mc = nil
 

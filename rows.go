@@ -33,13 +33,17 @@ type mysqlRows struct {
 
 type binaryRows struct {
 	mysqlRows
+	// stmtCols is a pointer to the statement's cached columns for different
+	// result sets.
+	stmtCols *[][]mysqlField
+	// i is a number of the current result set. It is used to fetch proper
+	// columns from stmtCols.
+	i int
 }
 
 type textRows struct {
 	mysqlRows
 }
-
-type emptyRows struct{}
 
 func (rows *mysqlRows) Columns() []string {
 	columns := make([]string, len(rows.rs.columns))
@@ -82,6 +86,61 @@ func (rows *mysqlRows) Close() (err error) {
 	return err
 }
 
+func (rows *mysqlRows) HasNextResultSet() (b bool) {
+	if rows.mc == nil {
+		return false
+	}
+	return rows.mc.status&statusMoreResultsExists != 0
+}
+
+func (rows *mysqlRows) nextResultSet() (int, error) {
+	if rows.mc == nil {
+		return 0, io.EOF
+	}
+	if rows.mc.netConn == nil {
+		return 0, ErrInvalidConn
+	}
+
+	// Remove unread packets from stream
+	if !rows.rs.done {
+		if err := rows.mc.readUntilEOF(); err != nil {
+			return 0, err
+		}
+	}
+
+	if !rows.HasNextResultSet() {
+		return 0, io.EOF
+	}
+	rows.rs = resultSet{}
+	return rows.mc.readResultSetHeaderPacket()
+}
+
+func (rows *binaryRows) NextResultSet() error {
+	resLen, err := rows.nextResultSet()
+	if err != nil {
+		return err
+	}
+
+	if resLen == 0 {
+		rows.rs.done = true
+		return rows.NextResultSet()
+	}
+
+	// get columns, if not cached, read them and cache them.
+	if rows.i >= len(*rows.stmtCols) {
+		rows.rs.columns, err = rows.mc.readColumns(resLen)
+		*rows.stmtCols = append(*rows.stmtCols, rows.rs.columns)
+	} else {
+		rows.rs.columns = (*rows.stmtCols)[rows.i]
+		if err := rows.mc.readUntilEOF(); err != nil {
+			return err
+		}
+	}
+
+	rows.i++
+	return nil
+}
+
 func (rows *binaryRows) Next(dest []driver.Value) error {
 	if mc := rows.mc; mc != nil {
 		if mc.netConn == nil {
@@ -94,6 +153,21 @@ func (rows *binaryRows) Next(dest []driver.Value) error {
 	return io.EOF
 }
 
+func (rows *textRows) NextResultSet() error {
+	resLen, err := rows.nextResultSet()
+	if err != nil {
+		return err
+	}
+
+	if resLen == 0 {
+		rows.rs.done = true
+		return rows.NextResultSet()
+	}
+
+	rows.rs.columns, err = rows.mc.readColumns(resLen)
+	return err
+}
+
 func (rows *textRows) Next(dest []driver.Value) error {
 	if mc := rows.mc; mc != nil {
 		if mc.netConn == nil {
@@ -103,61 +177,5 @@ func (rows *textRows) Next(dest []driver.Value) error {
 		// Fetch next row from stream
 		return rows.readRow(dest)
 	}
-	return io.EOF
-}
-
-func (rows *textRows) HasNextResultSet() (b bool) {
-	if rows.mc == nil {
-		return false
-	}
-	return rows.mc.status&statusMoreResultsExists != 0
-}
-
-func (rows *textRows) NextResultSet() error {
-	if rows.mc == nil {
-		return io.EOF
-	}
-	if rows.mc.netConn == nil {
-		return ErrInvalidConn
-	}
-
-	// Remove unread packets from stream
-	if !rows.rs.done {
-		if err := rows.mc.readUntilEOF(); err != nil {
-			return err
-		}
-	}
-
-	if !rows.HasNextResultSet() {
-		return io.EOF
-	}
-	rows.rs = resultSet{}
-
-	resLen, err := rows.mc.readResultSetHeaderPacket()
-	if err != nil {
-		return err
-	}
-
-	rows.rs.columns, err = rows.mc.readColumns(resLen)
-	return err
-}
-
-func (rows emptyRows) Columns() []string {
-	return nil
-}
-
-func (rows emptyRows) Close() error {
-	return nil
-}
-
-func (rows emptyRows) Next(dest []driver.Value) error {
-	return io.EOF
-}
-
-func (rows emptyRows) HasNextResultSet() bool {
-	return false
-}
-
-func (rows emptyRows) NextResultSet() error {
 	return io.EOF
 }
