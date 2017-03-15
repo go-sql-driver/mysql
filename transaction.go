@@ -12,20 +12,22 @@ type mysqlTx struct {
 	mc *mysqlConn
 }
 
+// Commit implements driver.Tx interface
 func (tx *mysqlTx) Commit() (err error) {
 	if tx.mc == nil || tx.mc.netConn == nil {
 		return ErrInvalidConn
 	}
-	err = tx.mc.exec("COMMIT")
+	err = tx.mc.exec(backgroundCtx(), "COMMIT")
 	tx.mc = nil
 	return
 }
 
+// Rollback implements driver.Tx interface
 func (tx *mysqlTx) Rollback() (err error) {
 	if tx.mc == nil || tx.mc.netConn == nil {
 		return ErrInvalidConn
 	}
-	err = tx.mc.exec("ROLLBACK")
+	err = tx.mc.exec(backgroundCtx(), "ROLLBACK")
 	tx.mc = nil
 	return
 }

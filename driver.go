@@ -14,6 +14,7 @@
 //  db, err := sql.Open("mysql", "user:password@/dbname")
 //
 // See https://github.com/go-sql-driver/mysql#usage for details
+
 package mysql
 
 import (
@@ -95,7 +96,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	}
 
 	// Send Client Authentication Packet
-	if err = mc.writeAuthPacket(cipher); err != nil {
+	if err = mc.writeAuthPacket(backgroundCtx(), cipher); err != nil {
 		mc.cleanup()
 		return nil, err
 	}
@@ -157,7 +158,7 @@ func handleAuthResult(mc *mysqlConn, oldCipher []byte) error {
 			cipher = oldCipher
 		}
 
-		if err = mc.writeOldAuthPacket(cipher); err != nil {
+		if err = mc.writeOldAuthPacket(backgroundCtx(), cipher); err != nil {
 			return err
 		}
 		_, err = mc.readResultOK()
@@ -165,12 +166,12 @@ func handleAuthResult(mc *mysqlConn, oldCipher []byte) error {
 		// Retry with clear text password for
 		// http://dev.mysql.com/doc/refman/5.7/en/cleartext-authentication-plugin.html
 		// http://dev.mysql.com/doc/refman/5.7/en/pam-authentication-plugin.html
-		if err = mc.writeClearAuthPacket(); err != nil {
+		if err = mc.writeClearAuthPacket(backgroundCtx()); err != nil {
 			return err
 		}
 		_, err = mc.readResultOK()
 	} else if mc.cfg.AllowNativePasswords && err == ErrNativePassword {
-		if err = mc.writeNativeAuthPacket(cipher); err != nil {
+		if err = mc.writeNativeAuthPacket(backgroundCtx(), cipher); err != nil {
 			return err
 		}
 		_, err = mc.readResultOK()
