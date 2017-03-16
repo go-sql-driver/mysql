@@ -68,6 +68,24 @@ func (mc *mysqlConn) Begin() (driver.Tx, error) {
 	return mc.ConnBeginTx(context.Background(), driver.TxOptions{})
 }
 
+// Ping implements drvier.Pinger interface
+func (mc *mysqlConn) Ping(ctx context.Context) error {
+	if mc.netConn == nil {
+		errLog.Print(ErrInvalidConn)
+		return driver.ErrBadConn
+	}
+	if err := mc.writeCommandPacket(ctx, comPing); err != nil {
+		errLog.Print(err)
+		return err
+	}
+
+	if _, err := mc.readResultOK(); err != nil {
+		errLog.Print(err)
+		return err
+	}
+	return nil
+}
+
 // ConnBeginTx implements driver.ConnBeginTx interface
 func (mc *mysqlConn) ConnBeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
 	if mc.netConn == nil {
@@ -322,10 +340,12 @@ func (mc *mysqlConn) exec(ctx context.Context, query string) error {
 	return err
 }
 
+// Query implements driver.Queryer interface
 func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, error) {
 	return mc.QueryContext(context.Background(), query, args)
 }
 
+// QueryContext implements driver.QueryerContext interface
 func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driver.Value) (driver.Rows, error) {
 	if mc.netConn == nil {
 		errLog.Print(ErrInvalidConn)

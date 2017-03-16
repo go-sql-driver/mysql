@@ -171,6 +171,15 @@ func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows)
 	return rows
 }
 
+func TestPing(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		err := dbt.db.Ping()
+		if err != nil {
+			dbt.fail("Ping", "Ping", err)
+		}
+	})
+}
+
 func TestEmptyQuery(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		// just a comment, no query

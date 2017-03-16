@@ -38,6 +38,7 @@ func (stmt *mysqlStmt) Close() error {
 	return err
 }
 
+// NumInput implements driver.Stmt interface
 func (stmt *mysqlStmt) NumInput() int {
 	return stmt.paramCount
 }
@@ -46,12 +47,12 @@ func (stmt *mysqlStmt) ColumnConverter(idx int) driver.ValueConverter {
 	return converter{}
 }
 
-// Exec implements driver.Execer and driver.Stmt interface
+// Exec implements driver.Stmt interface
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	return stmt.ExecContext(context.Background(), args)
 }
 
-// ExecContent implements driver.ExecerContext interface
+// ExecContent implements driver.StmtExecContext interface
 func (stmt *mysqlStmt) ExecContext(ctx context.Context, args []driver.Value) (driver.Result, error) {
 
 	if stmt.mc.netConn == nil {
@@ -93,12 +94,12 @@ func (stmt *mysqlStmt) ExecContext(ctx context.Context, args []driver.Value) (dr
 	return nil, err
 }
 
-// Query implements driver.Queryer and driver.Stmt interface
+// Query implements driver.Stmt interface
 func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 	return stmt.QueryContext(context.Background(), args)
 }
 
-// QueryContext implements driver.QueryerContext interface
+// QueryContext implements driver.StmtQueryContext interface
 func (stmt *mysqlStmt) QueryContext(ctx context.Context, args []driver.Value) (driver.Rows, error) {
 	if stmt.mc.netConn == nil {
 		errLog.Print(ErrInvalidConn)

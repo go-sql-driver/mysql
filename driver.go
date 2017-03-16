@@ -66,7 +66,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		mc.netConn, err = dial(mc.cfg.Addr)
 	} else {
 		nd := net.Dialer{Timeout: mc.cfg.Timeout}
-		mc.netConn, err = nd.Dial(mc.cfg.Net, mc.cfg.Addr)
+		mc.netConn, err = nd.DialContext(context.Background(), mc.cfg.Net, mc.cfg.Addr)
 	}
 	if err != nil {
 		return nil, err
