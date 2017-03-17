@@ -16,6 +16,7 @@
 //  db, err := sql.Open("mysql", "user:password@/dbname")
 //
 // See https://github.com/go-sql-driver/mysql#usage for details
+
 package mysql
 
 import (

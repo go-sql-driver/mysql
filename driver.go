@@ -1,3 +1,5 @@
+// +build !go1.8
+
 // Copyright 2012 The Go-MySQL-Driver Authors. All rights reserved.
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
@@ -14,8 +16,6 @@
 //  db, err := sql.Open("mysql", "user:password@/dbname")
 //
 // See https://github.com/go-sql-driver/mysql#usage for details
-
-// +build !go1.8
 
 package mysql
 
