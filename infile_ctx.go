@@ -1,3 +1,5 @@
+// +build go1.8
+
 // Go MySQL Driver - A MySQL-Driver for Go's database/sql package
 //
 // Copyright 2013 The Go-MySQL-Driver Authors. All rights reserved.
@@ -6,11 +8,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// +build !go1.8
-
 package mysql
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -95,7 +96,7 @@ func deferredClose(err *error, closer io.Closer) {
 	}
 }
 
-func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
+func (mc *mysqlConn) handleInFileRequest(ctx context.Context, name string) (err error) {
 	var rdr io.Reader
 	var data []byte
 	packetSize := 16 * 1024 // 16KB is small enough for disk readahead and large enough for TCP
@@ -155,7 +156,7 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 		for err == nil {
 			n, err = rdr.Read(data[4:])
 			if n > 0 {
-				if ioErr := mc.writePacket(data[:4+n]); ioErr != nil {
+				if ioErr := mc.writePacket(ctx, data[:4+n]); ioErr != nil {
 					return ioErr
 				}
 			}
@@ -169,7 +170,7 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 	if data == nil {
 		data = make([]byte, 4)
 	}
-	if ioErr := mc.writePacket(data[:4]); ioErr != nil {
+	if ioErr := mc.writePacket(ctx, data[:4]); ioErr != nil {
 		return ioErr
 	}
 

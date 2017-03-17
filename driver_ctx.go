@@ -1,3 +1,5 @@
+// +build go1.8
+
 // Copyright 2012 The Go-MySQL-Driver Authors. All rights reserved.
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
@@ -14,12 +16,10 @@
 //  db, err := sql.Open("mysql", "user:password@/dbname")
 //
 // See https://github.com/go-sql-driver/mysql#usage for details
-
-// +build !go1.8
-
 package mysql
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"net"
@@ -68,7 +68,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		mc.netConn, err = dial(mc.cfg.Addr)
 	} else {
 		nd := net.Dialer{Timeout: mc.cfg.Timeout}
-		mc.netConn, err = nd.Dial(mc.cfg.Net, mc.cfg.Addr)
+		mc.netConn, err = nd.DialContext(context.Background(), mc.cfg.Net, mc.cfg.Addr)
 	}
 	if err != nil {
 		return nil, err
@@ -98,7 +98,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	}
 
 	// Send Client Authentication Packet
-	if err = mc.writeAuthPacket(cipher); err != nil {
+	if err = mc.writeAuthPacket(context.Background(), cipher); err != nil {
 		mc.cleanup()
 		return nil, err
 	}
@@ -160,7 +160,7 @@ func handleAuthResult(mc *mysqlConn, oldCipher []byte) error {
 			cipher = oldCipher
 		}
 
-		if err = mc.writeOldAuthPacket(cipher); err != nil {
+		if err = mc.writeOldAuthPacket(context.Background(), cipher); err != nil {
 			return err
 		}
 		_, err = mc.readResultOK()
@@ -168,12 +168,12 @@ func handleAuthResult(mc *mysqlConn, oldCipher []byte) error {
 		// Retry with clear text password for
 		// http://dev.mysql.com/doc/refman/5.7/en/cleartext-authentication-plugin.html
 		// http://dev.mysql.com/doc/refman/5.7/en/pam-authentication-plugin.html
-		if err = mc.writeClearAuthPacket(); err != nil {
+		if err = mc.writeClearAuthPacket(context.Background()); err != nil {
 			return err
 		}
 		_, err = mc.readResultOK()
 	} else if mc.cfg.AllowNativePasswords && err == ErrNativePassword {
-		if err = mc.writeNativeAuthPacket(cipher); err != nil {
+		if err = mc.writeNativeAuthPacket(context.Background(), cipher); err != nil {
 			return err
 		}
 		_, err = mc.readResultOK()

@@ -6,11 +6,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// +build !go1.8
+// +build go1.8
 
 package mysql
 
 import (
+	"context"
 	"database/sql/driver"
 	"net"
 	"strconv"
@@ -43,7 +44,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 			charsets := strings.Split(val, ",")
 			for i := range charsets {
 				// ignore errors here - a charset may not exist
-				err = mc.exec("SET NAMES " + charsets[i])
+				err = mc.exec(context.Background(), "SET NAMES "+charsets[i])
 				if err == nil {
 					break
 				}
@@ -54,7 +55,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 
 		// System Vars
 		default:
-			err = mc.exec("SET " + param + "=" + val + "")
+			err = mc.exec(context.Background(), "SET "+param+"="+val+"")
 			if err != nil {
 				return
 			}
@@ -64,12 +65,36 @@ func (mc *mysqlConn) handleParams() (err error) {
 	return
 }
 
+// Begin implements driver.Conn interface
 func (mc *mysqlConn) Begin() (driver.Tx, error) {
+	return mc.ConnBeginTx(context.Background(), driver.TxOptions{})
+}
+
+// Ping implements drvier.Pinger interface
+func (mc *mysqlConn) Ping(ctx context.Context) error {
+	if mc.netConn == nil {
+		errLog.Print(ErrInvalidConn)
+		return driver.ErrBadConn
+	}
+	if err := mc.writeCommandPacket(ctx, comPing); err != nil {
+		errLog.Print(err)
+		return err
+	}
+
+	if _, err := mc.readResultOK(); err != nil {
+		errLog.Print(err)
+		return err
+	}
+	return nil
+}
+
+// ConnBeginTx implements driver.ConnBeginTx interface
+func (mc *mysqlConn) ConnBeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
 	if mc.netConn == nil {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
-	err := mc.exec("START TRANSACTION")
+	err := mc.exec(ctx, "START TRANSACTION")
 	if err == nil {
 		return &mysqlTx{mc}, err
 	}
@@ -80,7 +105,7 @@ func (mc *mysqlConn) Begin() (driver.Tx, error) {
 func (mc *mysqlConn) Close() (err error) {
 	// Makes Close idempotent
 	if mc.netConn != nil {
-		err = mc.writeCommandPacket(comQuit)
+		err = mc.writeCommandPacket(context.Background(), comQuit)
 	}
 
 	mc.cleanup()
@@ -105,12 +130,16 @@ func (mc *mysqlConn) cleanup() {
 }
 
 func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
+	return mc.PrepareContext(context.Background(), query)
+}
+
+func (mc *mysqlConn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
 	if mc.netConn == nil {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	// Send command
-	err := mc.writeCommandPacketStr(comStmtPrepare, query)
+	err := mc.writeCommandPacketStr(ctx, comStmtPrepare, query)
 	if err != nil {
 		return nil, err
 	}
@@ -259,6 +288,10 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 }
 
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
+	return mc.ExecContext(context.Background(), query, args)
+}
+
+func (mc *mysqlConn) ExecContext(ctx context.Context, query string, args []driver.Value) (driver.Result, error) {
 	if mc.netConn == nil {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
@@ -278,7 +311,7 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 	mc.affectedRows = 0
 	mc.insertId = 0
 
-	err := mc.exec(query)
+	err := mc.exec(ctx, query)
 	if err == nil {
 		return &mysqlResult{
 			affectedRows: int64(mc.affectedRows),
@@ -289,9 +322,9 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 }
 
 // Internal function to execute commands
-func (mc *mysqlConn) exec(query string) error {
+func (mc *mysqlConn) exec(ctx context.Context, query string) error {
 	// Send command
-	err := mc.writeCommandPacketStr(comQuery, query)
+	err := mc.writeCommandPacketStr(ctx, comQuery, query)
 	if err != nil {
 		return err
 	}
@@ -309,7 +342,13 @@ func (mc *mysqlConn) exec(query string) error {
 	return err
 }
 
+// Query implements driver.Queryer interface
 func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, error) {
+	return mc.QueryContext(context.Background(), query, args)
+}
+
+// QueryContext implements driver.QueryerContext interface
+func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driver.Value) (driver.Rows, error) {
 	if mc.netConn == nil {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
@@ -327,7 +366,7 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 		args = nil
 	}
 	// Send command
-	err := mc.writeCommandPacketStr(comQuery, query)
+	err := mc.writeCommandPacketStr(ctx, comQuery, query)
 	if err == nil {
 		// Read Result
 		var resLen int
@@ -352,7 +391,7 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 // The returned byte slice is only valid until the next read
 func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 	// Send command
-	if err := mc.writeCommandPacketStr(comQuery, "SELECT @@"+name); err != nil {
+	if err := mc.writeCommandPacketStr(context.Background(), comQuery, "SELECT @@"+name); err != nil {
 		return nil, err
 	}
 

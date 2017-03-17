@@ -1,3 +1,5 @@
+// +build go1.8
+
 // Go MySQL Driver - A MySQL-Driver for Go's database/sql package
 //
 // Copyright 2012 The Go-MySQL-Driver Authors. All rights reserved.
@@ -6,28 +8,30 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// +build !go1.8
-
 package mysql
+
+import "context"
 
 type mysqlTx struct {
 	mc *mysqlConn
 }
 
+// Commit implements driver.Tx interface
 func (tx *mysqlTx) Commit() (err error) {
 	if tx.mc == nil || tx.mc.netConn == nil {
 		return ErrInvalidConn
 	}
-	err = tx.mc.exec("COMMIT")
+	err = tx.mc.exec(context.Background(), "COMMIT")
 	tx.mc = nil
 	return
 }
 
+// Rollback implements driver.Tx interface
 func (tx *mysqlTx) Rollback() (err error) {
 	if tx.mc == nil || tx.mc.netConn == nil {
 		return ErrInvalidConn
 	}
-	err = tx.mc.exec("ROLLBACK")
+	err = tx.mc.exec(context.Background(), "ROLLBACK")
 	tx.mc = nil
 	return
 }
