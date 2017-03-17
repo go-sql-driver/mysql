@@ -139,19 +139,19 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 
 // Handshake Initialization Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::Handshake
-func (mc *mysqlConn) readInitPacket() ([]byte, error) {
+func (mc *mysqlConn) readInitPacket() (string, []byte, error) {
 	data, err := mc.readPacket()
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	if data[0] == iERR {
-		return nil, mc.handleErrorPacket(data)
+		return "", nil, mc.handleErrorPacket(data)
 	}
 
 	// protocol version [1 byte]
 	if data[0] < minProtocolVersion {
-		return nil, fmt.Errorf(
+		return "", nil, fmt.Errorf(
 			"unsupported protocol version %d. Version %d or higher is required",
 			data[0],
 			minProtocolVersion,
@@ -162,8 +162,8 @@ func (mc *mysqlConn) readInitPacket() ([]byte, error) {
 	// connection id [4 bytes]
 	pos := 1 + bytes.IndexByte(data[1:], 0x00) + 1 + 4
 
-	// first part of the password cipher [8 bytes]
-	cipher := data[pos : pos+8]
+	// first part of the auth data [8 bytes]
+	authData := data[pos : pos+8]
 
 	// (filler) always 0x00 [1 byte]
 	pos += 8 + 1
@@ -171,10 +171,10 @@ func (mc *mysqlConn) readInitPacket() ([]byte, error) {
 	// capability flags (lower 2 bytes) [2 bytes]
 	mc.flags = clientFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
 	if mc.flags&clientProtocol41 == 0 {
-		return nil, ErrOldProtocol
+		return "", nil, ErrOldProtocol
 	}
 	if mc.flags&clientSSL == 0 && mc.cfg.tls != nil {
-		return nil, ErrNoTLS
+		return "", nil, ErrNoTLS
 	}
 	pos += 2
 
@@ -198,7 +198,7 @@ func (mc *mysqlConn) readInitPacket() ([]byte, error) {
 		//
 		// The official Python library uses the fixed length 12
 		// which seems to work but technically could have a hidden bug.
-		cipher = append(cipher, data[pos:pos+12]...)
+		authData = append(authData, data[pos:pos+12]...)
 
 		// TODO: Verify string termination
 		// EOF if version (>= 5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
@@ -209,21 +209,29 @@ func (mc *mysqlConn) readInitPacket() ([]byte, error) {
 		//}
 		//return ErrMalformPkt
 
-		// make a memory safe copy of the cipher slice
+		pos += 13
+
+		var authPluginName string
+		if len(data) > pos {
+			// auth-plugin name (string[NUL])
+			authPluginName = string(data[pos : len(data)-1])
+		}
+
+		// make a memory safe copy of the authData slice
 		var b [20]byte
-		copy(b[:], cipher)
-		return b[:], nil
+		copy(b[:], authData)
+		return authPluginName, b[:], nil
 	}
 
-	// make a memory safe copy of the cipher slice
+	// make a memory safe copy of the authData slice
 	var b [8]byte
-	copy(b[:], cipher)
-	return b[:], nil
+	copy(b[:], authData)
+	return "", b[:], nil
 }
 
 // Client Authentication Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::HandshakeResponse
-func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
+func (mc *mysqlConn) writeAuthPacket(authPluginName string, authData []byte) error {
 	// Adjust client flags based on server support
 	clientFlags := clientProtocol41 |
 		clientSecureConn |
@@ -247,10 +255,7 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 		clientFlags |= clientMultiStatements
 	}
 
-	// User Password
-	scrambleBuff := scramblePassword(cipher, []byte(mc.cfg.Passwd))
-
-	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1 + 1 + len(scrambleBuff) + 21 + 1
+	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1 + 1 + len(authData) + 21 + 1
 
 	// To specify a db name
 	if n := len(mc.cfg.DBName); n > 0 {
@@ -318,9 +323,9 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	data[pos] = 0x00
 	pos++
 
-	// ScrambleBuffer [length encoded integer]
-	data[pos] = byte(len(scrambleBuff))
-	pos += 1 + copy(data[pos+1:], scrambleBuff)
+	// authData [length encoded integer]
+	data[pos] = byte(len(authData))
+	pos += 1 + copy(data[pos+1:], authData)
 
 	// Databasename [null terminated string]
 	if len(mc.cfg.DBName) > 0 {
@@ -329,72 +334,22 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 		pos++
 	}
 
-	// Assume native client during response
-	pos += copy(data[pos:], "mysql_native_password")
+	pos += copy(data[pos:], authPluginName)
 	data[pos] = 0x00
 
 	// Send Auth packet
 	return mc.writePacket(data)
 }
 
-//  Client old authentication packet
-// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
-func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
-	// User password
-	scrambleBuff := scrambleOldPassword(cipher, []byte(mc.cfg.Passwd))
-
-	// Calculate the packet length and add a tailing 0
-	pktLen := len(scrambleBuff) + 1
-	data := mc.buf.takeSmallBuffer(4 + pktLen)
+func (mc *mysqlConn) writeAuthDataPacket(authData []byte) error {
+	data := mc.buf.takeSmallBuffer(4 + len(authData))
 	if data == nil {
-		// can not take the buffer. Something must be wrong with the connection
+		// cannot take the buffer. Something must be wrong with the connection
 		errLog.Print(ErrBusyBuffer)
 		return driver.ErrBadConn
 	}
 
-	// Add the scrambled password [null terminated string]
-	copy(data[4:], scrambleBuff)
-	data[4+pktLen-1] = 0x00
-
-	return mc.writePacket(data)
-}
-
-//  Client clear text authentication packet
-// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
-func (mc *mysqlConn) writeClearAuthPacket() error {
-	// Calculate the packet length and add a tailing 0
-	pktLen := len(mc.cfg.Passwd) + 1
-	data := mc.buf.takeSmallBuffer(4 + pktLen)
-	if data == nil {
-		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
-		return driver.ErrBadConn
-	}
-
-	// Add the clear password [null terminated string]
-	copy(data[4:], mc.cfg.Passwd)
-	data[4+pktLen-1] = 0x00
-
-	return mc.writePacket(data)
-}
-
-//  Native password authentication method
-// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
-func (mc *mysqlConn) writeNativeAuthPacket(cipher []byte) error {
-	scrambleBuff := scramblePassword(cipher, []byte(mc.cfg.Passwd))
-
-	// Calculate the packet length and add a tailing 0
-	pktLen := len(scrambleBuff)
-	data := mc.buf.takeSmallBuffer(4 + pktLen)
-	if data == nil {
-		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
-		return driver.ErrBadConn
-	}
-
-	// Add the scramble
-	copy(data[4:], scrambleBuff)
-
+	copy(data[4:], authData)
 	return mc.writePacket(data)
 }
 
@@ -479,29 +434,6 @@ func (mc *mysqlConn) readResultOK() ([]byte, error) {
 
 		case iOK:
 			return nil, mc.handleOkPacket(data)
-
-		case iEOF:
-			if len(data) > 1 {
-				pluginEndIndex := bytes.IndexByte(data, 0x00)
-				plugin := string(data[1:pluginEndIndex])
-				cipher := data[pluginEndIndex+1 : len(data)-1]
-
-				if plugin == "mysql_old_password" {
-					// using old_passwords
-					return cipher, ErrOldPassword
-				} else if plugin == "mysql_clear_password" {
-					// using clear text password
-					return cipher, ErrCleartextPassword
-				} else if plugin == "mysql_native_password" {
-					// using mysql default authentication method
-					return cipher, ErrNativePassword
-				} else {
-					return cipher, ErrUnknownPlugin
-				}
-			} else {
-				// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::OldAuthSwitchRequest
-				return nil, ErrOldPassword
-			}
 
 		default: // Error otherwise
 			return nil, mc.handleErrorPacket(data)
