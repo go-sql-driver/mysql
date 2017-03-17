@@ -1,5 +1,3 @@
-// +build go1.8
-
 // Go MySQL Driver - A MySQL-Driver for Go's database/sql package
 //
 // Copyright 2012 The Go-MySQL-Driver Authors. All rights reserved.
@@ -8,11 +6,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// +build !go1.8
+
 package mysql
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"database/sql/driver"
 	"encoding/binary"
@@ -86,15 +85,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 }
 
 // Write packet buffer 'data'
-func (mc *mysqlConn) writePacket(ctx context.Context, data []byte) error {
-	if ctx == nil {
-		panic("context cannot be nil")
-	}
-	ctxDeadline, isCtxDeadlineSet := ctx.Deadline()
-	if isCtxDeadlineSet && !ctxDeadline.After(time.Now()) {
-		return errors.New("timeout")
-	}
-
+func (mc *mysqlConn) writePacket(data []byte) error {
 	pktLen := len(data) - 4
 
 	if pktLen > mc.maxAllowedPacket {
@@ -117,16 +108,8 @@ func (mc *mysqlConn) writePacket(ctx context.Context, data []byte) error {
 		data[3] = mc.sequence
 
 		// Write packet
-		var timeNow = time.Now()
-		var deadline = timeNow
 		if mc.writeTimeout > 0 {
-			deadline = timeNow.Add(mc.writeTimeout)
-			if isCtxDeadlineSet && deadline.After(ctxDeadline) {
-				deadline = ctxDeadline
-			}
-		}
-		if deadline.After(timeNow) {
-			if err := mc.netConn.SetWriteDeadline(deadline); err != nil {
+			if err := mc.netConn.SetWriteDeadline(time.Now().Add(mc.writeTimeout)); err != nil {
 				return err
 			}
 		}
@@ -242,7 +225,7 @@ func (mc *mysqlConn) readInitPacket() ([]byte, error) {
 
 // Client Authentication Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::HandshakeResponse
-func (mc *mysqlConn) writeAuthPacket(ctx context.Context, cipher []byte) error {
+func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	// Adjust client flags based on server support
 	clientFlags := clientProtocol41 |
 		clientSecureConn |
@@ -311,7 +294,7 @@ func (mc *mysqlConn) writeAuthPacket(ctx context.Context, cipher []byte) error {
 	// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::SSLRequest
 	if mc.cfg.tls != nil {
 		// Send TLS / SSL request packet
-		if err := mc.writePacket(ctx, data[:(4+4+1+23)+4]); err != nil {
+		if err := mc.writePacket(data[:(4+4+1+23)+4]); err != nil {
 			return err
 		}
 
@@ -353,12 +336,12 @@ func (mc *mysqlConn) writeAuthPacket(ctx context.Context, cipher []byte) error {
 	data[pos] = 0x00
 
 	// Send Auth packet
-	return mc.writePacket(ctx, data)
+	return mc.writePacket(data)
 }
 
 //  Client old authentication packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
-func (mc *mysqlConn) writeOldAuthPacket(ctx context.Context, cipher []byte) error {
+func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 	// User password
 	scrambleBuff := scrambleOldPassword(cipher, []byte(mc.cfg.Passwd))
 
@@ -375,12 +358,12 @@ func (mc *mysqlConn) writeOldAuthPacket(ctx context.Context, cipher []byte) erro
 	copy(data[4:], scrambleBuff)
 	data[4+pktLen-1] = 0x00
 
-	return mc.writePacket(ctx, data)
+	return mc.writePacket(data)
 }
 
 //  Client clear text authentication packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
-func (mc *mysqlConn) writeClearAuthPacket(ctx context.Context) error {
+func (mc *mysqlConn) writeClearAuthPacket() error {
 	// Calculate the packet length and add a tailing 0
 	pktLen := len(mc.cfg.Passwd) + 1
 	data := mc.buf.takeSmallBuffer(4 + pktLen)
@@ -394,12 +377,12 @@ func (mc *mysqlConn) writeClearAuthPacket(ctx context.Context) error {
 	copy(data[4:], mc.cfg.Passwd)
 	data[4+pktLen-1] = 0x00
 
-	return mc.writePacket(ctx, data)
+	return mc.writePacket(data)
 }
 
 //  Native password authentication method
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
-func (mc *mysqlConn) writeNativeAuthPacket(ctx context.Context, cipher []byte) error {
+func (mc *mysqlConn) writeNativeAuthPacket(cipher []byte) error {
 	scrambleBuff := scramblePassword(cipher, []byte(mc.cfg.Passwd))
 
 	// Calculate the packet length and add a tailing 0
@@ -414,14 +397,14 @@ func (mc *mysqlConn) writeNativeAuthPacket(ctx context.Context, cipher []byte) e
 	// Add the scramble
 	copy(data[4:], scrambleBuff)
 
-	return mc.writePacket(ctx, data)
+	return mc.writePacket(data)
 }
 
 /******************************************************************************
 *                             Command Packets                                 *
 ******************************************************************************/
 
-func (mc *mysqlConn) writeCommandPacket(ctx context.Context, command byte) error {
+func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
@@ -436,10 +419,10 @@ func (mc *mysqlConn) writeCommandPacket(ctx context.Context, command byte) error
 	data[4] = command
 
 	// Send CMD packet
-	return mc.writePacket(ctx, data)
+	return mc.writePacket(data)
 }
 
-func (mc *mysqlConn) writeCommandPacketStr(ctx context.Context, command byte, arg string) error {
+func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
@@ -458,10 +441,10 @@ func (mc *mysqlConn) writeCommandPacketStr(ctx context.Context, command byte, ar
 	copy(data[5:], arg)
 
 	// Send CMD packet
-	return mc.writePacket(ctx, data)
+	return mc.writePacket(data)
 }
 
-func (mc *mysqlConn) writeCommandPacketUint32(ctx context.Context, command byte, arg uint32) error {
+func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
@@ -482,7 +465,7 @@ func (mc *mysqlConn) writeCommandPacketUint32(ctx context.Context, command byte,
 	data[8] = byte(arg >> 24)
 
 	// Send CMD packet
-	return mc.writePacket(ctx, data)
+	return mc.writePacket(data)
 }
 
 /******************************************************************************
@@ -543,7 +526,7 @@ func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
 			return 0, mc.handleErrorPacket(data)
 
 		case iLocalInFile:
-			return 0, mc.handleInFileRequest(context.Background(), string(data[1:]))
+			return 0, mc.handleInFileRequest(string(data[1:]))
 		}
 
 		// column count
@@ -841,7 +824,7 @@ func (stmt *mysqlStmt) readPrepareResultPacket() (uint16, error) {
 }
 
 // http://dev.mysql.com/doc/internals/en/com-stmt-send-long-data.html
-func (stmt *mysqlStmt) writeCommandLongData(ctx context.Context, paramID int, arg []byte) error {
+func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 	maxLen := stmt.mc.maxAllowedPacket - 1
 	pktLen := maxLen
 
@@ -878,7 +861,7 @@ func (stmt *mysqlStmt) writeCommandLongData(ctx context.Context, paramID int, ar
 		data[10] = byte(paramID >> 8)
 
 		// Send CMD packet
-		err := stmt.mc.writePacket(ctx, data[:4+pktLen])
+		err := stmt.mc.writePacket(data[:4+pktLen])
 		if err == nil {
 			data = data[pktLen-dataOffset:]
 			continue
@@ -894,7 +877,7 @@ func (stmt *mysqlStmt) writeCommandLongData(ctx context.Context, paramID int, ar
 
 // Execute Prepared Statement
 // http://dev.mysql.com/doc/internals/en/com-stmt-execute.html
-func (stmt *mysqlStmt) writeExecutePacket(ctx context.Context, args []driver.Value) error {
+func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	if len(args) != stmt.paramCount {
 		return fmt.Errorf(
 			"argument count mismatch (got: %d; has: %d)",
@@ -1039,7 +1022,7 @@ func (stmt *mysqlStmt) writeExecutePacket(ctx context.Context, args []driver.Val
 						)
 						paramValues = append(paramValues, v...)
 					} else {
-						if err := stmt.writeCommandLongData(ctx, i, v); err != nil {
+						if err := stmt.writeCommandLongData(i, v); err != nil {
 							return err
 						}
 					}
@@ -1061,7 +1044,7 @@ func (stmt *mysqlStmt) writeExecutePacket(ctx context.Context, args []driver.Val
 					)
 					paramValues = append(paramValues, v...)
 				} else {
-					if err := stmt.writeCommandLongData(ctx, i, []byte(v)); err != nil {
+					if err := stmt.writeCommandLongData(i, []byte(v)); err != nil {
 						return err
 					}
 				}
@@ -1098,7 +1081,7 @@ func (stmt *mysqlStmt) writeExecutePacket(ctx context.Context, args []driver.Val
 		data = data[:pos]
 	}
 
-	return mc.writePacket(ctx, data)
+	return mc.writePacket(data)
 }
 
 func (mc *mysqlConn) discardResults() error {

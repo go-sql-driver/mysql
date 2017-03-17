@@ -1,5 +1,3 @@
-// +build go1.8
-
 // Go MySQL Driver - A MySQL-Driver for Go's database/sql package
 //
 // Copyright 2013 The Go-MySQL-Driver Authors. All rights reserved.
@@ -7,6 +5,8 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
+
+// +build !go1.8
 
 package mysql
 
@@ -62,10 +62,10 @@ func init() {
 	user = env("MYSQL_TEST_USER", "root")
 	pass = env("MYSQL_TEST_PASS", "")
 	prot = env("MYSQL_TEST_PROT", "tcp")
-	addr = env("MYSQL_TEST_ADDR", "127.0.0.1:3306")
+	addr = env("MYSQL_TEST_ADDR", "localhost:3306")
 	dbname = env("MYSQL_TEST_DBNAME", "gotest")
 	netAddr = fmt.Sprintf("%s(%s)", prot, addr)
-	dsn = fmt.Sprintf("%s@%s/%s?timeout=30s&strict=true", user, netAddr, dbname)
+	dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s&strict=true", user, pass, netAddr, dbname)
 	c, err := net.Dial(prot, addr)
 	if err == nil {
 		available = true
@@ -171,15 +171,6 @@ func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows)
 		dbt.fail("query", query, err)
 	}
 	return rows
-}
-
-func TestPing(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
-		err := dbt.db.Ping()
-		if err != nil {
-			dbt.fail("Ping", "Ping", err)
-		}
-	})
 }
 
 func TestEmptyQuery(t *testing.T) {
