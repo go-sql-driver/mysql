@@ -67,7 +67,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 
 // Begin implements driver.Conn interface
 func (mc *mysqlConn) Begin() (driver.Tx, error) {
-	return mc.ConnBeginTx(context.Background(), driver.TxOptions{})
+	return mc.BeginTx(context.Background(), driver.TxOptions{})
 }
 
 // Ping implements drvier.Pinger interface
@@ -88,8 +88,8 @@ func (mc *mysqlConn) Ping(ctx context.Context) error {
 	return nil
 }
 
-// ConnBeginTx implements driver.ConnBeginTx interface
-func (mc *mysqlConn) ConnBeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
+// BeginTx implements driver.ConnBeginTx interface
+func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
 	if mc.netConn == nil {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
