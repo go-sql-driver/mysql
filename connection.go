@@ -30,6 +30,7 @@ type mysqlConn struct {
 	sequence         uint8
 	parseTime        bool
 	strict           bool
+	authPlugin       AuthPlugin
 }
 
 // Handles parameters set in DSN after the connection is established
@@ -92,6 +93,10 @@ func (mc *mysqlConn) Close() (err error) {
 // closed the network connection.
 func (mc *mysqlConn) cleanup() {
 	// Makes cleanup idempotent
+	if mc.authPlugin != nil {
+		mc.authPlugin.Close()
+		mc.authPlugin = nil
+	}
 	if mc.netConn != nil {
 		if err := mc.netConn.Close(); err != nil {
 			errLog.Print(err)

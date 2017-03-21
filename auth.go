@@ -36,6 +36,9 @@ type AuthPlugin interface {
 	// Next takes a server's challenge and returns
 	// the bytes to send back or an error.
 	Next(challenge []byte) ([]byte, error)
+
+	// Close cleans up the resources of the plugin.
+	Close()
 }
 
 type clearTextPlugin struct {
@@ -51,6 +54,8 @@ func (p *clearTextPlugin) Next(challenge []byte) ([]byte, error) {
 	return append([]byte(p.cfg.Passwd), 0), nil
 }
 
+func (p *clearTextPlugin) Close() {}
+
 type nativePasswordPlugin struct {
 	cfg *Config
 }
@@ -63,6 +68,8 @@ func (p *nativePasswordPlugin) Next(challenge []byte) ([]byte, error) {
 
 	return scramblePassword(challenge, []byte(p.cfg.Passwd)), nil
 }
+
+func (p *nativePasswordPlugin) Close() {}
 
 type oldPasswordPlugin struct {
 	cfg *Config
@@ -77,7 +84,9 @@ func (p *oldPasswordPlugin) Next(challenge []byte) ([]byte, error) {
 	return append(scrambleOldPassword(challenge, []byte(p.cfg.Passwd)), 0), nil
 }
 
-func handleAuthResult(mc *mysqlConn, plugin AuthPlugin, oldCipher []byte) error {
+func (p *oldPasswordPlugin) Close() {}
+
+func handleAuthResult(mc *mysqlConn, oldCipher []byte) error {
 	data, err := mc.readPacket()
 	if err != nil {
 		return err
@@ -91,11 +100,12 @@ func handleAuthResult(mc *mysqlConn, plugin AuthPlugin, oldCipher []byte) error 
 		return mc.handleOkPacket(data)
 
 	case iEOF: // auth switch
+		mc.authPlugin.Close()
 		if len(data) > 1 {
 			pluginEndIndex := bytes.IndexByte(data, 0x00)
 			pluginName := string(data[1:pluginEndIndex])
 			if apf, ok := authPluginFactories[pluginName]; ok {
-				plugin = apf(mc.cfg)
+				mc.authPlugin = apf(mc.cfg)
 			} else {
 				return ErrUnknownPlugin
 			}
@@ -105,7 +115,7 @@ func handleAuthResult(mc *mysqlConn, plugin AuthPlugin, oldCipher []byte) error 
 			}
 		} else {
 			// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::OldAuthSwitchRequest
-			plugin = authPluginFactories[mysqlOldPassword](mc.cfg)
+			mc.authPlugin = authPluginFactories[mysqlOldPassword](mc.cfg)
 			authData = oldCipher
 		}
 	case iAuthContinue:
@@ -115,7 +125,7 @@ func handleAuthResult(mc *mysqlConn, plugin AuthPlugin, oldCipher []byte) error 
 		return mc.handleErrorPacket(data)
 	}
 
-	authData, err = plugin.Next(authData)
+	authData, err = mc.authPlugin.Next(authData)
 	if err != nil {
 		return err
 	}
@@ -125,5 +135,5 @@ func handleAuthResult(mc *mysqlConn, plugin AuthPlugin, oldCipher []byte) error 
 		return err
 	}
 
-	return handleAuthResult(mc, plugin, authData)
+	return handleAuthResult(mc, authData)
 }

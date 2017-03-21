@@ -106,18 +106,18 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		authPluginName = defaultAuthPluginName
 	}
 
-	var authPlugin AuthPlugin
 	if apf, ok := authPluginFactories[authPluginName]; ok {
-		authPlugin = apf(mc.cfg)
-		authData, err = authPlugin.Next(authData)
+		mc.authPlugin = apf(mc.cfg)
+		authData, err = mc.authPlugin.Next(authData)
 		if err != nil {
+			mc.cleanup()
 			return nil, err
 		}
 	} else {
 		// we'll tell the server in response that we are switching to our
 		// default plugin because we didn't recognize the one they sent us.
 		authPluginName = defaultAuthPluginName
-		authPlugin = authPluginFactories[authPluginName](mc.cfg)
+		mc.authPlugin = authPluginFactories[authPluginName](mc.cfg)
 
 		// zero-out the authData because the current authData was for
 		// a plugin we don't know about.
@@ -131,7 +131,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	}
 
 	// Handle response to auth packet, switch methods if possible
-	if err = handleAuthResult(mc, authPlugin, oldCipher); err != nil {
+	if err = handleAuthResult(mc, oldCipher); err != nil {
 		// Authentication failed and MySQL has already closed the connection
 		// (https://dev.mysql.com/doc/internals/en/authentication-fails.html).
 		// Do not send COM_QUIT, just cleanup and return the error.
