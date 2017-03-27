@@ -15,6 +15,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
       * [Address](#address)
       * [Parameters](#parameters)
       * [Examples](#examples)
+    * [Connection pool and timeouts](#connection-pool-and-timeouts)
     * [LOAD DATA LOCAL INFILE support](#load-data-local-infile-support)
     * [time.Time support](#timetime-support)
     * [Unicode support](#unicode-support)
@@ -264,7 +265,7 @@ Type:           duration
 Default:        0
 ```
 
-I/O read timeout. The value must be a decimal number with a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*.
+I/O read timeout. The value must be a decimal number with a unit suffix (*"ms"*, *"s"*, *"m"*, *"h"*), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
 ##### `strict`
 
@@ -287,7 +288,7 @@ Type:           duration
 Default:        OS default
 ```
 
-Timeout for establishing connections, aka dial timeout. The value must be a decimal number with a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*. To configure the duration after which connections are removed from the connection pool, use [*sql.DB.SetConnMaxLifetime](https://golang.org/pkg/database/sql/#DB.SetConnMaxLifetime).
+Timeout for establishing connections, aka dial timeout. The value must be a decimal number with a unit suffix (*"ms"*, *"s"*, *"m"*, *"h"*), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
 ##### `tls`
 
@@ -306,7 +307,7 @@ Type:           duration
 Default:        0
 ```
 
-I/O write timeout. The value must be a decimal number with a unit suffix ( *"ms"*, *"s"*, *"m"*, *"h"* ), such as *"30s"*, *"0.5m"* or *"1m30s"*.
+I/O write timeout. The value must be a decimal number with a unit suffix (*"ms"*, *"s"*, *"m"*, *"h"*), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
 
 ##### System Variables
@@ -379,6 +380,11 @@ No Database preselected:
 ```
 user:password@/
 ```
+
+
+### Connection pool and timeouts
+The connection pool is managed by Go's database/sql package. For details on how to configure the size of the pool and how long connections stay in the pool see `*DB.SetMaxOpenConns`, `*DB.SetMaxIdleConns`, and `*DB.SetConnMaxLifetime` in the [database/sql documentation](https://golang.org/pkg/database/sql/). The read, write, and dial timeouts for each individual connection are configured with the DSN parameters [`readTimeout`](#readtimeout), [`writeTimeout`](#writetimeout), and [`timeout`](#timeout), respectively.
+
 
 ### `LOAD DATA LOCAL INFILE` support
 For this feature you need direct access to the package. Therefore you must change the import path (no `_`):
