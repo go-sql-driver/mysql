@@ -309,6 +309,16 @@ Default:        0
 
 I/O write timeout. The value must be a decimal number with a unit suffix (*"ms"*, *"s"*, *"m"*, *"h"*), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
+##### `traceQueries`
+
+```
+Type:           bool
+Valid values:   true, false
+Default:        false
+```
+
+Print all SQL queries with their arguments to the default error logger before executing them on the MySQL server.
+
 
 ##### System Variables
 
@@ -446,4 +456,3 @@ Please read the [MPL 2.0 FAQ](https://www.mozilla.org/en-US/MPL/2.0/FAQ/) if you
 You can read the full terms here: [LICENSE](https://raw.github.com/go-sql-driver/mysql/master/LICENSE)
 
 ![Go Gopher and MySQL Dolphin](https://raw.github.com/wiki/go-sql-driver/mysql/go-mysql-driver_m.jpg "Golang Gopher transporting the MySQL Dolphin in a wheelbarrow")
-

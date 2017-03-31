@@ -887,6 +887,12 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	const minPktLen = 4 + 1 + 4 + 1 + 4
 	mc := stmt.mc
 
+	if mc.cfg.TraceQueries {
+		mc.traceQueriesLock.RLock()
+		errLog.Print("[mysql trace]", mc.String(), "executing: {stmt#", stmt.id, " ", mc.traceStatements[stmt.id], " ", args, "}")
+		mc.traceQueriesLock.RUnlock()
+	}
+
 	// Reset packet-sequence
 	mc.sequence = 0
 

@@ -131,6 +131,11 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		return nil, err
 	}
 
+	// Enable debugging features
+	if mc.cfg.TraceQueries {
+		mc.traceStatements = map[uint32]string{}
+	}
+
 	return mc, nil
 }
 
