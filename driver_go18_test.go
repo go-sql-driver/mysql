@@ -3,7 +3,9 @@
 package mysql
 
 import (
+	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"reflect"
 	"testing"
@@ -185,6 +187,21 @@ func TestSkipResults(t *testing.T) {
 
 		if err := rows.Err(); err != nil {
 			dbt.Error("expected nil; got ", err)
+		}
+	})
+}
+
+func TestPing(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		mysqlDriver := dbt.db.Driver().(driver.Driver)
+		conn, err := mysqlDriver.Open(dsn)
+		if err != nil {
+			dbt.Fatalf("error opening conn: %s", err)
+		}
+		pinger := conn.(driver.Pinger)
+		err = pinger.Ping(context.Background())
+		if err != nil {
+			dbt.Fatalf("error on ping: %s", err)
 		}
 	})
 }
