@@ -4,6 +4,7 @@ package mysql
 
 import (
 	"context"
+	"time"
 )
 
 func (mc *mysqlConn) Ping(ctx context.Context) error {
@@ -12,13 +13,16 @@ func (mc *mysqlConn) Ping(ctx context.Context) error {
 		return err
 	}
 
+	ch := make(chan error)
+	go func() {
+		_, err := mc.readResultOK()
+		ch <- err
+	}()
 	select {
 	case <-ctx.Done():
-		mc.Close()
+		mc.netConn.SetReadDeadline(time.Now())
 		return ctx.Err()
-	default:
+	case err := <-ch:
+		return err
 	}
-
-	_, err = mc.readResultOK()
-	return err
 }
