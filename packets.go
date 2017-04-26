@@ -107,7 +107,15 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 
 		// Write packet
 		if mc.writeTimeout > 0 {
-			if err := mc.netConn.SetWriteDeadline(time.Now().Add(mc.writeTimeout)); err != nil {
+			deadline := time.Now().Add(mc.writeTimeout)
+			if mc.ctx != nil {
+				if ctxDeadline, ok := mc.ctx.Deadline(); ok {
+					if !ctxDeadline.IsZero() && ctxDeadline.Before(deadline) {
+						deadline = ctxDeadline
+					}
+				}
+			}
+			if err := mc.netConn.SetWriteDeadline(deadline); err != nil {
 				return err
 			}
 		}
