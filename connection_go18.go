@@ -55,7 +55,9 @@ func (mc *mysqlConn) Ping(ctx context.Context) error {
 			netConn := mc.netConn
 			if netConn != nil {
 				errDeadline := netConn.SetDeadline(time.Now())
-				errLog.Print(errDeadline)
+				if errDeadline != nil {
+					errLog.Print(errDeadline)
+				}
 			}
 			select {
 			case <-time.After(200 * time.Millisecond):
