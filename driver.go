@@ -81,7 +81,8 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		}
 	}
 
-	mc.buf = newBuffer(mc.netConn)
+	// Make the buffer get the context from mysqlConn.
+	mc.buf = newBufferContext(mc.netConn, &ContextWrapper{mc: mc})
 
 	// Set I/O timeouts
 	mc.buf.timeout = mc.cfg.ReadTimeout
