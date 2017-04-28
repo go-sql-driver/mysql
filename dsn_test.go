@@ -161,6 +161,18 @@ func TestDSNWithCustomTLS(t *testing.T) {
 		t.Errorf("did not get the correct ServerName (%s) parsing DSN (%s).", name, tst)
 	}
 
+	// tls=true should also pick localhost
+	tst = baseDSN + "true"
+	name = "localhost"
+	tlsCfg.ServerName = ""
+	cfg, err = ParseDSN(tst)
+
+	if err != nil {
+		t.Error(err.Error())
+	} else if cfg.tls.ServerName != name {
+		t.Errorf("did not get the correct ServerName (%s) parsing DSN (%s).", name, tst)
+	}
+
 	DeregisterTLSConfig("utils_test")
 }
 

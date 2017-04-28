@@ -493,7 +493,13 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			if isBool {
 				if boolValue {
 					cfg.TLSConfig = "true"
-					cfg.tls = &tls.Config{}
+
+					var host string
+					host, _, err = net.SplitHostPort(cfg.Addr)
+					if err != nil {
+						return
+					}
+					cfg.tls = &tls.Config{ServerName: host}
 				} else {
 					cfg.TLSConfig = "false"
 				}

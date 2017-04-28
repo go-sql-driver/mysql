@@ -294,11 +294,11 @@ Timeout for establishing connections, aka dial timeout. The value must be a deci
 
 ```
 Type:           bool / string
-Valid Values:   true, false, skip-verify, <name>
+Valid Values:   true, false, skip-verify, <name>, <empty>
 Default:        false
 ```
 
-`tls=true` enables TLS / SSL encrypted connection to the server. Use `skip-verify` if you want to use a self-signed or invalid certificate (server side). Use a custom value registered with [`mysql.RegisterTLSConfig`](https://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).
+Every value other than `false` enables TLS/SSL encrypted connection to the server.  Use `skip-verify` if you want to use a self-signed or invalid certificate (server side).  Use a custom `<name>` if you've registered it with [`mysql.RegisterTLSConfig`](https://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).  Both `true` and `<empty>` will use use the `host` from the address for the expected `ServerName`.
 
 ##### `writeTimeout`
 
