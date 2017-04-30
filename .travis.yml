@@ -78,4 +78,4 @@ before_script:
 script:
   - go test -v
   - go vet ./...
-  - test -z "$(gofmt -d . | tee /dev/stderr)"
+  - test -z "$(gofmt -d -s . | tee /dev/stderr)"
