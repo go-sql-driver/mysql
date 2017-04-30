@@ -684,7 +684,7 @@ func TestDateTime(t *testing.T) {
 				for _, setup := range setups.tests {
 					allowBinTime := true
 					if setup.s == "" {
-						// fill time string whereever Go can reliable produce it
+						// fill time string wherever Go can reliable produce it
 						setup.s = setup.t.Format(setups.tlayout)
 					} else if setup.s[0] == '!' {
 						// skip tests using setup.t as source in queries
@@ -856,14 +856,14 @@ func TestNULL(t *testing.T) {
 			dbt.Fatal(err)
 		}
 		if b != nil {
-			dbt.Error("non-nil []byte wich should be nil")
+			dbt.Error("non-nil []byte which should be nil")
 		}
 		// Read non-nil
 		if err = nonNullStmt.QueryRow().Scan(&b); err != nil {
 			dbt.Fatal(err)
 		}
 		if b == nil {
-			dbt.Error("nil []byte wich should be non-nil")
+			dbt.Error("nil []byte which should be non-nil")
 		}
 		// Insert nil
 		b = nil
