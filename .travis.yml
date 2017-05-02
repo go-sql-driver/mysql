@@ -75,3 +75,7 @@ matrix:
 
 before_script:
   - mysql -e 'create database gotest;'
+script:
+  - go test -v
+  - go vet ./...
+  - test -z "$(gofmt -d -s . | tee /dev/stderr)"
