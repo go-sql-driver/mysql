@@ -167,6 +167,10 @@ func (rows *mysqlRows) Columns() []string {
 	return columns
 }
 
+func (rows *mysqlRows) ColumnTypeNullable(i int) (nullable, ok bool) {
+	return rows.rs.columns[i].flags&flagNotNULL != 0, true
+}
+
 func (rows *mysqlRows) ColumnTypeScanType(i int) reflect.Type {
 	return rows.rs.columns[i].scanType()
 }
