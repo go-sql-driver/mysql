@@ -14,6 +14,37 @@ import (
 	"time"
 )
 
+var typeDatabaseName = map[fieldType]string{
+	fieldTypeDecimal:    "DECIMAL",
+	fieldTypeTiny:       "TINYINT",
+	fieldTypeShort:      "SMALLINT",
+	fieldTypeLong:       "INT",
+	fieldTypeFloat:      "FLOAT",
+	fieldTypeDouble:     "DOUBLE",
+	fieldTypeNULL:       "NULL",
+	fieldTypeTimestamp:  "TIMESTAMP",
+	fieldTypeLongLong:   "BIGINT",
+	fieldTypeInt24:      "MEDIUMINT",
+	fieldTypeDate:       "DATE",
+	fieldTypeTime:       "TIME",
+	fieldTypeDateTime:   "DATETIME",
+	fieldTypeYear:       "YEAR",
+	fieldTypeNewDate:    "DATE",
+	fieldTypeVarChar:    "VARCHAR",
+	fieldTypeBit:        "BIT",
+	fieldTypeJSON:       "JSON",
+	fieldTypeNewDecimal: "DECIMAL",
+	fieldTypeEnum:       "ENUM",
+	fieldTypeSet:        "SET",
+	fieldTypeTinyBLOB:   "TINYBLOB",
+	fieldTypeMediumBLOB: "MEDIUMBLOB",
+	fieldTypeLongBLOB:   "LONGBLOB",
+	fieldTypeBLOB:       "BLOB",
+	fieldTypeVarString:  "VARSTRING", // correct?
+	fieldTypeString:     "STRING",    // correct?
+	fieldTypeGeometry:   "GEOMETRY",
+}
+
 var (
 	scanTypeNil        = reflect.TypeOf(nil)
 	scanTypeNullInt    = reflect.TypeOf(sql.NullInt64{})
