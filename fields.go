@@ -41,7 +41,7 @@ type mysqlField struct {
 	tableName string
 	name      string
 	flags     fieldFlag
-	fieldType byte
+	fieldType fieldType
 	decimals  byte
 }
 
