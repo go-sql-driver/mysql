@@ -58,6 +58,13 @@ func (rows *mysqlRows) Columns() []string {
 	return columns
 }
 
+func (rows *mysqlRows) ColumnTypeDatabaseTypeName(i int) string {
+	if name, ok := typeDatabaseName[rows.rs.columns[i].fieldType]; ok {
+		return name
+	}
+	return ""
+}
+
 func (rows *mysqlRows) ColumnTypeNullable(i int) (nullable, ok bool) {
 	return rows.rs.columns[i].flags&flagNotNULL != 0, true
 }
