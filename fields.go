@@ -33,6 +33,7 @@ var (
 	scanTypeBytes      = reflect.TypeOf([]byte{})
 	scanTypeRawBytes   = reflect.TypeOf(sql.RawBytes{})
 	scanTypeTime       = reflect.TypeOf(time.Time{})
+	scanTypeNullTime   = reflect.TypeOf(NullTime{})
 	scanTypeUnknown    = reflect.TypeOf(new(interface{}))
 )
 
@@ -111,9 +112,12 @@ func (mf *mysqlField) scanType() reflect.Type {
 	case fieldTypeDate, fieldTypeNewDate,
 		fieldTypeTimestamp, fieldTypeDateTime:
 
-		// TODO: NULL
 		// TODO: respect rows.mc.parseTime
-		return scanTypeTime
+
+		if mf.flags&flagNotNULL != 0 {
+			return scanTypeTime
+		}
+		return scanTypeNullTime
 
 	default:
 		return scanTypeUnknown
