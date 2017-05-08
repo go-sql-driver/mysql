@@ -116,15 +116,13 @@ func (mc *mysqlConn) writePacket(ctx mysqlContext, data []byte) error {
 		data[3] = mc.sequence
 
 		// Write packet
-		var timeNow = time.Now()
-		var deadline = timeNow
-		if mc.writeTimeout > 0 {
-			deadline = timeNow.Add(mc.writeTimeout)
-			if isCtxDeadlineSet && deadline.After(ctxDeadline) {
-				deadline = ctxDeadline
-			}
+		var deadline time.Time
+		if ctxDeadline, ok := ctx.Deadline(); ok {
+			deadline = ctxDeadline
+		} else if mc.writeTimeout > 0 {
+			deadline = time.Now().Add(mc.writeTimeout)
 		}
-		if deadline.After(timeNow) {
+		if !deadline.IsZero() {
 			if err := mc.netConn.SetWriteDeadline(deadline); err != nil {
 				return err
 			}
