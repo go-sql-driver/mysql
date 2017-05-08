@@ -25,3 +25,5 @@ type mysqlContext context.Context
 func backgroundCtx() mysqlContext {
 	return context.Background()
 }
+
+var deadlineExceeded = context.DeadlineExceeded

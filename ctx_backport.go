@@ -59,3 +59,12 @@ var background = new(emptyCtx)
 func backgroundCtx() mysqlContext {
 	return background
 }
+
+var deadlineExceeded = deadlineExceededError{}
+
+// deadlineExceededError is copied from Go 1.7's context package.
+type deadlineExceededError struct{}
+
+func (deadlineExceededError) Error() string   { return "context deadline exceeded" }
+func (deadlineExceededError) Timeout() bool   { return true }
+func (deadlineExceededError) Temporary() bool { return true }

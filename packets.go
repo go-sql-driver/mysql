@@ -84,12 +84,9 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 
 // Write packet buffer 'data'
 func (mc *mysqlConn) writePacket(ctx mysqlContext, data []byte) error {
-	if ctx == nil {
-		panic("context cannot be nil")
-	}
 	ctxDeadline, isCtxDeadlineSet := ctx.Deadline()
 	if isCtxDeadlineSet && !ctxDeadline.After(time.Now()) {
-		return errors.New("timeout")
+		return deadlineExceeded
 	}
 
 	pktLen := len(data) - 4
