@@ -38,7 +38,7 @@ func newBuffer(nc net.Conn) buffer {
 }
 
 // fill reads into the buffer until at least _need_ bytes are in it
-func (b *buffer) fill(need int) error {
+func (b *buffer) fill(ctx mysqlContext, need int) error {
 	n := b.length
 
 	// move existing data to the beginning
@@ -59,8 +59,14 @@ func (b *buffer) fill(need int) error {
 	b.idx = 0
 
 	for {
-		if b.timeout > 0 {
-			if err := b.nc.SetReadDeadline(time.Now().Add(b.timeout)); err != nil {
+		var deadline time.Time
+		if ctxDeadline, ok := ctx.Deadline(); ok {
+			deadline = ctxDeadline
+		} else if b.timeout > 0 {
+			deadline = time.Now().Add(b.timeout)
+		}
+		if !deadline.IsZero() {
+			if err := b.nc.SetReadDeadline(deadline); err != nil {
 				return err
 			}
 		}
@@ -91,10 +97,10 @@ func (b *buffer) fill(need int) error {
 
 // returns next N bytes from buffer.
 // The returned slice is only guaranteed to be valid until the next read
-func (b *buffer) readNext(need int) ([]byte, error) {
+func (b *buffer) readNext(ctx mysqlContext, need int) ([]byte, error) {
 	if b.length < need {
 		// refill
-		if err := b.fill(need); err != nil {
+		if err := b.fill(ctx, need); err != nil {
 			return nil, err
 		}
 	}

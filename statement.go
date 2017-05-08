@@ -69,24 +69,24 @@ func (stmt *mysqlStmt) execContext(ctx mysqlContext, args []driver.Value) (drive
 	mc.insertId = 0
 
 	// Read Result
-	resLen, err := mc.readResultSetHeaderPacket()
+	resLen, err := mc.readResultSetHeaderPacket(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	if resLen > 0 {
 		// Columns
-		if err = mc.readUntilEOF(); err != nil {
+		if err = mc.readUntilEOF(ctx); err != nil {
 			return nil, err
 		}
 
 		// Rows
-		if err := mc.readUntilEOF(); err != nil {
+		if err := mc.readUntilEOF(ctx); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := mc.discardResults(); err != nil {
+	if err := mc.discardResults(ctx); err != nil {
 		return nil, err
 	}
 
@@ -115,7 +115,7 @@ func (stmt *mysqlStmt) queryContext(ctx mysqlContext, args []driver.Value) (driv
 	mc := stmt.mc
 
 	// Read Result
-	resLen, err := mc.readResultSetHeaderPacket()
+	resLen, err := mc.readResultSetHeaderPacket(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -129,11 +129,11 @@ func (stmt *mysqlStmt) queryContext(ctx mysqlContext, args []driver.Value) (driv
 		// Columns
 		// If not cached, read them and cache them
 		if len(stmt.columns) == 0 {
-			rows.rs.columns, err = mc.readColumns(resLen)
+			rows.rs.columns, err = mc.readColumns(ctx, resLen)
 			stmt.columns = append(stmt.columns, rows.rs.columns)
 		} else {
 			rows.rs.columns = stmt.columns[0]
-			err = mc.readUntilEOF()
+			err = mc.readUntilEOF(ctx)
 		}
 	} else {
 		rows.rs.done = true

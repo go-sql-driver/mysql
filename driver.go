@@ -89,7 +89,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	mc.writeTimeout = mc.cfg.WriteTimeout
 
 	// Reading Handshake Initialization Packet
-	cipher, err := mc.readInitPacket()
+	cipher, err := mc.readInitPacket(backgroundCtx())
 	if err != nil {
 		mc.cleanup()
 		return nil, err
@@ -114,7 +114,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		mc.maxAllowedPacket = mc.cfg.MaxAllowedPacket
 	} else {
 		// Get max allowed packet size
-		maxap, err := mc.getSystemVar("max_allowed_packet")
+		maxap, err := mc.getSystemVar(backgroundCtx(), "max_allowed_packet")
 		if err != nil {
 			mc.Close()
 			return nil, err
@@ -137,7 +137,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 
 func handleAuthResult(mc *mysqlConn, oldCipher []byte) error {
 	// Read Result Packet
-	cipher, err := mc.readResultOK()
+	cipher, err := mc.readResultOK(backgroundCtx())
 	if err == nil {
 		return nil // auth successful
 	}
@@ -161,7 +161,7 @@ func handleAuthResult(mc *mysqlConn, oldCipher []byte) error {
 		if err = mc.writeOldAuthPacket(backgroundCtx(), cipher); err != nil {
 			return err
 		}
-		_, err = mc.readResultOK()
+		_, err = mc.readResultOK(backgroundCtx())
 	} else if mc.cfg.AllowCleartextPasswords && err == ErrCleartextPassword {
 		// Retry with clear text password for
 		// http://dev.mysql.com/doc/refman/5.7/en/cleartext-authentication-plugin.html
@@ -169,12 +169,12 @@ func handleAuthResult(mc *mysqlConn, oldCipher []byte) error {
 		if err = mc.writeClearAuthPacket(backgroundCtx()); err != nil {
 			return err
 		}
-		_, err = mc.readResultOK()
+		_, err = mc.readResultOK(backgroundCtx())
 	} else if mc.cfg.AllowNativePasswords && err == ErrNativePassword {
 		if err = mc.writeNativeAuthPacket(backgroundCtx(), cipher); err != nil {
 			return err
 		}
-		_, err = mc.readResultOK()
+		_, err = mc.readResultOK(backgroundCtx())
 	}
 	return err
 }

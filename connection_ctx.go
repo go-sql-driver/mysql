@@ -26,7 +26,7 @@ func (mc *mysqlConn) Ping(ctx context.Context) error {
 		return err
 	}
 
-	if _, err := mc.readResultOK(); err != nil {
+	if _, err := mc.readResultOK(ctx); err != nil {
 		errLog.Print(err)
 		return err
 	}

@@ -24,11 +24,16 @@ import (
 // http://dev.mysql.com/doc/internals/en/client-server-protocol.html
 
 // Read packet to buffer 'data'
-func (mc *mysqlConn) readPacket() ([]byte, error) {
+func (mc *mysqlConn) readPacket(ctx mysqlContext) ([]byte, error) {
+	ctxDeadline, isCtxDeadlineSet := ctx.Deadline()
+	if isCtxDeadlineSet && !ctxDeadline.After(time.Now()) {
+		return nil, deadlineExceeded
+	}
+
 	var prevData []byte
 	for {
 		// read packet header
-		data, err := mc.buf.readNext(4)
+		data, err := mc.buf.readNext(ctx, 4)
 		if err != nil {
 			errLog.Print(err)
 			mc.Close()
@@ -61,7 +66,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		}
 
 		// read packet body [pktLen bytes]
-		data, err = mc.buf.readNext(pktLen)
+		data, err = mc.buf.readNext(ctx, pktLen)
 		if err != nil {
 			errLog.Print(err)
 			mc.Close()
@@ -152,8 +157,8 @@ func (mc *mysqlConn) writePacket(ctx mysqlContext, data []byte) error {
 
 // Handshake Initialization Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::Handshake
-func (mc *mysqlConn) readInitPacket() ([]byte, error) {
-	data, err := mc.readPacket()
+func (mc *mysqlConn) readInitPacket(ctx mysqlContext) ([]byte, error) {
+	data, err := mc.readPacket(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -484,8 +489,8 @@ func (mc *mysqlConn) writeCommandPacketUint32(ctx mysqlContext, command byte, ar
 ******************************************************************************/
 
 // Returns error if Packet is not an 'Result OK'-Packet
-func (mc *mysqlConn) readResultOK() ([]byte, error) {
-	data, err := mc.readPacket()
+func (mc *mysqlConn) readResultOK(ctx mysqlContext) ([]byte, error) {
+	data, err := mc.readPacket(ctx)
 	if err == nil {
 		// packet indicator
 		switch data[0] {
@@ -526,8 +531,8 @@ func (mc *mysqlConn) readResultOK() ([]byte, error) {
 
 // Result Set Header Packet
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-ProtocolText::Resultset
-func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
-	data, err := mc.readPacket()
+func (mc *mysqlConn) readResultSetHeaderPacket(ctx mysqlContext) (int, error) {
+	data, err := mc.readPacket(ctx)
 	if err == nil {
 		switch data[0] {
 
@@ -616,11 +621,11 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
-func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
+func (mc *mysqlConn) readColumns(ctx mysqlContext, count int) ([]mysqlField, error) {
 	columns := make([]mysqlField, count)
 
 	for i := 0; ; i++ {
-		data, err := mc.readPacket()
+		data, err := mc.readPacket(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -709,14 +714,14 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-ProtocolText::ResultsetRow
-func (rows *textRows) readRow(dest []driver.Value) error {
+func (rows *textRows) readRow(ctx mysqlContext, dest []driver.Value) error {
 	mc := rows.mc
 
 	if rows.rs.done {
 		return io.EOF
 	}
 
-	data, err := mc.readPacket()
+	data, err := mc.readPacket(ctx)
 	if err != nil {
 		return err
 	}
@@ -777,9 +782,9 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 }
 
 // Reads Packets until EOF-Packet or an Error appears. Returns count of Packets read
-func (mc *mysqlConn) readUntilEOF() error {
+func (mc *mysqlConn) readUntilEOF(ctx mysqlContext) error {
 	for {
-		data, err := mc.readPacket()
+		data, err := mc.readPacket(ctx)
 		if err != nil {
 			return err
 		}
@@ -802,8 +807,8 @@ func (mc *mysqlConn) readUntilEOF() error {
 
 // Prepare Result Packets
 // http://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
-func (stmt *mysqlStmt) readPrepareResultPacket() (uint16, error) {
-	data, err := stmt.mc.readPacket()
+func (stmt *mysqlStmt) readPrepareResultPacket(ctx mysqlContext) (uint16, error) {
+	data, err := stmt.mc.readPacket(ctx)
 	if err == nil {
 		// packet indicator [1 byte]
 		if data[0] != iOK {
@@ -1096,19 +1101,19 @@ func (stmt *mysqlStmt) writeExecutePacket(ctx mysqlContext, args []driver.Value)
 	return mc.writePacket(ctx, data)
 }
 
-func (mc *mysqlConn) discardResults() error {
+func (mc *mysqlConn) discardResults(ctx mysqlContext) error {
 	for mc.status&statusMoreResultsExists != 0 {
-		resLen, err := mc.readResultSetHeaderPacket()
+		resLen, err := mc.readResultSetHeaderPacket(ctx)
 		if err != nil {
 			return err
 		}
 		if resLen > 0 {
 			// columns
-			if err := mc.readUntilEOF(); err != nil {
+			if err := mc.readUntilEOF(ctx); err != nil {
 				return err
 			}
 			// rows
-			if err := mc.readUntilEOF(); err != nil {
+			if err := mc.readUntilEOF(ctx); err != nil {
 				return err
 			}
 		}
@@ -1117,8 +1122,8 @@ func (mc *mysqlConn) discardResults() error {
 }
 
 // http://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html
-func (rows *binaryRows) readRow(dest []driver.Value) error {
-	data, err := rows.mc.readPacket()
+func (rows *binaryRows) readRow(ctx mysqlContext, dest []driver.Value) error {
+	data, err := rows.mc.readPacket(ctx)
 	if err != nil {
 		return err
 	}

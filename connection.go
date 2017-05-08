@@ -128,16 +128,16 @@ func (mc *mysqlConn) prepareContext(ctx mysqlContext, query string) (driver.Stmt
 	}
 
 	// Read Result
-	columnCount, err := stmt.readPrepareResultPacket()
+	columnCount, err := stmt.readPrepareResultPacket(ctx)
 	if err == nil {
 		if stmt.paramCount > 0 {
-			if err = mc.readUntilEOF(); err != nil {
+			if err = mc.readUntilEOF(ctx); err != nil {
 				return nil, err
 			}
 		}
 
 		if columnCount > 0 {
-			err = mc.readUntilEOF()
+			err = mc.readUntilEOF(ctx)
 		}
 	}
 
@@ -307,24 +307,24 @@ func (mc *mysqlConn) exec(ctx mysqlContext, query string) error {
 	}
 
 	// Read Result
-	resLen, err := mc.readResultSetHeaderPacket()
+	resLen, err := mc.readResultSetHeaderPacket(ctx)
 	if err != nil {
 		return err
 	}
 
 	if resLen > 0 {
 		// columns
-		if err := mc.readUntilEOF(); err != nil {
+		if err := mc.readUntilEOF(ctx); err != nil {
 			return err
 		}
 
 		// rows
-		if err := mc.readUntilEOF(); err != nil {
+		if err := mc.readUntilEOF(ctx); err != nil {
 			return err
 		}
 	}
 
-	return mc.discardResults()
+	return mc.discardResults(ctx)
 }
 
 // Query implements driver.Queryer interface
@@ -353,7 +353,7 @@ func (mc *mysqlConn) queryContext(ctx mysqlContext, query string, args []driver.
 	if err == nil {
 		// Read Result
 		var resLen int
-		resLen, err = mc.readResultSetHeaderPacket()
+		resLen, err = mc.readResultSetHeaderPacket(ctx)
 		if err == nil {
 			rows := new(textRows)
 			rows.mc = mc
@@ -369,7 +369,7 @@ func (mc *mysqlConn) queryContext(ctx mysqlContext, query string, args []driver.
 				}
 			}
 			// Columns
-			rows.rs.columns, err = mc.readColumns(resLen)
+			rows.rs.columns, err = mc.readColumns(ctx, resLen)
 			return rows, err
 		}
 	}
@@ -378,14 +378,14 @@ func (mc *mysqlConn) queryContext(ctx mysqlContext, query string, args []driver.
 
 // Gets the value of the given MySQL System Variable
 // The returned byte slice is only valid until the next read
-func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
+func (mc *mysqlConn) getSystemVar(ctx mysqlContext, name string) ([]byte, error) {
 	// Send command
-	if err := mc.writeCommandPacketStr(backgroundCtx(), comQuery, "SELECT @@"+name); err != nil {
+	if err := mc.writeCommandPacketStr(ctx, comQuery, "SELECT @@"+name); err != nil {
 		return nil, err
 	}
 
 	// Read Result
-	resLen, err := mc.readResultSetHeaderPacket()
+	resLen, err := mc.readResultSetHeaderPacket(ctx)
 	if err == nil {
 		rows := new(textRows)
 		rows.mc = mc
@@ -393,14 +393,14 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 
 		if resLen > 0 {
 			// Columns
-			if err := mc.readUntilEOF(); err != nil {
+			if err := mc.readUntilEOF(ctx); err != nil {
 				return nil, err
 			}
 		}
 
 		dest := make([]driver.Value, resLen)
-		if err = rows.readRow(dest); err == nil {
-			return dest[0].([]byte), mc.readUntilEOF()
+		if err = rows.readRow(ctx, dest); err == nil {
+			return dest[0].([]byte), mc.readUntilEOF(ctx)
 		}
 	}
 	return nil, err

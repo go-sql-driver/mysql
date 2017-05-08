@@ -96,7 +96,7 @@ func TestReadPacketSingleByte(t *testing.T) {
 
 	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
 	conn.maxReads = 1
-	packet, err := mc.readPacket()
+	packet, err := mc.readPacket(backgroundCtx())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
 	conn.maxReads = 1
 	mc.sequence = 1
-	_, err := mc.readPacket()
+	_, err := mc.readPacket(backgroundCtx())
 	if err != ErrPktSync {
 		t.Errorf("expected ErrPktSync, got %v", err)
 	}
@@ -130,7 +130,7 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 
 	// too high sequence id
 	conn.data = []byte{0x01, 0x00, 0x00, 0x42, 0xff}
-	_, err = mc.readPacket()
+	_, err = mc.readPacket(backgroundCtx())
 	if err != ErrPktSyncMul {
 		t.Errorf("expected ErrPktSyncMul, got %v", err)
 	}
@@ -166,7 +166,7 @@ func TestReadPacketSplit(t *testing.T) {
 
 	conn.data = data
 	conn.maxReads = 3
-	packet, err := mc.readPacket()
+	packet, err := mc.readPacket(backgroundCtx())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestReadPacketSplit(t *testing.T) {
 	conn.reads = 0
 	conn.maxReads = 5
 	mc.sequence = 0
-	packet, err = mc.readPacket()
+	packet, err = mc.readPacket(backgroundCtx())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +226,7 @@ func TestReadPacketSplit(t *testing.T) {
 	conn.reads = 0
 	conn.maxReads = 4
 	mc.sequence = 0
-	packet, err = mc.readPacket()
+	packet, err = mc.readPacket(backgroundCtx())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +250,7 @@ func TestReadPacketFail(t *testing.T) {
 	// illegal empty (stand-alone) packet
 	conn.data = []byte{0x00, 0x00, 0x00, 0x00}
 	conn.maxReads = 1
-	_, err := mc.readPacket()
+	_, err := mc.readPacket(backgroundCtx())
 	if err != driver.ErrBadConn {
 		t.Errorf("expected ErrBadConn, got %v", err)
 	}
@@ -262,7 +262,7 @@ func TestReadPacketFail(t *testing.T) {
 
 	// fail to read header
 	conn.closed = true
-	_, err = mc.readPacket()
+	_, err = mc.readPacket(backgroundCtx())
 	if err != driver.ErrBadConn {
 		t.Errorf("expected ErrBadConn, got %v", err)
 	}
@@ -275,7 +275,7 @@ func TestReadPacketFail(t *testing.T) {
 
 	// fail to read body
 	conn.maxReads = 1
-	_, err = mc.readPacket()
+	_, err = mc.readPacket(backgroundCtx())
 	if err != driver.ErrBadConn {
 		t.Errorf("expected ErrBadConn, got %v", err)
 	}
