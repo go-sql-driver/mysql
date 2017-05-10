@@ -74,10 +74,10 @@ func (rows *mysqlRows) Close() (err error) {
 
 	// Remove unread packets from stream
 	if !rows.rs.done {
-		err = mc.readUntilEOF()
+		err = mc.readUntilEOF(backgroundCtx())
 	}
 	if err == nil {
-		if err = mc.discardResults(); err != nil {
+		if err = mc.discardResults(backgroundCtx()); err != nil {
 			return err
 		}
 	}
@@ -103,7 +103,7 @@ func (rows *mysqlRows) nextResultSet() (int, error) {
 
 	// Remove unread packets from stream
 	if !rows.rs.done {
-		if err := rows.mc.readUntilEOF(); err != nil {
+		if err := rows.mc.readUntilEOF(backgroundCtx()); err != nil {
 			return 0, err
 		}
 		rows.rs.done = true
@@ -114,7 +114,7 @@ func (rows *mysqlRows) nextResultSet() (int, error) {
 		return 0, io.EOF
 	}
 	rows.rs = resultSet{}
-	return rows.mc.readResultSetHeaderPacket()
+	return rows.mc.readResultSetHeaderPacket(backgroundCtx())
 }
 
 func (rows *mysqlRows) nextNotEmptyResultSet() (int, error) {
@@ -140,11 +140,11 @@ func (rows *binaryRows) NextResultSet() (err error) {
 
 	// get columns, if not cached, read them and cache them.
 	if rows.i >= len(*rows.stmtCols) {
-		rows.rs.columns, err = rows.mc.readColumns(resLen)
+		rows.rs.columns, err = rows.mc.readColumns(backgroundCtx(), resLen)
 		*rows.stmtCols = append(*rows.stmtCols, rows.rs.columns)
 	} else {
 		rows.rs.columns = (*rows.stmtCols)[rows.i]
-		if err := rows.mc.readUntilEOF(); err != nil {
+		if err := rows.mc.readUntilEOF(backgroundCtx()); err != nil {
 			return err
 		}
 	}
@@ -160,7 +160,7 @@ func (rows *binaryRows) Next(dest []driver.Value) error {
 		}
 
 		// Fetch next row from stream
-		return rows.readRow(dest)
+		return rows.readRow(backgroundCtx(), dest)
 	}
 	return io.EOF
 }
@@ -171,7 +171,7 @@ func (rows *textRows) NextResultSet() (err error) {
 		return err
 	}
 
-	rows.rs.columns, err = rows.mc.readColumns(resLen)
+	rows.rs.columns, err = rows.mc.readColumns(backgroundCtx(), resLen)
 	return err
 }
 
@@ -182,7 +182,7 @@ func (rows *textRows) Next(dest []driver.Value) error {
 		}
 
 		// Fetch next row from stream
-		return rows.readRow(dest)
+		return rows.readRow(backgroundCtx(), dest)
 	}
 	return io.EOF
 }

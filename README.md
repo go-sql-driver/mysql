@@ -418,6 +418,10 @@ Version 1.0 of the driver recommended adding `&charset=utf8` (alias for `SET NAM
 
 See http://dev.mysql.com/doc/refman/5.7/en/charset-unicode.html for more details on MySQL's Unicode support.
 
+## Context Support
+Go 1.8 added some `database/sql` methods that accept a `context.Context` parameter for better control over timeout and cancellation.
+See more details on [context support to database/sql package](https://golang.org/doc/go1.8#database_sql, "sql").
+Go-MySQL-Driver supports context deadlines, but not cancellation.
 
 ## Testing / Development
 To run the driver tests you may need to adjust the configuration. See the [Testing Wiki-Page](https://github.com/go-sql-driver/mysql/wiki/Testing "Testing") for details.

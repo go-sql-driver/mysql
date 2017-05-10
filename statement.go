@@ -23,6 +23,7 @@ type mysqlStmt struct {
 	columns    [][]mysqlField // cached from the first query
 }
 
+// Close implements driver.Conn interface
 func (stmt *mysqlStmt) Close() error {
 	if stmt.mc == nil || stmt.mc.netConn == nil {
 		// driver.Stmt.Close can be called more than once, thus this function
@@ -32,11 +33,12 @@ func (stmt *mysqlStmt) Close() error {
 		return driver.ErrBadConn
 	}
 
-	err := stmt.mc.writeCommandPacketUint32(comStmtClose, stmt.id)
+	err := stmt.mc.writeCommandPacketUint32(backgroundCtx(), comStmtClose, stmt.id)
 	stmt.mc = nil
 	return err
 }
 
+// NumInput implements driver.Stmt interface
 func (stmt *mysqlStmt) NumInput() int {
 	return stmt.paramCount
 }
@@ -45,13 +47,18 @@ func (stmt *mysqlStmt) ColumnConverter(idx int) driver.ValueConverter {
 	return converter{}
 }
 
+// Exec implements driver.Stmt interface
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
+	return stmt.execContext(backgroundCtx(), args)
+}
+
+func (stmt *mysqlStmt) execContext(ctx mysqlContext, args []driver.Value) (driver.Result, error) {
 	if stmt.mc.netConn == nil {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	// Send command
-	err := stmt.writeExecutePacket(args)
+	err := stmt.writeExecutePacket(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -62,24 +69,24 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	mc.insertId = 0
 
 	// Read Result
-	resLen, err := mc.readResultSetHeaderPacket()
+	resLen, err := mc.readResultSetHeaderPacket(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	if resLen > 0 {
 		// Columns
-		if err = mc.readUntilEOF(); err != nil {
+		if err = mc.readUntilEOF(ctx); err != nil {
 			return nil, err
 		}
 
 		// Rows
-		if err := mc.readUntilEOF(); err != nil {
+		if err := mc.readUntilEOF(ctx); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := mc.discardResults(); err != nil {
+	if err := mc.discardResults(ctx); err != nil {
 		return nil, err
 	}
 
@@ -89,13 +96,18 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	}, nil
 }
 
+// Query implements driver.Stmt interface
 func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
+	return stmt.queryContext(backgroundCtx(), args)
+}
+
+func (stmt *mysqlStmt) queryContext(ctx mysqlContext, args []driver.Value) (driver.Rows, error) {
 	if stmt.mc.netConn == nil {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	// Send command
-	err := stmt.writeExecutePacket(args)
+	err := stmt.writeExecutePacket(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +115,7 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 	mc := stmt.mc
 
 	// Read Result
-	resLen, err := mc.readResultSetHeaderPacket()
+	resLen, err := mc.readResultSetHeaderPacket(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -117,11 +129,11 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 		// Columns
 		// If not cached, read them and cache them
 		if len(stmt.columns) == 0 {
-			rows.rs.columns, err = mc.readColumns(resLen)
+			rows.rs.columns, err = mc.readColumns(ctx, resLen)
 			stmt.columns = append(stmt.columns, rows.rs.columns)
 		} else {
 			rows.rs.columns = stmt.columns[0]
-			err = mc.readUntilEOF()
+			err = mc.readUntilEOF(ctx)
 		}
 	} else {
 		rows.rs.done = true
