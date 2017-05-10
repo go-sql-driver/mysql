@@ -10,6 +10,10 @@ go:
   - 1.8
   - tip
 
+before_install:
+  - go get golang.org/x/tools/cmd/cover
+  - go get github.com/mattn/goveralls
+
 matrix:
   include:
     - env: DB=MYSQL57
@@ -76,6 +80,7 @@ matrix:
 before_script:
   - mysql -e 'create database gotest;'
 script:
-  - go test -v
+  - go test -v -covermode=count -coverprofile=coverage.out
   - go vet ./...
   - test -z "$(gofmt -d -s . | tee /dev/stderr)"
+  - $HOME/gopath/bin/goveralls  -coverprofile=coverage.out -service=travis-ci
