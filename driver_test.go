@@ -1054,22 +1054,36 @@ func TestLoadData(t *testing.T) {
 				dbt.Fatalf("rows count mismatch. Got %d, want 4", i)
 			}
 		}
-		file, err := ioutil.TempFile("", "gotest")
-		defer os.Remove(file.Name())
-		if err != nil {
-			dbt.Fatal(err)
-		}
-		file.WriteString("1\ta string\n2\ta string containing a \\t\n3\ta string containing a \\n\n4\ta string containing both \\t\\n\n")
-		file.Close()
 
 		dbt.db.Exec("DROP TABLE IF EXISTS test")
 		dbt.mustExec("CREATE TABLE test (id INT NOT NULL PRIMARY KEY, value TEXT NOT NULL) CHARACTER SET utf8")
 
 		// Local File
+		file, err := ioutil.TempFile("", "gotest")
+		defer os.Remove(file.Name())
+		if err != nil {
+			dbt.Fatal(err)
+		}
 		RegisterLocalFile(file.Name())
+
+		// Try first with empty file
+		dbt.mustExec(fmt.Sprintf("LOAD DATA LOCAL INFILE %q INTO TABLE test", file.Name()))
+		var count int
+		err = dbt.db.QueryRow("SELECT COUNT(*) FROM test").Scan(&count)
+		if err != nil {
+			dbt.Fatal(err.Error())
+		}
+		if count != 0 {
+			dbt.Fatalf("unexpected row count: got %d, want 0", count)
+		}
+
+		// Then fille File with data and try to load it
+		file.WriteString("1\ta string\n2\ta string containing a \\t\n3\ta string containing a \\n\n4\ta string containing both \\t\\n\n")
+		file.Close()
 		dbt.mustExec(fmt.Sprintf("LOAD DATA LOCAL INFILE %q INTO TABLE test", file.Name()))
 		verifyLoadDataResult()
-		// negative test
+
+		// Try with non-existing file
 		_, err = dbt.db.Exec("LOAD DATA LOCAL INFILE 'doesnotexist' INTO TABLE test")
 		if err == nil {
 			dbt.Fatal("load non-existent file didn't fail")
