@@ -10,6 +10,10 @@ go:
   - 1.8
   - tip
 
+before_install:
+  - go get golang.org/x/tools/cmd/cover
+  - go get github.com/mattn/goveralls
+
 matrix:
   include:
     - env: DB=MYSQL57
@@ -19,6 +23,8 @@ matrix:
       services:
         - docker
       before_install:
+        - go get golang.org/x/tools/cmd/cover
+        - go get github.com/mattn/goveralls
         - docker pull mysql:5.7
         - docker run -d -p 127.0.0.1:3307:3306 --name mysqld -e MYSQL_DATABASE=gotest -e MYSQL_USER=gotest -e MYSQL_PASSWORD=secret -e MYSQL_ROOT_PASSWORD=verysecret
           mysql:5.7 --innodb_log_file_size=256MB --innodb_buffer_pool_size=512MB --max_allowed_packet=16MB
@@ -39,6 +45,8 @@ matrix:
       services:
         - docker
       before_install:
+        - go get golang.org/x/tools/cmd/cover
+        - go get github.com/mattn/goveralls
         - docker pull mariadb:5.5
         - docker run -d -p 127.0.0.1:3307:3306 --name mysqld -e MYSQL_DATABASE=gotest -e MYSQL_USER=gotest -e MYSQL_PASSWORD=secret -e MYSQL_ROOT_PASSWORD=verysecret
           mariadb:5.5 --innodb_log_file_size=256MB --innodb_buffer_pool_size=512MB --max_allowed_packet=16MB
@@ -59,6 +67,8 @@ matrix:
       services:
         - docker
       before_install:
+        - go get golang.org/x/tools/cmd/cover
+        - go get github.com/mattn/goveralls
         - docker pull mariadb:10.1
         - docker run -d -p 127.0.0.1:3307:3306 --name mysqld -e MYSQL_DATABASE=gotest -e MYSQL_USER=gotest -e MYSQL_PASSWORD=secret -e MYSQL_ROOT_PASSWORD=verysecret
           mariadb:10.1 --innodb_log_file_size=256MB --innodb_buffer_pool_size=512MB --max_allowed_packet=16MB
@@ -76,6 +86,7 @@ matrix:
 before_script:
   - mysql -e 'create database gotest;'
 script:
-  - go test -v
+  - go test -v -covermode=count -coverprofile=coverage.out
   - go vet ./...
   - test -z "$(gofmt -d -s . | tee /dev/stderr)"
+  - $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci
