@@ -35,6 +35,18 @@ var (
 	_ driver.StmtQueryContext = &mysqlStmt{}
 )
 
+// Ensure that all the driver interfaces are implemented
+var (
+	_ driver.RowsColumnTypeDatabaseTypeName = &binaryRows{}
+	_ driver.RowsColumnTypeDatabaseTypeName = &textRows{}
+	_ driver.RowsColumnTypeNullable         = &binaryRows{}
+	_ driver.RowsColumnTypeNullable         = &textRows{}
+	_ driver.RowsColumnTypeScanType         = &binaryRows{}
+	_ driver.RowsColumnTypeScanType         = &textRows{}
+	_ driver.RowsNextResultSet              = &binaryRows{}
+	_ driver.RowsNextResultSet              = &textRows{}
+)
+
 func TestMultiResultSet(t *testing.T) {
 	type result struct {
 		values  [][]int
