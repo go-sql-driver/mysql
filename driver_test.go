@@ -1916,3 +1916,36 @@ func TestInterruptBySignal(t *testing.T) {
 		}
 	})
 }
+
+func TestColumnsReusesSlice(t *testing.T) {
+	rows := mysqlRows{
+		rs: resultSet{
+			columns: []mysqlField{
+				{
+					tableName: "test",
+					name:      "A",
+				},
+				{
+					tableName: "test",
+					name:      "B",
+				},
+			},
+		},
+	}
+
+	allocs := testing.AllocsPerRun(1, func() {
+		cols := rows.Columns()
+
+		if len(cols) != 2 {
+			t.Fatalf("expected 2 columns, got %d", len(cols))
+		}
+	})
+
+	if allocs != 0 {
+		t.Fatalf("expected 0 allocations, got %d", int(allocs))
+	}
+
+	if rows.rs.columnNames == nil {
+		t.Fatalf("expected columnNames to be set, got nil")
+	}
+}
