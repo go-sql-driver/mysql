@@ -27,6 +27,12 @@ import (
 	"time"
 )
 
+// Ensure that all the driver interfaces are implemented
+var (
+	_ driver.Rows = &binaryRows{}
+	_ driver.Rows = &textRows{}
+)
+
 var (
 	user      string
 	pass      string
