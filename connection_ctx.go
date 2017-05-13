@@ -13,6 +13,7 @@ package mysql
 import (
 	"context"
 	"database/sql/driver"
+	"errors"
 )
 
 // Ping implements driver.Pinger interface
@@ -43,6 +44,30 @@ func (mc *mysqlConn) PrepareContext(ctx context.Context, query string) (driver.S
 }
 
 // QueryContext implements driver.QueryerContext interface
-func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driver.Value) (driver.Rows, error) {
-	return mc.queryContext(ctx, query, args)
+func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	values, err := namedValueToValue(args)
+	if err != nil {
+		return nil, err
+	}
+	return mc.queryContext(ctx, query, values)
+}
+
+// ExecContext implements driver.ExecerContext interface
+func (mc *mysqlConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	values, err := namedValueToValue(args)
+	if err != nil {
+		return nil, err
+	}
+	return mc.execContext(ctx, query, values)
+}
+
+func namedValueToValue(named []driver.NamedValue) ([]driver.Value, error) {
+	dargs := make([]driver.Value, len(named))
+	for n, param := range named {
+		if len(param.Name) > 0 {
+			return nil, errors.New("mysql: Named Parameters are not supported")
+		}
+		dargs[n] = param.Value
+	}
+	return dargs, nil
 }

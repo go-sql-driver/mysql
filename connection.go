@@ -267,10 +267,10 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 }
 
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
-	return mc.ExecContext(backgroundCtx(), query, args)
+	return mc.execContext(backgroundCtx(), query, args)
 }
 
-func (mc *mysqlConn) ExecContext(ctx mysqlContext, query string, args []driver.Value) (driver.Result, error) {
+func (mc *mysqlConn) execContext(ctx mysqlContext, query string, args []driver.Value) (driver.Result, error) {
 	if mc.netConn == nil {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn

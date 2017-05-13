@@ -16,11 +16,19 @@ import (
 )
 
 // ExecContent implements driver.StmtExecContext interface
-func (stmt *mysqlStmt) ExecContext(ctx context.Context, args []driver.Value) (driver.Result, error) {
-	return stmt.execContext(ctx, args)
+func (stmt *mysqlStmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
+	values, err := namedValueToValue(args)
+	if err != nil {
+		return nil, err
+	}
+	return stmt.execContext(ctx, values)
 }
 
 // QueryContext implements driver.StmtQueryContext interface
-func (stmt *mysqlStmt) QueryContext(ctx context.Context, args []driver.Value) (driver.Rows, error) {
-	return stmt.queryContext(ctx, args)
+func (stmt *mysqlStmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driver.Rows, error) {
+	values, err := namedValueToValue(args)
+	if err != nil {
+		return nil, err
+	}
+	return stmt.queryContext(ctx, values)
 }
