@@ -267,6 +267,29 @@ Default:        0
 
 I/O read timeout. The value must be a decimal number with a unit suffix (*"ms"*, *"s"*, *"m"*, *"h"*), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
+##### `rejectReadOnly`
+
+```
+Type:           bool
+Valid Values:   true, false
+Default:        false
+```
+
+
+RejectreadOnly causes mysql driver to reject read-only connections. This is
+specifically for AWS Aurora: During a failover, there seems to be a race
+condition on Aurora, where we get connected to the [old master before
+failover], i.e. the [new read-only slave after failover].
+
+Note that this should be a fairly rare case, as automatic failover normally
+happens when master is down, and the race condition shouldn't happen unless it
+comes back up online as soon as the failover is kicked off. But it's pretty
+easy to reproduce using a manual failover. In case this happens, we should
+reconnect to the Aurora cluster by returning a driver.ErrBadConnection.
+
+tl;dr: Set this if you are using Aurora.
+
+
 ##### `strict`
 
 ```

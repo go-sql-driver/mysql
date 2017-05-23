@@ -53,22 +53,8 @@ type Config struct {
 	InterpolateParams       bool // Interpolate placeholders into query string
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
+	RejectReadOnly          bool // Reject read-only connections; see README.md
 	Strict                  bool // Return warnings as errors
-
-	// RejectreadOnly causes mysql driver to reject read-only connections. This
-	// is specifically for AWS Aurora: During a failover, there seems to be a
-	// race condition on Aurora, where we get connected to the [old master
-	// before failover], i.e. the [new read-only slave after failover].
-	//
-	// Note that this should be a fairly rare case, as automatic failover
-	// normally happens when master is down, and the race condition shouldn't
-	// happen unless it comes back up online as soon as the failover is kicked
-	// off. But it's pretty easy to reproduce using a manual failover. In case
-	// this happens, we should reconnect to the Aurora cluster by returning a
-	// driver.ErrBadConnection.
-	//
-	// tl;dr: Set this if you are using Aurora.
-	RejectReadOnly bool
 }
 
 // FormatDSN formats the given Config into a DSN string which can be passed to
