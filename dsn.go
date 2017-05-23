@@ -54,6 +54,21 @@ type Config struct {
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
 	Strict                  bool // Return warnings as errors
+
+	// RejectreadOnly causes mysql driver to reject read-only connections. This
+	// is specifically for AWS Aurora: During a failover, there seems to be a
+	// race condition on Aurora, where we get connected to the [old master
+	// before failover], i.e. the [new read-only slave after failover].
+	//
+	// Note that this should be a fairly rare case, as automatic failover
+	// normally happens when master is down, and the race condition shouldn't
+	// happen unless it comes back up online as soon as the failover is kicked
+	// off. But it's pretty easy to reproduce using a manual failover. In case
+	// this happens, we should reconnect to the Aurora cluster by returning a
+	// driver.ErrBadConnection.
+	//
+	// tl;dr: Set this if you are using Aurora.
+	RejectReadOnly bool
 }
 
 // FormatDSN formats the given Config into a DSN string which can be passed to
@@ -193,6 +208,15 @@ func (cfg *Config) FormatDSN() string {
 			buf.WriteString("?readTimeout=")
 		}
 		buf.WriteString(cfg.ReadTimeout.String())
+	}
+
+	if cfg.RejectReadOnly {
+		if hasParam {
+			buf.WriteString("&rejectReadOnly=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?rejectReadOnly=true")
+		}
 	}
 
 	if cfg.Strict {
@@ -470,6 +494,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			cfg.ReadTimeout, err = time.ParseDuration(value)
 			if err != nil {
 				return
+			}
+
+		// Reject read-only connections
+		case "rejectReadOnly":
+			var isBool bool
+			cfg.RejectReadOnly, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
 			}
 
 		// Strict mode

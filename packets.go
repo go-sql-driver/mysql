@@ -551,6 +551,11 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 	// Error Number [16 bit uint]
 	errno := binary.LittleEndian.Uint16(data[1:3])
 
+	// 1792: ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+	if errno == 1792 && mc.cfg.RejectReadOnly {
+		return driver.ErrBadConn
+	}
+
 	pos := 3
 
 	// SQL State [optional: # + 5bytes string]
