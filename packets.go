@@ -556,8 +556,8 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 		// Oops; we are connected to a read-only connection, and won't be able
 		// to issue any write statements. Since RejectReadOnly is configured,
 		// we throw away this connection hoping this one would have write
-		// permission. This is specifically for an AWS Aurora behavior during
-		// failover. See README.md for more.
+		// permission. This is specifically for a possible race condition
+		// during failover (e.g. on AWS Aurora). See README.md for more.
 		//
 		// We explicitly close the connection before returning
 		// driver.ErrBadConn to ensure that `database/sql` purges this

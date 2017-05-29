@@ -276,18 +276,20 @@ Default:        false
 ```
 
 
-RejectreadOnly causes mysql driver to reject read-only connections. This is
-specifically for AWS Aurora: During a failover, there seems to be a race
-condition on Aurora, where we get connected to the [old master before
-failover], i.e. the [new read-only slave after failover].
+RejectreadOnly causes the driver to reject read-only connections. This is for a
+possible race condition during an automatic failover, where the mysql client
+gets connected to a read-only replica after the failover. 
 
-Note that this should be a fairly rare case, as automatic failover normally
-happens when master is down, and the race condition shouldn't happen unless it
-comes back up online as soon as the failover is kicked off. But it's pretty
-easy to reproduce using a manual failover. In case this happens, we should
-reconnect to the Aurora cluster by returning a driver.ErrBadConnection.
+Note that this should be a fairly rare case, as an automatic failover normally
+happens when the primary is down, and the race condition shouldn't happen
+unless it comes back up online as soon as the failover is kicked off. On the
+other hand, when this happens, an mysql application can get stuck on a
+read-only connection until restarted. It is however fairly easy to reproduce,
+for example, using a manual failover on AWS Aurora's MySQL-compatible cluster.
 
-tl;dr: Set this if you are using Aurora.
+If you are not relying on read-only transactions to reject writes that aren't
+supposed to happen, setting this on some MySQL providers (such as AWS Aurora)
+is safer for failovers.
 
 
 ##### `strict`
