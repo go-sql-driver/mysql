@@ -159,6 +159,8 @@ func TestDSNWithCustomTLS(t *testing.T) {
 		t.Error(err.Error())
 	} else if cfg.tls.ServerName != name {
 		t.Errorf("did not get the correct ServerName (%s) parsing DSN (%s).", name, tst)
+	} else if tlsCfg.ServerName != "" {
+		t.Errorf("tlsCfg was mutated ServerName (%s) should be empty parsing DSN (%s).", name, tst)
 	}
 
 	DeregisterTLSConfig("utils_test")

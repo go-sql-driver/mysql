@@ -511,6 +511,8 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				}
 
 				if tlsConfig, ok := tlsConfigRegister[name]; ok {
+					tlsConfig = cloneTLSConfig(tlsConfig)
+
 					if len(tlsConfig.ServerName) == 0 && !tlsConfig.InsecureSkipVerify {
 						host, _, err := net.SplitHostPort(cfg.Addr)
 						if err == nil {
