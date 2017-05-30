@@ -288,11 +288,16 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 					if dsn[j] == '@' {
 						// username[:password]
 						// Find the first ':' in dsn[:j]
-						for k = 0; k < j; k++ {
+						for k = j - 1; k >= 0; k-- {
 							if dsn[k] == ':' {
 								cfg.Passwd = dsn[k+1 : j]
 								break
 							}
+						}
+
+						// no ':' in dsn[:j]
+						if k < 0 {
+							k = j
 						}
 						cfg.User = dsn[:k]
 
