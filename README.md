@@ -276,14 +276,14 @@ Default:        false
 ```
 
 
-RejectreadOnly causes the driver to reject read-only connections. This is for a
-possible race condition during an automatic failover, where the mysql client
-gets connected to a read-only replica after the failover. 
+`rejectreadOnly=true` causes the driver to reject read-only connections. This
+is for a possible race condition during an automatic failover, where the mysql
+client gets connected to a read-only replica after the failover. 
 
 Note that this should be a fairly rare case, as an automatic failover normally
 happens when the primary is down, and the race condition shouldn't happen
 unless it comes back up online as soon as the failover is kicked off. On the
-other hand, when this happens, an mysql application can get stuck on a
+other hand, when this happens, a MySQL application can get stuck on a
 read-only connection until restarted. It is however fairly easy to reproduce,
 for example, using a manual failover on AWS Aurora's MySQL-compatible cluster.
 

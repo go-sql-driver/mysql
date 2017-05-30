@@ -53,7 +53,7 @@ type Config struct {
 	InterpolateParams       bool // Interpolate placeholders into query string
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
-	RejectReadOnly          bool // Reject read-only connections; see README.md
+	RejectReadOnly          bool // Reject read-only connections
 	Strict                  bool // Return warnings as errors
 }
 
