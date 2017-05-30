@@ -175,6 +175,10 @@ func handleAuthResult(mc *mysqlConn, oldCipher []byte) error {
 		}
 		_, err = mc.readResultOK()
 	}
+
+	if err == nil && mc.strict && mc.warningCount > 0 {
+		return mc.getWarnings()
+	}
 	return err
 }
 

@@ -89,6 +89,7 @@ type MySQLWarning struct {
 }
 
 func (mc *mysqlConn) getWarnings() (err error) {
+	mc.warningCount = 0
 	rows, err := mc.Query("SHOW WARNINGS", nil)
 	if err != nil {
 		return

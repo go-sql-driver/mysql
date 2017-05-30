@@ -31,6 +31,7 @@ type mysqlConn struct {
 	sequence         uint8
 	parseTime        bool
 	strict           bool
+	warningCount     uint16
 }
 
 // Handles parameters set in DSN after the connection is established
