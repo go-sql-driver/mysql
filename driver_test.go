@@ -171,6 +171,17 @@ func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows)
 	return rows
 }
 
+func maybeSkip(t *testing.T, err error, skipErrno uint16) {
+	mySQLErr, ok := err.(*MySQLError)
+	if !ok {
+		return
+	}
+
+	if mySQLErr.Number == skipErrno {
+		t.Skipf("skipping test for error: %v", err)
+	}
+}
+
 func TestEmptyQuery(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		// just a comment, no query
@@ -1168,11 +1179,9 @@ func TestStrict(t *testing.T) {
 	if conn != nil {
 		conn.Close()
 	}
-	if me, ok := err.(*MySQLError); ok && me.Number == 1231 {
-		// Error 1231: Variable 'sql_mode' can't be set to the value of 'ALLOW_INVALID_DATES'
-		// => skip test, MySQL server version is too old
-		return
-	}
+	// Error 1231: Variable 'sql_mode' can't be set to the value of
+	// 'ALLOW_INVALID_DATES' => skip test, MySQL server version is too old
+	maybeSkip(t, err, 1231)
 	runTests(t, relaxedDsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (a TINYINT NOT NULL, b CHAR(4))")
 
@@ -1948,4 +1957,37 @@ func TestColumnsReusesSlice(t *testing.T) {
 	if rows.rs.columnNames == nil {
 		t.Fatalf("expected columnNames to be set, got nil")
 	}
+}
+
+func TestRejectReadOnly(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		// Create Table
+		dbt.mustExec("CREATE TABLE test (value BOOL)")
+		// Set the session to read-only. We didn't set the `rejectReadOnly`
+		// option, so any writes after this should fail.
+		_, err := dbt.db.Exec("SET SESSION TRANSACTION READ ONLY")
+		// Error 1193: Unknown system variable 'TRANSACTION' => skip test,
+		// MySQL server version is too old
+		maybeSkip(t, err, 1193)
+		if _, err := dbt.db.Exec("DROP TABLE test"); err == nil {
+			t.Fatalf("writing to DB in read-only session without " +
+				"rejectReadOnly did not error")
+		}
+		// Set the session back to read-write so runTests() can properly clean
+		// up the table `test`.
+		dbt.mustExec("SET SESSION TRANSACTION READ WRITE")
+	})
+
+	// Enable the `rejectReadOnly` option.
+	runTests(t, dsn+"&rejectReadOnly=true", func(dbt *DBTest) {
+		// Create Table
+		dbt.mustExec("CREATE TABLE test (value BOOL)")
+		// Set the session to read only. Any writes after this should error on
+		// a driver.ErrBadConn, and cause `database/sql` to initiate a new
+		// connection.
+		dbt.mustExec("SET SESSION TRANSACTION READ ONLY")
+		// This would error, but `database/sql` should automatically retry on a
+		// new connection which is not read-only, and eventually succeed.
+		dbt.mustExec("DROP TABLE test")
+	})
 }
