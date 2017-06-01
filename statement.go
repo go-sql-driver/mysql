@@ -49,13 +49,18 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
+	mc := stmt.mc
+	if mc.cfg.TraceQueries {
+		mc.traceQueriesLock.RLock()
+		errLog.Print("[mysql trace]", mc.String(), "executing: {stmt#", stmt.id, " ", mc.traceStatements[stmt.id], " ", args, "}")
+		mc.traceQueriesLock.RUnlock()
+	}
+
 	// Send command
 	err := stmt.writeExecutePacket(args)
 	if err != nil {
 		return nil, err
 	}
-
-	mc := stmt.mc
 
 	mc.affectedRows = 0
 	mc.insertId = 0
@@ -93,13 +98,18 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
+	mc := stmt.mc
+	if mc.cfg.TraceQueries {
+		mc.traceQueriesLock.RLock()
+		errLog.Print("[mysql trace]", mc.String(), "executing: {stmt#", stmt.id, " ", mc.traceStatements[stmt.id], " ", args, "}")
+		mc.traceQueriesLock.RUnlock()
+	}
+
 	// Send command
 	err := stmt.writeExecutePacket(args)
 	if err != nil {
 		return nil, err
 	}
-
-	mc := stmt.mc
 
 	// Read Result
 	resLen, err := mc.readResultSetHeaderPacket()

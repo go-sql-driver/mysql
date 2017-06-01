@@ -55,6 +55,7 @@ type Config struct {
 	ParseTime               bool // Parse time values to time.Time
 	RejectReadOnly          bool // Reject read-only connections
 	Strict                  bool // Return warnings as errors
+	TraceQueries            bool // Trace all executed queries
 }
 
 // FormatDSN formats the given Config into a DSN string which can be passed to
@@ -252,7 +253,15 @@ func (cfg *Config) FormatDSN() string {
 			buf.WriteString("?maxAllowedPacket=")
 		}
 		buf.WriteString(strconv.Itoa(cfg.MaxAllowedPacket))
+	}
 
+	if cfg.TraceQueries {
+		if hasParam {
+			buf.WriteString("&traceQueries=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?traceQueries=true")
+		}
 	}
 
 	// other params
@@ -556,6 +565,15 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			if err != nil {
 				return
 			}
+
+			// Switch "traceQueries" mode
+		case "traceQueries":
+			var isBool bool
+			cfg.TraceQueries, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+
 		default:
 			// lazy init
 			if cfg.Params == nil {

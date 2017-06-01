@@ -11,9 +11,11 @@ package mysql
 import (
 	"database/sql/driver"
 	"io"
+	"fmt"
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -31,6 +33,15 @@ type mysqlConn struct {
 	sequence         uint8
 	parseTime        bool
 	strict           bool
+
+	// used only in case of TraceQueries = true
+	traceQueriesLock sync.RWMutex
+	traceStatements  map[uint32]string
+}
+
+// String returns an unique identifier for the MySQL connection.
+func (mc *mysqlConn) String() string {
+	return fmt.Sprintf("{%p-%s}", mc, mc.netConn.LocalAddr())
 }
 
 // Handles parameters set in DSN after the connection is established
@@ -130,6 +141,12 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 		if columnCount > 0 {
 			err = mc.readUntilEOF()
 		}
+	}
+
+	if stmt.mc.cfg.TraceQueries && err == nil {
+		stmt.mc.traceQueriesLock.Lock()
+		stmt.mc.traceStatements[stmt.id] = query
+		stmt.mc.traceQueriesLock.Unlock()
 	}
 
 	return stmt, err
@@ -288,6 +305,10 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 
 // Internal function to execute commands
 func (mc *mysqlConn) exec(query string) error {
+	if mc.cfg.TraceQueries {
+		errLog.Print("[mysql trace]", mc.String(), "executing: {", query, "}")
+	}
+
 	// Send command
 	if err := mc.writeCommandPacketStr(comQuery, query); err != nil {
 		return err
@@ -330,6 +351,9 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 		}
 		query = prepared
 	}
+	if mc.cfg.TraceQueries {
+		errLog.Print("[mysql trace]", mc.String(), "executing: {", query, " ", args, "}")
+	}
 	// Send command
 	err := mc.writeCommandPacketStr(comQuery, query)
 	if err == nil {
@@ -361,6 +385,9 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 // Gets the value of the given MySQL System Variable
 // The returned byte slice is only valid until the next read
 func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
+	if mc.cfg.TraceQueries {
+		errLog.Print("[mysql trace]", mc.String(), "executing: {", "SELECT @@"+name, "}")
+	}
 	// Send command
 	if err := mc.writeCommandPacketStr(comQuery, "SELECT @@"+name); err != nil {
 		return nil, err
