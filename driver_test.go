@@ -193,6 +193,14 @@ func TestEmptyQuery(t *testing.T) {
 	})
 }
 
+func (dbt *DBTest) TestPing(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		if err := dbt.db.Ping(); err != nil {
+			dbt.fail("Ping", "Ping", err)
+		}
+	})
+}
+
 func TestCRUD(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		// Create Table
