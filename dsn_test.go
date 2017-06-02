@@ -24,6 +24,9 @@ var testDSNs = []struct {
 	"username:password@protocol(address)/dbname?param=value",
 	&Config{User: "username", Passwd: "password", Net: "protocol", Addr: "address", DBName: "dbname", Params: map[string]string{"param": "value"}, Collation: "utf8_general_ci", Loc: time.UTC},
 }, {
+	"user:name:password@protocol(address)/dbname?param=value",
+	&Config{User: "user:name", Passwd: "password", Net: "protocol", Addr: "address", DBName: "dbname", Params: map[string]string{"param": "value"}, Collation: "utf8_general_ci", Loc: time.UTC},
+}, {
 	"username:password@protocol(address)/dbname?param=value&columnsWithAlias=true",
 	&Config{User: "username", Passwd: "password", Net: "protocol", Addr: "address", DBName: "dbname", Params: map[string]string{"param": "value"}, Collation: "utf8_general_ci", Loc: time.UTC, ColumnsWithAlias: true},
 }, {
