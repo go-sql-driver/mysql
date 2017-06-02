@@ -122,6 +122,10 @@ func (mc *mysqlConn) getWarnings() (err error) {
 			warnings = append(warnings, warning)
 
 		case io.EOF:
+			if len(warnings) == 0 {
+				return nil
+			}
+
 			return warnings
 
 		default:
