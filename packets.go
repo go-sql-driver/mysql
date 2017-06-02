@@ -352,6 +352,8 @@ func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 		return driver.ErrBadConn
 	}
 
+	// write auth switch header for mysql_old_password
+	data[0], data[1], data[2], data[3] = 0x09, 0x00, 0x00, 0x03
 	// Add the scrambled password [null terminated string]
 	copy(data[4:], scrambleBuff)
 	data[4+pktLen-1] = 0x00
