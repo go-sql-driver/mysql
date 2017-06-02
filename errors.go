@@ -31,6 +31,7 @@ var (
 	ErrPktSyncMul        = errors.New("commands out of sync. Did you run multiple statements at once?")
 	ErrPktTooLarge       = errors.New("packet for query is too large. Try adjusting the 'max_allowed_packet' variable on the server")
 	ErrBusyBuffer        = errors.New("busy buffer")
+	ErrArgsInvalid       = errors.New("args invalid")
 )
 
 var errLog = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
