@@ -28,8 +28,9 @@ type resultSet struct {
 }
 
 type mysqlRows struct {
-	mc *mysqlConn
-	rs resultSet
+	mc     *mysqlConn
+	rs     resultSet
+	finish func()
 }
 
 type binaryRows struct {
@@ -64,12 +65,24 @@ func (rows *mysqlRows) Columns() []string {
 	return columns
 }
 
+func (rows *mysqlRows) setFinish(f func()) {
+	rows.finish = f
+}
+
 func (rows *mysqlRows) Close() (err error) {
+	if f := rows.finish; f != nil {
+		f()
+		rows.finish = nil
+	}
+
 	mc := rows.mc
 	if mc == nil {
 		return nil
 	}
-	if mc.netConn == nil {
+	if mc.isBroken() {
+		if err := mc.canceled(); err != nil {
+			return err
+		}
 		return ErrInvalidConn
 	}
 
@@ -98,7 +111,10 @@ func (rows *mysqlRows) nextResultSet() (int, error) {
 	if rows.mc == nil {
 		return 0, io.EOF
 	}
-	if rows.mc.netConn == nil {
+	if rows.mc.isBroken() {
+		if err := rows.mc.canceled(); err != nil {
+			return 0, err
+		}
 		return 0, ErrInvalidConn
 	}
 
@@ -145,7 +161,10 @@ func (rows *binaryRows) NextResultSet() error {
 
 func (rows *binaryRows) Next(dest []driver.Value) error {
 	if mc := rows.mc; mc != nil {
-		if mc.netConn == nil {
+		if mc.isBroken() {
+			if err := mc.canceled(); err != nil {
+				return err
+			}
 			return ErrInvalidConn
 		}
 
@@ -167,7 +186,10 @@ func (rows *textRows) NextResultSet() (err error) {
 
 func (rows *textRows) Next(dest []driver.Value) error {
 	if mc := rows.mc; mc != nil {
-		if mc.netConn == nil {
+		if mc.isBroken() {
+			if err := mc.canceled(); err != nil {
+				return err
+			}
 			return ErrInvalidConn
 		}
 

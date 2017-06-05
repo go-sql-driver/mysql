@@ -23,7 +23,7 @@ type mysqlStmt struct {
 }
 
 func (stmt *mysqlStmt) Close() error {
-	if stmt.mc == nil || stmt.mc.netConn == nil {
+	if stmt.mc == nil || stmt.mc.isBroken() {
 		// driver.Stmt.Close can be called more than once, thus this function
 		// has to be idempotent.
 		// See also Issue #450 and golang/go#16019.
@@ -45,7 +45,7 @@ func (stmt *mysqlStmt) ColumnConverter(idx int) driver.ValueConverter {
 }
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
-	if stmt.mc.netConn == nil {
+	if stmt.mc.isBroken() {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
@@ -89,7 +89,7 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 }
 
 func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
-	if stmt.mc.netConn == nil {
+	if stmt.mc.isBroken() {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
