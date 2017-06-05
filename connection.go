@@ -17,6 +17,11 @@ import (
 	"time"
 )
 
+// Define mysql.Context for the compatibility before go1.7.
+type Context interface {
+	Deadline() (deadline time.Time, ok bool)
+}
+
 type mysqlConn struct {
 	buf              buffer
 	netConn          net.Conn
@@ -31,6 +36,7 @@ type mysqlConn struct {
 	sequence         uint8
 	parseTime        bool
 	strict           bool
+	ctx              Context
 }
 
 // Handles parameters set in DSN after the connection is established
@@ -386,4 +392,17 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 		}
 	}
 	return nil, err
+}
+
+// Make all others get the context from the mysqlConn instead of copying it as
+// a member of struct everywhere.
+type ContextWrapper struct {
+	mc *mysqlConn
+}
+
+func (wrapper *ContextWrapper) Deadline() (time.Time, bool) {
+	if wrapper.mc.ctx == nil {
+		return time.Time{}, false
+	}
+	return wrapper.mc.ctx.Deadline()
 }

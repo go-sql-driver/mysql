@@ -11,6 +11,7 @@ package mysql
 import (
 	"database/sql/driver"
 	"testing"
+	"time"
 )
 
 func TestInterpolateParams(t *testing.T) {
@@ -63,5 +64,77 @@ func TestInterpolateParamsPlaceholderInString(t *testing.T) {
 	// When InterpolateParams support string literal, this should return `"SELECT 'abc?xyz', 42`
 	if err != driver.ErrSkip {
 		t.Errorf("Expected err=driver.ErrSkip, got err=%#v, q=%#v", err, q)
+	}
+}
+
+func TestIoWriteTimeout(t *testing.T) {
+	var err error
+
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	mySqlDriver := MySQLDriver{}
+	conn, err := mySqlDriver.Open(dsn)
+	if err != nil {
+		t.Fatalf("error connecting: %s", err.Error())
+	}
+
+	mc, ok := conn.(*mysqlConn)
+	if !ok {
+		t.Fatalf("It can't type-assert driver.conn is of mysqlConn")
+	}
+	mc.writeTimeout, err = time.ParseDuration("1ns")
+	if !ok {
+		t.Fatalf("err(%s)", err)
+	}
+
+	execer, ok := conn.(driver.Execer)
+	if !ok {
+		t.Fatalf("It can't type-assert driver.conn is of driver.Execer")
+	}
+
+	_, err = execer.Exec("show databases", nil)
+	if err == nil {
+		return
+	}
+	if err != driver.ErrBadConn {
+		t.Fatalf("err must be driver.ErrBadConn. err(%s)", err)
+	}
+}
+
+func TestIoReadTimeout(t *testing.T) {
+	var err error
+
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	mySqlDriver := MySQLDriver{}
+	conn, err := mySqlDriver.Open(dsn)
+	if err != nil {
+		t.Fatalf("error connecting: %s", err.Error())
+	}
+
+	mc, ok := conn.(*mysqlConn)
+	if !ok {
+		t.Fatalf("It can't type-assert driver.conn is of mysqlConn")
+	}
+	mc.buf.timeout, err = time.ParseDuration("1ns")
+	if !ok {
+		t.Fatalf("err(%s)", err)
+	}
+
+	execer, ok := conn.(driver.Execer)
+	if !ok {
+		t.Fatalf("It can't type-assert driver.conn is of driver.Execer")
+	}
+
+	_, err = execer.Exec("show databases", nil)
+	if err == nil {
+		return
+	}
+	if err != driver.ErrBadConn {
+		t.Fatalf("err must be driver.ErrBadConn. err(%s)", err)
 	}
 }

@@ -22,18 +22,25 @@ const defaultBufSize = 4096
 // The buffer is similar to bufio.Reader / Writer but zero-copy-ish
 // Also highly optimized for this particular use case.
 type buffer struct {
-	buf     []byte
+	buf    []byte
+	idx    int
+	length int
+
 	nc      net.Conn
-	idx     int
-	length  int
 	timeout time.Duration
+	ctx     Context
 }
 
 func newBuffer(nc net.Conn) buffer {
+	return newBufferContext(nc, nil)
+}
+
+func newBufferContext(nc net.Conn, ctx Context) buffer {
 	var b [defaultBufSize]byte
 	return buffer{
 		buf: b[:],
 		nc:  nc,
+		ctx: ctx,
 	}
 }
 
@@ -60,7 +67,15 @@ func (b *buffer) fill(need int) error {
 
 	for {
 		if b.timeout > 0 {
-			if err := b.nc.SetReadDeadline(time.Now().Add(b.timeout)); err != nil {
+			deadline := time.Now().Add(b.timeout)
+			if b.ctx != nil {
+				if ctxDeadline, ok := b.ctx.Deadline(); ok {
+					if !ctxDeadline.IsZero() && ctxDeadline.Before(deadline) {
+						deadline = ctxDeadline
+					}
+				}
+			}
+			if err := b.nc.SetReadDeadline(deadline); err != nil {
 				return err
 			}
 		}
