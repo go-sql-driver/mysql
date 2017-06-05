@@ -131,13 +131,13 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 
 		// Handle error
 		if err == nil { // n != len(data)
-			mc.cleanup(ErrMalformPkt)
+			mc.cleanup()
 			errLog.Print(ErrMalformPkt)
 		} else {
 			if cerr := mc.canceled(); cerr != nil {
 				return cerr
 			}
-			mc.cleanup(err)
+			mc.cleanup()
 			errLog.Print(err)
 		}
 		return driver.ErrBadConn

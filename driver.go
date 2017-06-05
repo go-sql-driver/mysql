@@ -99,13 +99,13 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	// Reading Handshake Initialization Packet
 	cipher, err := mc.readInitPacket()
 	if err != nil {
-		mc.cleanup(err)
+		mc.cleanup()
 		return nil, err
 	}
 
 	// Send Client Authentication Packet
 	if err = mc.writeAuthPacket(cipher); err != nil {
-		mc.cleanup(err)
+		mc.cleanup()
 		return nil, err
 	}
 
@@ -114,7 +114,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		// Authentication failed and MySQL has already closed the connection
 		// (https://dev.mysql.com/doc/internals/en/authentication-fails.html).
 		// Do not send COM_QUIT, just cleanup and return the error.
-		mc.cleanup(err)
+		mc.cleanup()
 		return nil, err
 	}
 

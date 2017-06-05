@@ -10,7 +10,6 @@ package mysql
 
 import (
 	"database/sql/driver"
-	"errors"
 	"io"
 	"net"
 	"strconv"
@@ -46,7 +45,7 @@ type mysqlConn struct {
 	finished         chan<- struct{}
 
 	mu          sync.Mutex // guards following fields
-	closed      error      // set non-nil when conn is closed, before closech is closed
+	closed      bool       // set true when conn is closed, before closech is closed
 	canceledErr error      // set non-nil if conn is canceled
 }
 
@@ -99,7 +98,7 @@ func (mc *mysqlConn) Close() (err error) {
 		err = mc.writeCommandPacket(comQuit)
 	}
 
-	mc.cleanup(errors.New("mysql: connection is closed"))
+	mc.cleanup()
 
 	return
 }
@@ -108,19 +107,16 @@ func (mc *mysqlConn) Close() (err error) {
 // function after successfully authentication, call Close instead. This function
 // is called before auth or on auth failure because MySQL will have already
 // closed the network connection.
-func (mc *mysqlConn) cleanup(err error) {
-	if err == nil {
-		panic("nil error")
-	}
+func (mc *mysqlConn) cleanup() {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
 
-	if mc.closed != nil {
+	if mc.closed {
 		return
 	}
 
 	// Makes cleanup idempotent
-	mc.closed = err
+	mc.closed = true
 	close(mc.closech)
 	if mc.netConn == nil {
 		return
@@ -133,7 +129,7 @@ func (mc *mysqlConn) cleanup(err error) {
 func (mc *mysqlConn) isBroken() bool {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
-	return mc.closed != nil
+	return mc.closed
 }
 
 func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
@@ -426,7 +422,7 @@ func (mc *mysqlConn) cancel(err error) {
 	mc.mu.Lock()
 	mc.canceledErr = err
 	mc.mu.Unlock()
-	mc.cleanup(errors.New("mysql: query canceled"))
+	mc.cleanup()
 }
 
 // canceled returns non-nil if the connection was closed due to context cancelation.
