@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-//a copy of context.Context from Go 1.7 and later.
+// a copy of context.Context for Go 1.7 and later.
 type mysqlContext interface {
 	Deadline() (deadline time.Time, ok bool)
 	Done() <-chan struct{}
