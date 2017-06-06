@@ -167,10 +167,10 @@ func (stmt *mysqlStmt) ExecContext(ctx context.Context, args []driver.NamedValue
 
 func (mc *mysqlConn) watchCancel(ctx context.Context) error {
 	if mc.watching {
-		err := errors.New("mysql: illegal watching state")
-		errLog.Print(err)
+		// Reach here if canceled,
+		// so the connection is already invalid
 		mc.cleanup()
-		return err
+		return nil
 	}
 	if ctx.Done() == nil {
 		return nil
