@@ -65,10 +65,6 @@ func (rows *mysqlRows) Columns() []string {
 	return columns
 }
 
-func (rows *mysqlRows) setFinish(f func()) {
-	rows.finish = f
-}
-
 func (rows *mysqlRows) Close() (err error) {
 	if f := rows.finish; f != nil {
 		f()

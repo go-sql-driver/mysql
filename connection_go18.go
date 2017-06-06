@@ -17,10 +17,6 @@ import (
 	"errors"
 )
 
-type setfinish interface {
-	setFinish(f func())
-}
-
 // Ping implements driver.Pinger interface
 func (mc *mysqlConn) Ping(ctx context.Context) error {
 	if mc.isBroken() {
@@ -81,16 +77,12 @@ func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driv
 		return nil, err
 	}
 
-	rows, err := mc.Query(query, dargs)
+	rows, err := mc.query(query, dargs)
 	if err != nil {
 		mc.finish()
 		return nil, err
 	}
-	if set, ok := rows.(setfinish); ok {
-		set.setFinish(mc.finish)
-	} else {
-		mc.finish()
-	}
+	rows.finish = mc.finish
 	return rows, err
 }
 
@@ -138,16 +130,12 @@ func (stmt *mysqlStmt) QueryContext(ctx context.Context, args []driver.NamedValu
 		return nil, err
 	}
 
-	rows, err := stmt.Query(dargs)
+	rows, err := stmt.query(dargs)
 	if err != nil {
 		stmt.mc.finish()
 		return nil, err
 	}
-	if set, ok := rows.(setfinish); ok {
-		set.setFinish(stmt.mc.finish)
-	} else {
-		stmt.mc.finish()
-	}
+	rows.finish = stmt.mc.finish
 	return rows, err
 }
 

@@ -89,6 +89,10 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 }
 
 func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
+	return stmt.query(args)
+}
+
+func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 	if stmt.mc.isBroken() {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn

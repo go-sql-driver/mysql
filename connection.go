@@ -357,6 +357,10 @@ func (mc *mysqlConn) exec(query string) error {
 }
 
 func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, error) {
+	return mc.query(query, args)
+}
+
+func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error) {
 	if mc.isBroken() {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
