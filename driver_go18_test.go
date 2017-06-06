@@ -20,6 +20,21 @@ import (
 	"time"
 )
 
+// static interface implementation checks of mysqlConn
+var (
+	_ driver.ConnBeginTx        = &mysqlConn{}
+	_ driver.ConnPrepareContext = &mysqlConn{}
+	_ driver.ExecerContext      = &mysqlConn{}
+	_ driver.Pinger             = &mysqlConn{}
+	_ driver.QueryerContext     = &mysqlConn{}
+)
+
+// static interface implementation checks of mysqlStmt
+var (
+	_ driver.StmtExecContext  = &mysqlStmt{}
+	_ driver.StmtQueryContext = &mysqlStmt{}
+)
+
 func TestMultiResultSet(t *testing.T) {
 	type result struct {
 		values  [][]int
@@ -210,14 +225,6 @@ func TestPingContext(t *testing.T) {
 	})
 }
 
-var (
-	_ driver.ConnBeginTx        = &mysqlConn{}
-	_ driver.ConnPrepareContext = &mysqlConn{}
-	_ driver.ExecerContext      = &mysqlConn{}
-	_ driver.Pinger             = &mysqlConn{}
-	_ driver.QueryerContext     = &mysqlConn{}
-)
-
 func TestContextCancelExec(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
@@ -350,11 +357,6 @@ func TestContextCancelPrepare(t *testing.T) {
 		}
 	})
 }
-
-var (
-	_ driver.StmtExecContext  = &mysqlStmt{}
-	_ driver.StmtQueryContext = &mysqlStmt{}
-)
 
 func TestContextCancelStmtExec(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
