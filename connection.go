@@ -43,9 +43,12 @@ type mysqlConn struct {
 	sequence         uint8
 	parseTime        bool
 	strict           bool
-	watcher          chan<- mysqlContext
-	closech          chan struct{}
-	finished         chan<- struct{}
+
+	// for context support (From Go 1.8)
+	watching bool
+	watcher  chan<- mysqlContext
+	closech  chan struct{}
+	finished chan<- struct{}
 
 	// set non-zero when conn is closed, before closech is closed.
 	// accessed atomically.
@@ -444,11 +447,12 @@ func (mc *mysqlConn) canceled() error {
 
 // finish is called when the query has succeeded.
 func (mc *mysqlConn) finish() {
-	if mc.finished == nil {
+	if !mc.watching || mc.finished == nil {
 		return
 	}
 	select {
 	case mc.finished <- struct{}{}:
+		mc.watching = false
 	case <-mc.closech:
 	}
 }

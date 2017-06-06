@@ -166,6 +166,17 @@ func (stmt *mysqlStmt) ExecContext(ctx context.Context, args []driver.NamedValue
 }
 
 func (mc *mysqlConn) watchCancel(ctx context.Context) error {
+	if mc.watching {
+		err := errors.New("mysql: illegal watching state")
+		errLog.Print(err)
+		mc.cleanup()
+		return err
+	}
+	if ctx.Done() == nil {
+		return nil
+	}
+
+	mc.watching = true
 	select {
 	default:
 	case <-ctx.Done():
