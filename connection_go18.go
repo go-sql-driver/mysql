@@ -48,18 +48,15 @@ func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 	if sql.IsolationLevel(opts.Isolation) != sql.LevelDefault {
 		return nil, errors.New("mysql: isolation levels not supported")
 	}
+	if opts.ReadOnly {
+		return nil, errors.New("mysql: read-only transactions not supported")
+	}
 
 	if err := mc.watchCancel(ctx); err != nil {
 		return nil, err
 	}
 
-	var err error
-	var tx driver.Tx
-	if opts.ReadOnly {
-		tx, err = mc.beginReadOnly()
-	} else {
-		tx, err = mc.Begin()
-	}
+	tx, err := mc.Begin()
 	mc.finish()
 	if err != nil {
 		return nil, err
@@ -72,20 +69,6 @@ func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 		return nil, ctx.Err()
 	}
 	return tx, err
-}
-
-func (mc *mysqlConn) beginReadOnly() (driver.Tx, error) {
-	if mc.isBroken() {
-		errLog.Print(ErrInvalidConn)
-		return nil, driver.ErrBadConn
-	}
-	// https://dev.mysql.com/doc/refman/5.7/en/innodb-performance-ro-txn.html
-	err := mc.exec("START TRANSACTION READ ONLY")
-	if err != nil {
-		return nil, err
-	}
-
-	return &mysqlTx{mc}, nil
 }
 
 func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
