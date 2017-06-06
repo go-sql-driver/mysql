@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -46,8 +47,11 @@ type mysqlConn struct {
 	closech          chan struct{}
 	finished         chan<- struct{}
 
+	// set non-zero when conn is closed, before closech is closed.
+	// accessed atomically.
+	closed int32
+
 	mu          sync.Mutex // guards following fields
-	closed      bool       // set true when conn is closed, before closech is closed
 	canceledErr error      // set non-nil if conn is canceled
 }
 
@@ -110,15 +114,11 @@ func (mc *mysqlConn) Close() (err error) {
 // is called before auth or on auth failure because MySQL will have already
 // closed the network connection.
 func (mc *mysqlConn) cleanup() {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-
-	if mc.closed {
+	if atomic.SwapInt32(&mc.closed, 1) != 0 {
 		return
 	}
 
 	// Makes cleanup idempotent
-	mc.closed = true
 	close(mc.closech)
 	if mc.netConn == nil {
 		return
@@ -129,9 +129,7 @@ func (mc *mysqlConn) cleanup() {
 }
 
 func (mc *mysqlConn) isBroken() bool {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-	return mc.closed
+	return atomic.LoadInt32(&mc.closed) != 0
 }
 
 func (mc *mysqlConn) error() error {
