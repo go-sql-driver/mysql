@@ -20,10 +20,12 @@ import (
 
 // a copy of context.Context for Go 1.7 and later.
 type mysqlContext interface {
-	Deadline() (deadline time.Time, ok bool)
 	Done() <-chan struct{}
 	Err() error
-	Value(key interface{}) interface{}
+
+	// They are defined in context.Context, but go-mysql-driver does not use them.
+	// Deadline() (deadline time.Time, ok bool)
+	// Value(key interface{}) interface{}
 }
 
 type mysqlConn struct {
