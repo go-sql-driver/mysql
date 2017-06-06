@@ -28,10 +28,10 @@ type mysqlConn struct {
 	writeTimeout     time.Duration
 	flags            clientFlag
 	status           statusFlag
+	warningCount     uint16
 	sequence         uint8
 	parseTime        bool
 	strict           bool
-	warningCount     uint16
 }
 
 // Handles parameters set in DSN after the connection is established
