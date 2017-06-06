@@ -134,6 +134,16 @@ func (mc *mysqlConn) isBroken() bool {
 	return mc.closed
 }
 
+func (mc *mysqlConn) error() error {
+	if mc.isBroken() {
+		if err := mc.canceled(); err != nil {
+			return err
+		}
+		return ErrInvalidConn
+	}
+	return nil
+}
+
 func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	if mc.isBroken() {
 		errLog.Print(ErrInvalidConn)
