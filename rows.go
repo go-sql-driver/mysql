@@ -75,11 +75,8 @@ func (rows *mysqlRows) Close() (err error) {
 	if mc == nil {
 		return nil
 	}
-	if mc.isBroken() {
-		if err := mc.canceled(); err != nil {
-			return err
-		}
-		return ErrInvalidConn
+	if err := mc.error(); err != nil {
+		return err
 	}
 
 	// Remove unread packets from stream
@@ -107,11 +104,8 @@ func (rows *mysqlRows) nextResultSet() (int, error) {
 	if rows.mc == nil {
 		return 0, io.EOF
 	}
-	if rows.mc.isBroken() {
-		if err := rows.mc.canceled(); err != nil {
-			return 0, err
-		}
-		return 0, ErrInvalidConn
+	if err := rows.mc.error(); err != nil {
+		return 0, err
 	}
 
 	// Remove unread packets from stream
