@@ -1991,3 +1991,31 @@ func TestRejectReadOnly(t *testing.T) {
 		dbt.mustExec("DROP TABLE test")
 	})
 }
+
+func TestUnclosedRows(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		tx, err := dbt.db.Begin()
+		if err != nil {
+			dbt.Fatal(err)
+		}
+
+		rows, err := tx.Query("SELECT 1")
+		if err != nil {
+			dbt.Fatal(err)
+		}
+
+		// here's common mistake: rows are closed only
+		// when current func exits keeping the rows buffer
+		// busy for the following request.
+		defer rows.Close()
+
+		if !rows.Next() {
+			dbt.Fatal("no rows after `SELECT 1`")
+		}
+
+		_, err = tx.Query("SELECT 2")
+		if err != ErrUnreadTxRows {
+			dbt.Errorf("got %v, want %v", err, ErrUnreadTxRows)
+		}
+	})
+}

@@ -259,11 +259,9 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	}
 
 	// Calculate packet length and get buffer with that size
-	data := mc.buf.takeSmallBuffer(pktLen + 4)
-	if data == nil {
-		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
-		return driver.ErrBadConn
+	data, err := mc.buf.takeSmallBuffer(pktLen + 4)
+	if err != nil {
+		return err
 	}
 
 	// ClientFlags [32 bit]
@@ -345,11 +343,9 @@ func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 
 	// Calculate the packet length and add a tailing 0
 	pktLen := len(scrambleBuff) + 1
-	data := mc.buf.takeSmallBuffer(4 + pktLen)
-	if data == nil {
-		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
-		return driver.ErrBadConn
+	data, err := mc.buf.takeSmallBuffer(4 + pktLen)
+	if err != nil {
+		return err
 	}
 
 	// Add the scrambled password [null terminated string]
@@ -364,11 +360,9 @@ func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 func (mc *mysqlConn) writeClearAuthPacket() error {
 	// Calculate the packet length and add a tailing 0
 	pktLen := len(mc.cfg.Passwd) + 1
-	data := mc.buf.takeSmallBuffer(4 + pktLen)
-	if data == nil {
-		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
-		return driver.ErrBadConn
+	data, err := mc.buf.takeSmallBuffer(4 + pktLen)
+	if err != nil {
+		return err
 	}
 
 	// Add the clear password [null terminated string]
@@ -385,11 +379,9 @@ func (mc *mysqlConn) writeNativeAuthPacket(cipher []byte) error {
 
 	// Calculate the packet length and add a tailing 0
 	pktLen := len(scrambleBuff)
-	data := mc.buf.takeSmallBuffer(4 + pktLen)
-	if data == nil {
-		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
-		return driver.ErrBadConn
+	data, err := mc.buf.takeSmallBuffer(4 + pktLen)
+	if err != nil {
+		return err
 	}
 
 	// Add the scramble
@@ -406,11 +398,9 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
-	data := mc.buf.takeSmallBuffer(4 + 1)
-	if data == nil {
-		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
-		return driver.ErrBadConn
+	data, err := mc.buf.takeSmallBuffer(4 + 1)
+	if err != nil {
+		return err
 	}
 
 	// Add command byte
@@ -425,11 +415,9 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	mc.sequence = 0
 
 	pktLen := 1 + len(arg)
-	data := mc.buf.takeBuffer(pktLen + 4)
-	if data == nil {
-		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
-		return driver.ErrBadConn
+	data, err := mc.buf.takeBuffer(pktLen + 4)
+	if err != nil {
+		return err
 	}
 
 	// Add command byte
@@ -446,11 +434,9 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
-	data := mc.buf.takeSmallBuffer(4 + 1 + 4)
-	if data == nil {
-		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
-		return driver.ErrBadConn
+	data, err := mc.buf.takeSmallBuffer(4 + 1 + 4)
+	if err != nil {
+		return err
 	}
 
 	// Add command byte
@@ -907,16 +893,15 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	mc.sequence = 0
 
 	var data []byte
+	var err error
 
 	if len(args) == 0 {
-		data = mc.buf.takeBuffer(minPktLen)
+		data, err = mc.buf.takeBuffer(minPktLen)
 	} else {
-		data = mc.buf.takeCompleteBuffer()
+		data, err = mc.buf.takeCompleteBuffer()
 	}
-	if data == nil {
-		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
-		return driver.ErrBadConn
+	if err != nil {
+		return err
 	}
 
 	// command [1 byte]

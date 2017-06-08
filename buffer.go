@@ -109,39 +109,39 @@ func (b *buffer) readNext(need int) ([]byte, error) {
 // If possible, a slice from the existing buffer is returned.
 // Otherwise a bigger buffer is made.
 // Only one buffer (total) can be used at a time.
-func (b *buffer) takeBuffer(length int) []byte {
+func (b *buffer) takeBuffer(length int) ([]byte, error) {
 	if b.length > 0 {
-		return nil
+		return nil, ErrUnreadTxRows
 	}
 
 	// test (cheap) general case first
 	if length <= defaultBufSize || length <= cap(b.buf) {
-		return b.buf[:length]
+		return b.buf[:length], nil
 	}
 
 	if length < maxPacketSize {
 		b.buf = make([]byte, length)
-		return b.buf
+		return b.buf, nil
 	}
-	return make([]byte, length)
+	return make([]byte, length), nil
 }
 
 // shortcut which can be used if the requested buffer is guaranteed to be
 // smaller than defaultBufSize
 // Only one buffer (total) can be used at a time.
-func (b *buffer) takeSmallBuffer(length int) []byte {
-	if b.length == 0 {
-		return b.buf[:length]
+func (b *buffer) takeSmallBuffer(length int) ([]byte, error) {
+	if b.length > 0 {
+		return nil, ErrUnreadTxRows
 	}
-	return nil
+	return b.buf[:length], nil
 }
 
 // takeCompleteBuffer returns the complete existing buffer.
 // This can be used if the necessary buffer size is unknown.
 // Only one buffer (total) can be used at a time.
-func (b *buffer) takeCompleteBuffer() []byte {
-	if b.length == 0 {
-		return b.buf
+func (b *buffer) takeCompleteBuffer() ([]byte, error) {
+	if b.length > 0 {
+		return nil, ErrUnreadTxRows
 	}
-	return nil
+	return b.buf, nil
 }

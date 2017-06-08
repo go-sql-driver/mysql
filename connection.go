@@ -141,11 +141,9 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 		return "", driver.ErrSkip
 	}
 
-	buf := mc.buf.takeCompleteBuffer()
-	if buf == nil {
-		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
-		return "", driver.ErrBadConn
+	buf, err := mc.buf.takeCompleteBuffer()
+	if err != nil {
+		return "", err
 	}
 	buf = buf[:0]
 	argPos := 0
