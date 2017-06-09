@@ -74,6 +74,15 @@ func DeregisterTLSConfig(key string) {
 	tlsConfigLock.Unlock()
 }
 
+func getTLSConfigClone(key string) (config *tls.Config) {
+	tlsConfigLock.RLock()
+	if v, ok := tlsConfigRegister[key]; ok {
+		config = cloneTLSConfig(v)
+	}
+	tlsConfigLock.RUnlock()
+	return
+}
+
 // Returns the bool value of the input.
 // The 2nd return value indicates if the input was a valid bool value
 func readBool(input string) (value bool, valid bool) {
