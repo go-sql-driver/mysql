@@ -19,6 +19,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
     * [LOAD DATA LOCAL INFILE support](#load-data-local-infile-support)
     * [time.Time support](#timetime-support)
     * [Unicode support](#unicode-support)
+    * [context.Context Support](#contextcontext-support)
   * [Testing / Development](#testing--development)
   * [License](#license)
 
@@ -443,6 +444,9 @@ Version 1.0 of the driver recommended adding `&charset=utf8` (alias for `SET NAM
 
 See http://dev.mysql.com/doc/refman/5.7/en/charset-unicode.html for more details on MySQL's Unicode support.
 
+## `context.Context` Support
+Go 1.8 added `database/sql` support for `context.Context`. This driver supports query timeouts and cancellation via contexts.
+See [context support in the database/sql package](https://golang.org/doc/go1.8#database_sql) for more details.
 
 ## Testing / Development
 To run the driver tests you may need to adjust the configuration. See the [Testing Wiki-Page](https://github.com/go-sql-driver/mysql/wiki/Testing "Testing") for details.

@@ -14,8 +14,20 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
+
+// a copy of context.Context for Go 1.7 and later.
+type mysqlContext interface {
+	Done() <-chan struct{}
+	Err() error
+
+	// They are defined in context.Context, but go-mysql-driver does not use them.
+	// Deadline() (deadline time.Time, ok bool)
+	// Value(key interface{}) interface{}
+}
 
 type mysqlConn struct {
 	buf              buffer
@@ -31,6 +43,19 @@ type mysqlConn struct {
 	sequence         uint8
 	parseTime        bool
 	strict           bool
+
+	// for context support (From Go 1.8)
+	watching bool
+	watcher  chan<- mysqlContext
+	closech  chan struct{}
+	finished chan<- struct{}
+
+	// set non-zero when conn is closed, before closech is closed.
+	// accessed atomically.
+	closed int32
+
+	mu          sync.Mutex // guards following fields
+	canceledErr error      // set non-nil if conn is canceled
 }
 
 // Handles parameters set in DSN after the connection is established
@@ -64,7 +89,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 }
 
 func (mc *mysqlConn) Begin() (driver.Tx, error) {
-	if mc.netConn == nil {
+	if mc.isBroken() {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
@@ -78,7 +103,7 @@ func (mc *mysqlConn) Begin() (driver.Tx, error) {
 
 func (mc *mysqlConn) Close() (err error) {
 	// Makes Close idempotent
-	if mc.netConn != nil {
+	if !mc.isBroken() {
 		err = mc.writeCommandPacket(comQuit)
 	}
 
@@ -92,19 +117,36 @@ func (mc *mysqlConn) Close() (err error) {
 // is called before auth or on auth failure because MySQL will have already
 // closed the network connection.
 func (mc *mysqlConn) cleanup() {
-	// Makes cleanup idempotent
-	if mc.netConn != nil {
-		if err := mc.netConn.Close(); err != nil {
-			errLog.Print(err)
-		}
-		mc.netConn = nil
+	if atomic.SwapInt32(&mc.closed, 1) != 0 {
+		return
 	}
-	mc.cfg = nil
-	mc.buf.nc = nil
+
+	// Makes cleanup idempotent
+	close(mc.closech)
+	if mc.netConn == nil {
+		return
+	}
+	if err := mc.netConn.Close(); err != nil {
+		errLog.Print(err)
+	}
+}
+
+func (mc *mysqlConn) isBroken() bool {
+	return atomic.LoadInt32(&mc.closed) != 0
+}
+
+func (mc *mysqlConn) error() error {
+	if mc.isBroken() {
+		if err := mc.canceled(); err != nil {
+			return err
+		}
+		return ErrInvalidConn
+	}
+	return nil
 }
 
 func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
-	if mc.netConn == nil {
+	if mc.isBroken() {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
@@ -258,7 +300,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 }
 
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
-	if mc.netConn == nil {
+	if mc.isBroken() {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
@@ -315,7 +357,11 @@ func (mc *mysqlConn) exec(query string) error {
 }
 
 func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, error) {
-	if mc.netConn == nil {
+	return mc.query(query, args)
+}
+
+func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error) {
+	if mc.isBroken() {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
@@ -386,4 +432,31 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 		}
 	}
 	return nil, err
+}
+
+// finish is called when the query has canceled.
+func (mc *mysqlConn) cancel(err error) {
+	mc.mu.Lock()
+	mc.canceledErr = err
+	mc.mu.Unlock()
+	mc.cleanup()
+}
+
+// canceled returns non-nil if the connection was closed due to context cancelation.
+func (mc *mysqlConn) canceled() error {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+	return mc.canceledErr
+}
+
+// finish is called when the query has succeeded.
+func (mc *mysqlConn) finish() {
+	if !mc.watching || mc.finished == nil {
+		return
+	}
+	select {
+	case mc.finished <- struct{}{}:
+		mc.watching = false
+	case <-mc.closech:
+	}
 }

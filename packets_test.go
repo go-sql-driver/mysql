@@ -244,7 +244,8 @@ func TestReadPacketSplit(t *testing.T) {
 func TestReadPacketFail(t *testing.T) {
 	conn := new(mockConn)
 	mc := &mysqlConn{
-		buf: newBuffer(conn),
+		buf:     newBuffer(conn),
+		closech: make(chan struct{}),
 	}
 
 	// illegal empty (stand-alone) packet
