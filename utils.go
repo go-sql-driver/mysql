@@ -16,10 +16,12 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 )
 
 var (
+	tlsConfigLock     sync.RWMutex
 	tlsConfigRegister map[string]*tls.Config // Register for custom tls.Configs
 )
 
@@ -53,19 +55,23 @@ func RegisterTLSConfig(key string, config *tls.Config) error {
 		return fmt.Errorf("key '%s' is reserved", key)
 	}
 
+	tlsConfigLock.Lock()
 	if tlsConfigRegister == nil {
 		tlsConfigRegister = make(map[string]*tls.Config)
 	}
 
 	tlsConfigRegister[key] = config
+	tlsConfigLock.Unlock()
 	return nil
 }
 
 // DeregisterTLSConfig removes the tls.Config associated with key.
 func DeregisterTLSConfig(key string) {
+	tlsConfigLock.Lock()
 	if tlsConfigRegister != nil {
 		delete(tlsConfigRegister, key)
 	}
+	tlsConfigLock.Unlock()
 }
 
 // Returns the bool value of the input.

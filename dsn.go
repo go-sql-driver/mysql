@@ -528,8 +528,10 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 					return fmt.Errorf("invalid value for TLS config name: %v", err)
 				}
 
+				tlsConfigLock.RLock()
 				if tlsConfig, ok := tlsConfigRegister[name]; ok {
 					tlsConfig = cloneTLSConfig(tlsConfig)
+					tlsConfigLock.RUnlock()
 
 					if len(tlsConfig.ServerName) == 0 && !tlsConfig.InsecureSkipVerify {
 						host, _, err := net.SplitHostPort(cfg.Addr)
@@ -541,6 +543,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 					cfg.TLSConfig = name
 					cfg.tls = tlsConfig
 				} else {
+					tlsConfigLock.RUnlock()
 					return errors.New("invalid value / unknown config name: " + name)
 				}
 			}
