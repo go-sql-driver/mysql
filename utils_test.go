@@ -250,6 +250,8 @@ func TestAtomicBool(t *testing.T) {
 	if ab.IsSet() {
 		t.Fatal("Expected value to be false")
 	}
+
+	ab._noCopy.Lock() // we've "tested" it ¯\_(ツ)_/¯
 }
 
 func TestAtomicError(t *testing.T) {
