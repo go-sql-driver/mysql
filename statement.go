@@ -14,6 +14,7 @@ import (
 	"io"
 	"reflect"
 	"strconv"
+	"time"
 )
 
 type mysqlStmt struct {
@@ -41,7 +42,7 @@ func (stmt *mysqlStmt) NumInput() int {
 }
 
 func (stmt *mysqlStmt) ColumnConverter(idx int) driver.ValueConverter {
-	return converter{}
+	return &converter{}
 }
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
@@ -132,8 +133,13 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 
 type converter struct{}
 
-func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
+func (c *converter) ConvertValue(v interface{}) (driver.Value, error) {
 	if driver.IsValue(v) {
+		return v, nil
+	}
+
+	switch v.(type) {
+	case *[]byte, *bool, *float64, *int64, *string, *time.Time:
 		return v, nil
 	}
 
