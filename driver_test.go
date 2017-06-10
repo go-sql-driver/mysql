@@ -98,12 +98,21 @@ func runTestsWithMultiStatement(t *testing.T, dsn string, tests ...func(dbt *DBT
 	}
 }
 
+func openDB(dsn string) (db *sql.DB, err error) {
+	if db, err = sql.Open("mysql", dsn); err != nil {
+		return
+	}
+	db.SetMaxIdleConns(10)
+	db.SetMaxOpenConns(10)
+	return
+}
+
 func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	if !available {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	db, err := sql.Open("mysql", dsn)
+	db, err := openDB(dsn)
 	if err != nil {
 		t.Fatalf("error connecting: %s", err.Error())
 	}
@@ -114,7 +123,7 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	dsn2 := dsn + "&interpolateParams=true"
 	var db2 *sql.DB
 	if _, err := ParseDSN(dsn2); err != errInvalidDSNUnsafeCollation {
-		db2, err = sql.Open("mysql", dsn2)
+		db2, err = openDB(dsn2)
 		if err != nil {
 			t.Fatalf("error connecting: %s", err.Error())
 		}
@@ -124,7 +133,7 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	dsn3 := dsn + "&multiStatements=true"
 	var db3 *sql.DB
 	if _, err := ParseDSN(dsn3); err != errInvalidDSNUnsafeCollation {
-		db3, err = sql.Open("mysql", dsn3)
+		db3, err = openDB(dsn3)
 		if err != nil {
 			t.Fatalf("error connecting: %s", err.Error())
 		}
@@ -190,6 +199,7 @@ func TestEmptyQuery(t *testing.T) {
 		if rows.Next() {
 			dbt.Errorf("next on rows must be false")
 		}
+		rows.Close()
 	})
 }
 
@@ -222,6 +232,7 @@ func TestCRUD(t *testing.T) {
 		if id != 0 {
 			dbt.Fatalf("expected InsertId 0, got %d", id)
 		}
+		rows.Close()
 
 		// Read
 		rows = dbt.mustQuery("SELECT value FROM test")
@@ -237,6 +248,7 @@ func TestCRUD(t *testing.T) {
 		} else {
 			dbt.Error("no data")
 		}
+		rows.Close()
 
 		// Update
 		res = dbt.mustExec("UPDATE test SET value = ? WHERE value = ?", false, true)
@@ -262,6 +274,7 @@ func TestCRUD(t *testing.T) {
 		} else {
 			dbt.Error("no data")
 		}
+		rows.Close()
 
 		// Delete
 		res = dbt.mustExec("DELETE FROM test WHERE value = ?", false)
@@ -325,7 +338,7 @@ func TestMultiQuery(t *testing.T) {
 		} else {
 			dbt.Error("no data")
 		}
-
+		rows.Close()
 	})
 }
 
@@ -361,6 +374,7 @@ func testInt(t *testing.T, in int64, arg interface{}) {
 				dbt.Errorf("%s: no data", v)
 			}
 
+			rows.Close()
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
 
@@ -380,6 +394,7 @@ func testInt(t *testing.T, in int64, arg interface{}) {
 				dbt.Errorf("%s ZEROFILL: no data", v)
 			}
 
+			rows.Close()
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
 	})
@@ -403,6 +418,7 @@ func TestFloat32(t *testing.T) {
 			} else {
 				dbt.Errorf("%s: no data", v)
 			}
+			rows.Close()
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
 	})
@@ -435,6 +451,7 @@ func testFloat64(t *testing.T, expected float64, arg interface{}) {
 			} else {
 				dbt.Errorf("%s: no data", v)
 			}
+			rows.Close()
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
 	})
@@ -458,6 +475,7 @@ func TestFloat64Placeholder(t *testing.T) {
 			} else {
 				dbt.Errorf("%s: no data", v)
 			}
+			rows.Close()
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
 	})
@@ -495,6 +513,7 @@ func testString(t *testing.T, s string, arg interface{}) {
 				dbt.Errorf("%s: no data", v)
 			}
 
+			rows.Close()
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
 
@@ -553,6 +572,7 @@ func testBytes(t *testing.T, s []byte, arg interface{}) {
 				dbt.Errorf("%s: no data", v)
 			}
 
+			rows.Close()
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
 
@@ -853,6 +873,7 @@ func TestTimestampMicros(t *testing.T) {
 		if res6 != f6 {
 			dbt.Errorf("expected %q, got %q", f6, res6)
 		}
+		rows.Close()
 	})
 }
 
@@ -1003,6 +1024,7 @@ func TestNULL(t *testing.T) {
 		} else {
 			dbt.Error("no data")
 		}
+		rows.Close()
 	})
 }
 
@@ -1085,7 +1107,7 @@ func TestLongData(t *testing.T) {
 		} else {
 			dbt.Fatalf("LONGBLOB: no data")
 		}
-
+		rows.Close()
 		// Empty table
 		dbt.mustExec("TRUNCATE TABLE test")
 
@@ -1107,6 +1129,7 @@ func TestLongData(t *testing.T) {
 				dbt.Fatal("LONGBLOB: no data (err: <nil>)")
 			}
 		}
+		rows.Close()
 	})
 }
 
@@ -1354,6 +1377,8 @@ func TestTLS(t *testing.T) {
 				dbt.Fatal("no Cipher")
 			}
 		}
+
+		rows.Close()
 	}
 
 	runTests(t, dsn+"&tls=skip-verify", tlsTest)
@@ -1487,7 +1512,6 @@ func TestCollation(t *testing.T) {
 func TestColumnsWithAlias(t *testing.T) {
 	runTests(t, dsn+"&columnsWithAlias=true", func(dbt *DBTest) {
 		rows := dbt.mustQuery("SELECT 1 AS A")
-		defer rows.Close()
 		cols, _ := rows.Columns()
 		if len(cols) != 1 {
 			t.Fatalf("expected 1 column, got %d", len(cols))
@@ -1505,6 +1529,7 @@ func TestColumnsWithAlias(t *testing.T) {
 		if cols[0] != "A.one" {
 			t.Fatalf("expected column name \"A.one\", got \"%s\"", cols[0])
 		}
+		rows.Close()
 	})
 }
 
@@ -1558,6 +1583,8 @@ func TestTimezoneConversion(t *testing.T) {
 			dbt.Errorf(" Now(%v)=%v\n", usCentral, reftime)
 			dbt.Errorf(" Now(UTC)=%v\n", dbTime)
 		}
+
+		rows.Close()
 	}
 
 	for _, tz := range zones {
