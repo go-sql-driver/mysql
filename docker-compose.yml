@@ -1,0 +1,8 @@
+mysql:
+  image: mysql
+  environment:
+    - MYSQL_ALLOW_EMPTY_PASSWORD=true
+    - MYSQL_USER=root
+    - MYSQL_DATABASE=gotest
+  ports:
+    - "3306:3306"
