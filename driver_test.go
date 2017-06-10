@@ -521,6 +521,64 @@ func testString(t *testing.T, s string, arg interface{}) {
 	})
 }
 
+func TestBytes(t *testing.T) {
+	in := []byte("κόσμε üöäßñóùéàâÿœ'îë Árvíztűrő いろはにほへとちりぬるを イロハニホヘト דג סקרן чащах  น่าฟังเอย")
+	testBytes(t, in, in)
+}
+
+func TestBytesPtr(t *testing.T) {
+	in := []byte("κόσμε üöäßñóùéàâÿœ'îë Árvíztűrő いろはにほへとちりぬるを イロハニホヘト דג סקרן чащах  น่าฟังเอย")
+	testBytes(t, in, &in)
+}
+
+func testBytes(t *testing.T, s []byte, arg interface{}) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		types := [6]string{"CHAR(255)", "VARCHAR(255)", "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT"}
+		in := s
+		var out []byte
+		var rows *sql.Rows
+
+		for _, v := range types {
+			dbt.mustExec("CREATE TABLE test (value " + v + ") CHARACTER SET utf8")
+
+			dbt.mustExec("INSERT INTO test VALUES (?)", arg)
+
+			rows = dbt.mustQuery("SELECT value FROM test")
+			if rows.Next() {
+				rows.Scan(&out)
+				if !bytes.Equal(in, out) {
+					dbt.Errorf("%s: %s != %s", v, in, out)
+				}
+			} else {
+				dbt.Errorf("%s: no data", v)
+			}
+
+			dbt.mustExec("DROP TABLE IF EXISTS test")
+		}
+
+		// BLOB
+		dbt.mustExec("CREATE TABLE test (id int, value BLOB) CHARACTER SET utf8")
+
+		id := 2
+		in = []byte("Lorem ipsum dolor sit amet, consetetur sadipscing elitr, " +
+			"sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, " +
+			"sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. " +
+			"Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. " +
+			"Lorem ipsum dolor sit amet, consetetur sadipscing elitr, " +
+			"sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, " +
+			"sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. " +
+			"Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.")
+		dbt.mustExec("INSERT INTO test VALUES (?, ?)", id, in)
+
+		err := dbt.db.QueryRow("SELECT value FROM test WHERE id = ?", id).Scan(&out)
+		if err != nil {
+			dbt.Fatalf("Error on BLOB-Query: %s", err.Error())
+		} else if !bytes.Equal(in, out) {
+			dbt.Errorf("BLOB: %s != %s", in, out)
+		}
+	})
+}
+
 type timeTests struct {
 	dbtype  string
 	tlayout string
