@@ -330,9 +330,18 @@ func TestMultiQuery(t *testing.T) {
 }
 
 func TestInt(t *testing.T) {
+	in := int64(42)
+	testInt(t, in, in)
+}
+
+func TestIntPtr(t *testing.T) {
+	in := int64(42)
+	testInt(t, in, &in)
+}
+
+func testInt(t *testing.T, in int64, arg interface{}) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		types := [5]string{"TINYINT", "SMALLINT", "MEDIUMINT", "INT", "BIGINT"}
-		in := int64(42)
 		var out int64
 		var rows *sql.Rows
 
@@ -340,7 +349,7 @@ func TestInt(t *testing.T) {
 		for _, v := range types {
 			dbt.mustExec("CREATE TABLE test (value " + v + ")")
 
-			dbt.mustExec("INSERT INTO test VALUES (?)", in)
+			dbt.mustExec("INSERT INTO test VALUES (?)", arg)
 
 			rows = dbt.mustQuery("SELECT value FROM test")
 			if rows.Next() {
@@ -359,7 +368,7 @@ func TestInt(t *testing.T) {
 		for _, v := range types {
 			dbt.mustExec("CREATE TABLE test (value " + v + " ZEROFILL)")
 
-			dbt.mustExec("INSERT INTO test VALUES (?)", in)
+			dbt.mustExec("INSERT INTO test VALUES (?)", arg)
 
 			rows = dbt.mustQuery("SELECT value FROM test")
 			if rows.Next() {
@@ -400,14 +409,23 @@ func TestFloat32(t *testing.T) {
 }
 
 func TestFloat64(t *testing.T) {
+	in := float64(42.23)
+	testFloat64(t, in, in)
+}
+
+func TestFloat64Ptr(t *testing.T) {
+	in := float64(42.23)
+	testFloat64(t, in, &in)
+}
+
+func testFloat64(t *testing.T, expected float64, arg interface{}) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		types := [2]string{"FLOAT", "DOUBLE"}
-		var expected float64 = 42.23
 		var out float64
 		var rows *sql.Rows
 		for _, v := range types {
 			dbt.mustExec("CREATE TABLE test (value " + v + ")")
-			dbt.mustExec("INSERT INTO test VALUES (42.23)")
+			dbt.mustExec("INSERT INTO test VALUES (?)", arg)
 			rows = dbt.mustQuery("SELECT value FROM test")
 			if rows.Next() {
 				rows.Scan(&out)
@@ -446,16 +464,26 @@ func TestFloat64Placeholder(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
+	in := "κόσμε üöäßñóùéàâÿœ'îë Árvíztűrő いろはにほへとちりぬるを イロハニホヘト דג סקרן чащах  น่าฟังเอย"
+	testString(t, in, in)
+}
+
+func TestStringPtr(t *testing.T) {
+	in := "κόσμε üöäßñóùéàâÿœ'îë Árvíztűrő いろはにほへとちりぬるを イロハニホヘト דג סקרן чащах  น่าฟังเอย"
+	testString(t, in, &in)
+}
+
+func testString(t *testing.T, s string, arg interface{}) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		types := [6]string{"CHAR(255)", "VARCHAR(255)", "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT"}
-		in := "κόσμε üöäßñóùéàâÿœ'îë Árvíztűrő いろはにほへとちりぬるを イロハニホヘト דג סקרן чащах  น่าฟังเอย"
+		in := s
 		var out string
 		var rows *sql.Rows
 
 		for _, v := range types {
 			dbt.mustExec("CREATE TABLE test (value " + v + ") CHARACTER SET utf8")
 
-			dbt.mustExec("INSERT INTO test VALUES (?)", in)
+			dbt.mustExec("INSERT INTO test VALUES (?)", arg)
 
 			rows = dbt.mustQuery("SELECT value FROM test")
 			if rows.Next() {
