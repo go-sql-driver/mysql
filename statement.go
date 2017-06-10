@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"strconv"
 	"time"
+	"unsafe"
 )
 
 type mysqlStmt struct {
@@ -138,9 +139,9 @@ func (c *converter) ConvertValue(v interface{}) (driver.Value, error) {
 		return v, nil
 	}
 
-	switch v.(type) {
-	case *[]byte, *bool, *float64, *int64, *string, *time.Time:
-		return v, nil
+	switch x := v.(type) {
+	case *int64, *float64, *bool, *string, *[]byte, *time.Time:
+		return pack(x), nil
 	}
 
 	rv := reflect.ValueOf(v)
@@ -166,3 +167,100 @@ func (c *converter) ConvertValue(v interface{}) (driver.Value, error) {
 	}
 	return nil, fmt.Errorf("unsupported type %T, a %s", v, rv.Kind())
 }
+
+type eface struct {
+	t uintptr
+	v uintptr
+}
+
+func (e eface) value() (i interface{}) {
+	*((*eface)(unsafe.Pointer(&i))) = e
+	return
+}
+
+const vmask = uintptr(1 << 63)
+
+func typeval(v interface{}) eface {
+	return *(*eface)(unsafe.Pointer(&v))
+}
+
+func typeof(v interface{}) uintptr {
+	return typeval(v).t
+}
+
+func pack(v interface{}) interface{} {
+	e := typeval(v)
+	e.t = valOf(e.t)
+	e.v |= vmask
+	return e.value()
+}
+
+func unpack(v interface{}) interface{} {
+	e := typeval(v)
+
+	if (e.v & vmask) == 0 {
+		return v
+	}
+
+	e.t = ptrOf(e.t)
+	e.v &= ^vmask
+	return e.value()
+}
+
+func ptrOf(t uintptr) uintptr {
+	switch t {
+	case int64Type:
+		return int64PtrType
+	case float64Type:
+		return float64PtrType
+	case boolType:
+		return boolPtrType
+	case stringType:
+		return stringPtrType
+	case bytesType:
+		return bytesPtrType
+	case timeType:
+		return timePtrType
+	default:
+		panic("unsupported type passed to ptrOf")
+	}
+}
+
+func valOf(t uintptr) uintptr {
+	switch t {
+	case int64PtrType:
+		return int64Type
+	case float64PtrType:
+		return float64Type
+	case boolPtrType:
+		return boolType
+	case stringPtrType:
+		return stringType
+	case bytesPtrType:
+		return bytesType
+	case timePtrType:
+		return timeType
+	default:
+		panic("unsupported type passed to valOf")
+	}
+}
+
+var (
+	int64Type    = typeof(int64(0))
+	int64PtrType = typeof(new(int64))
+
+	float64Type    = typeof(float64(0))
+	float64PtrType = typeof(new(float64))
+
+	boolType    = typeof(false)
+	boolPtrType = typeof(new(bool))
+
+	stringType    = typeof(string(0))
+	stringPtrType = typeof(new(string))
+
+	bytesType    = typeof([]byte(nil))
+	bytesPtrType = typeof(new([]byte))
+
+	timeType    = typeof(time.Time{})
+	timePtrType = typeof(new(time.Time))
+)

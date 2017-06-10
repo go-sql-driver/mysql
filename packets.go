@@ -993,7 +993,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 			// cache types and values
 			var err error
-			switch v := arg.(type) {
+			switch v := unpack(arg).(type) {
 			case int64:
 				paramValues = stmt.writeInt(paramTypes[i+i:], paramValues, v)
 
