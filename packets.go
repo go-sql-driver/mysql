@@ -30,7 +30,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		// read packet header
 		data, err := mc.buf.readNext(4)
 		if err != nil {
-			if cerr := mc.canceled(); cerr != nil {
+			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
 			}
 			errLog.Print(err)
@@ -66,7 +66,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		// read packet body [pktLen bytes]
 		data, err = mc.buf.readNext(pktLen)
 		if err != nil {
-			if cerr := mc.canceled(); cerr != nil {
+			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
 			}
 			errLog.Print(err)
@@ -134,7 +134,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			mc.cleanup()
 			errLog.Print(ErrMalformPkt)
 		} else {
-			if cerr := mc.canceled(); cerr != nil {
+			if cerr := mc.canceled.Value(); cerr != nil {
 				return cerr
 			}
 			mc.cleanup()
@@ -1150,7 +1150,8 @@ func (stmt *mysqlStmt) writeString(paramTypes []byte, paramValues []byte, nullMa
 	return paramValues, nil
 }
 
-func (stmt *mysqlStmt) writeTime(paramTypes []byte, paramValues []byte, value time.Time) []byte {
+func (stmt *mysqlStmt) 
+(paramTypes []byte, paramValues []byte, value time.Time) []byte {
 	paramTypes[0] = fieldTypeString
 	paramTypes[1] = 0x00
 
