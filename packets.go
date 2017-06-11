@@ -35,7 +35,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 			}
 			errLog.Print(err)
 			mc.Close()
-			return nil, driver.ErrBadConn
+			return nil, err
 		}
 
 		// packet length [24 bit]
@@ -57,7 +57,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 			if prevData == nil {
 				errLog.Print(ErrMalformPkt)
 				mc.Close()
-				return nil, driver.ErrBadConn
+				return nil, ErrMalformPkt
 			}
 
 			return prevData, nil
@@ -71,7 +71,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 			}
 			errLog.Print(err)
 			mc.Close()
-			return nil, driver.ErrBadConn
+			return nil, err
 		}
 
 		// return data if this was the last packet
