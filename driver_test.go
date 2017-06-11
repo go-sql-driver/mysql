@@ -20,6 +20,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -69,6 +70,9 @@ func init() {
 		available = true
 		c.Close()
 	}
+
+	// enable the unsafe optimizations on amd64 platforms only
+	UnsafePointerOptimization = runtime.GOARCH == "amd64"
 }
 
 type DBTest struct {
@@ -98,21 +102,12 @@ func runTestsWithMultiStatement(t *testing.T, dsn string, tests ...func(dbt *DBT
 	}
 }
 
-func openDB(dsn string) (db *sql.DB, err error) {
-	if db, err = sql.Open("mysql", dsn); err != nil {
-		return
-	}
-	db.SetMaxIdleConns(10)
-	db.SetMaxOpenConns(10)
-	return
-}
-
 func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	if !available {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	db, err := openDB(dsn)
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		t.Fatalf("error connecting: %s", err.Error())
 	}
@@ -123,7 +118,7 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	dsn2 := dsn + "&interpolateParams=true"
 	var db2 *sql.DB
 	if _, err := ParseDSN(dsn2); err != errInvalidDSNUnsafeCollation {
-		db2, err = openDB(dsn2)
+		db2, err = sql.Open("mysql", dsn2)
 		if err != nil {
 			t.Fatalf("error connecting: %s", err.Error())
 		}
@@ -133,7 +128,7 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	dsn3 := dsn + "&multiStatements=true"
 	var db3 *sql.DB
 	if _, err := ParseDSN(dsn3); err != errInvalidDSNUnsafeCollation {
-		db3, err = openDB(dsn3)
+		db3, err = sql.Open("mysql", dsn3)
 		if err != nil {
 			t.Fatalf("error connecting: %s", err.Error())
 		}

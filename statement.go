@@ -139,9 +139,11 @@ func (c *converter) ConvertValue(v interface{}) (driver.Value, error) {
 		return v, nil
 	}
 
-	switch x := v.(type) {
-	case *int64, *float64, *bool, *string, *[]byte, *time.Time:
-		return pack(x), nil
+	if UnsafePointerOptimization {
+		switch x := v.(type) {
+		case *int64, *float64, *bool, *string, *[]byte, *time.Time:
+			return hack(x), nil
+		}
 	}
 
 	rv := reflect.ValueOf(v)
@@ -168,6 +170,14 @@ func (c *converter) ConvertValue(v interface{}) (driver.Value, error) {
 	return nil, fmt.Errorf("unsupported type %T, a %s", v, rv.Kind())
 }
 
+// UnsafePointerOptimization may be set to true to enable a pass-by-pointer
+// optimization that prevents dynamic memory allocations when converting values
+// between concrete types and driver.Value (which is an empty interface).
+//
+// Enabling this optimization may not be be portable and may cause the program
+// to crash in future versions of Go, use it at your own risks!
+var UnsafePointerOptimization = false
+
 type eface struct {
 	t uintptr
 	v uintptr
@@ -188,23 +198,29 @@ func typeof(v interface{}) uintptr {
 	return typeval(v).t
 }
 
-func pack(v interface{}) interface{} {
-	e := typeval(v)
-	e.t = valOf(e.t)
-	e.v |= vmask
-	return e.value()
+func hack(v interface{}) interface{} {
+	if UnsafePointerOptimization {
+		e := typeval(v)
+		e.t = valOf(e.t)
+		e.v |= vmask
+		v = e.value()
+	}
+	return v
 }
 
-func unpack(v interface{}) interface{} {
-	e := typeval(v)
+func unhack(v interface{}) interface{} {
+	if UnsafePointerOptimization {
+		e := typeval(v)
 
-	if (e.v & vmask) == 0 {
-		return v
+		if (e.v & vmask) == 0 {
+			return v
+		}
+
+		e.t = ptrOf(e.t)
+		e.v &= ^vmask
+		v = e.value()
 	}
-
-	e.t = ptrOf(e.t)
-	e.v &= ^vmask
-	return e.value()
+	return v
 }
 
 func ptrOf(t uintptr) uintptr {
