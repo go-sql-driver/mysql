@@ -41,13 +41,21 @@ func (mc *mysqlConn) Ping(ctx context.Context) error {
 
 // BeginTx implements driver.ConnBeginTx interface
 func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
-	if sql.IsolationLevel(opts.Isolation) != sql.LevelDefault {
-		// TODO: support isolation levels
-		return nil, errors.New("mysql: isolation levels not supported")
-	}
 	if opts.ReadOnly {
 		// TODO: support read-only transactions
 		return nil, errors.New("mysql: read-only transactions not supported")
+	}
+
+	if sql.IsolationLevel(opts.Isolation) != sql.LevelDefault {
+		level, err := mapIsolationLevel(opts.Isolation)
+		if err != nil {
+			return nil, err
+		}
+		err = mc.exec("SET TRANSACTION ISOLATION LEVEL " + level)
+		if err != nil {
+			return nil, err
+		}
+		mc.finish()
 	}
 
 	if err := mc.watchCancel(ctx); err != nil {
