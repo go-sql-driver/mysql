@@ -16,7 +16,6 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"reflect"
-	"sync"
 	"testing"
 	"time"
 )
@@ -476,93 +475,48 @@ func TestContextBeginIsolationLevel(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		// Waitgroup syncing BeginTx
-		beginWg := sync.WaitGroup{}
-		beginWg.Add(2)
-
-		// Waitgroup syncing insert in writer transaction
-		insertWg := sync.WaitGroup{}
-		insertWg.Add(1)
-
-		// Waitgroup syncing writer transaction commit before reader reads
-		readWg := sync.WaitGroup{}
-		readWg.Add(1)
-
-		// Waitgroup syncing commit in writer transaction
-		commitWg := sync.WaitGroup{}
-		commitWg.Add(1)
-
-		// Waitgroup syncing end of both goroutines
-		testDoneWg := sync.WaitGroup{}
-		testDoneWg.Add(2)
-
-		repeatableReadGoroutine := func() {
-			tx, err := dbt.db.BeginTx(ctx, &sql.TxOptions{
-				Isolation: sql.LevelRepeatableRead,
-			})
-			if err != nil {
-				dbt.Fatal(err)
-			}
-			beginWg.Done()
-			// Wait until other session will begin it's transaction
-			beginWg.Wait()
-
-			_, err = tx.ExecContext(ctx, "INSERT INTO test VALUES (1)")
-			if err != nil {
-				dbt.Fatal(err)
-			}
-			insertWg.Done()
-
-			// Wait until reader transaction finish reading
-			readWg.Wait()
-
-			err = tx.Commit()
-			if err != nil {
-				dbt.Fatal(err)
-			}
-			commitWg.Done()
-
-			testDoneWg.Done()
+		tx1, err := dbt.db.BeginTx(ctx, &sql.TxOptions{
+			Isolation: sql.LevelRepeatableRead,
+		})
+		if err != nil {
+			dbt.Fatal(err)
 		}
 
-		readCommitedGoroutine := func() {
-			tx, err := dbt.db.BeginTx(ctx, &sql.TxOptions{
-				Isolation: sql.LevelReadCommitted,
-			})
-			if err != nil {
-				dbt.Fatal(err)
-			}
-			beginWg.Done()
-			// Wait until writer transaction will begin
-			beginWg.Wait()
-			// Wait until writer transaction will insert value
-			insertWg.Wait()
-			var v int
-			row := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM test")
-			if err := row.Scan(&v); err != nil {
-				dbt.Fatal(err)
-			}
-			// Because writer transaction wasn't commited yet, it should be available
-			if v != 0 {
-				dbt.Errorf("expected val to be 0, got %d", v)
-			}
-			readWg.Done()
-			// Wait until writer transaction will commit
-			commitWg.Wait()
-			row = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM test")
-			if err := row.Scan(&v); err != nil {
-				dbt.Fatal(err)
-			}
-			// Data written by writer transaction is already commited, it should be selectable
-			if v != 1 {
-				dbt.Errorf("expected val to be 1, got %d", v)
-			}
-			tx.Commit()
-			testDoneWg.Done()
+		tx2, err := dbt.db.BeginTx(ctx, &sql.TxOptions{
+			Isolation: sql.LevelReadCommitted,
+		})
+		if err != nil {
+			dbt.Fatal(err)
 		}
 
-		go repeatableReadGoroutine()
-		go readCommitedGoroutine()
-		testDoneWg.Wait()
+		_, err = tx1.ExecContext(ctx, "INSERT INTO test VALUES (1)")
+		if err != nil {
+			dbt.Fatal(err)
+		}
+
+		var v int
+		row := tx2.QueryRowContext(ctx, "SELECT COUNT(*) FROM test")
+		if err := row.Scan(&v); err != nil {
+			dbt.Fatal(err)
+		}
+		// Because writer transaction wasn't commited yet, it should be available
+		if v != 0 {
+			dbt.Errorf("expected val to be 0, got %d", v)
+		}
+
+		err = tx1.Commit()
+		if err != nil {
+			dbt.Fatal(err)
+		}
+
+		row = tx2.QueryRowContext(ctx, "SELECT COUNT(*) FROM test")
+		if err := row.Scan(&v); err != nil {
+			dbt.Fatal(err)
+		}
+		// Data written by writer transaction is already commited, it should be selectable
+		if v != 1 {
+			dbt.Errorf("expected val to be 1, got %d", v)
+		}
+		tx2.Commit()
 	})
 }
