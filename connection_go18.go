@@ -46,20 +46,21 @@ func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 		return nil, errors.New("mysql: read-only transactions not supported")
 	}
 
+	if err := mc.watchCancel(ctx); err != nil {
+		return nil, err
+	}
+
 	if sql.IsolationLevel(opts.Isolation) != sql.LevelDefault {
 		level, err := mapIsolationLevel(opts.Isolation)
 		if err != nil {
+			mc.finish()
 			return nil, err
 		}
 		err = mc.exec("SET TRANSACTION ISOLATION LEVEL " + level)
 		if err != nil {
+			mc.finish()
 			return nil, err
 		}
-		mc.finish()
-	}
-
-	if err := mc.watchCancel(ctx); err != nil {
-		return nil, err
 	}
 
 	tx, err := mc.Begin()
