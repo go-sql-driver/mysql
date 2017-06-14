@@ -50,31 +50,24 @@ func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 		return nil, err
 	}
 
+	defer mc.finish()
+
 	if sql.IsolationLevel(opts.Isolation) != sql.LevelDefault {
 		level, err := mapIsolationLevel(opts.Isolation)
 		if err != nil {
-			mc.finish()
 			return nil, err
 		}
 		err = mc.exec("SET TRANSACTION ISOLATION LEVEL " + level)
 		if err != nil {
-			mc.finish()
 			return nil, err
 		}
 	}
 
 	tx, err := mc.Begin()
-	mc.finish()
 	if err != nil {
 		return nil, err
 	}
 
-	select {
-	default:
-	case <-ctx.Done():
-		tx.Rollback()
-		return nil, ctx.Err()
-	}
 	return tx, err
 }
 
