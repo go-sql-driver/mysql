@@ -63,12 +63,7 @@ func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 		}
 	}
 
-	tx, err := mc.Begin()
-	if err != nil {
-		return nil, err
-	}
-
-	return tx, err
+	return mc.Begin()
 }
 
 func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
