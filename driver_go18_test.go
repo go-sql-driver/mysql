@@ -468,3 +468,55 @@ func TestContextCancelBegin(t *testing.T) {
 		}
 	})
 }
+
+func TestContextBeginIsolationLevel(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (v INTEGER)")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		tx1, err := dbt.db.BeginTx(ctx, &sql.TxOptions{
+			Isolation: sql.LevelRepeatableRead,
+		})
+		if err != nil {
+			dbt.Fatal(err)
+		}
+
+		tx2, err := dbt.db.BeginTx(ctx, &sql.TxOptions{
+			Isolation: sql.LevelReadCommitted,
+		})
+		if err != nil {
+			dbt.Fatal(err)
+		}
+
+		_, err = tx1.ExecContext(ctx, "INSERT INTO test VALUES (1)")
+		if err != nil {
+			dbt.Fatal(err)
+		}
+
+		var v int
+		row := tx2.QueryRowContext(ctx, "SELECT COUNT(*) FROM test")
+		if err := row.Scan(&v); err != nil {
+			dbt.Fatal(err)
+		}
+		// Because writer transaction wasn't commited yet, it should be available
+		if v != 0 {
+			dbt.Errorf("expected val to be 0, got %d", v)
+		}
+
+		err = tx1.Commit()
+		if err != nil {
+			dbt.Fatal(err)
+		}
+
+		row = tx2.QueryRowContext(ctx, "SELECT COUNT(*) FROM test")
+		if err := row.Scan(&v); err != nil {
+			dbt.Fatal(err)
+		}
+		// Data written by writer transaction is already commited, it should be selectable
+		if v != 1 {
+			dbt.Errorf("expected val to be 1, got %d", v)
+		}
+		tx2.Commit()
+	})
+}

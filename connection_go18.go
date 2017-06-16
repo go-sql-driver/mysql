@@ -41,10 +41,6 @@ func (mc *mysqlConn) Ping(ctx context.Context) error {
 
 // BeginTx implements driver.ConnBeginTx interface
 func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
-	if sql.IsolationLevel(opts.Isolation) != sql.LevelDefault {
-		// TODO: support isolation levels
-		return nil, errors.New("mysql: isolation levels not supported")
-	}
 	if opts.ReadOnly {
 		// TODO: support read-only transactions
 		return nil, errors.New("mysql: read-only transactions not supported")
@@ -54,19 +50,20 @@ func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 		return nil, err
 	}
 
-	tx, err := mc.Begin()
-	mc.finish()
-	if err != nil {
-		return nil, err
+	defer mc.finish()
+
+	if sql.IsolationLevel(opts.Isolation) != sql.LevelDefault {
+		level, err := mapIsolationLevel(opts.Isolation)
+		if err != nil {
+			return nil, err
+		}
+		err = mc.exec("SET TRANSACTION ISOLATION LEVEL " + level)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	select {
-	default:
-	case <-ctx.Done():
-		tx.Rollback()
-		return nil, ctx.Err()
-	}
-	return tx, err
+	return mc.Begin()
 }
 
 func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
