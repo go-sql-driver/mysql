@@ -39,7 +39,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
   * Optional placeholder interpolation
 
 ## Requirements
-  * Go 1.2 or higher
+  * Go 1.5 or higher
   * MySQL (4.1+), MariaDB, Percona Server, Google CloudSQL or Sphinx (2.2.3+)
 
 ---------------------------------------
@@ -279,7 +279,7 @@ Default:        false
 
 `rejectreadOnly=true` causes the driver to reject read-only connections. This
 is for a possible race condition during an automatic failover, where the mysql
-client gets connected to a read-only replica after the failover. 
+client gets connected to a read-only replica after the failover.
 
 Note that this should be a fairly rare case, as an automatic failover normally
 happens when the primary is down, and the race condition shouldn't happen

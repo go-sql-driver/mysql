@@ -30,7 +30,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		// read packet header
 		data, err := mc.buf.readNext(4)
 		if err != nil {
-			if cerr := mc.canceled(); cerr != nil {
+			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
 			}
 			errLog.Print(err)
@@ -66,7 +66,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		// read packet body [pktLen bytes]
 		data, err = mc.buf.readNext(pktLen)
 		if err != nil {
-			if cerr := mc.canceled(); cerr != nil {
+			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
 			}
 			errLog.Print(err)
@@ -134,7 +134,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			mc.cleanup()
 			errLog.Print(ErrMalformPkt)
 		} else {
-			if cerr := mc.canceled(); cerr != nil {
+			if cerr := mc.canceled.Value(); cerr != nil {
 				return cerr
 			}
 			mc.cleanup()
@@ -1078,17 +1078,19 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				paramTypes[i+i] = fieldTypeString
 				paramTypes[i+i+1] = 0x00
 
-				var val []byte
+				var a [64]byte
+				var b = a[:0]
+
 				if v.IsZero() {
-					val = []byte("0000-00-00")
+					b = append(b, "0000-00-00"...)
 				} else {
-					val = []byte(v.In(mc.cfg.Loc).Format(timeFormat))
+					b = v.In(mc.cfg.Loc).AppendFormat(b, timeFormat)
 				}
 
 				paramValues = appendLengthEncodedInteger(paramValues,
-					uint64(len(val)),
+					uint64(len(b)),
 				)
-				paramValues = append(paramValues, val...)
+				paramValues = append(paramValues, b...)
 
 			default:
 				return fmt.Errorf("can not convert type: %T", arg)
