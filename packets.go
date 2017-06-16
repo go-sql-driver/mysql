@@ -992,108 +992,53 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			}
 
 			// cache types and values
-			switch v := arg.(type) {
+			var err error
+			switch v := unhack(arg).(type) {
 			case int64:
-				paramTypes[i+i] = fieldTypeLongLong
-				paramTypes[i+i+1] = 0x00
-
-				if cap(paramValues)-len(paramValues)-8 >= 0 {
-					paramValues = paramValues[:len(paramValues)+8]
-					binary.LittleEndian.PutUint64(
-						paramValues[len(paramValues)-8:],
-						uint64(v),
-					)
-				} else {
-					paramValues = append(paramValues,
-						uint64ToBytes(uint64(v))...,
-					)
-				}
+				paramValues = stmt.writeInt(paramTypes[i+i:], paramValues, v)
 
 			case float64:
-				paramTypes[i+i] = fieldTypeDouble
-				paramTypes[i+i+1] = 0x00
-
-				if cap(paramValues)-len(paramValues)-8 >= 0 {
-					paramValues = paramValues[:len(paramValues)+8]
-					binary.LittleEndian.PutUint64(
-						paramValues[len(paramValues)-8:],
-						math.Float64bits(v),
-					)
-				} else {
-					paramValues = append(paramValues,
-						uint64ToBytes(math.Float64bits(v))...,
-					)
-				}
+				paramValues = stmt.writeFloat(paramTypes[i+i:], paramValues, v)
 
 			case bool:
-				paramTypes[i+i] = fieldTypeTiny
-				paramTypes[i+i+1] = 0x00
-
-				if v {
-					paramValues = append(paramValues, 0x01)
-				} else {
-					paramValues = append(paramValues, 0x00)
-				}
+				paramValues = stmt.writeBool(paramTypes[i+i:], paramValues, v)
 
 			case []byte:
-				// Common case (non-nil value) first
-				if v != nil {
-					paramTypes[i+i] = fieldTypeString
-					paramTypes[i+i+1] = 0x00
-
-					if len(v) < mc.maxAllowedPacket-pos-len(paramValues)-(len(args)-(i+1))*64 {
-						paramValues = appendLengthEncodedInteger(paramValues,
-							uint64(len(v)),
-						)
-						paramValues = append(paramValues, v...)
-					} else {
-						if err := stmt.writeCommandLongData(i, v); err != nil {
-							return err
-						}
-					}
-					continue
-				}
-
-				// Handle []byte(nil) as a NULL value
-				nullMask[i/8] |= 1 << (uint(i) & 7)
-				paramTypes[i+i] = fieldTypeNULL
-				paramTypes[i+i+1] = 0x00
+				paramValues, err = stmt.writeBytes(paramTypes[i+i:], paramValues, nullMask, pos, len(args), i, v)
 
 			case string:
-				paramTypes[i+i] = fieldTypeString
-				paramTypes[i+i+1] = 0x00
-
-				if len(v) < mc.maxAllowedPacket-pos-len(paramValues)-(len(args)-(i+1))*64 {
-					paramValues = appendLengthEncodedInteger(paramValues,
-						uint64(len(v)),
-					)
-					paramValues = append(paramValues, v...)
-				} else {
-					if err := stmt.writeCommandLongData(i, []byte(v)); err != nil {
-						return err
-					}
-				}
+				paramValues, err = stmt.writeString(paramTypes[i+i:], paramValues, nullMask, pos, len(args), i, v)
 
 			case time.Time:
-				paramTypes[i+i] = fieldTypeString
-				paramTypes[i+i+1] = 0x00
+				paramValues = stmt.writeTime(paramTypes[i+i:], paramValues, v)
 
-				var a [64]byte
-				var b = a[:0]
+				// also handle pointers so the application may use this as an
+				// optimization to avoid dynamic memory allocations caused by
+				// runtime.convT2E when generating the argument list.
+			case *int64:
+				paramValues = stmt.writeInt(paramTypes[i+i:], paramValues, *v)
 
-				if v.IsZero() {
-					b = append(b, "0000-00-00"...)
-				} else {
-					b = v.In(mc.cfg.Loc).AppendFormat(b, timeFormat)
-				}
+			case *float64:
+				paramValues = stmt.writeFloat(paramTypes[i+i:], paramValues, *v)
 
-				paramValues = appendLengthEncodedInteger(paramValues,
-					uint64(len(b)),
-				)
-				paramValues = append(paramValues, b...)
+			case *bool:
+				paramValues = stmt.writeBool(paramTypes[i+i:], paramValues, *v)
+
+			case *[]byte:
+				paramValues, err = stmt.writeBytes(paramTypes[i+i:], paramValues, nullMask, pos, len(args), i, *v)
+
+			case *string:
+				paramValues, err = stmt.writeString(paramTypes[i+i:], paramValues, nullMask, pos, len(args), i, *v)
+
+			case *time.Time:
+				paramValues = stmt.writeTime(paramTypes[i+i:], paramValues, *v)
 
 			default:
-				return fmt.Errorf("can not convert type: %T", arg)
+				err = fmt.Errorf("can not convert type: %T", arg)
+			}
+
+			if err != nil {
+				return err
 			}
 		}
 
@@ -1109,6 +1054,121 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	}
 
 	return mc.writePacket(data)
+}
+
+func (stmt *mysqlStmt) writeInt(paramTypes []byte, paramValues []byte, value int64) []byte {
+	paramTypes[0] = fieldTypeLongLong
+	paramTypes[1] = 0x00
+
+	if cap(paramValues)-len(paramValues)-8 >= 0 {
+		paramValues = paramValues[:len(paramValues)+8]
+		binary.LittleEndian.PutUint64(
+			paramValues[len(paramValues)-8:],
+			uint64(value),
+		)
+	} else {
+		paramValues = append(paramValues,
+			uint64ToBytes(uint64(value))...,
+		)
+	}
+
+	return paramValues
+}
+
+func (stmt *mysqlStmt) writeFloat(paramTypes []byte, paramValues []byte, value float64) []byte {
+	paramTypes[0] = fieldTypeDouble
+	paramTypes[1] = 0x00
+
+	if cap(paramValues)-len(paramValues)-8 >= 0 {
+		paramValues = paramValues[:len(paramValues)+8]
+		binary.LittleEndian.PutUint64(
+			paramValues[len(paramValues)-8:],
+			math.Float64bits(value),
+		)
+	} else {
+		paramValues = append(paramValues,
+			uint64ToBytes(math.Float64bits(value))...,
+		)
+	}
+
+	return paramValues
+}
+
+func (stmt *mysqlStmt) writeBool(paramTypes []byte, paramValues []byte, value bool) []byte {
+	paramTypes[0] = fieldTypeTiny
+	paramTypes[1] = 0x00
+
+	if value {
+		paramValues = append(paramValues, 0x01)
+	} else {
+		paramValues = append(paramValues, 0x00)
+	}
+
+	return paramValues
+}
+
+func (stmt *mysqlStmt) writeBytes(paramTypes []byte, paramValues []byte, nullMask []byte, pos int, argc int, index int, value []byte) ([]byte, error) {
+	// Common case (non-nil value) first
+	if value != nil {
+		paramTypes[0] = fieldTypeString
+		paramTypes[1] = 0x00
+
+		if len(value) < stmt.mc.maxAllowedPacket-pos-len(paramValues)-(argc-(index+1))*64 {
+			paramValues = appendLengthEncodedInteger(paramValues,
+				uint64(len(value)),
+			)
+			paramValues = append(paramValues, value...)
+		} else {
+			if err := stmt.writeCommandLongData(index, value); err != nil {
+				return paramValues, err
+			}
+		}
+	} else {
+		// Handle []byte(nil) as a NULL value
+		nullMask[index/8] |= 1 << (uint(index) & 7)
+		paramTypes[0] = fieldTypeNULL
+		paramTypes[1] = 0x00
+	}
+	return paramValues, nil
+}
+
+func (stmt *mysqlStmt) writeString(paramTypes []byte, paramValues []byte, nullMask []byte, pos int, argc int, index int, value string) ([]byte, error) {
+	paramTypes[0] = fieldTypeString
+	paramTypes[1] = 0x00
+
+	if len(value) < stmt.mc.maxAllowedPacket-pos-len(paramValues)-(argc-(index+1))*64 {
+		paramValues = appendLengthEncodedInteger(paramValues,
+			uint64(len(value)),
+		)
+		paramValues = append(paramValues, value...)
+	} else {
+		if err := stmt.writeCommandLongData(index, []byte(value)); err != nil {
+			return nil, err
+		}
+	}
+
+	return paramValues, nil
+}
+
+func (stmt *mysqlStmt) writeTime(paramTypes []byte, paramValues []byte, value time.Time) []byte {
+	paramTypes[0] = fieldTypeString
+	paramTypes[1] = 0x00
+
+	var a [64]byte
+	var b = a[:0]
+
+	if value.IsZero() {
+		b = append(b, "0000-00-00"...)
+	} else {
+		b = value.In(stmt.mc.cfg.Loc).AppendFormat(b, timeFormat)
+	}
+
+	paramValues = appendLengthEncodedInteger(paramValues,
+		uint64(len(b)),
+	)
+	paramValues = append(paramValues, b...)
+
+	return paramValues
 }
 
 func (mc *mysqlConn) discardResults() error {

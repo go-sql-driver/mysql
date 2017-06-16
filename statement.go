@@ -14,6 +14,8 @@ import (
 	"io"
 	"reflect"
 	"strconv"
+	"time"
+	"unsafe"
 )
 
 type mysqlStmt struct {
@@ -41,7 +43,7 @@ func (stmt *mysqlStmt) NumInput() int {
 }
 
 func (stmt *mysqlStmt) ColumnConverter(idx int) driver.ValueConverter {
-	return converter{}
+	return &converter{}
 }
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
@@ -132,9 +134,16 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 
 type converter struct{}
 
-func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
+func (c *converter) ConvertValue(v interface{}) (driver.Value, error) {
 	if driver.IsValue(v) {
 		return v, nil
+	}
+
+	if UnsafePointerOptimization {
+		switch x := v.(type) {
+		case *int64, *float64, *bool, *string, *[]byte, *time.Time:
+			return hack(x), nil
+		}
 	}
 
 	rv := reflect.ValueOf(v)
@@ -160,3 +169,114 @@ func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
 	}
 	return nil, fmt.Errorf("unsupported type %T, a %s", v, rv.Kind())
 }
+
+// UnsafePointerOptimization may be set to true to enable a pass-by-pointer
+// optimization that prevents dynamic memory allocations when converting values
+// between concrete types and driver.Value (which is an empty interface).
+//
+// Enabling this optimization may not be be portable and may cause the program
+// to crash in future versions of Go, use it at your own risks!
+var UnsafePointerOptimization = false
+
+type eface struct {
+	t uintptr
+	v uintptr
+}
+
+func (e eface) value() (i interface{}) {
+	*((*eface)(unsafe.Pointer(&i))) = e
+	return
+}
+
+const vmask = uintptr(1 << 63)
+
+func typeval(v interface{}) eface {
+	return *(*eface)(unsafe.Pointer(&v))
+}
+
+func typeof(v interface{}) uintptr {
+	return typeval(v).t
+}
+
+func hack(v interface{}) interface{} {
+	if UnsafePointerOptimization {
+		e := typeval(v)
+		e.t = valOf(e.t)
+		e.v |= vmask
+		v = e.value()
+	}
+	return v
+}
+
+func unhack(v interface{}) interface{} {
+	if UnsafePointerOptimization {
+		e := typeval(v)
+
+		if (e.v & vmask) == 0 {
+			return v
+		}
+
+		e.t = ptrOf(e.t)
+		e.v &= ^vmask
+		v = e.value()
+	}
+	return v
+}
+
+func ptrOf(t uintptr) uintptr {
+	switch t {
+	case int64Type:
+		return int64PtrType
+	case float64Type:
+		return float64PtrType
+	case boolType:
+		return boolPtrType
+	case stringType:
+		return stringPtrType
+	case bytesType:
+		return bytesPtrType
+	case timeType:
+		return timePtrType
+	default:
+		panic("unsupported type passed to ptrOf")
+	}
+}
+
+func valOf(t uintptr) uintptr {
+	switch t {
+	case int64PtrType:
+		return int64Type
+	case float64PtrType:
+		return float64Type
+	case boolPtrType:
+		return boolType
+	case stringPtrType:
+		return stringType
+	case bytesPtrType:
+		return bytesType
+	case timePtrType:
+		return timeType
+	default:
+		panic("unsupported type passed to valOf")
+	}
+}
+
+var (
+	int64Type    = typeof(int64(0))
+	int64PtrType = typeof(new(int64))
+
+	float64Type    = typeof(float64(0))
+	float64PtrType = typeof(new(float64))
+
+	boolType    = typeof(false)
+	boolPtrType = typeof(new(bool))
+
+	stringType    = typeof(string(0))
+	stringPtrType = typeof(new(string))
+
+	bytesType    = typeof([]byte(nil))
+	bytesPtrType = typeof(new([]byte))
+
+	timeType    = typeof(time.Time{})
+	timePtrType = typeof(new(time.Time))
+)
