@@ -9,7 +9,6 @@
 package mysql
 
 import (
-	"database/sql/driver"
 	"errors"
 	"net"
 	"testing"
@@ -252,8 +251,8 @@ func TestReadPacketFail(t *testing.T) {
 	conn.data = []byte{0x00, 0x00, 0x00, 0x00}
 	conn.maxReads = 1
 	_, err := mc.readPacket()
-	if err != driver.ErrBadConn {
-		t.Errorf("expected ErrBadConn, got %v", err)
+	if err != ErrInvalidConn {
+		t.Errorf("expected ErrInvalidConn, got %v", err)
 	}
 
 	// reset
@@ -264,8 +263,8 @@ func TestReadPacketFail(t *testing.T) {
 	// fail to read header
 	conn.closed = true
 	_, err = mc.readPacket()
-	if err != driver.ErrBadConn {
-		t.Errorf("expected ErrBadConn, got %v", err)
+	if err != ErrInvalidConn {
+		t.Errorf("expected ErrInvalidConn, got %v", err)
 	}
 
 	// reset
@@ -277,7 +276,7 @@ func TestReadPacketFail(t *testing.T) {
 	// fail to read body
 	conn.maxReads = 1
 	_, err = mc.readPacket()
-	if err != driver.ErrBadConn {
-		t.Errorf("expected ErrBadConn, got %v", err)
+	if err != ErrInvalidConn {
+		t.Errorf("expected ErrInvalidConn, got %v", err)
 	}
 }
