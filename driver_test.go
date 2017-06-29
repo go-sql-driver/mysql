@@ -1773,6 +1773,88 @@ func TestCustomDial(t *testing.T) {
 	}
 }
 
+// Ensure mariadb's ER_CONNECTION_KILLED will cause the query to be restarted
+func TestConnectionLost(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	var proxyConn net.Conn
+
+	killCh := make(chan struct{})
+
+	// our custom dial function which justs wraps net.Dial here
+	RegisterDial("mydial", func(addr string) (net.Conn, error) {
+		conn, err := net.Dial(prot, addr)
+		if err != nil {
+			return nil, err
+		}
+
+		var clientConn net.Conn
+		proxyConn, clientConn = net.Pipe()
+		go io.Copy(conn, proxyConn)
+
+		bytesCh := make(chan []byte)
+		go func() {
+			for {
+				bs := make([]byte, 1024)
+				n, err := conn.Read(bs)
+				if err == io.EOF {
+					return
+				}
+				if err != nil {
+					panic(err)
+				}
+				bytesCh <- bs[:n]
+			}
+		}()
+		go func() {
+			for {
+				select {
+				case bs := <-bytesCh:
+					_, err := proxyConn.Write(bs)
+					if err == io.ErrClosedPipe {
+						return
+					}
+					if err != nil {
+						panic(err)
+					}
+				case <-killCh:
+					go func() {
+						proxyConn.Write([]byte{
+							0x08, // packet size
+							0x00,
+							0x00,
+							0x00, // sequence 0
+							0xFF, // err_packet
+							0x87, // ER_CONNECTION_KILLED error
+							0x07,
+							0x00, // sql_state_marker
+						})
+					}()
+				}
+			}
+		}()
+		return clientConn, err
+	})
+
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@mydial(%s)/%s?timeout=30s&strict=true", user, pass, addr, dbname))
+	if err != nil {
+		t.Fatalf("error connecting: %s", err.Error())
+	}
+	defer db.Close()
+
+	if _, err = db.Exec("DO 1"); err != nil {
+		t.Fatalf("connection failed: %s", err.Error())
+	}
+
+	killCh <- struct{}{}
+
+	if _, err = db.Exec("DO 1"); err != nil {
+		t.Fatalf("connection failed: %s", err.Error())
+	}
+}
+
 func TestSQLInjection(t *testing.T) {
 	createTest := func(arg string) func(dbt *DBTest) {
 		return func(dbt *DBTest) {
