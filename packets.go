@@ -571,7 +571,8 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 	errno := binary.LittleEndian.Uint16(data[1:3])
 
 	// 1792: ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
-	if errno == 1792 && mc.cfg.RejectReadOnly {
+	// 1290: ER_OPTION_PREVENTS_STATEMENT (returned by Aurora during failover)
+	if (errno == 1792 || errno == 1290) && mc.cfg.RejectReadOnly {
 		// Oops; we are connected to a read-only connection, and won't be able
 		// to issue any write statements. Since RejectReadOnly is configured,
 		// we throw away this connection hoping this one would have write
