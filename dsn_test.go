@@ -220,6 +220,22 @@ func TestDSNUnsafeCollation(t *testing.T) {
 	}
 }
 
+func TestParamsAreSorted(t *testing.T) {
+	expected := "/dbname?interpolateParams=true&foobar=baz&quux=loo"
+	dsn := &Config{
+		DBName:            "dbname",
+		InterpolateParams: true,
+		Params: map[string]string{
+			"quux":   "loo",
+			"foobar": "baz",
+		},
+	}
+	actual := dsn.FormatDSN()
+	if actual != expected {
+		t.Errorf("generic Config.Params were not sorted: want %#v, got %#v", expected, actual)
+	}
+}
+
 func BenchmarkParseDSN(b *testing.B) {
 	b.ReportAllocs()
 
