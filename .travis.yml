@@ -86,4 +86,5 @@ script:
   - go test -v -covermode=count -coverprofile=coverage.out
   - go vet ./...
   - test -z "$(gofmt -d -s . | tee /dev/stderr)"
+after_script:
   - $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci
