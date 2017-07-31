@@ -28,7 +28,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 	var prevData []byte
 	for {
 		// read packet header
-		data, err := mc.buf.readNext(4)
+		data, err := mc.reader.readNext(4)
 		if err != nil {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
@@ -64,7 +64,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		}
 
 		// read packet body [pktLen bytes]
-		data, err = mc.buf.readNext(pktLen)
+		data, err = mc.reader.readNext(pktLen)
 		if err != nil {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
@@ -118,7 +118,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			}
 		}
 
-		n, err := mc.netConn.Write(data[:4+size])
+		n, err := mc.writer.Write(data[:4+size])
 		if err == nil && n == 4+size {
 			mc.sequence++
 			if size != maxPacketSize {
@@ -247,6 +247,10 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 
 	if mc.cfg.ClientFoundRows {
 		clientFlags |= clientFoundRows
+	}
+
+	if mc.cfg.Compression {
+		clientFlags |= clientCompress
 	}
 
 	// To enable TLS / SSL
@@ -416,6 +420,7 @@ func (mc *mysqlConn) writeNativeAuthPacket(cipher []byte) error {
 func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
+	mc.compressionSequence = 0
 
 	data := mc.buf.takeSmallBuffer(4 + 1)
 	if data == nil {
@@ -434,6 +439,7 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
+	mc.compressionSequence = 0
 
 	pktLen := 1 + len(arg)
 	data := mc.buf.takeBuffer(pktLen + 4)
@@ -456,6 +462,7 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
+	mc.compressionSequence = 0
 
 	data := mc.buf.takeSmallBuffer(4 + 1 + 4)
 	if data == nil {

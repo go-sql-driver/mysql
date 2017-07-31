@@ -28,19 +28,22 @@ type mysqlContext interface {
 }
 
 type mysqlConn struct {
-	buf              buffer
-	netConn          net.Conn
-	affectedRows     uint64
-	insertId         uint64
-	cfg              *Config
-	maxAllowedPacket int
-	maxWriteSize     int
-	writeTimeout     time.Duration
-	flags            clientFlag
-	status           statusFlag
-	sequence         uint8
-	parseTime        bool
-	strict           bool
+	buf                 buffer
+	netConn             net.Conn
+	affectedRows        uint64
+	insertId            uint64
+	cfg                 *Config
+	maxAllowedPacket    int
+	maxWriteSize        int
+	writeTimeout        time.Duration
+	flags               clientFlag
+	status              statusFlag
+	sequence            uint8
+	compressionSequence uint8
+	parseTime           bool
+	strict              bool
+	reader              packetReader
+	writer              io.Writer
 
 	// for context support (Go 1.8+)
 	watching bool
