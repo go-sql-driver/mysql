@@ -10,7 +10,6 @@ const (
 	minCompressLength = 50
 )
 
-
 type packetReader interface {
 	readNext(need int) ([]byte, error)
 }
@@ -117,6 +116,7 @@ func (cr *compressedReader) uncompressPacket() error {
 	// http://grokbase.com/t/gg/golang-nuts/146y9ppn6b/go-nuts-stream-compression-with-compress-flate
 	for lenRead < uncompressedLength {
 		n, err := cr.zr.Read(data[lenRead:])
+
 		lenRead += n
 
 		if err == io.EOF {
@@ -168,6 +168,7 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 		}
 
 		err = cw.writeToNetwork(compressedPayload, payloadLen)
+
 		if err != nil {
 			return 0, err
 		}
