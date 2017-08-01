@@ -94,6 +94,10 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 
 	mc.buf = newBuffer(mc.netConn)
 
+	// packet reader and writer in handshake are never compressed
+	mc.reader = &mc.buf
+	mc.writer = mc.netConn
+
 	// Set I/O timeouts
 	mc.buf.timeout = mc.cfg.ReadTimeout
 	mc.writeTimeout = mc.cfg.WriteTimeout
@@ -118,6 +122,11 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		// Do not send COM_QUIT, just cleanup and return the error.
 		mc.cleanup()
 		return nil, err
+	}
+
+	if mc.cfg.Compression {
+		mc.reader = NewCompressedReader(&mc.buf, mc)
+		mc.writer = NewCompressedWriter(mc.writer, mc)
 	}
 
 	if mc.cfg.MaxAllowedPacket > 0 {

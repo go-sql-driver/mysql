@@ -56,6 +56,7 @@ type Config struct {
 	ParseTime               bool // Parse time values to time.Time
 	RejectReadOnly          bool // Reject read-only connections
 	Strict                  bool // Return warnings as errors
+	Compression             bool // Compress packets
 }
 
 // FormatDSN formats the given Config into a DSN string which can be passed to
@@ -445,7 +446,11 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// Compression
 		case "compress":
-			return errors.New("compression not implemented yet")
+			var isBool bool
+			cfg.Compression, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
 
 		// Enable client side placeholder substitution
 		case "interpolateParams":
