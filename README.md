@@ -138,9 +138,9 @@ Default:        false
 ```
 Type:           bool
 Valid Values:   true, false
-Default:        false
+Default:        true
 ```
-`allowNativePasswords=true` allows the usage of the mysql native password method.
+`allowNativePasswords=true` allows the usage of the mysql native password method, and to be `false` to disallow the usage of mysql native password method during auth switch process.
 
 ##### `allowOldPasswords`
 
