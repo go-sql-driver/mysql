@@ -352,7 +352,9 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
 func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 	// User password
-	scrambleBuff := scrambleOldPassword(cipher, []byte(mc.cfg.Passwd))
+	// https://dev.mysql.com/doc/internals/en/old-password-authentication.html
+	// Old password authentication only need and will need 8-byte challenge.
+	scrambleBuff := scrambleOldPassword(cipher[:8], []byte(mc.cfg.Passwd))
 
 	// Calculate the packet length and add a tailing 0
 	pktLen := len(scrambleBuff) + 1
@@ -392,7 +394,9 @@ func (mc *mysqlConn) writeClearAuthPacket() error {
 //  Native password authentication method
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
 func (mc *mysqlConn) writeNativeAuthPacket(cipher []byte) error {
-	scrambleBuff := scramblePassword(cipher, []byte(mc.cfg.Passwd))
+	// https://dev.mysql.com/doc/internals/en/secure-password-authentication.html
+	// Native password authentication only need and will need 20-byte challenge.
+	scrambleBuff := scramblePassword(cipher[0:20], []byte(mc.cfg.Passwd))
 
 	// Calculate the packet length and add a tailing 0
 	pktLen := len(scrambleBuff)
@@ -495,7 +499,7 @@ func (mc *mysqlConn) readResultOK() ([]byte, error) {
 			if len(data) > 1 {
 				pluginEndIndex := bytes.IndexByte(data, 0x00)
 				plugin := string(data[1:pluginEndIndex])
-				cipher := data[pluginEndIndex+1 : len(data)-1]
+				cipher := data[pluginEndIndex+1:]
 
 				switch plugin {
 				case "mysql_old_password":
