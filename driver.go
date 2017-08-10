@@ -190,5 +190,15 @@ func handleAuthResult(mc *mysqlConn, oldCipher []byte) error {
 }
 
 func init() {
-	sql.Register("mysql", &MySQLDriver{})
+	dn := "mysql"
+	var r bool
+	for _, d := range sql.Drivers() {
+		if d == dn {
+			r = true
+			break
+		}
+	}
+	if !r {
+		sql.Register(dn, &MySQLDriver{})
+	}
 }
