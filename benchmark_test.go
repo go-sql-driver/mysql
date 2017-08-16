@@ -43,9 +43,13 @@ func (tb *TB) checkStmt(stmt *sql.Stmt, err error) *sql.Stmt {
 	return stmt
 }
 
-func initDB(b *testing.B, queries ...string) *sql.DB {
+func initDB(b *testing.B, useCompression bool, queries ...string) *sql.DB {
 	tb := (*TB)(b)
-	db := tb.checkDB(sql.Open("mysql", dsn))
+	comprStr := ""
+	if useCompression {
+		comprStr = "&compress=1"
+	}
+	db := tb.checkDB(sql.Open("mysql", dsn+comprStr))
 	for _, query := range queries {
 		if _, err := db.Exec(query); err != nil {
 			if w, ok := err.(MySQLWarnings); ok {
@@ -61,10 +65,19 @@ func initDB(b *testing.B, queries ...string) *sql.DB {
 const concurrencyLevel = 10
 
 func BenchmarkQuery(b *testing.B) {
+	benchmarkQueryHelper(b, false)
+}
+
+func BenchmarkQueryCompression(b *testing.B) {
+	benchmarkQueryHelper(b, true)
+}
+
+func benchmarkQueryHelper(b *testing.B, compr bool) {
+
 	tb := (*TB)(b)
 	b.StopTimer()
 	b.ReportAllocs()
-	db := initDB(b,
+	db := initDB(b, compr,
 		"DROP TABLE IF EXISTS foo",
 		"CREATE TABLE foo (id INT PRIMARY KEY, val CHAR(50))",
 		`INSERT INTO foo VALUES (1, "one")`,

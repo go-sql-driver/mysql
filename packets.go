@@ -881,6 +881,7 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 		}
 
 		stmt.mc.sequence = 0
+		stmt.mc.compressionSequence = 0
 		// Add command byte [1 byte]
 		data[4] = comStmtSendLongData
 
@@ -906,6 +907,7 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 
 	// Reset Packet Sequence
 	stmt.mc.sequence = 0
+	stmt.mc.compressionSequence = 0
 	return nil
 }
 
@@ -925,6 +927,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 	// Reset packet-sequence
 	mc.sequence = 0
+	mc.compressionSequence = 0
 
 	var data []byte
 

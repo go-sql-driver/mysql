@@ -42,7 +42,7 @@ func benchmarkQueryContext(b *testing.B, db *sql.DB, p int) {
 }
 
 func BenchmarkQueryContext(b *testing.B) {
-	db := initDB(b,
+	db := initDB(b, false,
 		"DROP TABLE IF EXISTS foo",
 		"CREATE TABLE foo (id INT PRIMARY KEY, val CHAR(50))",
 		`INSERT INTO foo VALUES (1, "one")`,
@@ -78,7 +78,7 @@ func benchmarkExecContext(b *testing.B, db *sql.DB, p int) {
 }
 
 func BenchmarkExecContext(b *testing.B) {
-	db := initDB(b,
+	db := initDB(b, false,
 		"DROP TABLE IF EXISTS foo",
 		"CREATE TABLE foo (id INT PRIMARY KEY, val CHAR(50))",
 		`INSERT INTO foo VALUES (1, "one")`,

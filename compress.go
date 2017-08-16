@@ -18,6 +18,8 @@ type compressedReader struct {
 	buf      packetReader
 	bytesBuf []byte
 	mc       *mysqlConn
+	br       *bytes.Reader
+	zr       io.ReadCloser
 }
 
 type compressedWriter struct {
@@ -48,12 +50,8 @@ func (cr *compressedReader) readNext(need int) ([]byte, error) {
 		}
 	}
 
-	data := make([]byte, need)
-
-	copy(data, cr.bytesBuf[:len(data)])
-
-	cr.bytesBuf = cr.bytesBuf[len(data):]
-
+	data := cr.bytesBuf[:need]
+	cr.bytesBuf = cr.bytesBuf[need:]
 	return data, nil
 }
 
@@ -88,27 +86,43 @@ func (cr *compressedReader) uncompressPacket() error {
 	}
 
 	// write comprData to a bytes.buffer, then read it using zlib into data
-	var b bytes.Buffer
-	b.Write(comprData)
-	r, err := zlib.NewReader(&b)
-
-	if r != nil {
-		defer r.Close()
+	if cr.br == nil {
+		cr.br = bytes.NewReader(comprData)
+	} else {
+		cr.br.Reset(comprData)
 	}
 
-	if err != nil {
-		return err
+	resetter, ok := cr.zr.(zlib.Resetter)
+
+	if ok {
+		err := resetter.Reset(cr.br, []byte{})
+		if err != nil {
+			return err
+		}
+	} else {
+		cr.zr, err = zlib.NewReader(cr.br)
+		if err != nil {
+			return err
+		}
 	}
 
-	data := make([]byte, uncompressedLength)
+	defer cr.zr.Close()
+
+	//use existing capacity in bytesBuf if possible
+	offset := len(cr.bytesBuf)
+	if cap(cr.bytesBuf)-offset < uncompressedLength {
+		old := cr.bytesBuf
+		cr.bytesBuf = make([]byte, offset, offset+uncompressedLength)
+		copy(cr.bytesBuf, old)
+	}
+
+	data := cr.bytesBuf[offset : offset+uncompressedLength]
+
 	lenRead := 0
 
 	// http://grokbase.com/t/gg/golang-nuts/146y9ppn6b/go-nuts-stream-compression-with-compress-flate
 	for lenRead < uncompressedLength {
-
-		tmp := data[lenRead:]
-
-		n, err := r.Read(tmp)
+		n, err := cr.zr.Read(data[lenRead:])
 		lenRead += n
 
 		if err == io.EOF {
@@ -152,7 +166,15 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 			return 0, err
 		}
 
-		err = cw.writeComprPacketToNetwork(b.Bytes(), lenSmall)
+		// if compression expands the payload, do not compress
+		useData := b.Bytes()
+
+		if len(useData) > len(dataSmall) {
+			useData = dataSmall
+			lenSmall = 0
+		}
+
+		err = cw.writeComprPacketToNetwork(useData, lenSmall)
 		if err != nil {
 			return 0, err
 		}
@@ -163,7 +185,7 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 
 	lenSmall := len(data)
 
-	// do not compress if packet is too small
+	// do not attempt compression if packet is too small
 	if lenSmall < minCompressLength {
 		err := cw.writeComprPacketToNetwork(data, 0)
 		if err != nil {
@@ -183,7 +205,15 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 		return 0, err
 	}
 
-	err = cw.writeComprPacketToNetwork(b.Bytes(), lenSmall)
+	// if compression expands the payload, do not compress
+	useData := b.Bytes()
+
+	if len(useData) > len(data) {
+		useData = data
+		lenSmall = 0
+	}
+
+	err = cw.writeComprPacketToNetwork(useData, lenSmall)
 
 	if err != nil {
 		return 0, err
