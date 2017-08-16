@@ -18,13 +18,13 @@ type compressedReader struct {
 	buf      packetReader
 	bytesBuf []byte
 	mc       *mysqlConn
-	br       *bytes.Reader
 	zr       io.ReadCloser
 }
 
 type compressedWriter struct {
 	connWriter io.Writer
 	mc         *mysqlConn
+	header     []byte
 }
 
 func NewCompressedReader(buf packetReader, mc *mysqlConn) *compressedReader {
@@ -39,6 +39,7 @@ func NewCompressedWriter(connWriter io.Writer, mc *mysqlConn) *compressedWriter 
 	return &compressedWriter{
 		connWriter: connWriter,
 		mc:         mc,
+		header:     []byte{0, 0, 0, 0, 0, 0, 0},
 	}
 }
 
@@ -86,21 +87,17 @@ func (cr *compressedReader) uncompressPacket() error {
 	}
 
 	// write comprData to a bytes.buffer, then read it using zlib into data
-	if cr.br == nil {
-		cr.br = bytes.NewReader(comprData)
-	} else {
-		cr.br.Reset(comprData)
-	}
+	br := bytes.NewReader(comprData)
 
 	resetter, ok := cr.zr.(zlib.Resetter)
 
 	if ok {
-		err := resetter.Reset(cr.br, []byte{})
+		err := resetter.Reset(br, []byte{})
 		if err != nil {
 			return err
 		}
 	} else {
-		cr.zr, err = zlib.NewReader(cr.br)
+		cr.zr, err = zlib.NewReader(br)
 		if err != nil {
 			return err
 		}
@@ -222,7 +219,7 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 }
 
 func (cw *compressedWriter) writeComprPacketToNetwork(data []byte, uncomprLength int) error {
-	data = append([]byte{0, 0, 0, 0, 0, 0, 0}, data...)
+	data = append(cw.header, data...)
 
 	comprLength := len(data) - 7
 
