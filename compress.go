@@ -144,6 +144,7 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 	if len(data) == 0 {
 		return 0, nil
 	}
+
 	totalBytes := len(data)
 
 	length := len(data) - 4
@@ -151,27 +152,26 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 	maxPayloadLength := maxPacketSize - 4
 
 	for length >= maxPayloadLength {
-		// cut off a slice of size max payload length
-		dataSmall := data[:maxPayloadLength]
-		lenSmall := len(dataSmall)
+		payload := data[:maxPayloadLength]
+		payloadLen := len(payload)
 
-		var b bytes.Buffer
-		writer := zlib.NewWriter(&b)
-		_, err := writer.Write(dataSmall)
-		writer.Close()
+		bytesBuf := &bytes.Buffer{}
+		bytesBuf.Write(blankHeader)
+		cw.zw.Reset(bytesBuf)
+		_, err := cw.zw.Write(payload)
 		if err != nil {
 			return 0, err
 		}
+		cw.zw.Close()
 
 		// if compression expands the payload, do not compress
-		useData := b.Bytes()
-
-		if len(useData) > len(dataSmall) {
-			useData = dataSmall
-			lenSmall = 0
+		compressedPayload := bytesBuf.Bytes()
+		if len(compressedPayload) > maxPayloadLength {
+			compressedPayload = append(blankHeader, payload...)
+			payloadLen = 0
 		}
 
-		err = cw.writeComprPacketToNetwork(useData, lenSmall)
+		err = cw.writeToNetwork(compressedPayload, payloadLen)
 		if err != nil {
 			return 0, err
 		}
@@ -180,46 +180,44 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 		data = data[maxPayloadLength:]
 	}
 
-	lenSmall := len(data)
+	payloadLen := len(data)
 
 	// do not attempt compression if packet is too small
-	if lenSmall < minCompressLength {
-		err := cw.writeComprPacketToNetwork(data, 0)
+	if payloadLen < minCompressLength {
+		err := cw.writeToNetwork(append(blankHeader, data...), 0)
 		if err != nil {
 			return 0, err
 		}
-
 		return totalBytes, nil
 	}
 
-	var b bytes.Buffer
-	writer := zlib.NewWriter(&b)
+	bytesBuf := &bytes.Buffer{}
+	bytesBuf.Write(blankHeader)
+	cw.zw.Reset(bytesBuf)
+	_, err := cw.zw.Write(data)
+	if err != nil {
+		return 0, err
+	}
+	cw.zw.Close()
 
-	_, err := writer.Write(data)
-	writer.Close()
+	compressedPayload := bytesBuf.Bytes()
 
+	if len(compressedPayload) > len(data) {
+		compressedPayload = append(blankHeader, data...)
+		payloadLen = 0
+	}
+
+	// add header and send over the wire
+	err = cw.writeToNetwork(compressedPayload, payloadLen)
 	if err != nil {
 		return 0, err
 	}
 
-	// if compression expands the payload, do not compress
-	useData := b.Bytes()
-
-	if len(useData) > len(data) {
-		useData = data
-		lenSmall = 0
-	}
-
-	err = cw.writeComprPacketToNetwork(useData, lenSmall)
-
-	if err != nil {
-		return 0, err
-	}
 	return totalBytes, nil
+
 }
 
-func (cw *compressedWriter) writeComprPacketToNetwork(data []byte, uncomprLength int) error {
-	data = append(blankHeader, data...)
+func (cw *compressedWriter) writeToNetwork(data []byte, uncomprLength int) error {
 
 	comprLength := len(data) - 7
 
