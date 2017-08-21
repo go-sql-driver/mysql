@@ -1999,3 +1999,33 @@ func TestPing(t *testing.T) {
 		}
 	})
 }
+
+func TestReadTimeout(t *testing.T) {
+	runTests(t, dsn+"&readTimeout=500ms", func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (v INTEGER)")
+		startTime := time.Now()
+
+		// This query will read-timeout.
+		if _, err := dbt.db.Exec("INSERT INTO test VALUES (SLEEP(1))"); err == nil {
+			dbt.Error("expected error")
+		} else if err, ok := err.(net.Error); !ok || !err.Timeout() {
+			dbt.Error("expected timeout error")
+		}
+
+		if d := time.Since(startTime); d > time.Second {
+			dbt.Errorf("too long execution time: %s", d)
+		}
+
+		// Wait for the query has done.
+		time.Sleep(time.Second)
+
+		// Check how many times the query is executed.
+		var v int
+		if err := dbt.db.QueryRow("SELECT COUNT(*) FROM test").Scan(&v); err != nil {
+			dbt.Fatalf("%s", err.Error())
+		}
+		if v != 1 {
+			dbt.Errorf("expected val to be 1, got %d", v)
+		}
+	})
+}
