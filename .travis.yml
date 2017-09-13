@@ -5,6 +5,7 @@ go:
   - 1.6
   - 1.7
   - 1.8
+  - 1.9
   - tip
 
 before_install:
@@ -16,7 +17,7 @@ matrix:
     - env: DB=MYSQL57
       sudo: required
       dist: trusty
-      go: 1.8
+      go: 1.9
       services:
         - docker
       before_install:
@@ -38,7 +39,7 @@ matrix:
     - env: DB=MARIA55
       sudo: required
       dist: trusty
-      go: 1.8
+      go: 1.9
       services:
         - docker
       before_install:
@@ -60,7 +61,7 @@ matrix:
     - env: DB=MARIA10_1
       sudo: required
       dist: trusty
-      go: 1.8
+      go: 1.9
       services:
         - docker
       before_install:
