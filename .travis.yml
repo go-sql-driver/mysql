@@ -5,18 +5,25 @@ go:
   - 1.6
   - 1.7
   - 1.8
+  - 1.9
   - tip
 
 before_install:
   - go get golang.org/x/tools/cmd/cover
   - go get github.com/mattn/goveralls
 
+before_script:
+  - echo -e "[server]\ninnodb_log_file_size=256MB\ninnodb_buffer_pool_size=512MB\nmax_allowed_packet=16MB" | sudo tee -a /etc/mysql/my.cnf
+  - sudo service mysql restart
+  - .travis/wait_mysql.sh
+  - mysql -e 'create database gotest;'
+
 matrix:
   include:
     - env: DB=MYSQL57
       sudo: required
       dist: trusty
-      go: 1.8
+      go: 1.9
       services:
         - docker
       before_install:
@@ -38,7 +45,7 @@ matrix:
     - env: DB=MARIA55
       sudo: required
       dist: trusty
-      go: 1.8
+      go: 1.9
       services:
         - docker
       before_install:
@@ -60,7 +67,7 @@ matrix:
     - env: DB=MARIA10_1
       sudo: required
       dist: trusty
-      go: 1.8
+      go: 1.9
       services:
         - docker
       before_install:
@@ -79,9 +86,6 @@ matrix:
         - export MYSQL_TEST_ADDR=127.0.0.1:3307
         - export MYSQL_TEST_CONCURRENT=1
 
-
-before_script:
-  - mysql -e 'create database gotest;'
 script:
   - go test -v -covermode=count -coverprofile=coverage.out
   - go vet ./...
