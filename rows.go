@@ -11,6 +11,7 @@ package mysql
 import (
 	"database/sql/driver"
 	"io"
+	"reflect"
 )
 
 type mysqlField struct {
@@ -136,6 +137,24 @@ func (rows *mysqlRows) nextNotEmptyResultSet() (int, error) {
 		}
 
 		rows.rs.done = true
+	}
+}
+
+func (rows *mysqlRows) ColumnTypeScanType(index int) reflect.Type {
+	switch rows.rs.columns[index].fieldType {
+	case fieldTypeTiny, fieldTypeShort, fieldTypeYear,
+		fieldTypeInt24, fieldTypeLong, fieldTypeLongLong:
+		if rows.rs.columns[index].flags&flagUnsigned != 0 {
+			return reflect.TypeOf(uint64(0))
+		} else {
+			return reflect.TypeOf(int64(0))
+		}
+	case fieldTypeFloat:
+		return reflect.TypeOf(float32(0.1))
+	case fieldTypeDouble:
+		return reflect.TypeOf(float64(0.1))
+	default:
+		return reflect.TypeOf(string(""))
 	}
 }
 
