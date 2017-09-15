@@ -520,3 +520,41 @@ func TestContextBeginIsolationLevel(t *testing.T) {
 		tx2.Commit()
 	})
 }
+
+func TestContextBeginReadOnly(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (v INTEGER)")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		tx, err := dbt.db.BeginTx(ctx, &sql.TxOptions{
+			ReadOnly: true,
+		})
+		if _, ok := err.(*MySQLError); ok {
+			dbt.Skip("It seems that your MySQL does not support READ ONLY transactions")
+			return
+		} else if err != nil {
+			dbt.Fatal(err)
+		}
+
+		// INSERT queries fail in a READ ONLY transaction.
+		_, err = tx.ExecContext(ctx, "INSERT INTO test VALUES (1)")
+		if _, ok := err.(*MySQLError); !ok {
+			dbt.Errorf("expected MySQLError, got %v", err)
+		}
+
+		// SELECT queries can be executed.
+		var v int
+		row := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM test")
+		if err := row.Scan(&v); err != nil {
+			dbt.Fatal(err)
+		}
+		if v != 0 {
+			dbt.Errorf("expected val to be 0, got %d", v)
+		}
+
+		if err := tx.Commit(); err != nil {
+			dbt.Fatal(err)
+		}
+	})
+}
