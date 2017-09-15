@@ -11,7 +11,6 @@ package mysql
 import (
 	"database/sql/driver"
 	"io"
-	"reflect"
 )
 
 type mysqlField struct {
