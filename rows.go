@@ -140,22 +140,15 @@ func (rows *mysqlRows) nextNotEmptyResultSet() (int, error) {
 	}
 }
 
-func (rows *mysqlRows) ColumnTypeScanType(index int) reflect.Type {
-	switch rows.rs.columns[index].fieldType {
-	case fieldTypeTiny, fieldTypeShort, fieldTypeYear,
-		fieldTypeInt24, fieldTypeLong, fieldTypeLongLong:
-		if rows.rs.columns[index].flags&flagUnsigned != 0 {
-			return reflect.TypeOf(uint64(0))
-		} else {
-			return reflect.TypeOf(int64(0))
-		}
-	case fieldTypeFloat:
-		return reflect.TypeOf(float32(0.1))
-	case fieldTypeDouble:
-		return reflect.TypeOf(float64(0.1))
-	default:
-		return reflect.TypeOf(string(""))
+func (rows *mysqlRows) ColumnTypeNullable(index int) (nullable, ok bool) {
+	columns := rows.rs.columns
+	if columns == nil || index > len(columns)-1 {
+		return false, false
 	}
+	if columns[index].flags&flagNotNULL != 0 {
+		return false, true
+	}
+	return true, true
 }
 
 func (rows *binaryRows) NextResultSet() error {
