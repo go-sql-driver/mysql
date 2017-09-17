@@ -47,7 +47,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
 ## Installation
 Simple install the package to your [$GOPATH](https://github.com/golang/go/wiki/GOPATH "GOPATH") with the [go tool](https://golang.org/cmd/go/ "go command") from shell:
 ```bash
-$ go get github.com/go-sql-driver/mysql
+$ go get -u github.com/go-sql-driver/mysql
 ```
 Make sure [Git is installed](https://git-scm.com/downloads) on your machine and in your system's `PATH`.
 
@@ -344,9 +344,9 @@ Any other parameters are interpreted as system variables:
   * `<string_var>=%27<value>%27`: `SET <string_var>='<value>'`
 
 Rules:
-* The values for string variables must be quoted with '
+* The values for string variables must be quoted with `'`.
 * The values must also be [url.QueryEscape](http://golang.org/pkg/net/url/#QueryEscape)'ed!
- (which implies values of string variables must be wrapped with `%27`)
+ (which implies values of string variables must be wrapped with `%27`).
 
 Examples:
   * `autocommit=1`: `SET autocommit=1`
@@ -426,7 +426,7 @@ See the [godoc of Go-MySQL-Driver](https://godoc.org/github.com/go-sql-driver/my
 
 
 ### `time.Time` support
-The default internal output type of MySQL `DATE` and `DATETIME` values is `[]byte` which allows you to scan the value into a `[]byte`, `string` or `sql.RawBytes` variable in your programm.
+The default internal output type of MySQL `DATE` and `DATETIME` values is `[]byte` which allows you to scan the value into a `[]byte`, `string` or `sql.RawBytes` variable in your program.
 
 However, many want to scan MySQL `DATE` and `DATETIME` values into `time.Time` variables, which is the logical opposite in Go to `DATE` and `DATETIME` in MySQL. You can do that by changing the internal output type from `[]byte` to `time.Time` with the DSN parameter `parseTime=true`. You can set the default [`time.Time` location](https://golang.org/pkg/time/#Location) with the `loc` DSN parameter.
 
@@ -466,13 +466,13 @@ Mozilla summarizes the license scope as follows:
 
 
 That means:
-  * You can **use** the **unchanged** source code both in private and commercially
-  * When distributing, you **must publish** the source code of any **changed files** licensed under the MPL 2.0 under a) the MPL 2.0 itself or b) a compatible license (e.g. GPL 3.0 or Apache License 2.0)
-  * You **needn't publish** the source code of your library as long as the files licensed under the MPL 2.0 are **unchanged**
+  * You can **use** the **unchanged** source code both in private and commercially.
+  * When distributing, you **must publish** the source code of any **changed files** licensed under the MPL 2.0 under a) the MPL 2.0 itself or b) a compatible license (e.g. GPL 3.0 or Apache License 2.0).
+  * You **needn't publish** the source code of your library as long as the files licensed under the MPL 2.0 are **unchanged**.
 
 Please read the [MPL 2.0 FAQ](https://www.mozilla.org/en-US/MPL/2.0/FAQ/) if you have further questions regarding the license.
 
-You can read the full terms here: [LICENSE](https://raw.github.com/go-sql-driver/mysql/master/LICENSE)
+You can read the full terms here: [LICENSE](https://raw.github.com/go-sql-driver/mysql/master/LICENSE).
 
 ![Go Gopher and MySQL Dolphin](https://raw.github.com/wiki/go-sql-driver/mysql/go-mysql-driver_m.jpg "Golang Gopher transporting the MySQL Dolphin in a wheelbarrow")
 
