@@ -139,6 +139,17 @@ func (rows *mysqlRows) nextNotEmptyResultSet() (int, error) {
 	}
 }
 
+func (rows *mysqlRows) ColumnTypeNullable(index int) (nullable, ok bool) {
+	columns := rows.rs.columns
+	if columns == nil || index > len(columns)-1 {
+		return false, false
+	}
+	if columns[index].flags&flagNotNULL != 0 {
+		return false, true
+	}
+	return true, true
+}
+
 func (rows *binaryRows) NextResultSet() error {
 	resLen, err := rows.nextNotEmptyResultSet()
 	if err != nil {
