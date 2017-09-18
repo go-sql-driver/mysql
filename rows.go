@@ -11,6 +11,7 @@ package mysql
 import (
 	"database/sql/driver"
 	"io"
+	"reflect"
 )
 
 type mysqlField struct {
@@ -63,6 +64,37 @@ func (rows *mysqlRows) Columns() []string {
 
 	rows.rs.columnNames = columns
 	return columns
+}
+func (rows *mysqlRows) ColumnTypeScanType(index int) reflect.Type {
+	if index >= len(rows.rs.columns) {
+		return reflect.TypeOf(nil)
+	}
+
+	fieldtype := rows.rs.columns[index].fieldType
+	switch fieldtype {
+	case fieldTypeInt24, fieldTypeTiny, fieldTypeShort, fieldTypeLong:
+		return reflect.TypeOf(0)
+	case fieldTypeLongLong:
+		var val int64 = 0
+		return reflect.TypeOf(val)
+	case fieldTypeFloat:
+		var val float32 = 0.0
+		return reflect.TypeOf(val)
+	case fieldTypeDouble:
+		var val float64 = 0.0
+		return reflect.TypeOf(val)
+	case fieldTypeTinyBLOB,
+		fieldTypeMediumBLOB,
+		fieldTypeLongBLOB,
+		fieldTypeBLOB,
+		fieldTypeVarString,
+		fieldTypeString,
+		fieldTypeDate, fieldTypeDateTime:
+		return reflect.TypeOf("")
+	default:
+		return reflect.TypeOf(nil)
+	}
+
 }
 
 func (rows *mysqlRows) Close() (err error) {
