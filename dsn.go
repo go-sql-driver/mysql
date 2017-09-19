@@ -376,6 +376,9 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 		}
 
 	}
+	if cfg.Net == "tcp" {
+		cfg.Addr = ensureHavePort(cfg.Addr)
+	}
 
 	return
 }
@@ -574,4 +577,11 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 	}
 
 	return
+}
+
+func ensureHavePort(addr string) string {
+	if _, _, err := net.SplitHostPort(addr); err != nil {
+		return net.JoinHostPort(addr, "3306")
+	}
+	return addr
 }
