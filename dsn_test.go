@@ -65,7 +65,14 @@ var testDSNs = []struct {
 }, {
 	"unix/?arg=%2Fsome%2Fpath.ext",
 	&Config{Net: "unix", Addr: "/tmp/mysql.sock", Params: map[string]string{"arg": "/some/path.ext"}, Collation: "utf8_general_ci", Loc: time.UTC, AllowNativePasswords: true},
-}}
+}, {
+	"tcp(127.0.0.1)/dbname",
+	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Collation: "utf8_general_ci", Loc: time.UTC, AllowNativePasswords: true},
+}, {
+	"tcp(de:ad:be:ef::ca:fe)/dbname",
+	&Config{Net: "tcp", Addr: "[de:ad:be:ef::ca:fe]:3306", DBName: "dbname", Collation: "utf8_general_ci", Loc: time.UTC, AllowNativePasswords: true},
+},
+}
 
 func TestDSNParser(t *testing.T) {
 	for i, tst := range testDSNs {

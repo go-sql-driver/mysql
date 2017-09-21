@@ -101,7 +101,8 @@ See [net.Dial](https://golang.org/pkg/net/#Dial) for more information which netw
 In general you should use an Unix domain socket if available and TCP otherwise for best performance.
 
 #### Address
-For TCP and UDP networks, addresses have the form `host:port`.
+For TCP and UDP networks, addresses have the form `host[:port]`.
+If `port` is omitted, the default port will be used.
 If `host` is a literal IPv6 address, it must be enclosed in square brackets.
 The functions [net.JoinHostPort](https://golang.org/pkg/net/#JoinHostPort) and [net.SplitHostPort](https://golang.org/pkg/net/#SplitHostPort) manipulate addresses in this form.
 
