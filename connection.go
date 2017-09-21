@@ -38,6 +38,7 @@ type mysqlConn struct {
 	writeTimeout     time.Duration
 	flags            clientFlag
 	status           statusFlag
+	warningCount     uint16
 	sequence         uint8
 	parseTime        bool
 	strict           bool

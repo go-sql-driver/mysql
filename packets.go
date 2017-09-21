@@ -625,10 +625,12 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 
 	// warning count [2 bytes]
 	if !mc.strict {
+		mc.warningCount = 0
 		return nil
 	}
 
 	pos := 1 + n + m + 2
+	mc.warningCount = binary.LittleEndian.Uint16(data[pos : pos+2])
 	if binary.LittleEndian.Uint16(data[pos:pos+2]) > 0 {
 		return mc.getWarnings()
 	}
@@ -748,7 +750,14 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 		rows.mc.status = readStatus(data[3:])
 		rows.rs.done = true
 		if !rows.HasNextResultSet() {
+			mc := rows.mc
 			rows.mc = nil
+
+			if mc.strict && mc.warningCount > 0 {
+				if err := mc.getWarnings(); err != nil {
+					return err
+				}
+			}
 		}
 		return io.EOF
 	}
@@ -1135,6 +1144,9 @@ func (mc *mysqlConn) discardResults() error {
 				return err
 			}
 		}
+	}
+	if mc.strict && mc.warningCount > 0 {
+		return mc.getWarnings()
 	}
 	return nil
 }
