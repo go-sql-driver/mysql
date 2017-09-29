@@ -71,7 +71,7 @@ func (rows *mysqlRows) ColumnTypeNullable(i int) (nullable, ok bool) {
 }
 
 func (rows *mysqlRows) ColumnTypeScanType(i int) reflect.Type {
-	return rows.rs.columns[i].scanType()
+	return rows.rs.columns[i].scanType(rows.rs.parseTime)
 }
 
 func (rows *mysqlRows) Close() (err error) {

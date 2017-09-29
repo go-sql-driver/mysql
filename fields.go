@@ -40,8 +40,8 @@ var typeDatabaseName = map[fieldType]string{
 	fieldTypeMediumBLOB: "MEDIUMBLOB",
 	fieldTypeLongBLOB:   "LONGBLOB",
 	fieldTypeBLOB:       "BLOB",
-	fieldTypeVarString:  "VARSTRING", // correct?
-	fieldTypeString:     "STRING",    // correct?
+	fieldTypeVarString:  "VARCHAR",
+	fieldTypeString:     "CHAR",
 	fieldTypeGeometry:   "GEOMETRY",
 }
 
@@ -76,7 +76,7 @@ type mysqlField struct {
 	decimals  byte
 }
 
-func (mf *mysqlField) scanType() reflect.Type {
+func (mf *mysqlField) scanType(parseTime bool) reflect.Type {
 	switch mf.fieldType {
 	case fieldTypeNULL:
 		return scanTypeNil
@@ -134,21 +134,17 @@ func (mf *mysqlField) scanType() reflect.Type {
 		fieldTypeMediumBLOB, fieldTypeLongBLOB, fieldTypeBLOB,
 		fieldTypeVarString, fieldTypeString, fieldTypeGeometry, fieldTypeJSON,
 		fieldTypeTime:
-		if mf.flags&flagNotNULL != 0 {
-			// alternatively we could return []byte or even RawBytes
-			return scanTypeString
-		}
-		return scanTypeNullString
+		return scanTypeRawBytes
 
 	case fieldTypeDate, fieldTypeNewDate,
 		fieldTypeTimestamp, fieldTypeDateTime:
-
-		// TODO: respect rows.mc.parseTime
-
-		if mf.flags&flagNotNULL != 0 {
-			return scanTypeTime
+		if parseTime {
+			if mf.flags&flagNotNULL != 0 {
+				return scanTypeTime
+			}
+			return scanTypeNullTime
 		}
-		return scanTypeNullTime
+		return scanTypeRawBytes
 
 	default:
 		return scanTypeUnknown
