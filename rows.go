@@ -18,6 +18,7 @@ type resultSet struct {
 	columns     []mysqlField
 	columnNames []string
 	done        bool
+	parseTime   bool // cached from cfg
 }
 
 type mysqlRows struct {

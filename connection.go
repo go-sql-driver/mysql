@@ -39,7 +39,6 @@ type mysqlConn struct {
 	flags            clientFlag
 	status           statusFlag
 	sequence         uint8
-	parseTime        bool
 
 	// for context support (Go 1.8+)
 	watching bool
@@ -403,6 +402,9 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 					return nil, err
 				}
 			}
+
+			rows.rs.parseTime = mc.cfg.ParseTime
+
 			// Columns
 			rows.rs.columns, err = mc.readColumns(resLen)
 			return rows, err
