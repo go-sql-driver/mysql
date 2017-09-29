@@ -9,6 +9,8 @@
 package mysql
 
 import (
+	"github.com/go-sql-driver/mysql/internal/atomic"
+
 	"database/sql/driver"
 	"io"
 	"net"
@@ -47,8 +49,8 @@ type mysqlConn struct {
 	watcher  chan<- mysqlContext
 	closech  chan struct{}
 	finished chan<- struct{}
-	canceled atomicError // set non-nil if conn is canceled
-	closed   atomicBool  // set when conn is closed, before closech is closed
+	canceled atomic.Error // set non-nil if conn is canceled
+	closed   atomic.Bool  // set when conn is closed, before closech is closed
 }
 
 // Handles parameters set in DSN after the connection is established
