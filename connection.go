@@ -40,7 +40,6 @@ type mysqlConn struct {
 	status           statusFlag
 	sequence         uint8
 	parseTime        bool
-	strict           bool
 
 	// for context support (Go 1.8+)
 	watching bool
