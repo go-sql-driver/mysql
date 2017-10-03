@@ -55,7 +55,6 @@ type Config struct {
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
 	RejectReadOnly          bool // Reject read-only connections
-	Strict                  bool // Return warnings as errors
 }
 
 // FormatDSN formats the given Config into a DSN string which can be passed to
@@ -203,15 +202,6 @@ func (cfg *Config) FormatDSN() string {
 		} else {
 			hasParam = true
 			buf.WriteString("?rejectReadOnly=true")
-		}
-	}
-
-	if cfg.Strict {
-		if hasParam {
-			buf.WriteString("&strict=true")
-		} else {
-			hasParam = true
-			buf.WriteString("?strict=true")
 		}
 	}
 
@@ -502,11 +492,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// Strict mode
 		case "strict":
-			var isBool bool
-			cfg.Strict, isBool = readBool(value)
-			if !isBool {
-				return errors.New("invalid bool value: " + value)
-			}
+			panic("strict mode has been removed. See https://github.com/go-sql-driver/mysql/wiki/strict-mode")
 
 		// Dial Timeout
 		case "timeout":

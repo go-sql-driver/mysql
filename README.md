@@ -294,20 +294,6 @@ supposed to happen, setting this on some MySQL providers (such as AWS Aurora)
 is safer for failovers.
 
 
-##### `strict`
-
-```
-Type:           bool
-Valid Values:   true, false
-Default:        false
-```
-
-`strict=true` enables a driver-side strict mode in which MySQL warnings are treated as errors. This mode should not be used in production as it may lead to data corruption in certain situations.
-
-A server-side strict mode, which is safe for production use, can be set via the [`sql_mode`](https://dev.mysql.com/doc/refman/5.7/en/sql-mode.html) system variable.
-
-By default MySQL also treats notes as warnings. Use [`sql_notes=false`](http://dev.mysql.com/doc/refman/5.7/en/server-system-variables.html#sysvar_sql_notes) to ignore notes.
-
 ##### `timeout`
 
 ```
@@ -316,6 +302,7 @@ Default:        OS default
 ```
 
 Timeout for establishing connections, aka dial timeout. The value must be a decimal number with a unit suffix (*"ms"*, *"s"*, *"m"*, *"h"*), such as *"30s"*, *"0.5m"* or *"1m30s"*.
+
 
 ##### `tls`
 
@@ -326,6 +313,7 @@ Default:        false
 ```
 
 `tls=true` enables TLS / SSL encrypted connection to the server. Use `skip-verify` if you want to use a self-signed or invalid certificate (server side). Use a custom value registered with [`mysql.RegisterTLSConfig`](https://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).
+
 
 ##### `writeTimeout`
 
