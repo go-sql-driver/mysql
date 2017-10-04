@@ -576,13 +576,13 @@ func TestContextBeginReadOnly(t *testing.T) {
 }
 
 func TestRowsColumnTypes(t *testing.T) {
-	niNULL := sql.NullInt64{0, false}
-	ni0 := sql.NullInt64{0, true}
-	ni1 := sql.NullInt64{1, true}
-	ni42 := sql.NullInt64{42, true}
-	nfNULL := sql.NullFloat64{0.0, false}
-	nf0 := sql.NullFloat64{0.0, true}
-	nf1337 := sql.NullFloat64{13.37, true}
+	niNULL := sql.NullInt64{Int64: 0, Valid: false}
+	ni0 := sql.NullInt64{Int64: 0, Valid: true}
+	ni1 := sql.NullInt64{Int64: 1, Valid: true}
+	ni42 := sql.NullInt64{Int64: 42, Valid: true}
+	nfNULL := sql.NullFloat64{Float64: 0.0, Valid: false}
+	nf0 := sql.NullFloat64{Float64: 0.0, Valid: true}
+	nf1337 := sql.NullFloat64{Float64: 13.37, Valid: true}
 	rbNULL := sql.RawBytes(nil)
 	rb0 := sql.RawBytes("0")
 	rb42 := sql.RawBytes("42")
