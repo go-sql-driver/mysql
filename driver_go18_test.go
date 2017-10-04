@@ -584,9 +584,9 @@ func TestRowsColumnTypes(t *testing.T) {
 	nf0 := sql.NullFloat64{Float64: 0.0, Valid: true}
 	nf1337 := sql.NullFloat64{Float64: 13.37, Valid: true}
 	nt0 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 0, time.UTC), Valid: true}
-	nt1 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 900000000, time.UTC), Valid: true}
-	nt2 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 990000000, time.UTC), Valid: true}
-	nt6 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 999999000, time.UTC), Valid: true}
+	nt1 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 100000000, time.UTC), Valid: true}
+	nt2 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 110000000, time.UTC), Valid: true}
+	nt6 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 111111000, time.UTC), Valid: true}
 	rbNULL := sql.RawBytes(nil)
 	rb0 := sql.RawBytes("0")
 	rb42 := sql.RawBytes("42")
@@ -624,9 +624,9 @@ func TestRowsColumnTypes(t *testing.T) {
 		{"varchar42", "VARCHAR(42) NOT NULL", "VARCHAR", scanTypeRawBytes, false, 126, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{rb0, rbTest, rb42}},
 		{"textnull", "TEXT", "BLOB", scanTypeRawBytes, true, 196605, 0, [3]string{"0", "NULL", "'Test'"}, [3]interface{}{rb0, rbNULL, rbTest}},
 		{"longtext", "LONGTEXT NOT NULL", "BLOB", scanTypeRawBytes, false, 4294967295, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{rb0, rbTest, rb42}},
-		{"datetime", "DATETIME", "DATETIME", scanTypeNullTime, true, 19, 0, [3]string{"'2006-01-02 15:04:05'", "'2006-01-02 15:04:05.9'", "'2006-01-02 15:04:05.999999'"}, [3]interface{}{nt0, nt0, nt0}},
-		{"datetime2", "DATETIME(2)", "DATETIME", scanTypeNullTime, true, 22, 2, [3]string{"'2006-01-02 15:04:05'", "'2006-01-02 15:04:05.9'", "'2006-01-02 15:04:05.999999'"}, [3]interface{}{nt0, nt1, nt2}},
-		{"datetime6", "DATETIME(6)", "DATETIME", scanTypeNullTime, true, 26, 6, [3]string{"'2006-01-02 15:04:05'", "'2006-01-02 15:04:05.9'", "'2006-01-02 15:04:05.999999'"}, [3]interface{}{nt0, nt1, nt6}},
+		{"datetime", "DATETIME", "DATETIME", scanTypeNullTime, true, 19, 0, [3]string{"'2006-01-02 15:04:05'", "'2006-01-02 15:04:05.1'", "'2006-01-02 15:04:05.111111'"}, [3]interface{}{nt0, nt0, nt0}},
+		{"datetime2", "DATETIME(2)", "DATETIME", scanTypeNullTime, true, 22, 2, [3]string{"'2006-01-02 15:04:05'", "'2006-01-02 15:04:05.1'", "'2006-01-02 15:04:05.111111'"}, [3]interface{}{nt0, nt1, nt2}},
+		{"datetime6", "DATETIME(6)", "DATETIME", scanTypeNullTime, true, 26, 6, [3]string{"'2006-01-02 15:04:05'", "'2006-01-02 15:04:05.1'", "'2006-01-02 15:04:05.111111'"}, [3]interface{}{nt0, nt1, nt6}},
 	}
 
 	schema := ""
