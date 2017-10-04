@@ -43,6 +43,8 @@ var (
 	_ driver.RowsColumnTypeLength           = &textRows{}
 	_ driver.RowsColumnTypeNullable         = &binaryRows{}
 	_ driver.RowsColumnTypeNullable         = &textRows{}
+	_ driver.RowsColumnTypePrecisionScale   = &binaryRows{}
+	_ driver.RowsColumnTypePrecisionScale   = &textRows{}
 	_ driver.RowsColumnTypeScanType         = &binaryRows{}
 	_ driver.RowsColumnTypeScanType         = &textRows{}
 	_ driver.RowsNextResultSet              = &binaryRows{}
