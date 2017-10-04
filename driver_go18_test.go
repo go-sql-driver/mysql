@@ -574,3 +574,165 @@ func TestContextBeginReadOnly(t *testing.T) {
 		}
 	})
 }
+
+func TestRowsColumnTypes(t *testing.T) {
+	niNULL := sql.NullInt64{0, false}
+	ni0 := sql.NullInt64{0, true}
+	ni1 := sql.NullInt64{1, true}
+	ni42 := sql.NullInt64{42, true}
+	nfNULL := sql.NullFloat64{0.0, false}
+	nf0 := sql.NullFloat64{0.0, true}
+	nf1337 := sql.NullFloat64{13.37, true}
+	rbNULL := sql.RawBytes(nil)
+	rb0 := sql.RawBytes("0")
+	rb42 := sql.RawBytes("42")
+	rbTest := sql.RawBytes("Test")
+
+	var columns = []struct {
+		name             string
+		fieldType        string // type used when creating table schema
+		databaseTypeName string // actual type used by MySQL
+		scanType         reflect.Type
+		nullable         bool
+		length           int64 // 0 if not ok, BYTE length, not CHAR length
+		precision        int64 // 0 if not ok
+		valuesIn         [3]string
+		valuesOut        [3]interface{}
+	}{
+		{"boolnull", "BOOL", "TINYINT", scanTypeNullInt, true, 1, 0, [3]string{"NULL", "true", "0"}, [3]interface{}{niNULL, ni1, ni0}},
+		{"bool", "BOOL NOT NULL", "TINYINT", scanTypeInt8, false, 1, 0, [3]string{"1", "0", "FALSE"}, [3]interface{}{int8(1), int8(0), int8(0)}},
+		{"intnull", "INTEGER", "INT", scanTypeNullInt, true, 11, 0, [3]string{"0", "NULL", "42"}, [3]interface{}{ni0, niNULL, ni42}},
+		{"int3null", "INT(3)", "INT", scanTypeNullInt, true, 3, 0, [3]string{"0", "NULL", "42"}, [3]interface{}{ni0, niNULL, ni42}},
+		{"int7", "INT(7) NOT NULL", "INT", scanTypeInt32, false, 7, 0, [3]string{"0", "-1337", "42"}, [3]interface{}{int32(0), int32(-1337), int32(42)}},
+		{"uint13", "INT(13) UNSIGNED NOT NULL", "INT", scanTypeUint32, false, 13, 0, [3]string{"0", "1337", "42"}, [3]interface{}{uint32(0), uint32(1337), uint32(42)}},
+		{"doublenull", "DOUBLE", "DOUBLE", scanTypeNullFloat, true, 22, 31, [3]string{"0", "NULL", "13.37"}, [3]interface{}{nf0, nfNULL, nf1337}},
+		{"char25null", "CHAR(25)", "CHAR", scanTypeRawBytes, true, 75, 0, [3]string{"0", "NULL", "'Test'"}, [3]interface{}{rb0, rbNULL, rbTest}},
+		{"varchar42", "VARCHAR(42) NOT NULL", "VARCHAR", scanTypeRawBytes, false, 126, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{rb0, rbTest, rb42}},
+		{"textnull", "TEXT", "BLOB", scanTypeRawBytes, true, 196605, 0, [3]string{"0", "NULL", "'Test'"}, [3]interface{}{rb0, rbNULL, rbTest}},
+		{"longtext", "LONGTEXT NOT NULL", "BLOB", scanTypeRawBytes, false, 4294967295, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{rb0, rbTest, rb42}},
+	}
+
+	schema := ""
+	values1 := ""
+	values2 := ""
+	values3 := ""
+	for _, column := range columns {
+		schema += fmt.Sprintf("`%s` %s, ", column.name, column.fieldType)
+		values1 += column.valuesIn[0] + ", "
+		values2 += column.valuesIn[1] + ", "
+		values3 += column.valuesIn[2] + ", "
+	}
+	schema = schema[:len(schema)-2]
+	values1 = values1[:len(values1)-2]
+	values2 = values2[:len(values2)-2]
+	values3 = values3[:len(values3)-2]
+
+	runTests(t, dsn, func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (" + schema + ")")
+		dbt.mustExec("INSERT INTO test VALUES (" + values1 + "), (" + values2 + "), (" + values3 + ")")
+
+		rows, err := dbt.db.Query("SELECT * FROM test")
+		if err != nil {
+			t.Fatalf("Query: %v", err)
+		}
+
+		tt, err := rows.ColumnTypes()
+		if err != nil {
+			t.Fatalf("ColumnTypes: %v", err)
+		}
+
+		if len(tt) != len(columns) {
+			t.Fatalf("unexpected number of columns: expected %d, got %d", len(columns), len(tt))
+		}
+
+		types := make([]reflect.Type, len(tt))
+		for i, tp := range tt {
+			column := columns[i]
+
+			// Name
+			name := tp.Name()
+			if name != column.name {
+				t.Errorf("column name mismatch %s != %s", name, column.name)
+				continue
+			}
+
+			// DatabaseTypeName
+			databaseTypeName := tp.DatabaseTypeName()
+			if databaseTypeName != column.databaseTypeName {
+				t.Errorf("databasetypename name mismatch for column %q: %s != %s", name, databaseTypeName, column.databaseTypeName)
+				continue
+			}
+
+			// ScanType
+			scanType := tp.ScanType()
+			if scanType != column.scanType {
+				if scanType == nil {
+					t.Errorf("scantype is null for column %q", name)
+				} else {
+					t.Errorf("scantype mismatch for column %q: %s != %s", name, scanType.Name(), column.scanType.Name())
+				}
+				continue
+			}
+			types[i] = scanType
+
+			// Nullable
+			nullable, ok := tp.Nullable()
+			if !ok {
+				t.Errorf("nullable not ok %q", name)
+				continue
+			}
+			if nullable != column.nullable {
+				t.Errorf("nullable mismatch for column %q: %t != %t", name, nullable, column.nullable)
+			}
+
+			// Length
+			length, ok := tp.Length()
+			if length != column.length {
+				if !ok {
+					t.Errorf("length not ok for column %q", name)
+				} else {
+					t.Errorf("length mismatch for column %q: %d != %d", name, length, column.length)
+				}
+				continue
+			}
+
+			// Precision
+			precision, _, ok := tp.DecimalSize()
+			if precision != column.precision {
+				if !ok {
+					t.Errorf("precision not ok for column %q", name)
+				} else {
+					t.Errorf("precision mismatch for column %q: %d != %d", name, precision, column.precision)
+				}
+				continue
+			}
+		}
+
+		values := make([]interface{}, len(tt))
+		for i := range values {
+			values[i] = reflect.New(types[i]).Interface()
+		}
+		i := 0
+		for rows.Next() {
+			err = rows.Scan(values...)
+			if err != nil {
+				t.Fatalf("failed to scan values in %v", err)
+			}
+			for j := range values {
+				value := reflect.ValueOf(values[j]).Elem().Interface()
+				if !reflect.DeepEqual(value, columns[j].valuesOut[i]) {
+					fmt.Println(value, columns[j].valuesOut[i])
+					t.Errorf("row %d, column %d: %v != %v", i, j, value, columns[j].valuesOut[i])
+				}
+			}
+			i++
+		}
+		if i != 3 {
+			t.Errorf("expected 3 rows, got %d", i)
+		}
+
+		if err := rows.Close(); err != nil {
+			t.Errorf("error closing rows: %s", err)
+		}
+	})
+}
