@@ -602,9 +602,19 @@ func TestRowsColumnTypes(t *testing.T) {
 		{"boolnull", "BOOL", "TINYINT", scanTypeNullInt, true, 1, 0, [3]string{"NULL", "true", "0"}, [3]interface{}{niNULL, ni1, ni0}},
 		{"bool", "BOOL NOT NULL", "TINYINT", scanTypeInt8, false, 1, 0, [3]string{"1", "0", "FALSE"}, [3]interface{}{int8(1), int8(0), int8(0)}},
 		{"intnull", "INTEGER", "INT", scanTypeNullInt, true, 11, 0, [3]string{"0", "NULL", "42"}, [3]interface{}{ni0, niNULL, ni42}},
+		{"smallint", "SMALLINT NOT NULL", "SMALLINT", scanTypeInt16, false, 6, 0, [3]string{"0", "-32768", "32767"}, [3]interface{}{int16(0), int16(-32768), int16(32767)}},
+		{"smallintnull", "SMALLINT", "SMALLINT", scanTypeNullInt, true, 6, 0, [3]string{"0", "NULL", "42"}, [3]interface{}{ni0, niNULL, ni42}},
 		{"int3null", "INT(3)", "INT", scanTypeNullInt, true, 3, 0, [3]string{"0", "NULL", "42"}, [3]interface{}{ni0, niNULL, ni42}},
 		{"int7", "INT(7) NOT NULL", "INT", scanTypeInt32, false, 7, 0, [3]string{"0", "-1337", "42"}, [3]interface{}{int32(0), int32(-1337), int32(42)}},
+		{"bigint", "BIGINT NOT NULL", "BIGINT", scanTypeInt64, false, 20, 0, [3]string{"0", "65535", "-42"}, [3]interface{}{int64(0), int64(65535), int64(-42)}},
+		{"bigintnull", "BIGINT", "BIGINT", scanTypeNullInt, true, 20, 0, [3]string{"NULL", "1", "42"}, [3]interface{}{niNULL, ni1, ni42}},
+		{"tinyuint", "TINYINT UNSIGNED NOT NULL", "TINYINT", scanTypeUint8, false, 3, 0, [3]string{"0", "255", "42"}, [3]interface{}{uint8(0), uint8(255), uint8(42)}},
+		{"smalluint", "SMALLINT UNSIGNED NOT NULL", "SMALLINT", scanTypeUint16, false, 5, 0, [3]string{"0", "65535", "42"}, [3]interface{}{uint16(0), uint16(65535), uint16(42)}},
+		{"biguint", "BIGINT UNSIGNED NOT NULL", "BIGINT", scanTypeUint64, false, 20, 0, [3]string{"0", "65535", "42"}, [3]interface{}{uint64(0), uint64(65535), uint64(42)}},
 		{"uint13", "INT(13) UNSIGNED NOT NULL", "INT", scanTypeUint32, false, 13, 0, [3]string{"0", "1337", "42"}, [3]interface{}{uint32(0), uint32(1337), uint32(42)}},
+		{"float", "FLOAT NOT NULL", "FLOAT", scanTypeFloat32, false, 12, 31, [3]string{"0", "42", "13.37"}, [3]interface{}{float32(0), float32(42), float32(13.37)}},
+		{"floatnull", "FLOAT", "FLOAT", scanTypeNullFloat, true, 12, 31, [3]string{"0", "NULL", "13.37"}, [3]interface{}{nf0, nfNULL, nf1337}},
+		{"double", "DOUBLE NOT NULL", "DOUBLE", scanTypeFloat64, false, 22, 31, [3]string{"0", "42", "13.37"}, [3]interface{}{float64(0), float64(42), float64(13.37)}},
 		{"doublenull", "DOUBLE", "DOUBLE", scanTypeNullFloat, true, 22, 31, [3]string{"0", "NULL", "13.37"}, [3]interface{}{nf0, nfNULL, nf1337}},
 		{"char25null", "CHAR(25)", "CHAR", scanTypeRawBytes, true, 75, 0, [3]string{"0", "NULL", "'Test'"}, [3]interface{}{rb0, rbNULL, rbTest}},
 		{"varchar42", "VARCHAR(42) NOT NULL", "VARCHAR", scanTypeRawBytes, false, 126, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{rb0, rbTest, rb42}},
@@ -721,7 +731,6 @@ func TestRowsColumnTypes(t *testing.T) {
 			for j := range values {
 				value := reflect.ValueOf(values[j]).Elem().Interface()
 				if !reflect.DeepEqual(value, columns[j].valuesOut[i]) {
-					fmt.Println(value, columns[j].valuesOut[i])
 					t.Errorf("row %d, column %d: %v != %v", i, j, value, columns[j].valuesOut[i])
 				}
 			}
