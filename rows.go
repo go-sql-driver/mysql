@@ -66,6 +66,10 @@ func (rows *mysqlRows) ColumnTypeDatabaseTypeName(i int) string {
 	return ""
 }
 
+func (rows *mysqlRows) ColumnTypeLength(i int) (length int64, ok bool) {
+	return int64(rows.rs.columns[i].length), true
+}
+
 func (rows *mysqlRows) ColumnTypeNullable(i int) (nullable, ok bool) {
 	return rows.rs.columns[i].flags&flagNotNULL != 0, true
 }

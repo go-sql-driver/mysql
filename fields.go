@@ -71,6 +71,7 @@ var (
 type mysqlField struct {
 	tableName string
 	name      string
+	length    uint32
 	flags     fieldFlag
 	fieldType fieldType
 	decimals  byte

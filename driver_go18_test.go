@@ -39,6 +39,8 @@ var (
 var (
 	_ driver.RowsColumnTypeDatabaseTypeName = &binaryRows{}
 	_ driver.RowsColumnTypeDatabaseTypeName = &textRows{}
+	_ driver.RowsColumnTypeLength           = &binaryRows{}
+	_ driver.RowsColumnTypeLength           = &textRows{}
 	_ driver.RowsColumnTypeNullable         = &binaryRows{}
 	_ driver.RowsColumnTypeNullable         = &textRows{}
 	_ driver.RowsColumnTypeScanType         = &binaryRows{}
