@@ -82,7 +82,7 @@ func (rows *mysqlRows) ColumnTypePrecisionScale(i int) (int64, int64, bool) {
 }
 
 func (rows *mysqlRows) ColumnTypeScanType(i int) reflect.Type {
-	return rows.rs.columns[i].scanType(rows.rs.parseTime)
+	return rows.rs.columns[i].scanType()
 }
 
 func (rows *mysqlRows) Close() (err error) {

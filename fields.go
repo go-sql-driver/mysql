@@ -77,7 +77,7 @@ type mysqlField struct {
 	decimals  byte
 }
 
-func (mf *mysqlField) scanType(parseTime bool) reflect.Type {
+func (mf *mysqlField) scanType() reflect.Type {
 	switch mf.fieldType {
 	case fieldTypeNULL:
 		return scanTypeNil
@@ -139,13 +139,7 @@ func (mf *mysqlField) scanType(parseTime bool) reflect.Type {
 
 	case fieldTypeDate, fieldTypeNewDate,
 		fieldTypeTimestamp, fieldTypeDateTime:
-		if parseTime {
-			if mf.flags&flagNotNULL != 0 {
-				return scanTypeTime
-			}
-			return scanTypeNullTime
-		}
-		return scanTypeRawBytes
+		return scanTypeNullTime
 
 	default:
 		return scanTypeUnknown
