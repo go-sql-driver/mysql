@@ -11,7 +11,6 @@ package mysql
 import (
 	"database/sql"
 	"reflect"
-	"time"
 )
 
 var typeDatabaseName = map[fieldType]string{
@@ -46,26 +45,21 @@ var typeDatabaseName = map[fieldType]string{
 }
 
 var (
-	scanTypeNil        = reflect.TypeOf(nil)
-	scanTypeNullInt    = reflect.TypeOf(sql.NullInt64{})
-	scanTypeUint8      = reflect.TypeOf(uint8(0))
-	scanTypeInt8       = reflect.TypeOf(int8(0))
-	scanTypeUint16     = reflect.TypeOf(uint16(0))
-	scanTypeInt16      = reflect.TypeOf(int16(0))
-	scanTypeUint32     = reflect.TypeOf(uint32(0))
-	scanTypeInt32      = reflect.TypeOf(int32(0))
-	scanTypeUint64     = reflect.TypeOf(uint64(0))
-	scanTypeInt64      = reflect.TypeOf(int64(0))
-	scanTypeNullFloat  = reflect.TypeOf(sql.NullFloat64{})
-	scanTypeFloat32    = reflect.TypeOf(float32(0))
-	scanTypeFloat64    = reflect.TypeOf(float64(0))
-	scanTypeNullString = reflect.TypeOf(sql.NullString{})
-	scanTypeString     = reflect.TypeOf("")
-	scanTypeBytes      = reflect.TypeOf([]byte{})
-	scanTypeRawBytes   = reflect.TypeOf(sql.RawBytes{})
-	scanTypeTime       = reflect.TypeOf(time.Time{})
-	scanTypeNullTime   = reflect.TypeOf(NullTime{})
-	scanTypeUnknown    = reflect.TypeOf(new(interface{}))
+	scanTypeNullInt   = reflect.TypeOf(sql.NullInt64{})
+	scanTypeUint8     = reflect.TypeOf(uint8(0))
+	scanTypeInt8      = reflect.TypeOf(int8(0))
+	scanTypeUint16    = reflect.TypeOf(uint16(0))
+	scanTypeInt16     = reflect.TypeOf(int16(0))
+	scanTypeUint32    = reflect.TypeOf(uint32(0))
+	scanTypeInt32     = reflect.TypeOf(int32(0))
+	scanTypeUint64    = reflect.TypeOf(uint64(0))
+	scanTypeInt64     = reflect.TypeOf(int64(0))
+	scanTypeNullFloat = reflect.TypeOf(sql.NullFloat64{})
+	scanTypeFloat32   = reflect.TypeOf(float32(0))
+	scanTypeFloat64   = reflect.TypeOf(float64(0))
+	scanTypeRawBytes  = reflect.TypeOf(sql.RawBytes{})
+	scanTypeNullTime  = reflect.TypeOf(NullTime{})
+	scanTypeUnknown   = reflect.TypeOf(new(interface{}))
 )
 
 type mysqlField struct {
@@ -79,9 +73,6 @@ type mysqlField struct {
 
 func (mf *mysqlField) scanType() reflect.Type {
 	switch mf.fieldType {
-	case fieldTypeNULL:
-		return scanTypeNil
-
 	case fieldTypeTiny:
 		if mf.flags&flagNotNULL != 0 {
 			if mf.flags&flagUnsigned != 0 {
@@ -139,6 +130,8 @@ func (mf *mysqlField) scanType() reflect.Type {
 
 	case fieldTypeDate, fieldTypeNewDate,
 		fieldTypeTimestamp, fieldTypeDateTime:
+		// NullTime is always returned for more consistent behavior as it can
+		// handle both cases of parseTime regardless if the field is nullable.
 		return scanTypeNullTime
 
 	default:
