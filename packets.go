@@ -764,7 +764,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 		pos += n
 		if err == nil {
 			if !isNull {
-				if !rows.rs.parseTime {
+				if !mc.parseTime {
 					continue
 				} else {
 					switch rows.rs.columns[i].fieldType {
@@ -1268,7 +1268,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 					)
 				}
 				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], dstlen, true)
-			case rows.rs.parseTime:
+			case rows.mc.parseTime:
 				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.Loc)
 			default:
 				var dstlen uint8
