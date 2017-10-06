@@ -11,6 +11,7 @@ package mysql
 import (
 	"database/sql/driver"
 	"io"
+	"math"
 	"reflect"
 )
 
@@ -74,9 +75,24 @@ func (rows *mysqlRows) ColumnTypeNullable(i int) (nullable, ok bool) {
 }
 
 func (rows *mysqlRows) ColumnTypePrecisionScale(i int) (int64, int64, bool) {
-	if decimals := rows.rs.columns[i].decimals; decimals > 0 {
-		return int64(decimals), 0, true
+	column := rows.rs.columns[i]
+	decimals := int64(column.decimals)
+
+	switch column.fieldType {
+	case fieldTypeDecimal, fieldTypeNewDecimal:
+		if decimals > 0 {
+			return int64(column.length) - 2, decimals, true
+		}
+		return int64(column.length) - 1, decimals, true
+	case fieldTypeTimestamp, fieldTypeDateTime, fieldTypeTime:
+		return decimals, decimals, true
+	case fieldTypeFloat, fieldTypeDouble:
+		if decimals == 0x1f {
+			return math.MaxInt64, math.MaxInt64, true
+		}
+		return math.MaxInt64, decimals, true
 	}
+
 	return 0, 0, false
 }
 
