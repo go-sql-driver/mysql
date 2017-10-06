@@ -28,7 +28,9 @@ var (
 	errInvalidDSNUnsafeCollation = errors.New("invalid DSN: interpolateParams can not be used with unsafe collations")
 )
 
-// Config is a configuration parsed from a DSN string
+// Config is a configuration parsed from a DSN string.
+// If a new Config is created instead of being parsed from a DSN string,
+// the NewConfig function should be used, which sets default values.
 type Config struct {
 	User             string            // Username
 	Passwd           string            // Password (requires User)
@@ -57,6 +59,7 @@ type Config struct {
 	RejectReadOnly          bool // Reject read-only connections
 }
 
+// NewConfig creates a new Config and sets default values.
 func NewConfig() *Config {
 	return &Config{
 		Collation:            defaultCollation,
