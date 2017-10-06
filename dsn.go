@@ -64,6 +64,35 @@ func NewConfig() *Config {
 		AllowNativePasswords: true,
 	}
 }
+
+func (cfg *Config) normalize() error {
+	if cfg.InterpolateParams && unsafeCollations[cfg.Collation] {
+		return errInvalidDSNUnsafeCollation
+	}
+
+	// Set default network if empty
+	if cfg.Net == "" {
+		cfg.Net = "tcp"
+	}
+
+	// Set default address if empty
+	if cfg.Addr == "" {
+		switch cfg.Net {
+		case "tcp":
+			cfg.Addr = "127.0.0.1:3306"
+		case "unix":
+			cfg.Addr = "/tmp/mysql.sock"
+		default:
+			errors.New("default addr for network '" + cfg.Net + "' unknown")
+		}
+
+	} else if cfg.Net == "tcp" {
+		cfg.Addr = ensureHavePort(cfg.Addr)
+	}
+
+	return nil
+}
+
 // FormatDSN formats the given Config into a DSN string which can be passed to
 // the driver.
 func (cfg *Config) FormatDSN() string {
@@ -348,31 +377,9 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 		return nil, errInvalidDSNNoSlash
 	}
 
-	if cfg.InterpolateParams && unsafeCollations[cfg.Collation] {
-		return nil, errInvalidDSNUnsafeCollation
+	if err = cfg.normalize(); err != nil {
+		return nil, err
 	}
-
-	// Set default network if empty
-	if cfg.Net == "" {
-		cfg.Net = "tcp"
-	}
-
-	// Set default address if empty
-	if cfg.Addr == "" {
-		switch cfg.Net {
-		case "tcp":
-			cfg.Addr = "127.0.0.1:3306"
-		case "unix":
-			cfg.Addr = "/tmp/mysql.sock"
-		default:
-			return nil, errors.New("default addr for network '" + cfg.Net + "' unknown")
-		}
-
-	}
-	if cfg.Net == "tcp" {
-		cfg.Addr = ensureHavePort(cfg.Addr)
-	}
-
 	return
 }
 
