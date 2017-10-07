@@ -98,6 +98,7 @@ func TestDSNParserInvalid(t *testing.T) {
 		"(/",                          // no closing brace
 		"net(addr)//",                 // unescaped
 		"User:pass@tcp(1.2.3.4:3306)", // no trailing slash
+		"net()/",                      // unknown default addr
 		//"/dbname?arg=/some/unescaped/path",
 	}
 
