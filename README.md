@@ -47,7 +47,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
 ## Installation
 Simple install the package to your [$GOPATH](https://github.com/golang/go/wiki/GOPATH "GOPATH") with the [go tool](https://golang.org/cmd/go/ "go command") from shell:
 ```bash
-$ go get github.com/go-sql-driver/mysql
+$ go get -u github.com/go-sql-driver/mysql
 ```
 Make sure [Git is installed](https://git-scm.com/downloads) on your machine and in your system's `PATH`.
 
@@ -101,7 +101,8 @@ See [net.Dial](https://golang.org/pkg/net/#Dial) for more information which netw
 In general you should use an Unix domain socket if available and TCP otherwise for best performance.
 
 #### Address
-For TCP and UDP networks, addresses have the form `host:port`.
+For TCP and UDP networks, addresses have the form `host[:port]`.
+If `port` is omitted, the default port will be used.
 If `host` is a literal IPv6 address, it must be enclosed in square brackets.
 The functions [net.JoinHostPort](https://golang.org/pkg/net/#JoinHostPort) and [net.SplitHostPort](https://golang.org/pkg/net/#SplitHostPort) manipulate addresses in this form.
 
@@ -138,9 +139,9 @@ Default:        false
 ```
 Type:           bool
 Valid Values:   true, false
-Default:        false
+Default:        true
 ```
-`allowNativePasswords=true` allows the usage of the mysql native password method.
+`allowNativePasswords=false` disallows the usage of MySQL native password method.
 
 ##### `allowOldPasswords`
 
@@ -293,20 +294,6 @@ supposed to happen, setting this on some MySQL providers (such as AWS Aurora)
 is safer for failovers.
 
 
-##### `strict`
-
-```
-Type:           bool
-Valid Values:   true, false
-Default:        false
-```
-
-`strict=true` enables a driver-side strict mode in which MySQL warnings are treated as errors. This mode should not be used in production as it may lead to data corruption in certain situations.
-
-A server-side strict mode, which is safe for production use, can be set via the [`sql_mode`](https://dev.mysql.com/doc/refman/5.7/en/sql-mode.html) system variable.
-
-By default MySQL also treats notes as warnings. Use [`sql_notes=false`](http://dev.mysql.com/doc/refman/5.7/en/server-system-variables.html#sysvar_sql_notes) to ignore notes.
-
 ##### `timeout`
 
 ```
@@ -315,6 +302,7 @@ Default:        OS default
 ```
 
 Timeout for establishing connections, aka dial timeout. The value must be a decimal number with a unit suffix (*"ms"*, *"s"*, *"m"*, *"h"*), such as *"30s"*, *"0.5m"* or *"1m30s"*.
+
 
 ##### `tls`
 
@@ -325,6 +313,7 @@ Default:        false
 ```
 
 `tls=true` enables TLS / SSL encrypted connection to the server. Use `skip-verify` if you want to use a self-signed or invalid certificate (server side). Use a custom value registered with [`mysql.RegisterTLSConfig`](https://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).
+
 
 ##### `writeTimeout`
 
@@ -344,9 +333,9 @@ Any other parameters are interpreted as system variables:
   * `<string_var>=%27<value>%27`: `SET <string_var>='<value>'`
 
 Rules:
-* The values for string variables must be quoted with '
+* The values for string variables must be quoted with `'`.
 * The values must also be [url.QueryEscape](http://golang.org/pkg/net/url/#QueryEscape)'ed!
- (which implies values of string variables must be wrapped with `%27`)
+ (which implies values of string variables must be wrapped with `%27`).
 
 Examples:
   * `autocommit=1`: `SET autocommit=1`
@@ -426,7 +415,7 @@ See the [godoc of Go-MySQL-Driver](https://godoc.org/github.com/go-sql-driver/my
 
 
 ### `time.Time` support
-The default internal output type of MySQL `DATE` and `DATETIME` values is `[]byte` which allows you to scan the value into a `[]byte`, `string` or `sql.RawBytes` variable in your programm.
+The default internal output type of MySQL `DATE` and `DATETIME` values is `[]byte` which allows you to scan the value into a `[]byte`, `string` or `sql.RawBytes` variable in your program.
 
 However, many want to scan MySQL `DATE` and `DATETIME` values into `time.Time` variables, which is the logical opposite in Go to `DATE` and `DATETIME` in MySQL. You can do that by changing the internal output type from `[]byte` to `time.Time` with the DSN parameter `parseTime=true`. You can set the default [`time.Time` location](https://golang.org/pkg/time/#Location) with the `loc` DSN parameter.
 
@@ -466,13 +455,13 @@ Mozilla summarizes the license scope as follows:
 
 
 That means:
-  * You can **use** the **unchanged** source code both in private and commercially
-  * When distributing, you **must publish** the source code of any **changed files** licensed under the MPL 2.0 under a) the MPL 2.0 itself or b) a compatible license (e.g. GPL 3.0 or Apache License 2.0)
-  * You **needn't publish** the source code of your library as long as the files licensed under the MPL 2.0 are **unchanged**
+  * You can **use** the **unchanged** source code both in private and commercially.
+  * When distributing, you **must publish** the source code of any **changed files** licensed under the MPL 2.0 under a) the MPL 2.0 itself or b) a compatible license (e.g. GPL 3.0 or Apache License 2.0).
+  * You **needn't publish** the source code of your library as long as the files licensed under the MPL 2.0 are **unchanged**.
 
 Please read the [MPL 2.0 FAQ](https://www.mozilla.org/en-US/MPL/2.0/FAQ/) if you have further questions regarding the license.
 
-You can read the full terms here: [LICENSE](https://raw.github.com/go-sql-driver/mysql/master/LICENSE)
+You can read the full terms here: [LICENSE](https://raw.github.com/go-sql-driver/mysql/master/LICENSE).
 
 ![Go Gopher and MySQL Dolphin](https://raw.github.com/wiki/go-sql-driver/mysql/go-mysql-driver_m.jpg "Golang Gopher transporting the MySQL Dolphin in a wheelbarrow")
 
