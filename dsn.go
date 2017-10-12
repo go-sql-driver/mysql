@@ -65,6 +65,7 @@ func NewConfig() *Config {
 	return &Config{
 		Collation:            defaultCollation,
 		Loc:                  time.UTC,
+		MaxAllowedPacket:     defaultMaxAllowedPacket,
 		AllowNativePasswords: true,
 	}
 }
@@ -275,7 +276,7 @@ func (cfg *Config) FormatDSN() string {
 		buf.WriteString(cfg.WriteTimeout.String())
 	}
 
-	if cfg.MaxAllowedPacket > 0 {
+	if cfg.MaxAllowedPacket != defaultMaxAllowedPacket {
 		if hasParam {
 			buf.WriteString("&maxAllowedPacket=")
 		} else {
