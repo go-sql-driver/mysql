@@ -964,7 +964,7 @@ func TestUint64(t *testing.T) {
 }
 
 func TestLongData(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, dsn+"&maxAllowedPacket=0", func(dbt *DBTest) {
 		var maxAllowedPacketSize int
 		err := dbt.db.QueryRow("select @@max_allowed_packet").Scan(&maxAllowedPacketSize)
 		if err != nil {
