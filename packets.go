@@ -1143,10 +1143,11 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 			}
 			return io.EOF
 		}
+		mc := rows.mc
 		rows.mc = nil
 
 		// Error otherwise
-		return rows.mc.handleErrorPacket(data)
+		return mc.handleErrorPacket(data)
 	}
 
 	// NULL-bitmap,  [(column-count + 7 + 2) / 8 bytes]
