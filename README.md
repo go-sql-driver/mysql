@@ -16,10 +16,11 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
       * [Parameters](#parameters)
       * [Examples](#examples)
     * [Connection pool and timeouts](#connection-pool-and-timeouts)
+    * [context.Context Support](#contextcontext-support)
+    * [ColumnType Support](#columntype-support)
     * [LOAD DATA LOCAL INFILE support](#load-data-local-infile-support)
     * [time.Time support](#timetime-support)
     * [Unicode support](#unicode-support)
-    * [context.Context Support](#contextcontext-support)
   * [Testing / Development](#testing--development)
   * [License](#license)
 
@@ -400,6 +401,13 @@ user:password@/
 ### Connection pool and timeouts
 The connection pool is managed by Go's database/sql package. For details on how to configure the size of the pool and how long connections stay in the pool see `*DB.SetMaxOpenConns`, `*DB.SetMaxIdleConns`, and `*DB.SetConnMaxLifetime` in the [database/sql documentation](https://golang.org/pkg/database/sql/). The read, write, and dial timeouts for each individual connection are configured with the DSN parameters [`readTimeout`](#readtimeout), [`writeTimeout`](#writetimeout), and [`timeout`](#timeout), respectively.
 
+## `ColumnType` Support
+This driver supports the [`ColumnType` interface](https://golang.org/pkg/database/sql/#ColumnType) introduced in Go 1.8, with the exception of [`ColumnType.Length()`](https://golang.org/pkg/database/sql/#ColumnType.Length), which is currently not supported.
+
+## `context.Context` Support
+Go 1.8 added `database/sql` support for `context.Context`. This driver supports query timeouts and cancellation via contexts.
+See [context support in the database/sql package](https://golang.org/doc/go1.8#database_sql) for more details.
+
 
 ### `LOAD DATA LOCAL INFILE` support
 For this feature you need direct access to the package. Therefore you must change the import path (no `_`):
@@ -432,10 +440,6 @@ Other collations / charsets can be set using the [`collation`](#collation) DSN p
 Version 1.0 of the driver recommended adding `&charset=utf8` (alias for `SET NAMES utf8`) to the DSN to enable proper UTF-8 support. This is not necessary anymore. The [`collation`](#collation) parameter should be preferred to set another collation / charset than the default.
 
 See http://dev.mysql.com/doc/refman/5.7/en/charset-unicode.html for more details on MySQL's Unicode support.
-
-## `context.Context` Support
-Go 1.8 added `database/sql` support for `context.Context`. This driver supports query timeouts and cancellation via contexts.
-See [context support in the database/sql package](https://golang.org/doc/go1.8#database_sql) for more details.
 
 ## Testing / Development
 To run the driver tests you may need to adjust the configuration. See the [Testing Wiki-Page](https://github.com/go-sql-driver/mysql/wiki/Testing "Testing") for details.

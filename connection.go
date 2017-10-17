@@ -403,6 +403,7 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 					return nil, err
 				}
 			}
+
 			// Columns
 			rows.rs.columns, err = mc.readColumns(resLen)
 			return rows, err
