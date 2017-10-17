@@ -279,7 +279,7 @@ Default:        false
 ```
 
 
-`rejectreadOnly=true` causes the driver to reject read-only connections. This
+`rejectReadOnly=true` causes the driver to reject read-only connections. This
 is for a possible race condition during an automatic failover, where the mysql
 client gets connected to a read-only replica after the failover.
 
@@ -293,6 +293,11 @@ for example, using a manual failover on AWS Aurora's MySQL-compatible cluster.
 If you are not relying on read-only transactions to reject writes that aren't
 supposed to happen, setting this on some MySQL providers (such as AWS Aurora)
 is safer for failovers.
+
+Note that ERROR 1290 can be returned for a `read-only` server and this option will
+cause a retry for that error. However the same error number is used for some
+other cases. You should ensure your application will never cause an ERROR 1290
+except for `read-only` mode when enabling this option.
 
 
 ##### `timeout`
