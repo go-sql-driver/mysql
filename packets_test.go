@@ -114,9 +114,9 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 	}
 
 	// too low sequence id
-	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
+	conn.data = []byte{0x01, 0x00, 0x00, 0x01, 0xff}
 	conn.maxReads = 1
-	mc.sequence = 1
+	mc.sequence = 2
 	_, err := mc.readPacket()
 	if err != ErrPktSync {
 		t.Errorf("expected ErrPktSync, got %v", err)
