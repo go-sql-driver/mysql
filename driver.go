@@ -17,9 +17,18 @@
 package mysql
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"net"
+)
+
+var (
+	errInvalidUser   = errors.New("invalid Connection: User is not set or longer than 32 chars")
+	errInvalidAddr   = errors.New("invalid Connection: Addr config is missing")
+	errInvalidNet    = errors.New("invalid Connection: Only tcp is valid for Net")
+	errInvalidDBName = errors.New("invalid Connection: DBName config is missing")
 )
 
 // watcher interface is used for context support (From Go 1.8)
@@ -29,7 +38,9 @@ type watcher interface {
 
 // MySQLDriver is exported to make the driver directly accessible.
 // In general the driver is used via the database/sql package.
-type MySQLDriver struct{}
+type MySQLDriver struct {
+	Cfg *Config
+}
 
 // DialFunc is a function which can be used to establish the network connection.
 // Custom dial functions must be registered with RegisterDial
@@ -47,24 +58,9 @@ func RegisterDial(net string, dial DialFunc) {
 	dials[net] = dial
 }
 
-// Open new Connection.
-// See https://github.com/go-sql-driver/mysql#dsn-data-source-name for how
-// the DSN string is formated
-func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
+//Open a new Connection
+func (d MySQLDriver) connectServer(mc *mysqlConn) error {
 	var err error
-
-	// New mysqlConn
-	mc := &mysqlConn{
-		maxAllowedPacket: maxPacketSize,
-		maxWriteSize:     maxPacketSize - 1,
-		closech:          make(chan struct{}),
-	}
-	mc.cfg, err = ParseDSN(dsn)
-	if err != nil {
-		return nil, err
-	}
-	mc.parseTime = mc.cfg.ParseTime
-
 	// Connect to Server
 	if dial, ok := dials[mc.cfg.Net]; ok {
 		mc.netConn, err = dial(mc.cfg.Addr)
@@ -73,7 +69,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		mc.netConn, err = nd.Dial(mc.cfg.Net, mc.cfg.Addr)
 	}
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Enable TCP Keepalives on TCP connections
@@ -82,7 +78,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 			// Don't send COM_QUIT before handshake.
 			mc.netConn.Close()
 			mc.netConn = nil
-			return nil, err
+			return err
 		}
 	}
 
@@ -101,13 +97,13 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	cipher, err := mc.readInitPacket()
 	if err != nil {
 		mc.cleanup()
-		return nil, err
+		return err
 	}
 
 	// Send Client Authentication Packet
 	if err = mc.writeAuthPacket(cipher); err != nil {
 		mc.cleanup()
-		return nil, err
+		return err
 	}
 
 	// Handle response to auth packet, switch methods if possible
@@ -116,7 +112,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		// (https://dev.mysql.com/doc/internals/en/authentication-fails.html).
 		// Do not send COM_QUIT, just cleanup and return the error.
 		mc.cleanup()
-		return nil, err
+		return err
 	}
 
 	if mc.cfg.MaxAllowedPacket > 0 {
@@ -126,12 +122,88 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		maxap, err := mc.getSystemVar("max_allowed_packet")
 		if err != nil {
 			mc.Close()
-			return nil, err
+			return err
 		}
 		mc.maxAllowedPacket = stringToInt(maxap) - 1
 	}
 	if mc.maxAllowedPacket < maxPacketSize {
 		mc.maxWriteSize = mc.maxAllowedPacket
+	}
+
+	return err
+}
+
+//Connect opens a new connection without using a DSN
+func (d MySQLDriver) Connect(cxt context.Context) (driver.Conn, error) {
+	var err error
+
+	//Validate the connection parameters
+	//the following are required User,Pass,Net,Addr,DBName
+	//Pass may be blank
+	//The other optional parameters are not checks
+	//as GO will automatically enforce proper bool types on the options
+	if len(d.Cfg.User) > 32 || len(d.Cfg.User) <= 0 {
+		return nil, errInvalidUser
+	}
+
+	if len(d.Cfg.Addr) <= 0 {
+		return nil, errInvalidAddr
+	}
+
+	if len(d.Cfg.DBName) <= 0 {
+		return nil, errInvalidDBName
+	}
+
+	if d.Cfg.Net != "tcp" {
+		return nil, errInvalidNet
+	}
+
+	//New mysqlConn
+	mc := &mysqlConn{
+		maxAllowedPacket: maxPacketSize,
+		maxWriteSize:     maxPacketSize - 1,
+		closech:          make(chan struct{}),
+		cfg:              d.Cfg,
+		parseTime:        d.Cfg.ParseTime,
+	}
+
+	//Connect to the server and setting the connection settings
+	err = d.connectServer(mc)
+	if err != nil {
+		return nil, err
+	}
+
+	return mc, nil
+
+}
+
+//Driver returns a driver interface
+func (d MySQLDriver) Driver() driver.Driver {
+	return MySQLDriver{}
+}
+
+// Open new Connection using a DSN.
+// See https://github.com/go-sql-driver/mysql#dsn-data-source-name for how
+// the DSN string is formated
+func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
+	var err error
+
+	// New mysqlConn
+	mc := &mysqlConn{
+		maxAllowedPacket: maxPacketSize,
+		maxWriteSize:     maxPacketSize - 1,
+		closech:          make(chan struct{}),
+	}
+	mc.cfg, err = ParseDSN(dsn)
+	if err != nil {
+		return nil, err
+	}
+	mc.parseTime = mc.cfg.ParseTime
+
+	err = d.connectServer(mc)
+	// Connect to Server
+	if err != nil {
+		return nil, err
 	}
 
 	// Handle DSN Params
