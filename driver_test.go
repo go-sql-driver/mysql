@@ -1375,7 +1375,6 @@ func TestTimezoneConversion(t *testing.T) {
 
 	// Regression test for timezone handling
 	tzTest := func(dbt *DBTest) {
-
 		// Create table
 		dbt.mustExec("CREATE TABLE test (ts TIMESTAMP)")
 
