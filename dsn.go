@@ -398,7 +398,6 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// cfg params
 		switch value := param[1]; param[0] {
-
 		// Disable INFILE whitelist / enable all files
 		case "allowAllFiles":
 			var isBool bool
