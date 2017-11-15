@@ -157,6 +157,8 @@ func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
 		return int64(u64), nil
 	case reflect.Float32, reflect.Float64:
 		return rv.Float(), nil
+	case reflect.String:
+		return rv.String(), nil
 	}
 	return nil, fmt.Errorf("unsupported type %T, a %s", v, rv.Kind())
 }
