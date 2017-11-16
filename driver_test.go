@@ -499,6 +499,36 @@ func TestString(t *testing.T) {
 	})
 }
 
+type testValuer struct {
+	value string
+}
+
+func (tv testValuer) Value() (driver.Value, error) {
+	return tv.value, nil
+}
+
+func TestValuer(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		in := testValuer{"a_value"}
+		var out string
+		var rows *sql.Rows
+
+		dbt.mustExec("CREATE TABLE test (value VARCHAR(255)) CHARACTER SET utf8")
+		dbt.mustExec("INSERT INTO test VALUES (?)", in)
+		rows = dbt.mustQuery("SELECT value FROM test")
+		if rows.Next() {
+			rows.Scan(&out)
+			if in.value != out {
+				dbt.Errorf("Valuer: %v != %s", in, out)
+			}
+		} else {
+			dbt.Errorf("Valuer: no data")
+		}
+
+		dbt.mustExec("DROP TABLE IF EXISTS test")
+	})
+}
+
 type timeTests struct {
 	dbtype  string
 	tlayout string
