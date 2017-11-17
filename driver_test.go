@@ -547,10 +547,10 @@ func TestValuerWithValidation(t *testing.T) {
 		var out string
 		var rows *sql.Rows
 
-		dbt.mustExec("CREATE TABLE test (value VARCHAR(255)) CHARACTER SET utf8")
-		dbt.mustExec("INSERT INTO test VALUES (?)", in)
+		dbt.mustExec("CREATE TABLE testValuer (value VARCHAR(255)) CHARACTER SET utf8")
+		dbt.mustExec("INSERT INTO testValuer VALUES (?)", in)
 
-		rows = dbt.mustQuery("SELECT value FROM test")
+		rows = dbt.mustQuery("SELECT value FROM testValuer")
 		defer rows.Close()
 
 		if rows.Next() {
@@ -562,11 +562,19 @@ func TestValuerWithValidation(t *testing.T) {
 			dbt.Errorf("Valuer: no data")
 		}
 
-		if _, err := dbt.db.Exec("INSERT INTO test VALUES (?)", testValuerWithValidation{""}); err == nil {
+		if _, err := dbt.db.Exec("INSERT INTO testValuer VALUES (?)", testValuerWithValidation{""}); err == nil {
 			dbt.Errorf("Failed to check valuer error")
 		}
 
-		dbt.mustExec("DROP TABLE IF EXISTS test")
+		if _, err := dbt.db.Exec("INSERT INTO testValuer VALUES (?)", nil); err == nil {
+			dbt.Errorf("Failed to check nil")
+		}
+
+		if _, err := dbt.db.Exec("INSERT INTO testValuer VALUES (?)", map[string]bool{}); err == nil {
+			dbt.Errorf("Failed to check not valuer")
+		}
+
+		dbt.mustExec("DROP TABLE IF EXISTS testValuer")
 	})
 }
 
