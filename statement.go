@@ -137,6 +137,12 @@ func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
 		return v, nil
 	}
 
+	if v != nil {
+		if valuer, ok := v.(driver.Valuer); ok {
+			return valuer.Value()
+		}
+	}
+
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.Ptr:

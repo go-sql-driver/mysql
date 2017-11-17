@@ -529,6 +529,55 @@ func TestValuer(t *testing.T) {
 	})
 }
 
+type testValuerWithValidation struct {
+	value string
+}
+
+func (tv testValuerWithValidation) Value() (driver.Value, error) {
+	if len(tv.value) == 0 {
+		return nil, fmt.Errorf("Invalid string valuer. Value must not be empty")
+	}
+
+	return tv.value, nil
+}
+
+func TestValuerWithValidation(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		in := testValuerWithValidation{"a_value"}
+		var out string
+		var rows *sql.Rows
+
+		dbt.mustExec("CREATE TABLE testValuer (value VARCHAR(255)) CHARACTER SET utf8")
+		dbt.mustExec("INSERT INTO testValuer VALUES (?)", in)
+
+		rows = dbt.mustQuery("SELECT value FROM testValuer")
+		defer rows.Close()
+
+		if rows.Next() {
+			rows.Scan(&out)
+			if in.value != out {
+				dbt.Errorf("Valuer: %v != %s", in, out)
+			}
+		} else {
+			dbt.Errorf("Valuer: no data")
+		}
+
+		if _, err := dbt.db.Exec("INSERT INTO testValuer VALUES (?)", testValuerWithValidation{""}); err == nil {
+			dbt.Errorf("Failed to check valuer error")
+		}
+
+		if _, err := dbt.db.Exec("INSERT INTO testValuer VALUES (?)", nil); err != nil {
+			dbt.Errorf("Failed to check nil")
+		}
+
+		if _, err := dbt.db.Exec("INSERT INTO testValuer VALUES (?)", map[string]bool{}); err == nil {
+			dbt.Errorf("Failed to check not valuer")
+		}
+
+		dbt.mustExec("DROP TABLE IF EXISTS testValuer")
+	})
+}
+
 type timeTests struct {
 	dbtype  string
 	tlayout string
