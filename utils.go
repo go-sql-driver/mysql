@@ -234,6 +234,14 @@ type NullTime struct {
 	Valid bool // Valid is true if Time is not NULL
 }
 
+// NewTime returns a NullTime that can be called in one line
+func NewTime(t time.Time) NullTime {
+	return NullTime{
+		Time: t,
+		Valid: !t.Equal(time.Time{}),
+	}
+}
+
 // Scan implements the Scanner interface.
 // The value type must be time.Time or string / []byte (formatted time-string),
 // otherwise Scan fails.
