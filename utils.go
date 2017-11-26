@@ -237,7 +237,7 @@ type NullTime struct {
 // NewTime returns a NullTime that can be called in one line
 func NewTime(t time.Time) NullTime {
 	return NullTime{
-		Time: t,
+		Time:  t,
 		Valid: !t.Equal(time.Time{}),
 	}
 }
