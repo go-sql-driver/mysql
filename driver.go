@@ -64,6 +64,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		return nil, err
 	}
 	mc.parseTime = mc.cfg.ParseTime
+	mc.disableMilliseconds = mc.cfg.DisableMilliseconds
 
 	// Connect to Server
 	if dial, ok := dials[mc.cfg.Net]; ok {

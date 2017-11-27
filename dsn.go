@@ -56,6 +56,7 @@ type Config struct {
 	InterpolateParams       bool // Interpolate placeholders into query string
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
+	DisableMilliseconds     bool // Disable DATETIME sub-second precision and round time.Time down.
 	RejectReadOnly          bool // Reject read-only connections
 }
 
@@ -223,6 +224,15 @@ func (cfg *Config) FormatDSN() string {
 		} else {
 			hasParam = true
 			buf.WriteString("?parseTime=true")
+		}
+	}
+
+	if cfg.DisableMilliseconds {
+		if hasParam {
+			buf.WriteString("&disableMilliseconds=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?disableMilliseconds=true")
 		}
 	}
 
@@ -484,6 +494,13 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		case "parseTime":
 			var isBool bool
 			cfg.ParseTime, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+
+		case "disableMilliseconds":
+			var isBool bool
+			cfg.DisableMilliseconds, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}

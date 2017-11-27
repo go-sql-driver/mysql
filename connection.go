@@ -41,6 +41,8 @@ type mysqlConn struct {
 	sequence         uint8
 	parseTime        bool
 
+	disableMilliseconds bool
+
 	// for context support (Go 1.8+)
 	watching bool
 	watcher  chan<- mysqlContext
@@ -231,6 +233,9 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 			if v.IsZero() {
 				buf = append(buf, "'0000-00-00'"...)
 			} else {
+				if mc.disableMilliseconds {
+					v = v.Round(time.Second)
+				}
 				v := v.In(mc.cfg.Loc)
 				v = v.Add(time.Nanosecond * 500) // To round under microsecond
 				year := v.Year()
