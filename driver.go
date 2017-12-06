@@ -39,6 +39,9 @@ type watcher interface {
 // MySQLDriver is exported to make the driver directly accessible.
 // In general the driver is used via the database/sql package.
 type MySQLDriver struct {
+}
+
+type MySQLConnector struct {
 	Cfg *Config
 }
 
@@ -59,7 +62,7 @@ func RegisterDial(net string, dial DialFunc) {
 }
 
 //Open a new Connection
-func (d MySQLDriver) connectServer(mc *mysqlConn) error {
+func connectServer(mc *mysqlConn) error {
 	var err error
 	// Connect to Server
 	if dial, ok := dials[mc.cfg.Net]; ok {
@@ -134,7 +137,7 @@ func (d MySQLDriver) connectServer(mc *mysqlConn) error {
 }
 
 //Connect opens a new connection without using a DSN
-func (d MySQLDriver) Connect(cxt context.Context) (driver.Conn, error) {
+func (c MySQLConnector) Connect(cxt context.Context) (driver.Conn, error) {
 	var err error
 
 	//Validate the connection parameters
@@ -142,19 +145,19 @@ func (d MySQLDriver) Connect(cxt context.Context) (driver.Conn, error) {
 	//Pass may be blank
 	//The other optional parameters are not checks
 	//as GO will automatically enforce proper bool types on the options
-	if len(d.Cfg.User) > 32 || len(d.Cfg.User) <= 0 {
+	if len(c.Cfg.User) > 32 || len(c.Cfg.User) <= 0 {
 		return nil, errInvalidUser
 	}
 
-	if len(d.Cfg.Addr) <= 0 {
+	if len(c.Cfg.Addr) <= 0 {
 		return nil, errInvalidAddr
 	}
 
-	if len(d.Cfg.DBName) <= 0 {
+	if len(c.Cfg.DBName) <= 0 {
 		return nil, errInvalidDBName
 	}
 
-	if d.Cfg.Net != "tcp" {
+	if c.Cfg.Net != "tcp" {
 		return nil, errInvalidNet
 	}
 
@@ -163,12 +166,12 @@ func (d MySQLDriver) Connect(cxt context.Context) (driver.Conn, error) {
 		maxAllowedPacket: maxPacketSize,
 		maxWriteSize:     maxPacketSize - 1,
 		closech:          make(chan struct{}),
-		cfg:              d.Cfg,
-		parseTime:        d.Cfg.ParseTime,
+		cfg:              c.Cfg,
+		parseTime:        c.Cfg.ParseTime,
 	}
 
 	//Connect to the server and setting the connection settings
-	err = d.connectServer(mc)
+	err = connectServer(mc)
 	if err != nil {
 		return nil, err
 	}
@@ -179,6 +182,11 @@ func (d MySQLDriver) Connect(cxt context.Context) (driver.Conn, error) {
 
 //Driver returns a driver interface
 func (d MySQLDriver) Driver() driver.Driver {
+	return MySQLDriver{}
+}
+
+//Driver returns a driver interface
+func (c MySQLConnector) Driver() driver.Driver {
 	return MySQLDriver{}
 }
 
@@ -200,7 +208,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	}
 	mc.parseTime = mc.cfg.ParseTime
 
-	err = d.connectServer(mc)
+	err = connectServer(mc)
 	// Connect to Server
 	if err != nil {
 		return nil, err
