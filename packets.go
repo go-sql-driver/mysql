@@ -157,6 +157,11 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 func (mc *mysqlConn) readInitPacket() ([]byte, error) {
 	data, err := mc.readPacket()
 	if err != nil {
+		// for init we can rewrite this to ErrBadConn for sql.Driver to retry, since
+		// in connection initialization we don't risk retrying non-idempotent actions.
+		if err == ErrInvalidConn {
+			return nil, driver.ErrBadConn
+		}
 		return nil, err
 	}
 
