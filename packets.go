@@ -912,6 +912,11 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	const minPktLen = 4 + 1 + 4 + 1 + 4
 	mc := stmt.mc
 
+	longDataSize := mc.maxAllowedPacket / stmt.paramCount
+	if longDataSize < 16 {
+		longDataSize = 16
+	}
+
 	// Reset packet-sequence
 	mc.sequence = 0
 
@@ -1039,7 +1044,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 					paramTypes[i+i] = byte(fieldTypeString)
 					paramTypes[i+i+1] = 0x00
 
-					if len(v) < mc.maxAllowedPacket-pos-len(paramValues)-(len(args)-(i+1))*64 {
+					if len(v) < longDataSize {
 						paramValues = appendLengthEncodedInteger(paramValues,
 							uint64(len(v)),
 						)
@@ -1061,7 +1066,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				paramTypes[i+i] = byte(fieldTypeString)
 				paramTypes[i+i+1] = 0x00
 
-				if len(v) < mc.maxAllowedPacket-pos-len(paramValues)-(len(args)-(i+1))*64 {
+				if len(v) < longDataSize {
 					paramValues = appendLengthEncodedInteger(paramValues,
 						uint64(len(v)),
 					)
