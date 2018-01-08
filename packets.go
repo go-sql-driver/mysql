@@ -912,9 +912,10 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	const minPktLen = 4 + 1 + 4 + 1 + 4
 	mc := stmt.mc
 
-	longDataSize := mc.maxAllowedPacket / stmt.paramCount
-	if longDataSize < 16 {
-		longDataSize = 16
+	// Determine threshould dynamically to avoid packet size shortage as possible.
+	longDataSize := mc.maxAllowedPacket / (stmt.paramCount + 1)
+	if longDataSize < 64 {
+		longDataSize = 64
 	}
 
 	// Reset packet-sequence
