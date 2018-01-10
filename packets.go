@@ -697,10 +697,14 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 		if err != nil {
 			return nil, err
 		}
+		pos += n
 
 		// Filler [uint8]
+		pos++
+
 		// Charset [charset, collation uint8]
-		pos += n + 1 + 2
+		columns[i].charSet = data[pos]
+		pos += 2
 
 		// Length [uint32]
 		columns[i].length = binary.LittleEndian.Uint32(data[pos : pos+4])
