@@ -1669,24 +1669,40 @@ func TestStmtMultiRows(t *testing.T) {
 // Regression test for
 // * more than 32 NULL parameters (issue 209)
 // * more parameters than fit into the buffer (issue 201)
+// * parameters * 64 > max_allowed_packet (issue 734)
 func TestPreparedManyCols(t *testing.T) {
-	const numParams = defaultBufSize
+	numParams := []int{32, int(defaultBufSize), 65535}
 	runTests(t, dsn, func(dbt *DBTest) {
-		query := "SELECT ?" + strings.Repeat(",?", numParams-1)
-		stmt, err := dbt.db.Prepare(query)
-		if err != nil {
-			dbt.Fatal(err)
-		}
-		defer stmt.Close()
-		// create more parameters than fit into the buffer
-		// which will take nil-values
-		params := make([]interface{}, numParams)
-		rows, err := stmt.Query(params...)
-		if err != nil {
+		for _, np := range numParams {
+			query := "SELECT ?" + strings.Repeat(",?", np-1)
+			stmt, err := dbt.db.Prepare(query)
+			if err != nil {
+				dbt.Fatal(err)
+			}
+
+			// create more parameters than fit into the buffer
+			// which will take nil-values
+			params := make([]interface{}, np)
+			rows, err := stmt.Query(params...)
+			if err != nil {
+				stmt.Close()
+				dbt.Fatal(err)
+			}
+			rows.Close()
+
+			// Create 0byte string which we can't send via STMT_LONG_DATA.
+			for i := 0; i < np; i++ {
+				params[i] = ""
+			}
+			rows, err = stmt.Query(params...)
+			if err != nil {
+				stmt.Close()
+				dbt.Fatal(err)
+			}
+			rows.Close()
+
 			stmt.Close()
-			dbt.Fatal(err)
 		}
-		defer rows.Close()
 	})
 }
 
