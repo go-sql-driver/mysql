@@ -71,6 +71,9 @@ var testDSNs = []struct {
 }, {
 	"tcp(de:ad:be:ef::ca:fe)/dbname",
 	&Config{Net: "tcp", Addr: "[de:ad:be:ef::ca:fe]:3306", DBName: "dbname", Collation: "utf8_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true},
+}, {
+	"tcp(127.0.0.1)/dbname?connectionAttributes=program_name:SomeService",
+	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Attributes: map[string]string{"program_name": "SomeService"}, Collation: "utf8_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true},
 },
 }
 
@@ -315,6 +318,20 @@ func TestParamsAreSorted(t *testing.T) {
 	actual := cfg.FormatDSN()
 	if actual != expected {
 		t.Errorf("generic Config.Params were not sorted: want %#v, got %#v", expected, actual)
+	}
+}
+
+func TestAttributesAreSorted(t *testing.T) {
+	expected := "/dbname?connectionAttributes=p1:v1,p2:v2"
+	cfg := NewConfig()
+	cfg.DBName = "dbname"
+	cfg.Attributes = map[string]string{
+		"p2": "v2",
+		"p1": "v1",
+	}
+	actual := cfg.FormatDSN()
+	if actual != expected {
+		t.Errorf("generic Config.Attributes were not sorted: want %#v, got %#v", expected, actual)
 	}
 }
 

@@ -2074,6 +2074,45 @@ func TestEmptyPassword(t *testing.T) {
 		if !strings.HasPrefix(err.Error(), "Error 1045") {
 			t.Fatal(err.Error())
 		}
+  }
+}
+
+func TestConnectionAttributes(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	db, err := sql.Open("mysql", dsn+"&connectionAttributes=program_name:GoTest,foo:bar")
+	if err != nil {
+		t.Fatalf("error connecting: %s", err.Error())
+	}
+	defer db.Close()
+	dbt := &DBTest{t, db}
+
+	rows, err := dbt.db.Query("SELECT program_name FROM sys.processlist WHERE db=?", dbname)
+	if err != nil {
+		dbt.Skip("server probably does not support program_name in sys.processlist")
+	}
+
+	if rows.Next() {
+		var str string
+		rows.Scan(&str)
+		if "GoTest" != str {
+			dbt.Errorf("GoTest != %s", str)
+		}
+	} else {
+		dbt.Error("no data")
+	}
+
+	rows = dbt.mustQuery("select attr_value from performance_schema.session_account_connect_attrs where processlist_id=CONNECTION_ID() and attr_name='foo'")
+	if rows.Next() {
+		var str string
+		rows.Scan(&str)
+		if "bar" != str {
+			dbt.Errorf("bar != %s", str)
+		}
+	} else {
+		dbt.Error("no data")
 	}
 }
 

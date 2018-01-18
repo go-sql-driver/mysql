@@ -202,10 +202,15 @@ func (mc *mysqlConn) readHandshakePacket() ([]byte, string, error) {
 	if len(data) > pos {
 		// character set [1 byte]
 		// status flags [2 bytes]
+		pos += 1 + 2
+
 		// capability flags (upper 2 bytes) [2 bytes]
+		mc.flags |= clientFlag(uint32(binary.LittleEndian.Uint16(data[pos:pos+2])) << 16)
+		pos += 2
+
 		// length of auth-plugin-data [1 byte]
 		// reserved (all [00]) [10 bytes]
-		pos += 1 + 2 + 2 + 1 + 10
+		pos += 1 + 10
 
 		// second part of the password cipher [mininum 13 bytes],
 		// where len=MAX(13, length of auth-plugin-data - 8)
@@ -282,6 +287,24 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, addNUL bool, 
 	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1 + len(authRespLEI) + len(authResp) + 21 + 1
 	if addNUL {
 		pktLen++
+	}
+
+	connectAttrsBuf := make([]byte, 0, 100)
+	if mc.flags&clientConnectAttrs != 0 {
+		clientFlags |= clientConnectAttrs
+		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte("_client_name"))
+		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte("go-mysql-driver"))
+
+		for k, v := range mc.cfg.Attributes {
+			if k == "_client_name" {
+				// do not allow overwriting reserved values
+				continue
+			}
+			connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte(k))
+			connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte(v))
+		}
+		connectAttrsBuf = appendLengthEncodedString(make([]byte, 0, 100), connectAttrsBuf)
+		pktLen += len(connectAttrsBuf)
 	}
 
 	// To specify a db name
@@ -367,6 +390,11 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, addNUL bool, 
 
 	pos += copy(data[pos:], plugin)
 	data[pos] = 0x00
+	pos++
+
+	if clientFlags&clientConnectAttrs != 0 {
+		pos += copy(data[pos:], connectAttrsBuf)
+	}
 
 	// Send Auth packet
 	return mc.writePacket(data)
