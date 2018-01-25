@@ -56,6 +56,30 @@ func TestScanNullTime(t *testing.T) {
 	}
 }
 
+func TestNewTime(t *testing.T) {
+	tests := []struct {
+		time          time.Time
+		expectedValid bool
+	}{
+		{
+			time:          time.Now(),
+			expectedValid: true,
+		},
+		{
+			time:          time.Time{},
+			expectedValid: false,
+		},
+	}
+
+	for _, tt := range tests {
+		nullTime := NewTime(tt.time)
+
+		if nullTime.Valid != tt.expectedValid {
+			t.Errorf("expectedValid: %v got: %v", tt.expectedValid, nullTime.Valid)
+		}
+	}
+}
+
 func TestLengthEncodedInteger(t *testing.T) {
 	var integerTests = []struct {
 		num     uint64
