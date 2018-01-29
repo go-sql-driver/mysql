@@ -137,10 +137,15 @@ func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
 		return v, nil
 	}
 
-	if v != nil {
-		if valuer, ok := v.(driver.Valuer); ok {
-			return valuer.Value()
+	if vr, ok := v.(driver.Valuer); ok {
+		sv, err := callValuerValue(vr)
+		if err != nil {
+			return nil, err
 		}
+		if !driver.IsValue(sv) {
+			return nil, fmt.Errorf("non-Value type %T returned from Value", sv)
+		}
+		return sv, nil
 	}
 
 	rv := reflect.ValueOf(v)
@@ -149,8 +154,9 @@ func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
 		// indirect pointers
 		if rv.IsNil() {
 			return nil, nil
+		} else {
+			return c.ConvertValue(rv.Elem().Interface())
 		}
-		return c.ConvertValue(rv.Elem().Interface())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return rv.Int(), nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
@@ -175,4 +181,25 @@ func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
 		return rv.String(), nil
 	}
 	return nil, fmt.Errorf("unsupported type %T, a %s", v, rv.Kind())
+}
+
+var valuerReflectType = reflect.TypeOf((*driver.Valuer)(nil)).Elem()
+
+// callValuerValue returns vr.Value(), with one exception:
+// If vr.Value is an auto-generated method on a pointer type and the
+// pointer is nil, it would panic at runtime in the panicwrap
+// method. Treat it like nil instead.
+//
+// This is so people can implement driver.Value on value types and
+// still use nil pointers to those types to mean nil/NULL, just like
+// string/*string.
+//
+// This function is copied from the database/sql package.
+func callValuerValue(vr driver.Valuer) (v driver.Value, err error) {
+	if rv := reflect.ValueOf(vr); rv.Kind() == reflect.Ptr &&
+		rv.IsNil() &&
+		rv.Type().Elem().Implements(valuerReflectType) {
+		return nil, nil
+	}
+	return vr.Value()
 }
