@@ -1,0 +1,5 @@
+[mysqld]
+innodb_log_file_size=256MB
+innodb_buffer_pool_size=512MB
+max_allowed_packet=16MB
+local-infile=1

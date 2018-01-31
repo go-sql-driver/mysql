@@ -1,0 +1,15 @@
+# see CONTRIBUTING.md
+---
+version: '3'
+services:
+  mysql:
+    image: ${MYSQL_IMAGE:-mysql:5.7}
+    environment:
+      - MYSQL_ROOT_PASSWORD=verysecret
+      - MYSQL_USER=gotest
+      - MYSQL_PASSWORD=secret
+      - MYSQL_DATABASE=gotest
+    ports:
+      - 127.0.0.1:3307:3306
+    volumes:
+      - .testing/testing-server.cnf:/etc/mysql/conf.d/testing-server.cnf
