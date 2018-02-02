@@ -10,7 +10,6 @@ package mysql
 
 import (
 	"database/sql/driver"
-	"fmt"
 	"io"
 	"reflect"
 	"strconv"
@@ -132,47 +131,33 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 
 type converter struct{}
 
+// ConvertValue differs from defaultConverter.ConverValue for uint64 with the high bit set only
+// all other conversion requests return driver.ErrSkip to defer to the default converter
 func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
 	if driver.IsValue(v) {
 		return v, nil
 	}
 
-	if v != nil {
-		if valuer, ok := v.(driver.Valuer); ok {
-			return valuer.Value()
-		}
+	// even when uint64 is the underlying type, a custom Valuer should take precedence
+	if _, ok := v.(driver.Valuer); ok {
+		return v, driver.ErrSkip
 	}
 
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.Ptr:
-		// indirect pointers
 		if rv.IsNil() {
 			return nil, nil
 		}
+		// recursively handle *uint64, **uint64 etc
 		return c.ConvertValue(rv.Elem().Interface())
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return rv.Int(), nil
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
-		return int64(rv.Uint()), nil
 	case reflect.Uint64:
 		u64 := rv.Uint()
 		if u64 >= 1<<63 {
+			// The defaultConverter errors in this case - we convert to a string
 			return strconv.FormatUint(u64, 10), nil
 		}
-		return int64(u64), nil
-	case reflect.Float32, reflect.Float64:
-		return rv.Float(), nil
-	case reflect.Bool:
-		return rv.Bool(), nil
-	case reflect.Slice:
-		ek := rv.Type().Elem().Kind()
-		if ek == reflect.Uint8 {
-			return rv.Bytes(), nil
-		}
-		return nil, fmt.Errorf("unsupported type %T, a slice of %s", v, ek)
-	case reflect.String:
-		return rv.String(), nil
 	}
-	return nil, fmt.Errorf("unsupported type %T, a %s", v, rv.Kind())
+
+	return v, driver.ErrSkip
 }

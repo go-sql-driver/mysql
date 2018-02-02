@@ -547,6 +547,7 @@ func TestValuerWithValidation(t *testing.T) {
 		var out string
 		var rows *sql.Rows
 
+		dbt.mustExec("DROP TABLE IF EXISTS testValuer")
 		dbt.mustExec("CREATE TABLE testValuer (value VARCHAR(255)) CHARACTER SET utf8")
 		dbt.mustExec("INSERT INTO testValuer VALUES (?)", in)
 
@@ -568,6 +569,10 @@ func TestValuerWithValidation(t *testing.T) {
 
 		if _, err := dbt.db.Exec("INSERT INTO testValuer VALUES (?)", nil); err != nil {
 			dbt.Errorf("Failed to check nil")
+		}
+
+		if _, err := dbt.db.Exec("INSERT INTO testValuer VALUES (?)", (*testValuerWithValidation)(nil)); err != nil {
+			dbt.Errorf("Failed to check typed nil")
 		}
 
 		if _, err := dbt.db.Exec("INSERT INTO testValuer VALUES (?)", map[string]bool{}); err == nil {
