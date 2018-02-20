@@ -312,7 +312,7 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		return nil, driver.ErrBadConn
 	}
 	if len(args) != 0 {
-		if !mc.cfg.InterpolateParams {
+		if !mc.cfg.InterpolateParams && !mc.cfg.MultiStatements {
 			return nil, driver.ErrSkip
 		}
 		// try to interpolate the parameters to save extra roundtrips for preparing and closing a statement
@@ -373,7 +373,7 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 		return nil, driver.ErrBadConn
 	}
 	if len(args) != 0 {
-		if !mc.cfg.InterpolateParams {
+		if !mc.cfg.InterpolateParams && !mc.cfg.MultiStatements {
 			return nil, driver.ErrSkip
 		}
 		// try client-side prepare to reduce roundtrip
