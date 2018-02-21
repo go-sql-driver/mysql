@@ -170,14 +170,30 @@ func (c MySQLConnector) Connect(cxt context.Context) (driver.Conn, error) {
 		parseTime:        c.Cfg.ParseTime,
 	}
 
-	//Connect to the server and setting the connection settings
-	err = connectServer(mc)
-	if err != nil {
-		return nil, err
+	//Check if the there is a canelation before creating the connection
+	select {
+	case <-cxt.Done():
+		return nil, cxt.Err()
+	default:
+		//Connect to the server and setting the connection settings
+		err = connectServer(mc)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return mc, nil
+	//Check to see if there was a canelation during creating the connection
+	select {
+	case <-cxt.Done():
+		err = mc.Close()
+		if err != nil {
+			return nil, errors.New(cxt.Err().Error() + ":" + err.Error())
+		}
 
+		return nil, cxt.Err()
+	default:
+		return mc, nil
+	}
 }
 
 //Driver returns a driver interface
