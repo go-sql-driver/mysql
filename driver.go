@@ -184,9 +184,8 @@ func (c MySQLConnector) Connect(cxt context.Context) (driver.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		return mc, nil
 	}
+	return mc, nil
 }
 
 //Driver returns a driver interface
