@@ -62,14 +62,18 @@ func RegisterDial(net string, dial DialFunc) {
 }
 
 //Open a new Connection
-func connectServer(mc *mysqlConn) error {
+func connectServer(cxt context.Context, mc *mysqlConn) error {
 	var err error
 	// Connect to Server
 	if dial, ok := dials[mc.cfg.Net]; ok {
 		mc.netConn, err = dial(mc.cfg.Addr)
 	} else {
 		nd := net.Dialer{Timeout: mc.cfg.Timeout}
-		mc.netConn, err = nd.Dial(mc.cfg.Net, mc.cfg.Addr)
+		if cxt == nil {
+			mc.netConn, err = nd.Dial(mc.cfg.Net, mc.cfg.Addr)
+		} else {
+			mc.netConn, err = nd.DialContext(cxt, mc.cfg.Net, mc.cfg.Addr)
+		}
 	}
 	if err != nil {
 		return err
@@ -176,22 +180,11 @@ func (c MySQLConnector) Connect(cxt context.Context) (driver.Conn, error) {
 		return nil, cxt.Err()
 	default:
 		//Connect to the server and setting the connection settings
-		err = connectServer(mc)
+		err = connectServer(cxt, mc)
 		if err != nil {
 			return nil, err
 		}
-	}
 
-	//Check to see if there was a canelation during creating the connection
-	select {
-	case <-cxt.Done():
-		err = mc.Close()
-		if err != nil {
-			return nil, errors.New(cxt.Err().Error() + ":" + err.Error())
-		}
-
-		return nil, cxt.Err()
-	default:
 		return mc, nil
 	}
 }
@@ -224,7 +217,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	}
 	mc.parseTime = mc.cfg.ParseTime
 
-	err = connectServer(mc)
+	err = connectServer(nil, mc)
 	// Connect to Server
 	if err != nil {
 		return nil, err
