@@ -800,7 +800,7 @@ func (ab *atomicBool) TrySet(value bool) bool {
 	return atomic.SwapUint32(&ab.value, 0) > 0
 }
 
-// atomicBool is a wrapper for atomically accessed error values
+// atomicError is a wrapper for atomically accessed error values
 type atomicError struct {
 	_noCopy noCopy
 	value   atomic.Value
