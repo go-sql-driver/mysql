@@ -132,6 +132,11 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 
 type converter struct{}
 
+// ConvertValue mirrors the reference/default converter in database/sql/driver
+// with _one_ exception.  We support uint64 with their high bit and the default
+// implementation does not.  This function should be kept in sync with
+// database/sql/driver defaultConverter.ConvertValue() except for that
+// deliberate difference.
 func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
 	if driver.IsValue(v) {
 		return v, nil
@@ -194,7 +199,8 @@ var valuerReflectType = reflect.TypeOf((*driver.Valuer)(nil)).Elem()
 // still use nil pointers to those types to mean nil/NULL, just like
 // string/*string.
 //
-// This function is copied from the database/sql package.
+// This is an exact copy of the same-named unexported function from the
+// database/sql package.
 func callValuerValue(vr driver.Valuer) (v driver.Value, err error) {
 	if rv := reflect.ValueOf(vr); rv.Kind() == reflect.Ptr &&
 		rv.IsNil() &&
