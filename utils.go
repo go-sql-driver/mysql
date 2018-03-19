@@ -537,7 +537,7 @@ func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
 
 	// Check data length
 	if len(b) >= n {
-		return b[n-int(num) : n], false, n, nil
+		return b[n-int(num) : n : n], false, n, nil
 	}
 	return nil, false, n, io.EOF
 }
@@ -566,8 +566,8 @@ func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
 	if len(b) == 0 {
 		return 0, true, 1
 	}
-	switch b[0] {
 
+	switch b[0] {
 	// 251: NULL
 	case 0xfb:
 		return 0, true, 1
@@ -800,7 +800,7 @@ func (ab *atomicBool) TrySet(value bool) bool {
 	return atomic.SwapUint32(&ab.value, 0) > 0
 }
 
-// atomicBool is a wrapper for atomically accessed error values
+// atomicError is a wrapper for atomically accessed error values
 type atomicError struct {
 	_noCopy noCopy
 	value   atomic.Value
