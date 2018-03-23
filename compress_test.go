@@ -208,13 +208,10 @@ func TestRoundtrip(t *testing.T) {
 
 	for _, test := range tests {
 		s := fmt.Sprintf("Test roundtrip with %s", test.desc)
-		//t.Run(s, func(t *testing.T) {
 
 		uncompressed := roundtripHelper(t, cSend, cReceive, test.uncompressed)
 		if bytes.Compare(uncompressed, test.uncompressed) != 0 {
 			t.Fatal(fmt.Sprintf("%s: roundtrip failed", s))
 		}
-
-		//})
 	}
 }

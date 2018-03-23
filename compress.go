@@ -97,7 +97,7 @@ func (cr *compressedReader) uncompressPacket() error {
 
 	defer cr.zr.Close()
 
-	//use existing capacity in bytesBuf if possible
+	// use existing capacity in bytesBuf if possible
 	offset := len(cr.bytesBuf)
 	if cap(cr.bytesBuf)-offset < uncompressedLength {
 		old := cr.bytesBuf
@@ -220,7 +220,7 @@ func (cw *compressedWriter) writeToNetwork(data []byte, uncomprLength int) error
 
 	data[3] = cw.mc.compressionSequence
 
-	//this value is never greater than maxPayloadLength
+	// this value is never greater than maxPayloadLength
 	data[4] = byte(0xff & uncomprLength)
 	data[5] = byte(0xff & (uncomprLength >> 8))
 	data[6] = byte(0xff & (uncomprLength >> 16))
