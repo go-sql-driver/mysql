@@ -30,6 +30,8 @@ type mysqlContext interface {
 type mysqlConn struct {
 	buf                 buffer
 	netConn             net.Conn
+	reader              packetReader
+	writer              io.Writer
 	affectedRows        uint64
 	insertId            uint64
 	cfg                 *Config
@@ -41,8 +43,6 @@ type mysqlConn struct {
 	sequence            uint8
 	compressionSequence uint8
 	parseTime           bool
-	reader              packetReader
-	writer              io.Writer
 
 	// for context support (Go 1.8+)
 	watching bool
@@ -51,6 +51,10 @@ type mysqlConn struct {
 	finished chan<- struct{}
 	canceled atomicError // set non-nil if conn is canceled
 	closed   atomicBool  // set when conn is closed, before closech is closed
+}
+
+type packetReader interface {
+	readNext(need int) ([]byte, error)
 }
 
 // Handles parameters set in DSN after the connection is established

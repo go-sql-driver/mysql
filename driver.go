@@ -123,7 +123,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		return nil, err
 	}
 
-	if mc.cfg.Compression {
+	if mc.cfg.Compress {
 		mc.reader = NewCompressedReader(&mc.buf, mc)
 		mc.writer = NewCompressedWriter(mc.writer, mc)
 	}

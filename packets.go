@@ -258,7 +258,7 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 		clientFlags |= clientFoundRows
 	}
 
-	if mc.cfg.Compression {
+	if mc.cfg.Compress {
 		clientFlags |= clientCompress
 	}
 

@@ -10,10 +10,6 @@ const (
 	minCompressLength = 50
 )
 
-type packetReader interface {
-	readNext(need int) ([]byte, error)
-}
-
 type compressedReader struct {
 	buf      packetReader
 	bytesBuf []byte
@@ -151,7 +147,7 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 		payloadLen := len(payload)
 
 		bytesBuf := &bytes.Buffer{}
-		bytesBuf.Write(blankHeader) 
+		bytesBuf.Write(blankHeader)
 		cw.zw.Reset(bytesBuf)
 		_, err := cw.zw.Write(payload)
 		if err != nil {
@@ -162,7 +158,7 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 		// if compression expands the payload, do not compress
 		compressedPayload := bytesBuf.Bytes()
 		if len(compressedPayload) > maxPayloadLength {
-			compressedPayload = append(blankHeader, payload...) 
+			compressedPayload = append(blankHeader, payload...)
 			payloadLen = 0
 		}
 
@@ -180,7 +176,7 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 
 	// do not attempt compression if packet is too small
 	if payloadLen < minCompressLength {
-		err := cw.writeToNetwork(append(blankHeader, data...), 0) 
+		err := cw.writeToNetwork(append(blankHeader, data...), 0)
 		if err != nil {
 			return 0, err
 		}
@@ -199,7 +195,7 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 	compressedPayload := bytesBuf.Bytes()
 
 	if len(compressedPayload) > len(data) {
-		compressedPayload = append(blankHeader, data...) 
+		compressedPayload = append(blankHeader, data...)
 		payloadLen = 0
 	}
 

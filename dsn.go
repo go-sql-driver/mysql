@@ -53,7 +53,7 @@ type Config struct {
 	AllowOldPasswords       bool // Allows the old insecure password method
 	ClientFoundRows         bool // Return number of matching rows instead of rows changed
 	ColumnsWithAlias        bool // Prepend table alias to column names
-	Compression             bool // Compress packets
+	Compress                bool // Compress packets
 	InterpolateParams       bool // Interpolate placeholders into query string
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
@@ -464,7 +464,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		// Compression
 		case "compress":
 			var isBool bool
-			cfg.Compression, isBool = readBool(value)
+			cfg.Compress, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}
