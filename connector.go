@@ -58,9 +58,7 @@ func (c Connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	// Call startWatcher for context support (From Go 1.8)
-	if s, ok := interface{}(mc).(watcher); ok {
-		s.startWatcher()
-	}
+	mc.startWatcher()
 	if err := mc.watchCancel(ctx); err != nil {
 		return nil, err
 	}
