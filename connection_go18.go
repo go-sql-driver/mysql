@@ -200,3 +200,13 @@ func (mc *mysqlConn) CheckNamedValue(nv *driver.NamedValue) (err error) {
 	nv.Value, err = converter{}.ConvertValue(nv.Value)
 	return
 }
+
+// ResetSession implements driver.SessionResetter.
+// (From Go 1.10)
+func (mc *mysqlConn) ResetSession(ctx context.Context) error {
+	if mc.closed.IsSet() {
+		errLog.Print(ErrInvalidConn)
+		return driver.ErrBadConn
+	}
+	return nil
+}
