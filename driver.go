@@ -150,6 +150,9 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		return nil, err
 	}
 
+	mc.d = d
+	mc.dsn = dsn
+
 	return mc, nil
 }
 

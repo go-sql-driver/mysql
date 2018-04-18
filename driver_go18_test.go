@@ -17,8 +17,16 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
+)
+
+// timeouts for cancelling queries
+var (
+	killTimeout  = 5 * time.Second
+	getIdTimeout = 5 * time.Second
+	pollTimeout  = 100 * time.Millisecond
 )
 
 // static interface implementation checks of mysqlConn
@@ -51,6 +59,141 @@ var (
 	_ driver.RowsNextResultSet              = &binaryRows{}
 	_ driver.RowsNextResultSet              = &textRows{}
 )
+
+// dbProcess represents information about process from 'show processlist' command
+type dbProcess struct {
+	ID   int
+	User string
+	Host string
+	DB   string
+	Info string
+}
+
+func getProcesslist(dbName string, db *sql.DB) ([]dbProcess, error) {
+	rows, err := db.Query(`SELECT id, user, host, db, IFNULL(info, '') FROM information_schema.processlist WHERE db = ?`, dbName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []dbProcess
+	for rows.Next() {
+		p := dbProcess{}
+		if err := rows.Scan(&p.ID, &p.User, &p.Host, &p.DB, &p.Info); err != nil {
+			return nil, err
+		}
+		result = append(result, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func checkProcessExists(dbName string, id int, db *sql.DB) bool {
+	exists := false
+	db.QueryRow("SELECT count(*) > 0 FROM information_schema.processlist WHERE db = ? AND id = ?", dbName, id).Scan(&exists)
+	return exists
+}
+
+func getQueryProcess(db *sql.DB, dbName, query string) (*dbProcess, error) {
+	end := time.Now().Add(getIdTimeout)
+	var (
+		err         error
+		processList []dbProcess
+		longProcess *dbProcess
+	)
+	for time.Now().Before(end) {
+		processList, err = getProcesslist(dbName, db)
+
+		longProcess = nil
+		for _, p := range processList {
+			if len(p.Info) > 0 && strings.HasPrefix(query, p.Info) {
+				longProcess = &p
+				break
+			}
+		}
+
+		if err != nil || longProcess == nil {
+			time.Sleep(pollTimeout)
+		} else {
+			break
+		}
+	}
+	if longProcess == nil {
+		return nil, fmt.Errorf("process for query \"%s\" not found", query)
+	}
+	return longProcess, err
+}
+
+func killQuery(db *sql.DB, dbName, query string, cancel context.CancelFunc) error {
+	process, err := getQueryProcess(db, dbName, query)
+	if err != nil {
+		return fmt.Errorf("failed to get mysql process: %v", err)
+	}
+	cancel()
+
+	end := time.Now().Add(killTimeout)
+	for time.Now().Before(end) {
+		if checkProcessExists(dbName, process.ID, db) {
+			err = fmt.Errorf("process %d expected to be killed", process.ID)
+			time.Sleep(pollTimeout)
+		} else {
+			err = nil
+			break
+		}
+	}
+	return err
+}
+
+func testCancel(dbt *DBTest, ctx context.Context, cancel context.CancelFunc, query string, queryFunc func() error) {
+	tx, err := dbt.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		dbt.Fatal(err)
+		return
+	}
+
+	_, err = tx.Exec("LOCK TABLES test WRITE")
+	if err != nil {
+		tx.Rollback()
+		dbt.Fatal(err)
+	}
+
+	errChan := make(chan error)
+	go func() {
+		// This query will be canceled.
+		err = queryFunc()
+		if err != nil && err != context.Canceled {
+			errLog.Print(err)
+		}
+		if err != context.Canceled && ctx.Err() != context.Canceled {
+			errChan <- fmt.Errorf("expected context.Canceled, got %v", err)
+		}
+		errChan <- nil
+	}()
+
+	// it is safe to not use timeouts here since they are inside the killQuery function
+	err = killQuery(dbt.db, dbname, query, cancel)
+	if err != nil {
+		dbt.Error(err)
+		return
+	}
+
+	// it is safe to block here since if reached this line then
+	// query has already been killed
+	err = <-errChan
+	if err != nil {
+		dbt.Error(err)
+		return
+	}
+
+	_, err = tx.Exec("UNLOCK TABLES")
+	if err != nil {
+		tx.Rollback()
+		dbt.Fatal(err)
+	}
+	tx.Commit()
+}
 
 func TestMultiResultSet(t *testing.T) {
 	type result struct {
@@ -246,29 +389,20 @@ func TestContextCancelExec(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
+		exec := "INSERT INTO test VALUES(1)"
 
-		// Delay execution for just a bit until db.ExecContext has begun.
-		defer time.AfterFunc(100*time.Millisecond, cancel).Stop()
-
-		// This query will be canceled.
-		startTime := time.Now()
-		if _, err := dbt.db.ExecContext(ctx, "INSERT INTO test VALUES (SLEEP(1))"); err != context.Canceled {
-			dbt.Errorf("expected context.Canceled, got %v", err)
-		}
-		if d := time.Since(startTime); d > 500*time.Millisecond {
-			dbt.Errorf("too long execution time: %s", d)
-		}
-
-		// Wait for the INSERT query has done.
-		time.Sleep(time.Second)
+		testCancel(dbt, ctx, cancel, exec, func() error {
+			_, err := dbt.db.ExecContext(ctx, exec)
+			return err
+		})
 
 		// Check how many times the query is executed.
 		var v int
 		if err := dbt.db.QueryRow("SELECT COUNT(*) FROM test").Scan(&v); err != nil {
 			dbt.Fatalf("%s", err.Error())
 		}
-		if v != 1 { // TODO: need to kill the query, and v should be 0.
-			dbt.Errorf("expected val to be 1, got %d", v)
+		if v != 0 {
+			dbt.Errorf("expected val to be 0, got %d", v)
 		}
 
 		// Context is already canceled, so error should come before execution.
@@ -282,8 +416,8 @@ func TestContextCancelExec(t *testing.T) {
 		if err := dbt.db.QueryRow("SELECT COUNT(*) FROM test").Scan(&v); err != nil {
 			dbt.Fatalf("%s", err.Error())
 		}
-		if v != 1 {
-			dbt.Errorf("expected val to be 1, got %d", v)
+		if v != 0 {
+			dbt.Errorf("expected val to be 0, got %d", v)
 		}
 	})
 }
@@ -292,29 +426,20 @@ func TestContextCancelQuery(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
+		query := "SELECT 1 FROM test"
 
-		// Delay execution for just a bit until db.ExecContext has begun.
-		defer time.AfterFunc(100*time.Millisecond, cancel).Stop()
-
-		// This query will be canceled.
-		startTime := time.Now()
-		if _, err := dbt.db.QueryContext(ctx, "INSERT INTO test VALUES (SLEEP(1))"); err != context.Canceled {
-			dbt.Errorf("expected context.Canceled, got %v", err)
-		}
-		if d := time.Since(startTime); d > 500*time.Millisecond {
-			dbt.Errorf("too long execution time: %s", d)
-		}
-
-		// Wait for the INSERT query has done.
-		time.Sleep(time.Second)
+		testCancel(dbt, ctx, cancel, query, func() error {
+			_, err := dbt.db.QueryContext(ctx, query)
+			return err
+		})
 
 		// Check how many times the query is executed.
 		var v int
 		if err := dbt.db.QueryRow("SELECT COUNT(*) FROM test").Scan(&v); err != nil {
 			dbt.Fatalf("%s", err.Error())
 		}
-		if v != 1 { // TODO: need to kill the query, and v should be 0.
-			dbt.Errorf("expected val to be 1, got %d", v)
+		if v != 0 {
+			dbt.Errorf("expected val to be 0, got %d", v)
 		}
 
 		// Context is already canceled, so error should come before execution.
@@ -326,8 +451,8 @@ func TestContextCancelQuery(t *testing.T) {
 		if err := dbt.db.QueryRow("SELECT COUNT(*) FROM test").Scan(&v); err != nil {
 			dbt.Fatalf("%s", err.Error())
 		}
-		if v != 1 {
-			dbt.Errorf("expected val to be 1, got %d", v)
+		if v != 0 {
+			dbt.Errorf("expected val to be 0, got %d", v)
 		}
 	})
 }
@@ -379,32 +504,24 @@ func TestContextCancelStmtExec(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
-		stmt, err := dbt.db.PrepareContext(ctx, "INSERT INTO test VALUES (SLEEP(1))")
+		exec := "INSERT INTO test VALUES(1)"
+
+		stmt, err := dbt.db.PrepareContext(ctx, exec)
 		if err != nil {
 			dbt.Fatalf("unexpected error: %v", err)
 		}
 
-		// Delay execution for just a bit until db.ExecContext has begun.
-		defer time.AfterFunc(100*time.Millisecond, cancel).Stop()
-
-		// This query will be canceled.
-		startTime := time.Now()
-		if _, err := stmt.ExecContext(ctx); err != context.Canceled {
-			dbt.Errorf("expected context.Canceled, got %v", err)
-		}
-		if d := time.Since(startTime); d > 500*time.Millisecond {
-			dbt.Errorf("too long execution time: %s", d)
-		}
-
-		// Wait for the INSERT query has done.
-		time.Sleep(time.Second)
+		testCancel(dbt, ctx, cancel, exec, func() error {
+			_, err := stmt.ExecContext(ctx)
+			return err
+		})
 
 		// Check how many times the query is executed.
 		var v int
 		if err := dbt.db.QueryRow("SELECT COUNT(*) FROM test").Scan(&v); err != nil {
 			dbt.Fatalf("%s", err.Error())
 		}
-		if v != 1 { // TODO: need to kill the query, and v should be 0.
+		if v != 0 {
 			dbt.Errorf("expected val to be 1, got %d", v)
 		}
 	})
@@ -414,32 +531,24 @@ func TestContextCancelStmtQuery(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
-		stmt, err := dbt.db.PrepareContext(ctx, "INSERT INTO test VALUES (SLEEP(1))")
+		query := "SELECT 1 FROM test"
+
+		stmt, err := dbt.db.PrepareContext(ctx, query)
 		if err != nil {
 			dbt.Fatalf("unexpected error: %v", err)
 		}
 
-		// Delay execution for just a bit until db.ExecContext has begun.
-		defer time.AfterFunc(100*time.Millisecond, cancel).Stop()
-
-		// This query will be canceled.
-		startTime := time.Now()
-		if _, err := stmt.QueryContext(ctx); err != context.Canceled {
-			dbt.Errorf("expected context.Canceled, got %v", err)
-		}
-		if d := time.Since(startTime); d > 500*time.Millisecond {
-			dbt.Errorf("too long execution time: %s", d)
-		}
-
-		// Wait for the INSERT query has done.
-		time.Sleep(time.Second)
+		testCancel(dbt, ctx, cancel, query, func() error {
+			_, err := stmt.QueryContext(ctx)
+			return err
+		})
 
 		// Check how many times the query is executed.
 		var v int
 		if err := dbt.db.QueryRow("SELECT COUNT(*) FROM test").Scan(&v); err != nil {
 			dbt.Fatalf("%s", err.Error())
 		}
-		if v != 1 { // TODO: need to kill the query, and v should be 0.
+		if v != 0 {
 			dbt.Errorf("expected val to be 1, got %d", v)
 		}
 	})
@@ -449,22 +558,17 @@ func TestContextCancelBegin(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
+		query := "SELECT 1 FROM test"
+
 		tx, err := dbt.db.BeginTx(ctx, nil)
 		if err != nil {
 			dbt.Fatal(err)
 		}
 
-		// Delay execution for just a bit until db.ExecContext has begun.
-		defer time.AfterFunc(100*time.Millisecond, cancel).Stop()
-
-		// This query will be canceled.
-		startTime := time.Now()
-		if _, err := tx.ExecContext(ctx, "INSERT INTO test VALUES (SLEEP(1))"); err != context.Canceled {
-			dbt.Errorf("expected context.Canceled, got %v", err)
-		}
-		if d := time.Since(startTime); d > 500*time.Millisecond {
-			dbt.Errorf("too long execution time: %s", d)
-		}
+		testCancel(dbt, ctx, cancel, query, func() error {
+			_, err := tx.ExecContext(ctx, query)
+			return err
+		})
 
 		// Transaction is canceled, so expect an error.
 		switch err := tx.Commit(); err {

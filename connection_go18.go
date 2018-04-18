@@ -160,6 +160,10 @@ func (mc *mysqlConn) watchCancel(ctx context.Context) error {
 	select {
 	default:
 	case <-ctx.Done():
+		killErr := mc.kill()
+		if killErr != nil {
+			errLog.Print("failed to kill query: ", killErr)
+		}
 		return ctx.Err()
 	}
 	if mc.watcher == nil {

@@ -48,6 +48,22 @@ type mysqlConn struct {
 	finished chan<- struct{}
 	canceled atomicError // set non-nil if conn is canceled
 	closed   atomicBool  // set when conn is closed, before closech is closed
+
+	// for killing query after timeout
+	id  int
+	d   MySQLDriver
+	dsn string
+}
+
+func (mc *mysqlConn) kill() error {
+	conn, err := mc.d.Open(mc.dsn)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	query := "KILL QUERY " + strconv.Itoa(mc.id)
+	_, err = conn.(*mysqlConn).Exec(query, []driver.Value{})
+	return err
 }
 
 // Handles parameters set in DSN after the connection is established
@@ -445,6 +461,8 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 // finish is called when the query has canceled.
 func (mc *mysqlConn) cancel(err error) {
 	mc.canceled.Set(err)
+	// do not put kill to cleanup to prevent cyclic kills
+	mc.kill()
 	mc.cleanup()
 }
 
