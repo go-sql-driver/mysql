@@ -57,6 +57,9 @@ type Config struct {
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
 	RejectReadOnly          bool // Reject read-only connections
+
+	// Additional Usage
+	MaxRetry int // Max number of retry
 }
 
 // NewConfig creates a new Config and sets default values.
@@ -205,6 +208,16 @@ func (cfg *Config) FormatDSN() string {
 			hasParam = true
 			buf.WriteString("?interpolateParams=true")
 		}
+	}
+
+	if cfg.MaxRetry > 0 {
+		if hasParam {
+			buf.WriteString("&maxRetry=")
+		} else {
+			hasParam = true
+			buf.WriteString("?maxRetry=")
+		}
+		buf.WriteString(strconv.Itoa(cfg.MaxRetry))
 	}
 
 	if cfg.Loc != time.UTC && cfg.Loc != nil {
@@ -561,6 +574,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			if err != nil {
 				return
 			}
+
+		// Max Retry
+		case "maxRetry":
+			cfg.MaxRetry, err = strconv.Atoi(value)
+			if err != nil {
+				return
+			}
+
 		default:
 			// lazy init
 			if cfg.Params == nil {
