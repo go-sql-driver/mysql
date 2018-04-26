@@ -91,6 +91,7 @@ func TestReadPacketSingleByte(t *testing.T) {
 	conn := new(mockConn)
 	mc := &mysqlConn{
 		buf: newBuffer(conn),
+		cfg: NewConfig(),
 	}
 
 	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
@@ -111,6 +112,7 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 	conn := new(mockConn)
 	mc := &mysqlConn{
 		buf: newBuffer(conn),
+		cfg: NewConfig(),
 	}
 
 	// too low sequence id
@@ -139,6 +141,7 @@ func TestReadPacketSplit(t *testing.T) {
 	conn := new(mockConn)
 	mc := &mysqlConn{
 		buf: newBuffer(conn),
+		cfg: NewConfig(),
 	}
 
 	data := make([]byte, maxPacketSize*2+4*3)
@@ -245,6 +248,7 @@ func TestReadPacketFail(t *testing.T) {
 	mc := &mysqlConn{
 		buf:     newBuffer(conn),
 		closech: make(chan struct{}),
+		cfg:     NewConfig(),
 	}
 
 	// illegal empty (stand-alone) packet

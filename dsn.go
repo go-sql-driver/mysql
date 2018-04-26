@@ -57,6 +57,11 @@ type Config struct {
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
 	RejectReadOnly          bool // Reject read-only connections
+
+	// Additional Usage
+	MaxRetry             int        // Max number of retry
+	Intervaler           intervaler // Backoff strategy to be used
+	EnableCircuitBreaker bool       // Enable circuit breaker strategy
 }
 
 // NewConfig creates a new Config and sets default values.
@@ -66,6 +71,7 @@ func NewConfig() *Config {
 		Loc:                  time.UTC,
 		MaxAllowedPacket:     defaultMaxAllowedPacket,
 		AllowNativePasswords: true,
+		Intervaler:           newExponentialBackoff(),
 	}
 }
 
@@ -205,6 +211,25 @@ func (cfg *Config) FormatDSN() string {
 			hasParam = true
 			buf.WriteString("?interpolateParams=true")
 		}
+	}
+
+	if cfg.EnableCircuitBreaker {
+		if hasParam {
+			buf.WriteString("&enableCircuitBreaker=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?enableCircuitBreaker=true")
+		}
+	}
+
+	if cfg.MaxRetry > 0 {
+		if hasParam {
+			buf.WriteString("&maxRetry=")
+		} else {
+			hasParam = true
+			buf.WriteString("?maxRetry=")
+		}
+		buf.WriteString(strconv.Itoa(cfg.MaxRetry))
 	}
 
 	if cfg.Loc != time.UTC && cfg.Loc != nil {
@@ -561,6 +586,22 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			if err != nil {
 				return
 			}
+
+		// Max Retry
+		case "maxRetry":
+			cfg.MaxRetry, err = strconv.Atoi(value)
+			if err != nil {
+				return
+			}
+
+		// Circuit Breaker
+		case "enableCircuitBreaker":
+			var isBool bool
+			cfg.EnableCircuitBreaker, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+
 		default:
 			// lazy init
 			if cfg.Params == nil {
