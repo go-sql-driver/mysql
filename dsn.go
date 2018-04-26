@@ -594,6 +594,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				return
 			}
 
+		// Circuit Breaker
+		case "enableCircuitBreaker":
+			var isBool bool
+			cfg.EnableCircuitBreaker, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+
 		default:
 			// lazy init
 			if cfg.Params == nil {
