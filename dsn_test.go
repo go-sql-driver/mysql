@@ -39,6 +39,12 @@ var testDSNs = []struct {
 	"user:password@tcp(localhost:5555)/dbname?charset=utf8&maxRetry=2",
 	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", Params: map[string]string{"charset": "utf8"}, Collation: "utf8_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, MaxRetry: 2, Intervaler: newExponentialBackoff()},
 }, {
+	"user:password@tcp(localhost:5555)/dbname?enableCircuitBreaker=true",
+	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", Collation: "utf8_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, EnableCircuitBreaker: true, Intervaler: newExponentialBackoff()},
+}, {
+	"user:password@tcp(localhost:5555)/dbname?enableCircuitBreaker=false",
+	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", Collation: "utf8_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, EnableCircuitBreaker: false, Intervaler: newExponentialBackoff()},
+}, {
 	"user:password@tcp(localhost:5555)/dbname?charset=utf8mb4,utf8&tls=skip-verify",
 	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", Params: map[string]string{"charset": "utf8mb4,utf8"}, Collation: "utf8_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, TLSConfig: "skip-verify", Intervaler: newExponentialBackoff()},
 }, {
