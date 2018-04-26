@@ -88,8 +88,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 	}
 }
 
-// Write packet buffer 'data'
-func (mc *mysqlConn) writePacket(data []byte) error {
+func (mc *mysqlConn) writePacketOriginal(data []byte) error {
 	pktLen := len(data) - 4
 
 	if pktLen > mc.maxAllowedPacket {
@@ -146,6 +145,21 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		}
 		return ErrInvalidConn
 	}
+}
+
+// Write packet buffer 'data'
+func (mc *mysqlConn) writePacket(data []byte) error {
+	var err error
+	for i := 0; i <= mc.cfg.MaxRetry; i++ {
+		sleep := mc.cfg.Intervaler.NextInterval(i)
+		time.Sleep(sleep)
+
+		if err = mc.writePacketOriginal(data); err != nil {
+			continue
+		}
+		break
+	}
+	return err
 }
 
 /******************************************************************************
