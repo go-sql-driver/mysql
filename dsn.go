@@ -213,6 +213,15 @@ func (cfg *Config) FormatDSN() string {
 		}
 	}
 
+	if cfg.EnableCircuitBreaker {
+		if hasParam {
+			buf.WriteString("&enableCircuitBreaker=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?enableCircuitBreaker=true")
+		}
+	}
+
 	if cfg.MaxRetry > 0 {
 		if hasParam {
 			buf.WriteString("&maxRetry=")
