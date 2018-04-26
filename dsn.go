@@ -59,8 +59,9 @@ type Config struct {
 	RejectReadOnly          bool // Reject read-only connections
 
 	// Additional Usage
-	MaxRetry   int        // Max number of retry
-	Intervaler intervaler // backoff strategy to be used
+	MaxRetry             int        // Max number of retry
+	Intervaler           intervaler // Backoff strategy to be used
+	EnableCircuitBreaker bool       // Enable circuit breaker strategy
 }
 
 // NewConfig creates a new Config and sets default values.
