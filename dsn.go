@@ -57,6 +57,7 @@ type Config struct {
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
 	RejectReadOnly          bool // Reject read-only connections
+	KillQueryOnTimeout      bool // kill query on the server side if context timed out
 }
 
 // NewConfig creates a new Config and sets default values.
@@ -251,6 +252,15 @@ func (cfg *Config) FormatDSN() string {
 		} else {
 			hasParam = true
 			buf.WriteString("?rejectReadOnly=true")
+		}
+	}
+
+	if cfg.KillQueryOnTimeout {
+		if hasParam {
+			buf.WriteString("&killQueryOnTimeout=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?killQueryOnTimeout=true")
 		}
 	}
 
@@ -508,6 +518,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		case "rejectReadOnly":
 			var isBool bool
 			cfg.RejectReadOnly, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+
+		// Kill queries on context timeout
+		case "killQueryOnTimeout":
+			var isBool bool
+			cfg.KillQueryOnTimeout, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}

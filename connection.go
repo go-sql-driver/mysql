@@ -50,13 +50,18 @@ type mysqlConn struct {
 	closed   atomicBool  // set when conn is closed, before closech is closed
 
 	// for killing query after timeout
-	id  int
-	d   MySQLDriver
-	dsn string
+	id int
+	d  MySQLDriver
 }
 
 func (mc *mysqlConn) kill() error {
-	conn, err := mc.d.Open(mc.dsn)
+	t := 50 * time.Millisecond
+	killCfg := *mc.cfg
+	killCfg.Timeout = t
+	killCfg.ReadTimeout = t
+	killCfg.WriteTimeout = t
+
+	conn, err := mc.d.Open(killCfg.FormatDSN())
 	if err != nil {
 		return err
 	}
@@ -461,8 +466,10 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 // finish is called when the query has canceled.
 func (mc *mysqlConn) cancel(err error) {
 	mc.canceled.Set(err)
-	// do not put kill to cleanup to prevent cyclic kills
-	mc.kill()
+	if mc.cfg.KillQueryOnTimeout {
+		// do not put kill to cleanup to prevent cyclic kills
+		mc.kill()
+	}
 	mc.cleanup()
 }
 

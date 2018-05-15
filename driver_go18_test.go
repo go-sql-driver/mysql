@@ -126,17 +126,19 @@ func getQueryProcess(db *sql.DB, dbName, query string) (*dbProcess, error) {
 	return longProcess, err
 }
 
-func killQuery(db *sql.DB, dbName, query string, cancel context.CancelFunc) error {
+var expectedKilledErr = fmt.Errorf("process expected to be killed")
+
+func killQuery(db *sql.DB, dbName, query string, timeout time.Duration, cancel context.CancelFunc) error {
 	process, err := getQueryProcess(db, dbName, query)
 	if err != nil {
 		return fmt.Errorf("failed to get mysql process: %v", err)
 	}
 	cancel()
 
-	end := time.Now().Add(killTimeout)
+	end := time.Now().Add(timeout)
 	for time.Now().Before(end) {
 		if checkProcessExists(dbName, process.ID, db) {
-			err = fmt.Errorf("process %d expected to be killed", process.ID)
+			err = expectedKilledErr
 			time.Sleep(pollTimeout)
 		} else {
 			err = nil
@@ -173,7 +175,7 @@ func testCancel(dbt *DBTest, ctx context.Context, cancel context.CancelFunc, que
 	}()
 
 	// it is safe to not use timeouts here since they are inside the killQuery function
-	err = killQuery(dbt.db, dbname, query, cancel)
+	err = killQuery(dbt.db, dbname, query, killTimeout, cancel)
 	if err != nil {
 		dbt.Error(err)
 		return
@@ -193,6 +195,62 @@ func testCancel(dbt *DBTest, ctx context.Context, cancel context.CancelFunc, que
 		dbt.Fatal(err)
 	}
 	tx.Commit()
+}
+
+func testCancelNoKill(dbt *DBTest, ctx context.Context, cancel context.CancelFunc, query string, queryFunc func() error) {
+	tx, err := dbt.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		dbt.Fatal(err)
+		return
+	}
+
+	_, err = tx.Exec("LOCK TABLES test WRITE")
+	if err != nil {
+		tx.Rollback()
+		dbt.Fatal(err)
+	}
+
+	errChan := make(chan error)
+	go func() {
+		// This query will be canceled.
+		err = queryFunc()
+		if err != nil && err != context.Canceled {
+			errLog.Print(err)
+		}
+		if err != context.Canceled && ctx.Err() != context.Canceled {
+			errChan <- fmt.Errorf("expected context.Canceled, got %v", err)
+			return
+		}
+		errChan <- nil
+	}()
+
+	// it is safe to not use timeouts here since they are inside the killQuery function
+	err = killQuery(dbt.db, dbname, query, 500*time.Millisecond, cancel)
+	if err != expectedKilledErr {
+		if err == nil {
+			dbt.Errorf("query kill expected to fail")
+		} else {
+			dbt.Errorf(fmt.Sprintf("unexpected error %s", err))
+		}
+	}
+
+	_, err = tx.Exec("UNLOCK TABLES")
+	if err != nil {
+		tx.Rollback()
+		dbt.Fatal(err)
+	}
+	tx.Commit()
+
+	<-errChan
+}
+
+func getKillDSN() string {
+	cfg, err := ParseDSN(dsn)
+	if err != nil {
+		panic(err)
+	}
+	cfg.KillQueryOnTimeout = true
+	return cfg.FormatDSN()
 }
 
 func TestMultiResultSet(t *testing.T) {
@@ -385,8 +443,58 @@ func TestPingContext(t *testing.T) {
 	})
 }
 
-func TestContextCancelExec(t *testing.T) {
+func TestContextCancelNoKill(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (v INTEGER)")
+		ctx, cancel := context.WithCancel(context.Background())
+		exec := "INSERT INTO test VALUES(1)"
+
+		testCancelNoKill(dbt, ctx, cancel, exec, func() error {
+			_, err := dbt.db.ExecContext(ctx, exec)
+			return err
+		})
+
+		// Check how many times the query is executed.
+		var v int
+		var err error
+		for i := 0; i != 3; i++ {
+			err = nil
+			if err := dbt.db.QueryRow("SELECT COUNT(*) FROM test").Scan(&v); err != nil {
+				dbt.Fatalf("%s", err.Error())
+				return
+			}
+			if v != 1 {
+				err = fmt.Errorf("expected val to be 1, got %d", v)
+			}
+
+			if err != nil {
+				time.Sleep(100 * time.Millisecond) // wait while insert is executed after table lock released
+			}
+		}
+		if err != nil {
+			dbt.Error(err)
+			return
+		}
+
+		// Context is already canceled, so error should come before execution.
+		if _, err := dbt.db.ExecContext(ctx, "INSERT INTO test VALUES (1)"); err == nil {
+			dbt.Error("expected error")
+		} else if err.Error() != "context canceled" {
+			dbt.Fatalf("unexpected error: %s", err)
+		}
+
+		// The second insert query will fail, so the table has no changes.
+		if err := dbt.db.QueryRow("SELECT COUNT(*) FROM test").Scan(&v); err != nil {
+			dbt.Fatalf("%s", err.Error())
+		}
+		if v != 1 {
+			dbt.Errorf("expected val to be 1, got %d", v)
+		}
+	})
+}
+
+func TestContextCancelExec(t *testing.T) {
+	runTests(t, getKillDSN(), func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 		exec := "INSERT INTO test VALUES(1)"
@@ -423,7 +531,7 @@ func TestContextCancelExec(t *testing.T) {
 }
 
 func TestContextCancelQuery(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, getKillDSN(), func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 		query := "SELECT 1 FROM test"
@@ -501,7 +609,7 @@ func TestContextCancelPrepare(t *testing.T) {
 }
 
 func TestContextCancelStmtExec(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, getKillDSN(), func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 		exec := "INSERT INTO test VALUES(1)"
@@ -528,7 +636,7 @@ func TestContextCancelStmtExec(t *testing.T) {
 }
 
 func TestContextCancelStmtQuery(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, getKillDSN(), func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 		query := "SELECT 1 FROM test"
@@ -555,7 +663,7 @@ func TestContextCancelStmtQuery(t *testing.T) {
 }
 
 func TestContextCancelBegin(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, getKillDSN(), func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 		query := "SELECT 1 FROM test"

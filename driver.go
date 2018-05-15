@@ -151,8 +151,6 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	}
 
 	mc.d = d
-	mc.dsn = dsn
-
 	return mc, nil
 }
 

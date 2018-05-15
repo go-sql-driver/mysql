@@ -179,10 +179,9 @@ func (mc *mysqlConn) readInitPacket() ([]byte, error) {
 	}
 
 	// server version [null terminated string]
+	// connection id [4 bytes]
 	idPos := 1 + bytes.IndexByte(data[1:], 0x00) + 1
 	mc.id = int(binary.LittleEndian.Uint32(data[idPos : idPos+4]))
-
-	// connection id [4 bytes]
 	pos := idPos + 4
 
 	// first part of the password cipher [8 bytes]
