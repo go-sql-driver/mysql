@@ -496,7 +496,7 @@ func (mc *mysqlConn) readResultOK() ([]byte, error) {
 					// using mysql default authentication method
 					return cipher, ErrNativePassword
 				} else {
-					return cipher, ErrUnknownPlugin
+					return cipher, ErrUnknownPlugin(plugin)
 				}
 			} else {
 				// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::OldAuthSwitchRequest
