@@ -459,12 +459,11 @@ func (mc *mysqlConn) writePublicKeyAuthPacket(cipher []byte) error {
 		return err
 	}
 
-	plain := make([]byte, 20)
-	for k, v := range []byte(mc.cfg.Passwd) {
-		plain[k] = byte(v)
-	}
+	plain := make([]byte, len(mc.cfg.Passwd) + 1)
+	copy(plain, mc.cfg.Passwd)
 	for i := range plain {
-		plain[i] ^= cipher[i]
+		j := i % len(cipher)
+		plain[i] ^= cipher[j]
 	}
 	sha1 := sha1.New()
 	enc, _ := rsa.EncryptOAEP(sha1, rand.Reader, pub.(*rsa.PublicKey), plain, nil)
