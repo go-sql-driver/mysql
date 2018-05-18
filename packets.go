@@ -459,7 +459,7 @@ func (mc *mysqlConn) writePublicKeyAuthPacket(cipher []byte) error {
 		return err
 	}
 
-	plain := make([]byte, len(mc.cfg.Passwd) + 1)
+	plain := make([]byte, len(mc.cfg.Passwd)+1)
 	copy(plain, mc.cfg.Passwd)
 	for i := range plain {
 		j := i % len(cipher)
