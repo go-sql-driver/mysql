@@ -34,7 +34,7 @@ matrix:
         - sleep 30
         - cp .travis/docker.cnf ~/.my.cnf
         - mysql --print-defaults
-        - .travis/wait_mysql.sh
+        # - .travis/wait_mysql.sh
       before_script:
         - export MYSQL_TEST_USER=gotest
         - export MYSQL_TEST_PASS=secret
