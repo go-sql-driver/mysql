@@ -112,6 +112,24 @@ func TestOldPass(t *testing.T) {
 	}
 }
 
+func TestCachingSha2Pass(t *testing.T) {
+	scramble := []byte{10, 47, 74, 111, 75, 73, 34, 48, 88, 76, 114, 74, 37, 13, 3, 80, 82, 2, 23, 21}
+	vectors := []struct {
+		pass string
+		out  string
+	}{
+		{"secret", "f490e76f66d9d86665ce54d98c78d0acfe2fb0b08b423da807144873d30b312c"},
+		{"secret2", "abc3934a012cf342e876071c8ee202de51785b430258a7a0138bc79c4d800bc6"},
+	}
+	for _, tuple := range vectors {
+		ours := scrambleCachingSha2Password(scramble, []byte(tuple.pass))
+		if tuple.out != fmt.Sprintf("%x", ours) {
+			t.Errorf("Failed caching sha2 password %q", tuple.pass)
+		}
+	}
+
+}
+
 func TestFormatBinaryDateTime(t *testing.T) {
 	rawDate := [11]byte{}
 	binary.LittleEndian.PutUint16(rawDate[:2], 1978)   // years
