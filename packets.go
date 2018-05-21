@@ -558,6 +558,7 @@ func readAuthSwitch(data []byte) ([]byte, error) {
 			// using mysql default authentication method
 			return cipher, ErrNativePassword
 		default:
+			errLog.Print("unknown auth plugin:", plugin)
 			return cipher, ErrUnknownPlugin
 		}
 	}
