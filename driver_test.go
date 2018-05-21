@@ -2046,3 +2046,30 @@ func TestPing(t *testing.T) {
 		}
 	})
 }
+
+// See Issue #799
+func TestEmptyPassword(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	dsn := fmt.Sprintf("%s:%s@%s/%s?timeout=30s", user, "", netAddr, dbname)
+	db, err := sql.Open("mysql", dsn)
+	if err == nil {
+		defer db.Close()
+		err = db.Ping()
+	}
+
+	if pass == "" {
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+	} else {
+		if err == nil {
+			t.Fatal("expected authentication error")
+		}
+		if !strings.HasPrefix(err.Error(), "Error 1045") {
+			t.Fatal(err.Error())
+		}
+	}
+}
