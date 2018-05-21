@@ -161,7 +161,15 @@ func handleAuthResult(mc *mysqlConn, oldCipher []byte, pluginName string) error 
 		if err != nil {
 			return err
 		}
-		if auth == cachingSha2PasswordPerformFullAuthentication {
+
+		switch auth {
+		case cachingSha2PasswordOK:
+			return nil // auth successful
+
+		case cachingSha2PasswordFastAuthSuccess:
+			// continue to read result packet...
+
+		case cachingSha2PasswordPerformFullAuthentication:
 			if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
 				if err = mc.writeClearAuthPacket(); err != nil {
 					return err
@@ -171,6 +179,10 @@ func handleAuthResult(mc *mysqlConn, oldCipher []byte, pluginName string) error 
 					return err
 				}
 			}
+			// continue to read result packet...
+
+		default:
+			return ErrMalformPkt
 		}
 	}
 
@@ -184,36 +196,46 @@ func handleAuthResult(mc *mysqlConn, oldCipher []byte, pluginName string) error 
 		return err // auth failed and retry not possible
 	}
 
-	// Retry auth if configured to do so.
-	if mc.cfg.AllowOldPasswords && err == ErrOldPassword {
-		// Retry with old authentication method. Note: there are edge cases
-		// where this should work but doesn't; this is currently "wontfix":
-		// https://github.com/go-sql-driver/mysql/issues/184
-
-		// If CLIENT_PLUGIN_AUTH capability is not supported, no new cipher is
-		// sent and we have to keep using the cipher sent in the init packet.
-		if cipher == nil {
-			cipher = oldCipher
+	// Retry auth if configured to do so
+	switch err {
+	case ErrCleartextPassword:
+		if mc.cfg.AllowCleartextPasswords {
+			// Retry with clear text password for
+			// http://dev.mysql.com/doc/refman/5.7/en/cleartext-authentication-plugin.html
+			// http://dev.mysql.com/doc/refman/5.7/en/pam-authentication-plugin.html
+			if err = mc.writeClearAuthPacket(); err != nil {
+				return err
+			}
+			_, err = mc.readResultOK()
 		}
 
-		if err = mc.writeOldAuthPacket(cipher); err != nil {
-			return err
+	case ErrNativePassword:
+		if mc.cfg.AllowNativePasswords {
+			if err = mc.writeNativeAuthPacket(cipher); err != nil {
+				return err
+			}
+			_, err = mc.readResultOK()
 		}
-		_, err = mc.readResultOK()
-	} else if mc.cfg.AllowCleartextPasswords && err == ErrCleartextPassword {
-		// Retry with clear text password for
-		// http://dev.mysql.com/doc/refman/5.7/en/cleartext-authentication-plugin.html
-		// http://dev.mysql.com/doc/refman/5.7/en/pam-authentication-plugin.html
-		if err = mc.writeClearAuthPacket(); err != nil {
-			return err
+
+	case ErrOldPassword:
+		if mc.cfg.AllowOldPasswords {
+			// Retry with old authentication method. Note: there are edge cases
+			// where this should work but doesn't; this is currently "wontfix":
+			// https://github.com/go-sql-driver/mysql/issues/184
+
+			// If CLIENT_PLUGIN_AUTH capability is not supported, no new cipher is
+			// sent and we have to keep using the cipher sent in the init packet.
+			if cipher == nil {
+				cipher = oldCipher
+			}
+
+			if err = mc.writeOldAuthPacket(cipher); err != nil {
+				return err
+			}
+			_, err = mc.readResultOK()
 		}
-		_, err = mc.readResultOK()
-	} else if mc.cfg.AllowNativePasswords && err == ErrNativePassword {
-		if err = mc.writeNativeAuthPacket(cipher); err != nil {
-			return err
-		}
-		_, err = mc.readResultOK()
 	}
+
 	return err
 }
 

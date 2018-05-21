@@ -203,7 +203,7 @@ func (mc *mysqlConn) readInitPacket() ([]byte, string, error) {
 	}
 	pos += 2
 
-	pluginName := ""
+	pluginName := "mysql_native_password"
 	if len(data) > pos {
 		// character set [1 byte]
 		// status flags [2 bytes]
@@ -367,7 +367,6 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte, pluginName string) error {
 		pos++
 	}
 
-	// Assume native client during response
 	pos += copy(data[pos:], pluginName)
 	data[pos] = 0x00
 
@@ -544,55 +543,70 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 *                              Result Packets                                 *
 ******************************************************************************/
 
+func readAuthSwitch(data []byte) ([]byte, error) {
+	if len(data) > 1 {
+		pluginEndIndex := bytes.IndexByte(data, 0x00)
+		plugin := string(data[1:pluginEndIndex])
+		cipher := data[pluginEndIndex+1:]
+
+		switch plugin {
+		case "mysql_old_password":
+			// using old_passwords
+			return cipher, ErrOldPassword
+		case "mysql_clear_password":
+			// using clear text password
+			return cipher, ErrCleartextPassword
+		case "mysql_native_password":
+			// using mysql default authentication method
+			return cipher, ErrNativePassword
+		default:
+			return cipher, ErrUnknownPlugin
+		}
+	}
+
+	// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::OldAuthSwitchRequest
+	return nil, ErrOldPassword
+}
+
 // Returns error if Packet is not an 'Result OK'-Packet
 func (mc *mysqlConn) readResultOK() ([]byte, error) {
 	data, err := mc.readPacket()
-	if err == nil {
-		// packet indicator
-		switch data[0] {
-
-		case iOK:
-			return nil, mc.handleOkPacket(data)
-
-		case iEOF:
-			if len(data) > 1 {
-				pluginEndIndex := bytes.IndexByte(data, 0x00)
-				plugin := string(data[1:pluginEndIndex])
-				cipher := data[pluginEndIndex+1:]
-
-				switch plugin {
-				case "mysql_old_password":
-					// using old_passwords
-					return cipher, ErrOldPassword
-				case "mysql_clear_password":
-					// using clear text password
-					return cipher, ErrCleartextPassword
-				case "mysql_native_password":
-					// using mysql default authentication method
-					return cipher, ErrNativePassword
-				default:
-					return cipher, ErrUnknownPlugin
-				}
-			}
-
-			// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::OldAuthSwitchRequest
-			return nil, ErrOldPassword
-
-		default: // Error otherwise
-			return nil, mc.handleErrorPacket(data)
-		}
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+
+	// packet indicator
+	switch data[0] {
+
+	case iOK:
+		return nil, mc.handleOkPacket(data)
+
+	case iEOF:
+		return readAuthSwitch(data)
+
+	default: // Error otherwise
+		return nil, mc.handleErrorPacket(data)
+	}
 }
 
+// https://insidemysql.com/preparing-your-community-connector-for-mysql-8-part-2-sha256/
 func (mc *mysqlConn) readCachingSha2PasswordAuthResult() (int, error) {
 	data, err := mc.readPacket()
-	if err == nil {
-		if data[0] != 1 {
-			return 0, ErrMalformPkt
-		}
+	if err != nil {
+		return 0, err
 	}
-	return int(data[1]), err
+
+	// packet indicator
+	switch data[0] {
+	case iOK:
+		return 0, nil
+
+	case iAuthMoreData:
+		return int(data[1]), nil
+
+	default: // Error otherwise
+		return 0, mc.handleErrorPacket(data)
+	}
 }
 
 // Result Set Header Packet
