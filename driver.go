@@ -154,42 +154,45 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 }
 
 func handleAuthResult(mc *mysqlConn, oldCipher []byte, pluginName string) error {
-
-	// handle caching_sha2_password
-	if pluginName == "caching_sha2_password" {
-		auth, err := mc.readCachingSha2PasswordAuthResult()
-		if err != nil {
-			return err
-		}
-
-		switch auth {
-		case cachingSha2PasswordOK:
-			return nil // auth successful
-
-		case cachingSha2PasswordFastAuthSuccess:
-			// continue to read result packet...
-
-		case cachingSha2PasswordPerformFullAuthentication:
-			if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
-				if err = mc.writeClearAuthPacket(); err != nil {
-					return err
-				}
-			} else {
-				if err = mc.writePublicKeyAuthPacket(oldCipher); err != nil {
-					return err
-				}
-			}
-			// continue to read result packet...
-
-		default:
-			return ErrMalformPkt
-		}
-	}
-
 	// Read Result Packet
 	cipher, err := mc.readResultOK()
 	if err == nil {
-		return nil // auth successful
+		// handle caching_sha2_password
+		// https://insidemysql.com/preparing-your-community-connector-for-mysql-8-part-2-sha256/
+		if pluginName == "caching_sha2_password" {
+			if len(cipher) == 1 {
+				switch cipher[0] {
+				case cachingSha2PasswordFastAuthSuccess:
+					cipher, err = mc.readResultOK()
+					if err == nil {
+						return nil // auth successful
+					}
+
+				case cachingSha2PasswordPerformFullAuthentication:
+					if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
+						if err = mc.writeClearAuthPacket(); err != nil {
+							return err
+						}
+					} else {
+						if err = mc.writePublicKeyAuthPacket(oldCipher); err != nil {
+							return err
+						}
+					}
+					cipher, err = mc.readResultOK()
+					if err == nil {
+						return nil // auth successful
+					}
+
+				default:
+					return ErrMalformPkt
+				}
+			} else {
+				return ErrMalformPkt
+			}
+
+		} else {
+			return nil // auth successful
+		}
 	}
 
 	if mc.cfg == nil {

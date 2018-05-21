@@ -581,31 +581,14 @@ func (mc *mysqlConn) readResultOK() ([]byte, error) {
 	case iOK:
 		return nil, mc.handleOkPacket(data)
 
+	case iAuthMoreData:
+		return data[1:], nil
+
 	case iEOF:
 		return readAuthSwitch(data)
 
 	default: // Error otherwise
 		return nil, mc.handleErrorPacket(data)
-	}
-}
-
-// https://insidemysql.com/preparing-your-community-connector-for-mysql-8-part-2-sha256/
-func (mc *mysqlConn) readCachingSha2PasswordAuthResult() (int, error) {
-	data, err := mc.readPacket()
-	if err != nil {
-		return 0, err
-	}
-
-	// packet indicator
-	switch data[0] {
-	case iOK:
-		return 0, nil
-
-	case iAuthMoreData:
-		return int(data[1]), nil
-
-	default: // Error otherwise
-		return 0, mc.handleErrorPacket(data)
 	}
 }
 

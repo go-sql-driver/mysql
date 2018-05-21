@@ -167,7 +167,6 @@ const (
 )
 
 const (
-	cachingSha2PasswordOK                        = 0
 	cachingSha2PasswordRequestPublicKey          = 2
 	cachingSha2PasswordFastAuthSuccess           = 3
 	cachingSha2PasswordPerformFullAuthentication = 4
