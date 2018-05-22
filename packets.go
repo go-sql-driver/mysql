@@ -411,7 +411,14 @@ func (mc *mysqlConn) writePublicKeyAuthPacket(cipher []byte) error {
 		return err
 	}
 
-	return mc.writeAuthSwitchPacket(enc)
+	data = mc.buf.takeSmallBuffer(4 + len(enc))
+	if data == nil {
+		// cannot take the buffer. Something must be wrong with the connection
+		errLog.Print(ErrBusyBuffer)
+		return errBadConnNoWrite
+	}
+	copy(data[4:], enc)
+	return mc.writePacket(data)
 }
 
 /******************************************************************************
