@@ -151,8 +151,6 @@ func scrambleSHA256Password(scramble []byte, password string) []byte {
 }
 
 func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
-	errLog.Print("PLUGIN: ", plugin, mc.cfg.Passwd)
-
 	switch plugin {
 	case "caching_sha2_password":
 		return scrambleSHA256Password(authData, mc.cfg.Passwd), nil
