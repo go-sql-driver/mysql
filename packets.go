@@ -203,6 +203,8 @@ func (mc *mysqlConn) readInitPacket() ([]byte, string, error) {
 	}
 	pos += 2
 
+	// EOF if version (>= 5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
+	// \NUL otherwise
 	pluginName := ""
 	if len(data) > pos {
 		// character set [1 byte]
@@ -231,15 +233,6 @@ func (mc *mysqlConn) readInitPacket() ([]byte, string, error) {
 		} else {
 			pluginName = string(data[pos:])
 		}
-
-		// TODO: Verify string termination
-		// EOF if version (>= 5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
-		// \NUL otherwise
-		//
-		//if data[len(data)-1] == 0 {
-		//	return
-		//}
-		//return ErrMalformPkt
 
 		// make a memory safe copy of the cipher slice
 		var b [20]byte
