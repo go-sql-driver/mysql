@@ -175,7 +175,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		return []byte(mc.cfg.Passwd), nil
 
 	case "mysql_native_password":
-		if mc.cfg.AllowNativePasswords {
+		if !mc.cfg.AllowNativePasswords {
 			return nil, ErrNativePassword
 		}
 		// https://dev.mysql.com/doc/internals/en/secure-password-authentication.html
