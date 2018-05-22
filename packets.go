@@ -203,8 +203,6 @@ func (mc *mysqlConn) readInitPacket() ([]byte, string, error) {
 	}
 	pos += 2
 
-	// EOF if version (>= 5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
-	// \NUL otherwise
 	pluginName := ""
 	if len(data) > pos {
 		// character set [1 byte]
@@ -228,6 +226,9 @@ func (mc *mysqlConn) readInitPacket() ([]byte, string, error) {
 		// which seems to work but technically could have a hidden bug.
 		cipher = append(cipher, data[pos:pos+12]...)
 		pos += 13
+
+		// EOF if version (>= 5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
+		// \NUL otherwise
 		if end := bytes.IndexByte(data[pos:], 0x00); end != -1 {
 			pluginName = string(data[pos : pos+end])
 		} else {
