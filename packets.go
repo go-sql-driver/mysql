@@ -228,6 +228,8 @@ func (mc *mysqlConn) readInitPacket() ([]byte, string, error) {
 		pos += 13
 		if end := bytes.IndexByte(data[pos:], 0x00); end != -1 {
 			pluginName = string(data[pos : pos+end])
+		} else {
+			pluginName = string(data[pos:])
 		}
 
 		// TODO: Verify string termination
