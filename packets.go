@@ -226,16 +226,14 @@ func (mc *mysqlConn) readInitPacket() ([]byte, string, error) {
 		// which seems to work but technically could have a hidden bug.
 		cipher = append(cipher, data[pos:pos+12]...)
 		pos += 13
-		pluginName = string(data[pos : pos+bytes.IndexByte(data[pos:], 0x00)])
 
-		// TODO: Verify string termination
 		// EOF if version (>= 5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
 		// \NUL otherwise
-		//
-		//if data[len(data)-1] == 0 {
-		//	return
-		//}
-		//return ErrMalformPkt
+		if end := bytes.IndexByte(data[pos:], 0x00); end != -1 {
+			pluginName = string(data[pos : pos+end])
+		} else {
+			pluginName = string(data[pos:])
+		}
 
 		// make a memory safe copy of the cipher slice
 		var b [20]byte
