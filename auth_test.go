@@ -93,7 +93,7 @@ func TestAuthCachingSHA256PasswordCached(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = mc.writeAuthPacket(authResp, plugin); err != nil {
+	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
 		t.Fatal(err)
 	}
 
@@ -137,7 +137,7 @@ func TestAuthCachingSHA256PasswordEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = mc.writeAuthPacket(authResp, plugin); err != nil {
+	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
 		t.Fatal(err)
 	}
 
@@ -178,7 +178,7 @@ func TestAuthCachingSHA256PasswordFullRSA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = mc.writeAuthPacket(authResp, plugin); err != nil {
+	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
 		t.Fatal(err)
 	}
 
@@ -232,7 +232,7 @@ func TestAuthCachingSHA256PasswordFullSecure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = mc.writeAuthPacket(authResp, plugin); err != nil {
+	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
 		t.Fatal(err)
 	}
 

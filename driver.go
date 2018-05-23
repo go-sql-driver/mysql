@@ -107,7 +107,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	mc.writeTimeout = mc.cfg.WriteTimeout
 
 	// Reading Handshake Initialization Packet
-	authData, plugin, err := mc.readInitPacket()
+	authData, plugin, err := mc.readHandshakePacket()
 	if err != nil {
 		mc.cleanup()
 		return nil, err
@@ -125,7 +125,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 			return nil, err
 		}
 	}
-	if err = mc.writeAuthPacket(authResp, plugin); err != nil {
+	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
 		mc.cleanup()
 		return nil, err
 	}
