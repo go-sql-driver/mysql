@@ -120,6 +120,82 @@ func TestAuthSwitchCleartextPasswordEmpty(t *testing.T) {
 	}
 }
 
+func TestAuthSwitchNativePasswordNotAllowed(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.AllowNativePasswords = false
+
+	conn.data = []byte{44, 0, 0, 2, 254, 109, 121, 115, 113, 108, 95, 110, 97,
+		116, 105, 118, 101, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0, 96,
+		71, 63, 8, 1, 58, 75, 12, 69, 95, 66, 60, 117, 31, 48, 31, 89, 39, 55,
+		31, 0}
+	conn.maxReads = 1
+	authData := []byte{96, 71, 63, 8, 1, 58, 75, 12, 69, 95, 66, 60, 117, 31,
+		48, 31, 89, 39, 55, 31}
+	plugin := "caching_sha2_password"
+	err := mc.handleAuthResult(authData, plugin)
+	if err != ErrNativePassword {
+		t.Errorf("expected ErrNativePassword, got %v", err)
+	}
+}
+
+func TestAuthSwitchNativePassword(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.AllowNativePasswords = true
+	mc.cfg.Passwd = "secret"
+
+	// auth switch request
+	conn.data = []byte{44, 0, 0, 2, 254, 109, 121, 115, 113, 108, 95, 110, 97,
+		116, 105, 118, 101, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0, 96,
+		71, 63, 8, 1, 58, 75, 12, 69, 95, 66, 60, 117, 31, 48, 31, 89, 39, 55,
+		31, 0}
+
+	// auth response
+	conn.queuedReplies = [][]byte{{7, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0}}
+	conn.maxReads = 2
+
+	authData := []byte{96, 71, 63, 8, 1, 58, 75, 12, 69, 95, 66, 60, 117, 31,
+		48, 31, 89, 39, 55, 31}
+	plugin := "caching_sha2_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReply := []byte{20, 0, 0, 3, 202, 41, 195, 164, 34, 226, 49, 103, 21, 211, 167, 199, 227, 116, 8, 48, 57, 71, 149, 146}
+	if !bytes.Equal(conn.written, expectedReply) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
+func TestAuthSwitchNativePasswordEmpty(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.AllowNativePasswords = true
+	mc.cfg.Passwd = ""
+
+	// auth switch request
+	conn.data = []byte{44, 0, 0, 2, 254, 109, 121, 115, 113, 108, 95, 110, 97,
+		116, 105, 118, 101, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0, 96,
+		71, 63, 8, 1, 58, 75, 12, 69, 95, 66, 60, 117, 31, 48, 31, 89, 39, 55,
+		31, 0}
+
+	// auth response
+	conn.queuedReplies = [][]byte{{7, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0}}
+	conn.maxReads = 2
+
+	authData := []byte{96, 71, 63, 8, 1, 58, 75, 12, 69, 95, 66, 60, 117, 31,
+		48, 31, 89, 39, 55, 31}
+	plugin := "caching_sha2_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReply := []byte{0, 0, 0, 3}
+	if !bytes.Equal(conn.written, expectedReply) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
 func TestAuthSwitchOldPasswordNotAllowed(t *testing.T) {
 	conn, mc := newRWMockConn(2)
 
