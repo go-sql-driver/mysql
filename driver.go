@@ -107,27 +107,31 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	mc.writeTimeout = mc.cfg.WriteTimeout
 
 	// Reading Handshake Initialization Packet
-	cipher, plugin, err := mc.readInitPacket()
+	authData, plugin, err := mc.readInitPacket()
 	if err != nil {
 		mc.cleanup()
 		return nil, err
 	}
 
 	// Send Client Authentication Packet
-	authData, err := mc.auth(cipher, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		// try the default auth plugin, if using the requested plugin failed
-		errLog.Print("could not use requested plugin '"+plugin+"': ", err.Error())
+		errLog.Print("could not use requested auth plugin '"+plugin+"': ", err.Error())
 		plugin = defaultAuthPlugin
-		authData, _ = mc.auth(cipher, plugin)
+		authResp, err = mc.auth(authData, plugin)
+		if err != nil {
+			mc.cleanup()
+			return nil, err
+		}
 	}
-	if err = mc.writeAuthPacket(authData, plugin); err != nil {
+	if err = mc.writeAuthPacket(authResp, plugin); err != nil {
 		mc.cleanup()
 		return nil, err
 	}
 
 	// Handle response to auth packet, switch methods if possible
-	if err = mc.handleAuthResult(cipher, plugin); err != nil {
+	if err = mc.handleAuthResult(authData, plugin); err != nil {
 		// Authentication failed and MySQL has already closed the connection
 		// (https://dev.mysql.com/doc/internals/en/authentication-fails.html).
 		// Do not send COM_QUIT, just cleanup and return the error.

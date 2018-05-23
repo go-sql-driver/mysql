@@ -189,7 +189,7 @@ func maybeSkip(t *testing.T, err error, skipErrno uint16) {
 }
 
 func TestEmptyQuery(t *testing.T) {
-	runTests(t, dsn+"&allowOldPasswords=1", func(dbt *DBTest) {
+	runTests(t, dsn, func(dbt *DBTest) {
 		// just a comment, no query
 		rows := dbt.mustQuery("--")
 		// will hang before #255

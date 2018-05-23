@@ -9,8 +9,12 @@
 package mysql
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/x509"
+	"encoding/pem"
 )
 
 // Hash password using pre 4.1 (old password) method
@@ -242,7 +246,42 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 						return err
 					}
 				} else {
-					if err = mc.writePublicKeyAuthPacket(oldAuthData); err != nil {
+					seed := oldAuthData
+
+					// TODO: allow to specify a local file with the pub key via
+					// the DSN
+
+					// request public key
+					data := mc.buf.takeSmallBuffer(4 + 1)
+					data[4] = cachingSha2PasswordRequestPublicKey
+					mc.writePacket(data)
+
+					// parse public key
+					data, err := mc.readPacket()
+					if err != nil {
+						return err
+					}
+
+					block, _ := pem.Decode(data[1:])
+					pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+					if err != nil {
+						return err
+					}
+
+					// send encrypted password
+					plain := make([]byte, len(mc.cfg.Passwd)+1)
+					copy(plain, mc.cfg.Passwd)
+					for i := range plain {
+						j := i % len(seed)
+						plain[i] ^= seed[j]
+					}
+					sha1 := sha1.New()
+					enc, err := rsa.EncryptOAEP(sha1, rand.Reader, pub.(*rsa.PublicKey), plain, nil)
+					if err != nil {
+						return err
+					}
+
+					if err = mc.writeAuthSwitchPacket(enc); err != nil {
 						return err
 					}
 				}

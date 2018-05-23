@@ -10,14 +10,9 @@ package mysql
 
 import (
 	"bytes"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha1"
 	"crypto/tls"
-	"crypto/x509"
 	"database/sql/driver"
 	"encoding/binary"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -251,7 +246,7 @@ func (mc *mysqlConn) readInitPacket() ([]byte, string, error) {
 
 // Client Authentication Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::HandshakeResponse
-func (mc *mysqlConn) writeAuthPacket(authData []byte, plugin string) error {
+func (mc *mysqlConn) writeAuthPacket(authResp []byte, plugin string) error {
 	// Adjust client flags based on server support
 	clientFlags := clientProtocol41 |
 		clientSecureConn |
@@ -275,7 +270,7 @@ func (mc *mysqlConn) writeAuthPacket(authData []byte, plugin string) error {
 		clientFlags |= clientMultiStatements
 	}
 
-	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1 + 1 + len(authData) + 21 + 1
+	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1 + 1 + len(authResp) + 21 + 1
 
 	// To specify a db name
 	if n := len(mc.cfg.DBName); n > 0 {
@@ -344,8 +339,8 @@ func (mc *mysqlConn) writeAuthPacket(authData []byte, plugin string) error {
 	pos++
 
 	// Auth Data [length encoded integer]
-	data[pos] = byte(len(authData))
-	pos += 1 + copy(data[pos+1:], authData)
+	data[pos] = byte(len(authResp))
+	pos += 1 + copy(data[pos+1:], authResp)
 
 	// Databasename [null terminated string]
 	if len(mc.cfg.DBName) > 0 {
@@ -374,40 +369,6 @@ func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
 	copy(data[4:], authData)
 
 	return mc.writePacket(data)
-}
-
-// Caching sha2 authentication. Public key request and send encrypted password
-// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
-func (mc *mysqlConn) writePublicKeyAuthPacket(cipher []byte) error {
-	// request public key
-	data := mc.buf.takeSmallBuffer(4 + 1)
-	data[4] = cachingSha2PasswordRequestPublicKey
-	mc.writePacket(data)
-
-	data, err := mc.readPacket()
-	if err != nil {
-		return err
-	}
-
-	block, _ := pem.Decode(data[1:])
-	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return err
-	}
-
-	plain := make([]byte, len(mc.cfg.Passwd)+1)
-	copy(plain, mc.cfg.Passwd)
-	for i := range plain {
-		j := i % len(cipher)
-		plain[i] ^= cipher[j]
-	}
-	sha1 := sha1.New()
-	enc, err := rsa.EncryptOAEP(sha1, rand.Reader, pub.(*rsa.PublicKey), plain, nil)
-	if err != nil {
-		return err
-	}
-
-	return mc.writeAuthSwitchPacket(enc)
 }
 
 /******************************************************************************
