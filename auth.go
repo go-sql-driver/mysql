@@ -185,3 +185,81 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		return nil, ErrUnknownPlugin
 	}
 }
+
+func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
+	// Read Result Packet
+	authData, newPlugin, err := mc.readAuthResult()
+	if err != nil {
+		return err
+	}
+
+	// handle auth plugin switch, if requested
+	if newPlugin != "" {
+		// If CLIENT_PLUGIN_AUTH capability is not supported, no new cipher is
+		// sent and we have to keep using the cipher sent in the init packet.
+		if authData == nil {
+			authData = oldAuthData
+		}
+
+		authResp, err := mc.auth(authData, newPlugin)
+		if err != nil {
+			return err
+		}
+		if err = mc.writeAuthSwitchPacket(authResp); err != nil {
+			return err
+		}
+
+		// Read Result Packet
+		authData, newPlugin, err = mc.readAuthResult()
+		if err != nil {
+			return err
+		}
+		// Do not allow to change the auth plugin more than once
+		if newPlugin != "" {
+			return ErrMalformPkt
+		}
+	}
+
+	switch plugin {
+
+	// https://insidemysql.com/preparing-your-community-connector-for-mysql-8-part-2-sha256/
+	case "caching_sha2_password":
+		switch len(authData) {
+		case 0:
+			return nil // auth successful
+		case 1:
+			switch authData[0] {
+			case cachingSha2PasswordFastAuthSuccess:
+				if err = mc.readResultOK(); err == nil {
+					return nil // auth successful
+				}
+
+			case cachingSha2PasswordPerformFullAuthentication:
+				if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
+					// write cleartext auth packet
+					authData := []byte(mc.cfg.Passwd)
+					if err = mc.writeAuthSwitchPacket(authData); err != nil {
+						return err
+					}
+				} else {
+					if err = mc.writePublicKeyAuthPacket(oldAuthData); err != nil {
+						return err
+					}
+				}
+				if err = mc.readResultOK(); err == nil {
+					return nil // auth successful
+				}
+
+			default:
+				return ErrMalformPkt
+			}
+		default:
+			return ErrMalformPkt
+		}
+
+	default:
+		return nil // auth successful
+	}
+
+	return err
+}
