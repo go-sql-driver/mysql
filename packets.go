@@ -363,19 +363,15 @@ func (mc *mysqlConn) writeAuthPacket(authData []byte, plugin string) error {
 
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
 func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
-
-	// Calculate the packet length and add a tailing 0
-	pktLen := len(authData) + 1
-	data := mc.buf.takeSmallBuffer(4 + pktLen)
+	data := mc.buf.takeSmallBuffer(4 + len(authData))
 	if data == nil {
 		// cannot take the buffer. Something must be wrong with the connection
 		errLog.Print(ErrBusyBuffer)
 		return errBadConnNoWrite
 	}
 
-	// Add the scrambled password [null terminated string]
+	// Add the auth data [EOF]
 	copy(data[4:], authData)
-	data[4+pktLen-1] = 0x00
 
 	return mc.writePacket(data)
 }
@@ -411,14 +407,7 @@ func (mc *mysqlConn) writePublicKeyAuthPacket(cipher []byte) error {
 		return err
 	}
 
-	data = mc.buf.takeSmallBuffer(4 + len(enc))
-	if data == nil {
-		// cannot take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
-		return errBadConnNoWrite
-	}
-	copy(data[4:], enc)
-	return mc.writePacket(data)
+	return mc.writeAuthSwitchPacket(enc)
 }
 
 /******************************************************************************
