@@ -51,6 +51,75 @@ func TestScrambleSHA256Pass(t *testing.T) {
 
 }
 
+func TestAuthSwitchCleartextPasswordNotAllowed(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+
+	conn.data = []byte{22, 0, 0, 2, 254, 109, 121, 115, 113, 108, 95, 99, 108,
+		101, 97, 114, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0}
+	conn.maxReads = 1
+	authData := []byte{123, 87, 15, 84, 20, 58, 37, 121, 91, 117, 51, 24, 19,
+		47, 43, 9, 41, 112, 67, 110}
+	plugin := "mysql_native_password"
+	err := mc.handleAuthResult(authData, plugin)
+	if err != ErrCleartextPassword {
+		t.Errorf("expected ErrCleartextPassword, got %v", err)
+	}
+}
+
+func TestAuthSwitchCleartextPassword(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.AllowCleartextPasswords = true
+	mc.cfg.Passwd = "secret"
+
+	// auth switch request
+	conn.data = []byte{22, 0, 0, 2, 254, 109, 121, 115, 113, 108, 95, 99, 108,
+		101, 97, 114, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0}
+
+	// auth response
+	conn.queuedReplies = [][]byte{{7, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0}}
+	conn.maxReads = 2
+
+	authData := []byte{123, 87, 15, 84, 20, 58, 37, 121, 91, 117, 51, 24, 19,
+		47, 43, 9, 41, 112, 67, 110}
+	plugin := "mysql_native_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReply := []byte{6, 0, 0, 3, 115, 101, 99, 114, 101, 116}
+	if !bytes.Equal(conn.written, expectedReply) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
+func TestAuthSwitchCleartextPasswordEmpty(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.AllowCleartextPasswords = true
+	mc.cfg.Passwd = ""
+
+	// auth switch request
+	conn.data = []byte{22, 0, 0, 2, 254, 109, 121, 115, 113, 108, 95, 99, 108,
+		101, 97, 114, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0}
+
+	// auth response
+	conn.queuedReplies = [][]byte{{7, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0}}
+	conn.maxReads = 2
+
+	authData := []byte{123, 87, 15, 84, 20, 58, 37, 121, 91, 117, 51, 24, 19,
+		47, 43, 9, 41, 112, 67, 110}
+	plugin := "mysql_native_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReply := []byte{0, 0, 0, 3}
+	if !bytes.Equal(conn.written, expectedReply) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
 func TestAuthSwitchOldPasswordNotAllowed(t *testing.T) {
 	conn, mc := newRWMockConn(2)
 
