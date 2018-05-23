@@ -9,11 +9,12 @@
 package mysql
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 )
 
-func TestOldPass(t *testing.T) {
+func TestScrambleOldPass(t *testing.T) {
 	scramble := []byte{9, 8, 7, 6, 5, 4, 3, 2}
 	vectors := []struct {
 		pass string
@@ -32,7 +33,7 @@ func TestOldPass(t *testing.T) {
 	}
 }
 
-func TestSHA256Pass(t *testing.T) {
+func TestScrambleSHA256Pass(t *testing.T) {
 	scramble := []byte{10, 47, 74, 111, 75, 73, 34, 48, 88, 76, 114, 74, 37, 13, 3, 80, 82, 2, 23, 21}
 	vectors := []struct {
 		pass string
@@ -48,4 +49,48 @@ func TestSHA256Pass(t *testing.T) {
 		}
 	}
 
+}
+
+func TestAuthSwitchOldPasswordNotAllowed(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+
+	conn.data = []byte{41, 0, 0, 2, 254, 109, 121, 115, 113, 108, 95, 111, 108,
+		100, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0, 95, 84, 103, 43, 61,
+		49, 123, 61, 91, 50, 40, 113, 35, 84, 96, 101, 92, 123, 121, 107, 0}
+	conn.maxReads = 1
+	authData := []byte{95, 84, 103, 43, 61, 49, 123, 61, 91, 50, 40, 113, 35,
+		84, 96, 101, 92, 123, 121, 107}
+	plugin := "mysql_native_password"
+	err := mc.handleAuthResult(authData, plugin)
+	if err != ErrOldPassword {
+		t.Errorf("expected ErrOldPassword, got %v", err)
+	}
+}
+
+func TestAuthSwitchOldPassword(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.AllowOldPasswords = true
+	mc.cfg.Passwd = "secret"
+
+	// auth switch request
+	conn.data = []byte{41, 0, 0, 2, 254, 109, 121, 115, 113, 108, 95, 111, 108,
+		100, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0, 95, 84, 103, 43, 61,
+		49, 123, 61, 91, 50, 40, 113, 35, 84, 96, 101, 92, 123, 121, 107, 0}
+
+	// auth response
+	conn.queuedReplies = [][]byte{{8, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 0}}
+	conn.maxReads = 2
+
+	authData := []byte{95, 84, 103, 43, 61, 49, 123, 61, 91, 50, 40, 113, 35,
+		84, 96, 101, 92, 123, 121, 107}
+	plugin := "mysql_native_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReply := []byte{8, 0, 0, 3, 86, 83, 83, 79, 74, 78, 65, 66}
+	if !bytes.Equal(conn.written, expectedReply) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
 }
