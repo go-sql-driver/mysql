@@ -154,66 +154,91 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 }
 
 func handleAuthResult(mc *mysqlConn, oldCipher []byte, pluginName string) error {
-
-	// handle caching_sha2_password
-	if pluginName == "caching_sha2_password" {
-		auth, err := mc.readCachingSha2PasswordAuthResult()
-		if err != nil {
-			return err
-		}
-		if auth == cachingSha2PasswordPerformFullAuthentication {
-			if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
-				if err = mc.writeClearAuthPacket(); err != nil {
-					return err
-				}
-			} else {
-				if err = mc.writePublicKeyAuthPacket(oldCipher); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
 	// Read Result Packet
 	cipher, err := mc.readResultOK()
 	if err == nil {
-		return nil // auth successful
+		// handle caching_sha2_password
+		// https://insidemysql.com/preparing-your-community-connector-for-mysql-8-part-2-sha256/
+		if pluginName == "caching_sha2_password" {
+			if len(cipher) == 1 {
+				switch cipher[0] {
+				case cachingSha2PasswordFastAuthSuccess:
+					cipher, err = mc.readResultOK()
+					if err == nil {
+						return nil // auth successful
+					}
+
+				case cachingSha2PasswordPerformFullAuthentication:
+					if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
+						if err = mc.writeClearAuthPacket(); err != nil {
+							return err
+						}
+					} else {
+						if err = mc.writePublicKeyAuthPacket(oldCipher); err != nil {
+							return err
+						}
+					}
+					cipher, err = mc.readResultOK()
+					if err == nil {
+						return nil // auth successful
+					}
+
+				default:
+					return ErrMalformPkt
+				}
+			} else {
+				return ErrMalformPkt
+			}
+
+		} else {
+			return nil // auth successful
+		}
 	}
 
 	if mc.cfg == nil {
 		return err // auth failed and retry not possible
 	}
 
-	// Retry auth if configured to do so.
-	if mc.cfg.AllowOldPasswords && err == ErrOldPassword {
-		// Retry with old authentication method. Note: there are edge cases
-		// where this should work but doesn't; this is currently "wontfix":
-		// https://github.com/go-sql-driver/mysql/issues/184
-
-		// If CLIENT_PLUGIN_AUTH capability is not supported, no new cipher is
-		// sent and we have to keep using the cipher sent in the init packet.
-		if cipher == nil {
-			cipher = oldCipher
+	// Retry auth if configured to do so
+	switch err {
+	case ErrCleartextPassword:
+		if mc.cfg.AllowCleartextPasswords {
+			// Retry with clear text password for
+			// http://dev.mysql.com/doc/refman/5.7/en/cleartext-authentication-plugin.html
+			// http://dev.mysql.com/doc/refman/5.7/en/pam-authentication-plugin.html
+			if err = mc.writeClearAuthPacket(); err != nil {
+				return err
+			}
+			_, err = mc.readResultOK()
 		}
 
-		if err = mc.writeOldAuthPacket(cipher); err != nil {
-			return err
+	case ErrNativePassword:
+		if mc.cfg.AllowNativePasswords {
+			if err = mc.writeNativeAuthPacket(cipher); err != nil {
+				return err
+			}
+			_, err = mc.readResultOK()
 		}
-		_, err = mc.readResultOK()
-	} else if mc.cfg.AllowCleartextPasswords && err == ErrCleartextPassword {
-		// Retry with clear text password for
-		// http://dev.mysql.com/doc/refman/5.7/en/cleartext-authentication-plugin.html
-		// http://dev.mysql.com/doc/refman/5.7/en/pam-authentication-plugin.html
-		if err = mc.writeClearAuthPacket(); err != nil {
-			return err
+
+	case ErrOldPassword:
+		if mc.cfg.AllowOldPasswords {
+			// Retry with old authentication method. Note: there are edge cases
+			// where this should work but doesn't; this is currently "wontfix":
+			// https://github.com/go-sql-driver/mysql/issues/184
+
+			// If CLIENT_PLUGIN_AUTH capability is not supported, no new cipher is
+			// sent and we have to keep using the cipher sent in the init packet.
+			if cipher == nil {
+				cipher = oldCipher
+			}
+
+			if err = mc.writeOldAuthPacket(cipher); err != nil {
+				return err
+			}
+			_, err = mc.readResultOK()
 		}
-		_, err = mc.readResultOK()
-	} else if mc.cfg.AllowNativePasswords && err == ErrNativePassword {
-		if err = mc.writeNativeAuthPacket(cipher); err != nil {
-			return err
-		}
-		_, err = mc.readResultOK()
 	}
+
 	return err
 }
 
