@@ -205,7 +205,9 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 			authData = oldAuthData
 		}
 
-		authResp, err := mc.auth(authData, newPlugin)
+		plugin = newPlugin
+
+		authResp, err := mc.auth(authData, plugin)
 		if err != nil {
 			return err
 		}
