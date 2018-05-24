@@ -79,7 +79,7 @@ func TestScrambleSHA256Pass(t *testing.T) {
 	}
 }
 
-func TestAuthCachingSHA256PasswordCached(t *testing.T) {
+func TestAuthFastCachingSHA256PasswordCached(t *testing.T) {
 	conn, mc := newRWMockConn(1)
 	mc.cfg.User = "root"
 	mc.cfg.Passwd = "secret"
@@ -123,7 +123,7 @@ func TestAuthCachingSHA256PasswordCached(t *testing.T) {
 	}
 }
 
-func TestAuthCachingSHA256PasswordEmpty(t *testing.T) {
+func TestAuthFastCachingSHA256PasswordEmpty(t *testing.T) {
 	conn, mc := newRWMockConn(1)
 	mc.cfg.User = "root"
 	mc.cfg.Passwd = ""
@@ -164,7 +164,7 @@ func TestAuthCachingSHA256PasswordEmpty(t *testing.T) {
 	}
 }
 
-func TestAuthCachingSHA256PasswordFullRSA(t *testing.T) {
+func TestAuthFastCachingSHA256PasswordFullRSA(t *testing.T) {
 	conn, mc := newRWMockConn(1)
 	mc.cfg.User = "root"
 	mc.cfg.Passwd = "secret"
@@ -218,7 +218,7 @@ func TestAuthCachingSHA256PasswordFullRSA(t *testing.T) {
 	}
 }
 
-func TestAuthCachingSHA256PasswordFullSecure(t *testing.T) {
+func TestAuthFastCachingSHA256PasswordFullSecure(t *testing.T) {
 	conn, mc := newRWMockConn(1)
 	mc.cfg.User = "root"
 	mc.cfg.Passwd = "secret"
@@ -270,6 +270,159 @@ func TestAuthCachingSHA256PasswordFullSecure(t *testing.T) {
 
 	if !bytes.Equal(conn.written, []byte{6, 0, 0, 3, 115, 101, 99, 114, 101, 116}) {
 		t.Errorf("unexpected written data: %v", conn.written)
+	}
+}
+
+func TestAuthSwitchCachingSHA256PasswordCached(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.Passwd = "secret"
+
+	// auth switch request
+	conn.data = []byte{44, 0, 0, 2, 254, 99, 97, 99, 104, 105, 110, 103, 95,
+		115, 104, 97, 50, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0, 101,
+		11, 26, 18, 94, 97, 22, 72, 2, 46, 70, 106, 29, 55, 45, 94, 76, 90, 84,
+		50, 0}
+
+	// auth response
+	conn.queuedReplies = [][]byte{
+		{7, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0}, // OK
+	}
+	conn.maxReads = 3
+
+	authData := []byte{123, 87, 15, 84, 20, 58, 37, 121, 91, 117, 51, 24, 19,
+		47, 43, 9, 41, 112, 67, 110}
+	plugin := "mysql_native_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReply := []byte{
+		// 1. Packet: Hash
+		32, 0, 0, 3, 129, 93, 132, 95, 114, 48, 79, 215, 128, 62, 193, 118, 128,
+		54, 75, 208, 159, 252, 227, 215, 129, 15, 242, 97, 19, 159, 31, 20, 58,
+		153, 9, 130,
+	}
+	if !bytes.Equal(conn.written, expectedReply) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
+func TestAuthSwitchCachingSHA256PasswordEmpty(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.Passwd = ""
+
+	// auth switch request
+	conn.data = []byte{44, 0, 0, 2, 254, 99, 97, 99, 104, 105, 110, 103, 95,
+		115, 104, 97, 50, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0, 101,
+		11, 26, 18, 94, 97, 22, 72, 2, 46, 70, 106, 29, 55, 45, 94, 76, 90, 84,
+		50, 0}
+
+	// auth response
+	conn.queuedReplies = [][]byte{{7, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0}}
+	conn.maxReads = 2
+
+	authData := []byte{123, 87, 15, 84, 20, 58, 37, 121, 91, 117, 51, 24, 19,
+		47, 43, 9, 41, 112, 67, 110}
+	plugin := "mysql_native_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReply := []byte{0, 0, 0, 3}
+	if !bytes.Equal(conn.written, expectedReply) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
+func TestAuthSwitchCachingSHA256PasswordFullRSA(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.Passwd = "secret"
+
+	// auth switch request
+	conn.data = []byte{44, 0, 0, 2, 254, 99, 97, 99, 104, 105, 110, 103, 95,
+		115, 104, 97, 50, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0, 101,
+		11, 26, 18, 94, 97, 22, 72, 2, 46, 70, 106, 29, 55, 45, 94, 76, 90, 84,
+		50, 0}
+
+	conn.queuedReplies = [][]byte{
+		// Perform Full Authentication
+		{2, 0, 0, 4, 1, 4},
+
+		// Pub Key Response
+		append([]byte{byte(len(serverPubKey)), 1, 0, 6}, serverPubKey...),
+
+		// OK
+		{7, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0},
+	}
+	conn.maxReads = 4
+
+	authData := []byte{123, 87, 15, 84, 20, 58, 37, 121, 91, 117, 51, 24, 19,
+		47, 43, 9, 41, 112, 67, 110}
+	plugin := "mysql_native_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReplyPrefix := []byte{
+		// 1. Packet: Hash
+		32, 0, 0, 3, 129, 93, 132, 95, 114, 48, 79, 215, 128, 62, 193, 118, 128,
+		54, 75, 208, 159, 252, 227, 215, 129, 15, 242, 97, 19, 159, 31, 20, 58,
+		153, 9, 130,
+
+		// 2. Packet: Pub Key Request
+		1, 0, 0, 5, 2,
+
+		// 3. Packet: Encrypted Password
+		0, 1, 0, 7, // [changing bytes]
+	}
+	if !bytes.HasPrefix(conn.written, expectedReplyPrefix) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
+func TestAuthSwitchCachingSHA256PasswordFullSecure(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.Passwd = "secret"
+
+	// Hack to make the caching_sha2_password plugin believe that the connection
+	// is secure
+	mc.cfg.tls = &tls.Config{InsecureSkipVerify: true}
+
+	// auth switch request
+	conn.data = []byte{44, 0, 0, 2, 254, 99, 97, 99, 104, 105, 110, 103, 95,
+		115, 104, 97, 50, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0, 101,
+		11, 26, 18, 94, 97, 22, 72, 2, 46, 70, 106, 29, 55, 45, 94, 76, 90, 84,
+		50, 0}
+
+	// auth response
+	conn.queuedReplies = [][]byte{
+		{2, 0, 0, 4, 1, 4},                // Perform Full Authentication
+		{7, 0, 0, 6, 0, 0, 0, 2, 0, 0, 0}, // OK
+	}
+	conn.maxReads = 3
+
+	authData := []byte{123, 87, 15, 84, 20, 58, 37, 121, 91, 117, 51, 24, 19,
+		47, 43, 9, 41, 112, 67, 110}
+	plugin := "mysql_native_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReply := []byte{
+		// 1. Packet: Hash
+		32, 0, 0, 3, 129, 93, 132, 95, 114, 48, 79, 215, 128, 62, 193, 118, 128,
+		54, 75, 208, 159, 252, 227, 215, 129, 15, 242, 97, 19, 159, 31, 20, 58,
+		153, 9, 130,
+
+		// 2. Packet: Cleartext password
+		6, 0, 0, 5, 115, 101, 99, 114, 101, 116,
+	}
+	if !bytes.Equal(conn.written, expectedReply) {
+		t.Errorf("got unexpected data: %v", conn.written)
 	}
 }
 
