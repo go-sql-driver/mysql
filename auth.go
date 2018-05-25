@@ -154,6 +154,22 @@ func scrambleSHA256Password(scramble []byte, password string) []byte {
 	return message1
 }
 
+func (mc *mysqlConn) sendEncryptedPassword(seed []byte, pub *rsa.PublicKey) error {
+	plain := make([]byte, len(mc.cfg.Passwd)+1)
+	copy(plain, mc.cfg.Passwd)
+	for i := range plain {
+		j := i % len(seed)
+		plain[i] ^= seed[j]
+	}
+	sha1 := sha1.New()
+	enc, err := rsa.EncryptOAEP(sha1, rand.Reader, pub, plain, nil)
+	if err != nil {
+		return err
+	}
+
+	return mc.writeAuthSwitchPacket(enc, false)
+}
+
 func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, bool, error) {
 	switch plugin {
 	case "caching_sha2_password":
@@ -186,6 +202,18 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, bool, error) 
 		// Native password authentication only need and will need 20-byte challenge.
 		authResp := scramblePassword(authData[:20], mc.cfg.Passwd)
 		return authResp, false, nil
+
+	case "sha256_password":
+		if len(mc.cfg.Passwd) == 0 {
+			return nil, true, nil
+		}
+		if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
+			// write cleartext auth packet
+			return []byte(mc.cfg.Passwd), true, nil // TODO: nul-terminate
+		}
+		// request public key
+		// TODO: allow to specify a local file with the pub key via the DSN
+		return []byte{1}, false, nil
 
 	default:
 		errLog.Print("unknown auth plugin:", plugin)
@@ -223,6 +251,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 		if err != nil {
 			return err
 		}
+
 		// Do not allow to change the auth plugin more than once
 		if newPlugin != "" {
 			return ErrMalformPkt
@@ -251,8 +280,6 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 						return err
 					}
 				} else {
-					seed := oldAuthData
-
 					// TODO: allow to specify a local file with the pub key via
 					// the DSN
 
@@ -274,25 +301,12 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 					}
 
 					// send encrypted password
-					plain := make([]byte, len(mc.cfg.Passwd)+1)
-					copy(plain, mc.cfg.Passwd)
-					for i := range plain {
-						j := i % len(seed)
-						plain[i] ^= seed[j]
-					}
-					sha1 := sha1.New()
-					enc, err := rsa.EncryptOAEP(sha1, rand.Reader, pub.(*rsa.PublicKey), plain, nil)
+					err = mc.sendEncryptedPassword(oldAuthData, pub.(*rsa.PublicKey))
 					if err != nil {
 						return err
 					}
-
-					if err = mc.writeAuthSwitchPacket(enc, false); err != nil {
-						return err
-					}
 				}
-				if err = mc.readResultOK(); err == nil {
-					return nil // auth successful
-				}
+				return mc.readResultOK()
 
 			default:
 				return ErrMalformPkt
@@ -300,6 +314,20 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 		default:
 			return ErrMalformPkt
 		}
+
+	case "sha256_password":
+		block, _ := pem.Decode(authData)
+		pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			return err
+		}
+
+		// send encrypted password
+		err = mc.sendEncryptedPassword(oldAuthData, pub.(*rsa.PublicKey))
+		if err != nil {
+			return err
+		}
+		return mc.readResultOK()
 
 	default:
 		return nil // auth successful
