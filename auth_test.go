@@ -15,33 +15,15 @@ import (
 	"testing"
 )
 
-var serverPubKey = []byte{1, 45, 45, 45, 45, 45, 66, 69, 71, 73, 78, 32, 80, 85,
-	66, 76, 73, 67, 32, 75, 69, 89, 45, 45, 45, 45, 45, 10, 77, 73, 73, 66, 73,
-	106, 65, 78, 66, 103, 107, 113, 104, 107, 105, 71, 57, 119, 48, 66, 65, 81,
-	69, 70, 65, 65, 79, 67, 65, 81, 56, 65, 77, 73, 73, 66, 67, 103, 75, 67, 65,
-	81, 69, 65, 51, 72, 115, 120, 83, 53, 80, 47, 72, 97, 88, 80, 118, 109, 51,
-	109, 50, 65, 68, 110, 10, 98, 117, 54, 71, 81, 102, 112, 83, 71, 111, 55,
-	104, 50, 103, 104, 56, 49, 112, 109, 97, 120, 107, 67, 110, 68, 67, 119,
-	102, 54, 109, 109, 101, 72, 55, 76, 75, 104, 115, 110, 89, 110, 78, 52, 81,
-	48, 99, 122, 49, 81, 69, 47, 98, 104, 100, 80, 117, 54, 106, 115, 43, 86,
-	97, 89, 52, 10, 67, 99, 77, 117, 98, 80, 78, 49, 103, 79, 75, 97, 89, 118,
-	78, 99, 103, 69, 87, 112, 116, 73, 67, 105, 50, 88, 84, 116, 116, 66, 55,
-	117, 104, 43, 118, 67, 77, 106, 76, 118, 106, 65, 77, 100, 54, 47, 68, 109,
-	120, 100, 98, 85, 66, 48, 122, 80, 71, 113, 68, 79, 103, 105, 76, 68, 10,
-	75, 82, 79, 79, 53, 113, 100, 55, 115, 104, 98, 55, 49, 82, 47, 88, 74, 69,
-	70, 118, 76, 120, 71, 88, 69, 70, 48, 90, 116, 104, 72, 101, 78, 111, 57,
-	102, 69, 118, 120, 70, 81, 111, 109, 98, 49, 107, 90, 57, 74, 56, 110, 66,
-	119, 116, 101, 53, 83, 70, 53, 89, 108, 113, 86, 50, 10, 66, 66, 53, 113,
-	108, 97, 122, 43, 51, 81, 83, 78, 118, 109, 67, 49, 105, 87, 102, 108, 106,
-	88, 98, 89, 53, 107, 51, 47, 97, 54, 109, 107, 77, 47, 76, 97, 87, 104, 97,
-	117, 78, 53, 80, 82, 51, 115, 67, 120, 53, 85, 117, 49, 77, 102, 100, 115,
-	86, 105, 107, 53, 102, 88, 77, 77, 10, 100, 120, 107, 102, 70, 43, 88, 51,
-	99, 104, 107, 65, 110, 119, 73, 51, 70, 117, 119, 119, 50, 87, 71, 109, 87,
-	79, 71, 98, 75, 116, 109, 73, 101, 85, 109, 51, 98, 73, 82, 109, 100, 70,
-	85, 113, 97, 108, 81, 105, 70, 104, 113, 101, 90, 50, 105, 107, 106, 104,
-	103, 86, 73, 57, 112, 76, 10, 119, 81, 73, 68, 65, 81, 65, 66, 10, 45, 45,
-	45, 45, 45, 69, 78, 68, 32, 80, 85, 66, 76, 73, 67, 32, 75, 69, 89, 45, 45,
-	45, 45, 45, 10}
+var testPubKey = []byte("-----BEGIN PUBLIC KEY-----\n" +
+	"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAol0Z8G8U+25Btxk/g/fm\n" +
+	"UAW/wEKjQCTjkibDE4B+qkuWeiumg6miIRhtilU6m9BFmLQSy1ltYQuu4k17A4tQ\n" +
+	"rIPpOQYZges/qsDFkZh3wyK5jL5WEFVdOasf6wsfszExnPmcZS4axxoYJfiuilrN\n" +
+	"hnwinBAqfi3S0sw5MpSI4Zl1AbOrHG4zDI62Gti2PKiMGyYDZTS9xPrBLbN95Kby\n" +
+	"FFclQLEzA9RJcS1nHFsWtRgHjGPhhjCQxEm9NQ1nePFhCfBfApyfH1VM2VCOQum6\n" +
+	"Ci9bMuHWjTjckC84mzF99kOxOWVU7mwS6gnJqBzpuz8t3zq8/iQ2y7QrmZV+jTJP\n" +
+	"WQIDAQAB\n" +
+	"-----END PUBLIC KEY-----\n")
 
 func TestScrambleOldPass(t *testing.T) {
 	scramble := []byte{9, 8, 7, 6, 5, 4, 3, 2}
@@ -204,7 +186,7 @@ func TestAuthFastCachingSHA256PasswordFullRSA(t *testing.T) {
 	}
 	conn.queuedReplies = [][]byte{
 		// pub key response
-		append([]byte{byte(len(serverPubKey)), 1, 0, 4}, serverPubKey...),
+		append([]byte{byte(1 + len(testPubKey)), 1, 0, 4, 1}, testPubKey...),
 
 		// OK
 		{7, 0, 0, 6, 0, 0, 0, 2, 0, 0, 0},
@@ -511,7 +493,7 @@ func TestAuthFastSHA256PasswordEmpty(t *testing.T) {
 	conn.written = nil
 
 	// auth response (pub key response)
-	conn.data = append([]byte{byte(len(serverPubKey)), 1, 0, 2}, serverPubKey...)
+	conn.data = append([]byte{byte(1 + len(testPubKey)), 1, 0, 2, 1}, testPubKey...)
 	conn.queuedReplies = [][]byte{
 		// OK
 		{7, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0},
@@ -559,7 +541,7 @@ func TestAuthFastSHA256PasswordRSA(t *testing.T) {
 	conn.written = nil
 
 	// auth response (pub key response)
-	conn.data = append([]byte{byte(len(serverPubKey)), 1, 0, 2}, serverPubKey...)
+	conn.data = append([]byte{byte(1 + len(testPubKey)), 1, 0, 2, 1}, testPubKey...)
 	conn.queuedReplies = [][]byte{
 		// OK
 		{7, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0},
@@ -706,7 +688,7 @@ func TestAuthSwitchCachingSHA256PasswordFullRSA(t *testing.T) {
 		{2, 0, 0, 4, 1, 4},
 
 		// Pub Key Response
-		append([]byte{byte(len(serverPubKey)), 1, 0, 6}, serverPubKey...),
+		append([]byte{byte(1 + len(testPubKey)), 1, 0, 6, 1}, testPubKey...),
 
 		// OK
 		{7, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0},
@@ -1042,7 +1024,7 @@ func TestAuthSwitchSHA256PasswordRSA(t *testing.T) {
 
 	conn.queuedReplies = [][]byte{
 		// Pub Key Response
-		append([]byte{byte(len(serverPubKey)), 1, 0, 4}, serverPubKey...),
+		append([]byte{byte(1 + len(testPubKey)), 1, 0, 4, 1}, testPubKey...),
 
 		// OK
 		{7, 0, 0, 6, 0, 0, 0, 2, 0, 0, 0},
