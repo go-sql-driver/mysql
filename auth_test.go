@@ -89,11 +89,12 @@ func TestAuthFastCachingSHA256PasswordCached(t *testing.T) {
 	plugin := "caching_sha2_password"
 
 	// Send Client Authentication Packet
-	authResp, err := mc.auth(authData, plugin)
+	authResp, addNUL, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
+	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -133,11 +134,12 @@ func TestAuthFastCachingSHA256PasswordEmpty(t *testing.T) {
 	plugin := "caching_sha2_password"
 
 	// Send Client Authentication Packet
-	authResp, err := mc.auth(authData, plugin)
+	authResp, addNUL, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
+	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -174,11 +176,12 @@ func TestAuthFastCachingSHA256PasswordFullRSA(t *testing.T) {
 	plugin := "caching_sha2_password"
 
 	// Send Client Authentication Packet
-	authResp, err := mc.auth(authData, plugin)
+	authResp, addNUL, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
+	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -228,11 +231,12 @@ func TestAuthFastCachingSHA256PasswordFullSecure(t *testing.T) {
 	plugin := "caching_sha2_password"
 
 	// Send Client Authentication Packet
-	authResp, err := mc.auth(authData, plugin)
+	authResp, addNUL, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
+	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -268,7 +272,7 @@ func TestAuthFastCachingSHA256PasswordFullSecure(t *testing.T) {
 		t.Errorf("got error: %v", err)
 	}
 
-	if !bytes.Equal(conn.written, []byte{6, 0, 0, 3, 115, 101, 99, 114, 101, 116}) {
+	if !bytes.Equal(conn.written, []byte{7, 0, 0, 3, 115, 101, 99, 114, 101, 116, 0}) {
 		t.Errorf("unexpected written data: %v", conn.written)
 	}
 }
@@ -283,7 +287,7 @@ func TestAuthFastCleartextPasswordNotAllowed(t *testing.T) {
 	plugin := "mysql_clear_password"
 
 	// Send Client Authentication Packet
-	_, err := mc.auth(authData, plugin)
+	_, _, err := mc.auth(authData, plugin)
 	if err != ErrCleartextPassword {
 		t.Errorf("expected ErrCleartextPassword, got %v", err)
 	}
@@ -300,11 +304,12 @@ func TestAuthFastCleartextPassword(t *testing.T) {
 	plugin := "mysql_clear_password"
 
 	// Send Client Authentication Packet
-	authResp, err := mc.auth(authData, plugin)
+	authResp, addNUL, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
+	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -342,11 +347,12 @@ func TestAuthFastCleartextPasswordEmpty(t *testing.T) {
 	plugin := "mysql_clear_password"
 
 	// Send Client Authentication Packet
-	authResp, err := mc.auth(authData, plugin)
+	authResp, addNUL, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
+	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -384,7 +390,7 @@ func TestAuthFastNativePasswordNotAllowed(t *testing.T) {
 	plugin := "mysql_native_password"
 
 	// Send Client Authentication Packet
-	_, err := mc.auth(authData, plugin)
+	_, _, err := mc.auth(authData, plugin)
 	if err != ErrNativePassword {
 		t.Errorf("expected ErrNativePassword, got %v", err)
 	}
@@ -400,11 +406,12 @@ func TestAuthFastNativePassword(t *testing.T) {
 	plugin := "mysql_native_password"
 
 	// Send Client Authentication Packet
-	authResp, err := mc.auth(authData, plugin)
+	authResp, addNUL, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
+	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -442,11 +449,12 @@ func TestAuthFastNativePasswordEmpty(t *testing.T) {
 	plugin := "mysql_native_password"
 
 	// Send Client Authentication Packet
-	authResp, err := mc.auth(authData, plugin)
+	authResp, addNUL, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
+	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -530,7 +538,7 @@ func TestAuthSwitchCachingSHA256PasswordEmpty(t *testing.T) {
 		t.Errorf("got error: %v", err)
 	}
 
-	expectedReply := []byte{0, 0, 0, 3}
+	expectedReply := []byte{1, 0, 0, 3, 0}
 	if !bytes.Equal(conn.written, expectedReply) {
 		t.Errorf("got unexpected data: %v", conn.written)
 	}
@@ -619,7 +627,7 @@ func TestAuthSwitchCachingSHA256PasswordFullSecure(t *testing.T) {
 		153, 9, 130,
 
 		// 2. Packet: Cleartext password
-		6, 0, 0, 5, 115, 101, 99, 114, 101, 116,
+		7, 0, 0, 5, 115, 101, 99, 114, 101, 116, 0,
 	}
 	if !bytes.Equal(conn.written, expectedReply) {
 		t.Errorf("got unexpected data: %v", conn.written)
@@ -662,7 +670,7 @@ func TestAuthSwitchCleartextPassword(t *testing.T) {
 		t.Errorf("got error: %v", err)
 	}
 
-	expectedReply := []byte{6, 0, 0, 3, 115, 101, 99, 114, 101, 116}
+	expectedReply := []byte{7, 0, 0, 3, 115, 101, 99, 114, 101, 116, 0}
 	if !bytes.Equal(conn.written, expectedReply) {
 		t.Errorf("got unexpected data: %v", conn.written)
 	}
@@ -689,7 +697,7 @@ func TestAuthSwitchCleartextPasswordEmpty(t *testing.T) {
 		t.Errorf("got error: %v", err)
 	}
 
-	expectedReply := []byte{0, 0, 0, 3}
+	expectedReply := []byte{1, 0, 0, 3, 0}
 	if !bytes.Equal(conn.written, expectedReply) {
 		t.Errorf("got unexpected data: %v", conn.written)
 	}
@@ -810,7 +818,7 @@ func TestAuthSwitchOldPassword(t *testing.T) {
 		t.Errorf("got error: %v", err)
 	}
 
-	expectedReply := []byte{8, 0, 0, 3, 86, 83, 83, 79, 74, 78, 65, 66}
+	expectedReply := []byte{9, 0, 0, 3, 86, 83, 83, 79, 74, 78, 65, 66, 0}
 	if !bytes.Equal(conn.written, expectedReply) {
 		t.Errorf("got unexpected data: %v", conn.written)
 	}
@@ -838,7 +846,7 @@ func TestAuthSwitchOldPasswordEmpty(t *testing.T) {
 		t.Errorf("got error: %v", err)
 	}
 
-	expectedReply := []byte{0, 0, 0, 3}
+	expectedReply := []byte{1, 0, 0, 3, 0}
 	if !bytes.Equal(conn.written, expectedReply) {
 		t.Errorf("got unexpected data: %v", conn.written)
 	}

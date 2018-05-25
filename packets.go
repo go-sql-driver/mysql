@@ -246,7 +246,7 @@ func (mc *mysqlConn) readHandshakePacket() ([]byte, string, error) {
 
 // Client Authentication Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::HandshakeResponse
-func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string) error {
+func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, addNUL bool, plugin string) error {
 	// Adjust client flags based on server support
 	clientFlags := clientProtocol41 |
 		clientSecureConn |
@@ -271,6 +271,9 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	}
 
 	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1 + 1 + len(authResp) + 21 + 1
+	if addNUL {
+		pktLen++
+	}
 
 	// To specify a db name
 	if n := len(mc.cfg.DBName); n > 0 {
@@ -341,6 +344,10 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	// Auth Data [length encoded integer]
 	data[pos] = byte(len(authResp))
 	pos += 1 + copy(data[pos+1:], authResp)
+	if addNUL {
+		data[pos] = 0x00
+		pos++
+	}
 
 	// Databasename [null terminated string]
 	if len(mc.cfg.DBName) > 0 {
@@ -357,8 +364,12 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 }
 
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
-func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
-	data := mc.buf.takeSmallBuffer(4 + len(authData))
+func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte, addNUL bool) error {
+	pktLen := 4 + len(authData)
+	if addNUL {
+		pktLen++
+	}
+	data := mc.buf.takeSmallBuffer(pktLen)
 	if data == nil {
 		// cannot take the buffer. Something must be wrong with the connection
 		errLog.Print(ErrBusyBuffer)
@@ -367,6 +378,9 @@ func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
 
 	// Add the auth data [EOF]
 	copy(data[4:], authData)
+	if addNUL {
+		data[pktLen-1] = 0x00
+	}
 
 	return mc.writePacket(data)
 }

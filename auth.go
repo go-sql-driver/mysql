@@ -154,39 +154,42 @@ func scrambleSHA256Password(scramble []byte, password string) []byte {
 	return message1
 }
 
-func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
+func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, bool, error) {
 	switch plugin {
 	case "caching_sha2_password":
-		return scrambleSHA256Password(authData, mc.cfg.Passwd), nil
+		authResp := scrambleSHA256Password(authData, mc.cfg.Passwd)
+		return authResp, (authResp == nil), nil
 
 	case "mysql_old_password":
 		if !mc.cfg.AllowOldPasswords {
-			return nil, ErrOldPassword
+			return nil, false, ErrOldPassword
 		}
 		// Note: there are edge cases where this should work but doesn't;
 		// this is currently "wontfix":
 		// https://github.com/go-sql-driver/mysql/issues/184
-		return scrambleOldPassword(authData[:8], mc.cfg.Passwd), nil
+		authResp := scrambleOldPassword(authData[:8], mc.cfg.Passwd)
+		return authResp, true, nil
 
 	case "mysql_clear_password":
 		if !mc.cfg.AllowCleartextPasswords {
-			return nil, ErrCleartextPassword
+			return nil, false, ErrCleartextPassword
 		}
 		// http://dev.mysql.com/doc/refman/5.7/en/cleartext-authentication-plugin.html
 		// http://dev.mysql.com/doc/refman/5.7/en/pam-authentication-plugin.html
-		return []byte(mc.cfg.Passwd), nil
+		return []byte(mc.cfg.Passwd), true, nil
 
 	case "mysql_native_password":
 		if !mc.cfg.AllowNativePasswords {
-			return nil, ErrNativePassword
+			return nil, false, ErrNativePassword
 		}
 		// https://dev.mysql.com/doc/internals/en/secure-password-authentication.html
 		// Native password authentication only need and will need 20-byte challenge.
-		return scramblePassword(authData[0:20], mc.cfg.Passwd), nil
+		authResp := scramblePassword(authData[:20], mc.cfg.Passwd)
+		return authResp, false, nil
 
 	default:
 		errLog.Print("unknown auth plugin:", plugin)
-		return nil, ErrUnknownPlugin
+		return nil, false, ErrUnknownPlugin
 	}
 }
 
@@ -207,11 +210,11 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 
 		plugin = newPlugin
 
-		authResp, err := mc.auth(authData, plugin)
+		authResp, addNUL, err := mc.auth(authData, plugin)
 		if err != nil {
 			return err
 		}
-		if err = mc.writeAuthSwitchPacket(authResp); err != nil {
+		if err = mc.writeAuthSwitchPacket(authResp, addNUL); err != nil {
 			return err
 		}
 
@@ -243,8 +246,8 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 			case cachingSha2PasswordPerformFullAuthentication:
 				if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
 					// write cleartext auth packet
-					authData := []byte(mc.cfg.Passwd)
-					if err = mc.writeAuthSwitchPacket(authData); err != nil {
+					err = mc.writeAuthSwitchPacket([]byte(mc.cfg.Passwd), true)
+					if err != nil {
 						return err
 					}
 				} else {
@@ -283,7 +286,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 						return err
 					}
 
-					if err = mc.writeAuthSwitchPacket(enc); err != nil {
+					if err = mc.writeAuthSwitchPacket(enc, false); err != nil {
 						return err
 					}
 				}
