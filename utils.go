@@ -20,15 +20,17 @@ import (
 	"time"
 )
 
+// Registry for custom tls.Configs
 var (
 	tlsConfigLock     sync.RWMutex
-	tlsConfigRegister map[string]*tls.Config // Register for custom tls.Configs
+	tlsConfigRegistry map[string]*tls.Config
 )
 
 // RegisterTLSConfig registers a custom tls.Config to be used with sql.Open.
 // Use the key as a value in the DSN where tls=value.
 //
-// Note: The tls.Config provided to needs to be exclusively owned by the driver after registering.
+// Note: The provided tls.Config is exclusively owned by the driver after
+// registering it.
 //
 //  rootCertPool := x509.NewCertPool()
 //  pem, err := ioutil.ReadFile("/path/ca-cert.pem")
@@ -56,11 +58,11 @@ func RegisterTLSConfig(key string, config *tls.Config) error {
 	}
 
 	tlsConfigLock.Lock()
-	if tlsConfigRegister == nil {
-		tlsConfigRegister = make(map[string]*tls.Config)
+	if tlsConfigRegistry == nil {
+		tlsConfigRegistry = make(map[string]*tls.Config)
 	}
 
-	tlsConfigRegister[key] = config
+	tlsConfigRegistry[key] = config
 	tlsConfigLock.Unlock()
 	return nil
 }
@@ -68,15 +70,15 @@ func RegisterTLSConfig(key string, config *tls.Config) error {
 // DeregisterTLSConfig removes the tls.Config associated with key.
 func DeregisterTLSConfig(key string) {
 	tlsConfigLock.Lock()
-	if tlsConfigRegister != nil {
-		delete(tlsConfigRegister, key)
+	if tlsConfigRegistry != nil {
+		delete(tlsConfigRegistry, key)
 	}
 	tlsConfigLock.Unlock()
 }
 
 func getTLSConfigClone(key string) (config *tls.Config) {
 	tlsConfigLock.RLock()
-	if v, ok := tlsConfigRegister[key]; ok {
+	if v, ok := tlsConfigRegistry[key]; ok {
 		config = cloneTLSConfig(v)
 	}
 	tlsConfigLock.RUnlock()
