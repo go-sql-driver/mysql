@@ -209,7 +209,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, bool, error) 
 		}
 		if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
 			// write cleartext auth packet
-			return []byte(mc.cfg.Passwd), true, nil // TODO: nul-terminate
+			return []byte(mc.cfg.Passwd), true, nil
 		}
 		// request public key
 		// TODO: allow to specify a local file with the pub key via the DSN
@@ -234,6 +234,9 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 		// sent and we have to keep using the cipher sent in the init packet.
 		if authData == nil {
 			authData = oldAuthData
+		} else {
+			// copy data from read buffer to owned slice
+			copy(oldAuthData, authData)
 		}
 
 		plugin = newPlugin
@@ -316,18 +319,23 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 		}
 
 	case "sha256_password":
-		block, _ := pem.Decode(authData)
-		pub, err := x509.ParsePKIXPublicKey(block.Bytes)
-		if err != nil {
-			return err
-		}
+		switch len(authData) {
+		case 0:
+			return nil // auth successful
+		default:
+			block, _ := pem.Decode(authData)
+			pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+			if err != nil {
+				return err
+			}
 
-		// send encrypted password
-		err = mc.sendEncryptedPassword(oldAuthData, pub.(*rsa.PublicKey))
-		if err != nil {
-			return err
+			// send encrypted password
+			err = mc.sendEncryptedPassword(oldAuthData, pub.(*rsa.PublicKey))
+			if err != nil {
+				return err
+			}
+			return mc.readResultOK()
 		}
-		return mc.readResultOK()
 
 	default:
 		return nil // auth successful
