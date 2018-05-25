@@ -301,6 +301,19 @@ other cases. You should ensure your application will never cause an ERROR 1290
 except for `read-only` mode when enabling this option.
 
 
+##### `serverPubKey`
+
+```
+Type:           string
+Valid Values:   <name>
+Default:        none
+```
+
+Server public keys can be registered with [`mysql.RegisterServerPubKey`](https://godoc.org/github.com/go-sql-driver/mysql#RegisterServerPubKey), which can then be used by the assigned name in the DSN.
+Public keys are used to transmit encrypted data, e.g. for authentication.
+If the server's public key is known, it should be set manually to avoid expensive and potentially insecure transmissions of the public key from the server to the client each time it is required.
+
+
 ##### `timeout`
 
 ```

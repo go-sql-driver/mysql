@@ -10,7 +10,10 @@ package mysql
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"testing"
 )
@@ -24,6 +27,17 @@ var testPubKey = []byte("-----BEGIN PUBLIC KEY-----\n" +
 	"Ci9bMuHWjTjckC84mzF99kOxOWVU7mwS6gnJqBzpuz8t3zq8/iQ2y7QrmZV+jTJP\n" +
 	"WQIDAQAB\n" +
 	"-----END PUBLIC KEY-----\n")
+
+var testPubKeyRSA *rsa.PublicKey
+
+func init() {
+	block, _ := pem.Decode(testPubKey)
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		panic(err)
+	}
+	testPubKeyRSA = pub.(*rsa.PublicKey)
+}
 
 func TestScrambleOldPass(t *testing.T) {
 	scramble := []byte{9, 8, 7, 6, 5, 4, 3, 2}
@@ -199,6 +213,59 @@ func TestAuthFastCachingSHA256PasswordFullRSA(t *testing.T) {
 	}
 
 	if !bytes.HasPrefix(conn.written, []byte{1, 0, 0, 3, 2, 0, 1, 0, 5}) {
+		t.Errorf("unexpected written data: %v", conn.written)
+	}
+}
+
+func TestAuthFastCachingSHA256PasswordFullRSAWithKey(t *testing.T) {
+	conn, mc := newRWMockConn(1)
+	mc.cfg.User = "root"
+	mc.cfg.Passwd = "secret"
+	mc.cfg.pubKey = testPubKeyRSA
+
+	authData := []byte{6, 81, 96, 114, 14, 42, 50, 30, 76, 47, 1, 95, 126, 81,
+		62, 94, 83, 80, 52, 85}
+	plugin := "caching_sha2_password"
+
+	// Send Client Authentication Packet
+	authResp, addNUL, err := mc.auth(authData, plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check written auth response
+	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1
+	authRespEnd := authRespStart + 1 + len(authResp)
+	writtenAuthRespLen := conn.written[authRespStart]
+	writtenAuthResp := conn.written[authRespStart+1 : authRespEnd]
+	expectedAuthResp := []byte{171, 201, 138, 146, 89, 159, 11, 170, 0, 67, 165,
+		49, 175, 94, 218, 68, 177, 109, 110, 86, 34, 33, 44, 190, 67, 240, 70,
+		110, 40, 139, 124, 41}
+	if writtenAuthRespLen != 32 || !bytes.Equal(writtenAuthResp, expectedAuthResp) {
+		t.Fatalf("unexpected written auth response (%d bytes): %v", writtenAuthRespLen, writtenAuthResp)
+	}
+	conn.written = nil
+
+	// auth response
+	conn.data = []byte{
+		2, 0, 0, 2, 1, 4, // Perform Full Authentication
+	}
+	conn.queuedReplies = [][]byte{
+		// OK
+		{7, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0},
+	}
+	conn.maxReads = 2
+
+	// Handle response to auth packet
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	if !bytes.HasPrefix(conn.written, []byte{0, 1, 0, 3}) {
 		t.Errorf("unexpected written data: %v", conn.written)
 	}
 }
@@ -558,6 +625,36 @@ func TestAuthFastSHA256PasswordRSA(t *testing.T) {
 	}
 }
 
+func TestAuthFastSHA256PasswordRSAWithKey(t *testing.T) {
+	conn, mc := newRWMockConn(1)
+	mc.cfg.User = "root"
+	mc.cfg.Passwd = "secret"
+	mc.cfg.pubKey = testPubKeyRSA
+
+	authData := []byte{6, 81, 96, 114, 14, 42, 50, 30, 76, 47, 1, 95, 126, 81,
+		62, 94, 83, 80, 52, 85}
+	plugin := "sha256_password"
+
+	// Send Client Authentication Packet
+	authResp, addNUL, err := mc.auth(authData, plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// auth response (OK)
+	conn.data = []byte{7, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0}
+	conn.maxReads = 1
+
+	// Handle response to auth packet
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+}
+
 func TestAuthFastSHA256PasswordSecure(t *testing.T) {
 	conn, mc := newRWMockConn(1)
 	mc.cfg.User = "root"
@@ -714,6 +811,48 @@ func TestAuthSwitchCachingSHA256PasswordFullRSA(t *testing.T) {
 
 		// 3. Packet: Encrypted Password
 		0, 1, 0, 7, // [changing bytes]
+	}
+	if !bytes.HasPrefix(conn.written, expectedReplyPrefix) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
+func TestAuthSwitchCachingSHA256PasswordFullRSAWithKey(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.Passwd = "secret"
+	mc.cfg.pubKey = testPubKeyRSA
+
+	// auth switch request
+	conn.data = []byte{44, 0, 0, 2, 254, 99, 97, 99, 104, 105, 110, 103, 95,
+		115, 104, 97, 50, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0, 101,
+		11, 26, 18, 94, 97, 22, 72, 2, 46, 70, 106, 29, 55, 45, 94, 76, 90, 84,
+		50, 0}
+
+	conn.queuedReplies = [][]byte{
+		// Perform Full Authentication
+		{2, 0, 0, 4, 1, 4},
+
+		// OK
+		{7, 0, 0, 6, 0, 0, 0, 2, 0, 0, 0},
+	}
+	conn.maxReads = 3
+
+	authData := []byte{123, 87, 15, 84, 20, 58, 37, 121, 91, 117, 51, 24, 19,
+		47, 43, 9, 41, 112, 67, 110}
+	plugin := "mysql_native_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReplyPrefix := []byte{
+		// 1. Packet: Hash
+		32, 0, 0, 3, 129, 93, 132, 95, 114, 48, 79, 215, 128, 62, 193, 118, 128,
+		54, 75, 208, 159, 252, 227, 215, 129, 15, 242, 97, 19, 159, 31, 20, 58,
+		153, 9, 130,
+
+		// 2. Packet: Encrypted Password
+		0, 1, 0, 5, // [changing bytes]
 	}
 	if !bytes.HasPrefix(conn.written, expectedReplyPrefix) {
 		t.Errorf("got unexpected data: %v", conn.written)
@@ -1045,6 +1184,39 @@ func TestAuthSwitchSHA256PasswordRSA(t *testing.T) {
 
 		// 2. Packet: Encrypted Password
 		0, 1, 0, 5, // [changing bytes]
+	}
+	if !bytes.HasPrefix(conn.written, expectedReplyPrefix) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
+func TestAuthSwitchSHA256PasswordRSAWithKey(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.Passwd = "secret"
+	mc.cfg.pubKey = testPubKeyRSA
+
+	// auth switch request
+	conn.data = []byte{38, 0, 0, 2, 254, 115, 104, 97, 50, 53, 54, 95, 112, 97,
+		115, 115, 119, 111, 114, 100, 0, 78, 82, 62, 40, 100, 1, 59, 31, 44, 69,
+		33, 112, 8, 81, 51, 96, 65, 82, 16, 114, 0}
+
+	conn.queuedReplies = [][]byte{
+		// OK
+		{7, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0},
+	}
+	conn.maxReads = 2
+
+	authData := []byte{123, 87, 15, 84, 20, 58, 37, 121, 91, 117, 51, 24, 19,
+		47, 43, 9, 41, 112, 67, 110}
+	plugin := "mysql_native_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReplyPrefix := []byte{
+		// 1. Packet: Encrypted Password
+		0, 1, 0, 3, // [changing bytes]
 	}
 	if !bytes.HasPrefix(conn.written, expectedReplyPrefix) {
 		t.Errorf("got unexpected data: %v", conn.written)
