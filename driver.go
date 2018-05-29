@@ -107,20 +107,31 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	mc.writeTimeout = mc.cfg.WriteTimeout
 
 	// Reading Handshake Initialization Packet
-	cipher, pluginName, err := mc.readInitPacket()
+	authData, plugin, err := mc.readHandshakePacket()
 	if err != nil {
 		mc.cleanup()
 		return nil, err
 	}
 
 	// Send Client Authentication Packet
-	if err = mc.writeAuthPacket(cipher, pluginName); err != nil {
+	authResp, addNUL, err := mc.auth(authData, plugin)
+	if err != nil {
+		// try the default auth plugin, if using the requested plugin failed
+		errLog.Print("could not use requested auth plugin '"+plugin+"': ", err.Error())
+		plugin = defaultAuthPlugin
+		authResp, addNUL, err = mc.auth(authData, plugin)
+		if err != nil {
+			mc.cleanup()
+			return nil, err
+		}
+	}
+	if err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin); err != nil {
 		mc.cleanup()
 		return nil, err
 	}
 
 	// Handle response to auth packet, switch methods if possible
-	if err = handleAuthResult(mc, cipher, pluginName); err != nil {
+	if err = mc.handleAuthResult(authData, plugin); err != nil {
 		// Authentication failed and MySQL has already closed the connection
 		// (https://dev.mysql.com/doc/internals/en/authentication-fails.html).
 		// Do not send COM_QUIT, just cleanup and return the error.
@@ -151,95 +162,6 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	}
 
 	return mc, nil
-}
-
-func handleAuthResult(mc *mysqlConn, oldCipher []byte, pluginName string) error {
-	// Read Result Packet
-	cipher, err := mc.readResultOK()
-	if err == nil {
-		// handle caching_sha2_password
-		// https://insidemysql.com/preparing-your-community-connector-for-mysql-8-part-2-sha256/
-		if pluginName == "caching_sha2_password" {
-			if len(cipher) == 1 {
-				switch cipher[0] {
-				case cachingSha2PasswordFastAuthSuccess:
-					cipher, err = mc.readResultOK()
-					if err == nil {
-						return nil // auth successful
-					}
-
-				case cachingSha2PasswordPerformFullAuthentication:
-					if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
-						if err = mc.writeClearAuthPacket(); err != nil {
-							return err
-						}
-					} else {
-						if err = mc.writePublicKeyAuthPacket(oldCipher); err != nil {
-							return err
-						}
-					}
-					cipher, err = mc.readResultOK()
-					if err == nil {
-						return nil // auth successful
-					}
-
-				default:
-					return ErrMalformPkt
-				}
-			} else {
-				return ErrMalformPkt
-			}
-
-		} else {
-			return nil // auth successful
-		}
-	}
-
-	if mc.cfg == nil {
-		return err // auth failed and retry not possible
-	}
-
-	// Retry auth if configured to do so
-	switch err {
-	case ErrCleartextPassword:
-		if mc.cfg.AllowCleartextPasswords {
-			// Retry with clear text password for
-			// http://dev.mysql.com/doc/refman/5.7/en/cleartext-authentication-plugin.html
-			// http://dev.mysql.com/doc/refman/5.7/en/pam-authentication-plugin.html
-			if err = mc.writeClearAuthPacket(); err != nil {
-				return err
-			}
-			_, err = mc.readResultOK()
-		}
-
-	case ErrNativePassword:
-		if mc.cfg.AllowNativePasswords {
-			if err = mc.writeNativeAuthPacket(cipher); err != nil {
-				return err
-			}
-			_, err = mc.readResultOK()
-		}
-
-	case ErrOldPassword:
-		if mc.cfg.AllowOldPasswords {
-			// Retry with old authentication method. Note: there are edge cases
-			// where this should work but doesn't; this is currently "wontfix":
-			// https://github.com/go-sql-driver/mysql/issues/184
-
-			// If CLIENT_PLUGIN_AUTH capability is not supported, no new cipher is
-			// sent and we have to keep using the cipher sent in the init packet.
-			if cipher == nil {
-				cipher = oldCipher
-			}
-
-			if err = mc.writeOldAuthPacket(cipher); err != nil {
-				return err
-			}
-			_, err = mc.readResultOK()
-		}
-	}
-
-	return err
 }
 
 func init() {

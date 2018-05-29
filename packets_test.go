@@ -24,16 +24,17 @@ var (
 
 // struct to mock a net.Conn for testing purposes
 type mockConn struct {
-	laddr     net.Addr
-	raddr     net.Addr
-	data      []byte
-	closed    bool
-	read      int
-	written   int
-	reads     int
-	writes    int
-	maxReads  int
-	maxWrites int
+	laddr         net.Addr
+	raddr         net.Addr
+	data          []byte
+	written       []byte
+	queuedReplies [][]byte
+	closed        bool
+	read          int
+	reads         int
+	writes        int
+	maxReads      int
+	maxWrites     int
 }
 
 func (m *mockConn) Read(b []byte) (n int, err error) {
@@ -62,7 +63,12 @@ func (m *mockConn) Write(b []byte) (n int, err error) {
 	}
 
 	n = len(b)
-	m.written += n
+	m.written = append(m.written, b...)
+
+	if n > 0 && len(m.queuedReplies) > 0 {
+		m.data = m.queuedReplies[0]
+		m.queuedReplies = m.queuedReplies[1:]
+	}
 	return
 }
 func (m *mockConn) Close() error {
@@ -87,6 +93,19 @@ func (m *mockConn) SetWriteDeadline(t time.Time) error {
 
 // make sure mockConn implements the net.Conn interface
 var _ net.Conn = new(mockConn)
+
+func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
+	conn := new(mockConn)
+	mc := &mysqlConn{
+		buf:              newBuffer(conn),
+		cfg:              NewConfig(),
+		netConn:          conn,
+		closech:          make(chan struct{}),
+		maxAllowedPacket: defaultMaxAllowedPacket,
+		sequence:         sequence,
+	}
+	return conn, mc
+}
 
 func TestReadPacketSingleByte(t *testing.T) {
 	conn := new(mockConn)
@@ -300,7 +319,7 @@ func TestRegression801(t *testing.T) {
 		112, 97, 115, 115, 119, 111, 114, 100}
 	conn.maxReads = 1
 
-	authData, pluginName, err := mc.readInitPacket()
+	authData, pluginName, err := mc.readHandshakePacket()
 	if err != nil {
 		t.Fatalf("got error: %v", err)
 	}
