@@ -234,9 +234,9 @@ func (mc *mysqlConn) readHandshakePacket() ([]byte, string, error) {
 		var b [20]byte
 		copy(b[:], authData)
 		return b[:], plugin, nil
-	} else {
-		plugin = defaultAuthPlugin
 	}
+
+	plugin = defaultAuthPlugin
 
 	// make a memory safe copy of the cipher slice
 	var b [8]byte
@@ -473,15 +473,17 @@ func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
 		return data[1:], "", err
 
 	case iEOF:
-		if len(data) > 1 {
-			pluginEndIndex := bytes.IndexByte(data, 0x00)
-			plugin := string(data[1:pluginEndIndex])
-			authData := data[pluginEndIndex+1:]
-			return authData, plugin, nil
+		if len(data) < 1 {
+			// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::OldAuthSwitchRequest
+			return nil, "mysql_old_password", nil
 		}
-
-		// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::OldAuthSwitchRequest
-		return nil, "mysql_old_password", nil
+		pluginEndIndex := bytes.IndexByte(data, 0x00)
+		if pluginEndIndex < 0 {
+			return nil, "", ErrMalformPkt
+		}
+		plugin := string(data[1:pluginEndIndex])
+		authData := data[pluginEndIndex+1:]
+		return authData, plugin, nil
 
 	default: // Error otherwise
 		return nil, "", mc.handleErrorPacket(data)
