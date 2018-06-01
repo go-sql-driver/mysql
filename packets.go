@@ -270,7 +270,16 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, addNUL bool, 
 		clientFlags |= clientMultiStatements
 	}
 
-	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1 + 1 + len(authResp) + 21 + 1
+	// encode length of the auth plugin data
+	var authRespLEIBuf [9]byte
+	authRespLEI := appendLengthEncodedInteger(authRespLEIBuf[:0], uint64(len(authResp)))
+	if len(authRespLEI) > 1 {
+		// if the length can not be written in 1 byte, it must be written as a
+		// length encoded integer
+		clientFlags |= clientPluginAuthLenEncClientData
+	}
+
+	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1 + len(authRespLEI) + len(authResp) + 21 + 1
 	if addNUL {
 		pktLen++
 	}
@@ -342,8 +351,8 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, addNUL bool, 
 	pos++
 
 	// Auth Data [length encoded integer]
-	data[pos] = byte(len(authResp))
-	pos += 1 + copy(data[pos+1:], authResp)
+	pos += copy(data[pos:], authRespLEI)
+	pos += copy(data[pos:], authResp)
 	if addNUL {
 		data[pos] = 0x00
 		pos++
