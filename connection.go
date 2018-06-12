@@ -28,18 +28,21 @@ type mysqlContext interface {
 }
 
 type mysqlConn struct {
-	buf              buffer
-	netConn          net.Conn
-	affectedRows     uint64
-	insertId         uint64
-	cfg              *Config
-	maxAllowedPacket int
-	maxWriteSize     int
-	writeTimeout     time.Duration
-	flags            clientFlag
-	status           statusFlag
-	sequence         uint8
-	parseTime        bool
+	buf                 buffer
+	netConn             net.Conn
+	reader              packetReader
+	writer              io.Writer
+	affectedRows        uint64
+	insertId            uint64
+	cfg                 *Config
+	maxAllowedPacket    int
+	maxWriteSize        int
+	writeTimeout        time.Duration
+	flags               clientFlag
+	status              statusFlag
+	sequence            uint8
+	compressionSequence uint8
+	parseTime           bool
 
 	// for context support (Go 1.8+)
 	watching bool
@@ -48,6 +51,10 @@ type mysqlConn struct {
 	finished chan<- struct{}
 	canceled atomicError // set non-nil if conn is canceled
 	closed   atomicBool  // set when conn is closed, before closech is closed
+}
+
+type packetReader interface {
+	readNext(need int) ([]byte, error)
 }
 
 // Handles parameters set in DSN after the connection is established
