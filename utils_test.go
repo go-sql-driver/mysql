@@ -102,7 +102,7 @@ func TestFormatBinaryDateTime(t *testing.T) {
 	rawDate[6] = 23                                    // seconds
 	binary.LittleEndian.PutUint32(rawDate[7:], 987654) // microseconds
 	expect := func(expected string, inlen, outlen uint8) {
-		actual, _ := formatBinaryDateTime(rawDate[:inlen], outlen, false)
+		actual, _ := formatBinaryDateTime(rawDate[:inlen], outlen)
 		bytes, ok := actual.([]byte)
 		if !ok {
 			t.Errorf("formatBinaryDateTime must return []byte, was %T", actual)
@@ -110,7 +110,7 @@ func TestFormatBinaryDateTime(t *testing.T) {
 		if string(bytes) != expected {
 			t.Errorf(
 				"expected %q, got %q for length in %d, out %d",
-				bytes, actual, inlen, outlen,
+				expected, actual, inlen, outlen,
 			)
 		}
 	}
@@ -119,6 +119,41 @@ func TestFormatBinaryDateTime(t *testing.T) {
 	expect("1978-12-30", 4, 10)
 	expect("1978-12-30 15:46:23", 7, 19)
 	expect("1978-12-30 15:46:23.987654", 11, 26)
+}
+
+func TestFormatBinaryTime(t *testing.T) {
+	expect := func(expected string, src []byte, outlen uint8) {
+		actual, _ := formatBinaryTime(src, outlen)
+		bytes, ok := actual.([]byte)
+		if !ok {
+			t.Errorf("formatBinaryDateTime must return []byte, was %T", actual)
+		}
+		if string(bytes) != expected {
+			t.Errorf(
+				"expected %q, got %q for src=%q and outlen=%d",
+				expected, actual, src, outlen)
+		}
+	}
+
+	// binary format:
+	// sign (0: positive, 1: negative), days(4), hours, minutes, seconds, micro(4)
+
+	// Zeros
+	expect("00:00:00", []byte{}, 8)
+	expect("00:00:00.0", []byte{}, 10)
+	expect("00:00:00.000000", []byte{}, 15)
+
+	// Without micro(4)
+	expect("12:34:56", []byte{0, 0, 0, 0, 0, 12, 34, 56}, 8)
+	expect("-12:34:56", []byte{1, 0, 0, 0, 0, 12, 34, 56}, 8)
+	expect("12:34:56.00", []byte{0, 0, 0, 0, 0, 12, 34, 56}, 11)
+	expect("24:34:56", []byte{0, 1, 0, 0, 0, 0, 34, 56}, 8)
+	expect("-99:34:56", []byte{1, 4, 0, 0, 0, 3, 34, 56}, 8)
+	expect("103079215103:34:56", []byte{0, 255, 255, 255, 255, 23, 34, 56}, 8)
+
+	// With micro(4)
+	expect("12:34:56.00", []byte{0, 0, 0, 0, 0, 12, 34, 56, 99, 0, 0, 0}, 11)
+	expect("12:34:56.000099", []byte{0, 0, 0, 0, 0, 12, 34, 56, 99, 0, 0, 0}, 15)
 }
 
 func TestEscapeBackslash(t *testing.T) {
