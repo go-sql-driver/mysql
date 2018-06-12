@@ -228,6 +228,55 @@ var zeroDateTime = []byte("0000-00-00 00:00:00.000000")
 const digits01 = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
 const digits10 = "0000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999"
 
+func appendMicrosecs(dst, src []byte, decimals int) []byte {
+	if decimals <= 0 {
+		return dst
+	}
+	if len(src) == 0 {
+		return append(dst, ".000000"[:decimals+1]...)
+	}
+
+	microsecs := binary.LittleEndian.Uint32(src[:4])
+	p1 := byte(microsecs / 10000)
+	microsecs -= 10000 * uint32(p1)
+	p2 := byte(microsecs / 100)
+	microsecs -= 100 * uint32(p2)
+	p3 := byte(microsecs)
+
+	switch decimals {
+	default:
+		return append(dst, '.',
+			digits10[p1], digits01[p1],
+			digits10[p2], digits01[p2],
+			digits10[p3], digits01[p3],
+		)
+	case 1:
+		return append(dst, '.',
+			digits10[p1],
+		)
+	case 2:
+		return append(dst, '.',
+			digits10[p1], digits01[p1],
+		)
+	case 3:
+		return append(dst, '.',
+			digits10[p1], digits01[p1],
+			digits10[p2],
+		)
+	case 4:
+		return append(dst, '.',
+			digits10[p1], digits01[p1],
+			digits10[p2], digits01[p2],
+		)
+	case 5:
+		return append(dst, '.',
+			digits10[p1], digits01[p1],
+			digits10[p2], digits01[p2],
+			digits10[p3],
+		)
+	}
+}
+
 func formatBinaryDateTime(src []byte, length uint8) (driver.Value, error) {
 	// length expects the deterministic length of the zero value,
 	// negative time and 100+ hours are automatically added if needed
@@ -284,51 +333,7 @@ func formatBinaryDateTime(src []byte, length uint8) (driver.Value, error) {
 		digits10[p2], digits01[p2], ':',
 		digits10[p3], digits01[p3],
 	)
-	if length <= byte(len(dst)) {
-		return dst, nil
-	}
-	src = src[2:]
-	if len(src) == 0 {
-		return append(dst, zeroDateTime[19:length]...), nil
-	}
-	microsecs := binary.LittleEndian.Uint32(src[:4])
-	p1 = byte(microsecs / 10000)
-	microsecs -= 10000 * uint32(p1)
-	p2 = byte(microsecs / 100)
-	microsecs -= 100 * uint32(p2)
-	p3 = byte(microsecs)
-	switch decimals := length - 20; decimals {
-	default:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-			digits10[p2], digits01[p2],
-			digits10[p3], digits01[p3],
-		), nil
-	case 1:
-		return append(dst, '.',
-			digits10[p1],
-		), nil
-	case 2:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-		), nil
-	case 3:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-			digits10[p2],
-		), nil
-	case 4:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-			digits10[p2], digits01[p2],
-		), nil
-	case 5:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-			digits10[p2], digits01[p2],
-			digits10[p3],
-		), nil
-	}
+	return appendMicrosecs(dst, src[2:], int(length)-20), nil
 }
 
 func formatBinaryTime(src []byte, length uint8) (driver.Value, error) {
@@ -370,55 +375,7 @@ func formatBinaryTime(src []byte, length uint8) (driver.Value, error) {
 		digits10[min], digits01[min], ':',
 		digits10[sec], digits01[sec],
 	)
-
-	decimals := length - 9
-	if decimals <= 0 {
-		return dst, nil
-	}
-
-	var p1, p2, p3 byte
-	src = src[8:]
-	if len(src) == 0 {
-		return append(dst, zeroDateTime[19:11+length]...), nil
-	}
-	microsecs := binary.LittleEndian.Uint32(src[:4])
-	p1 = byte(microsecs / 10000)
-	microsecs -= 10000 * uint32(p1)
-	p2 = byte(microsecs / 100)
-	microsecs -= 100 * uint32(p2)
-	p3 = byte(microsecs)
-	switch decimals {
-	default:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-			digits10[p2], digits01[p2],
-			digits10[p3], digits01[p3],
-		), nil
-	case 1:
-		return append(dst, '.',
-			digits10[p1],
-		), nil
-	case 2:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-		), nil
-	case 3:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-			digits10[p2],
-		), nil
-	case 4:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-			digits10[p2], digits01[p2],
-		), nil
-	case 5:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-			digits10[p2], digits01[p2],
-			digits10[p3],
-		), nil
-	}
+	return appendMicrosecs(dst, src[8:], int(length)-9), nil
 }
 
 /******************************************************************************
