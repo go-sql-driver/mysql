@@ -1261,7 +1261,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 						rows.rs.columns[i].decimals,
 					)
 				}
-				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], dstlen, true)
+				dest[i], err = formatBinaryTime(data[pos:pos+int(num)], dstlen)
 			case rows.mc.parseTime:
 				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.Loc)
 			default:
@@ -1281,7 +1281,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 						)
 					}
 				}
-				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], dstlen, false)
+				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], dstlen)
 			}
 
 			if err == nil {
