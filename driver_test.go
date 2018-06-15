@@ -2074,7 +2074,7 @@ func TestEmptyPassword(t *testing.T) {
 		if !strings.HasPrefix(err.Error(), "Error 1045") {
 			t.Fatal(err.Error())
 		}
-  }
+	}
 }
 
 func TestConnectAttrs(t *testing.T) {
@@ -2089,16 +2089,16 @@ func TestConnectAttrs(t *testing.T) {
 	defer db.Close()
 	dbt := &DBTest{t, db}
 
-  // performance_schema seems to be updated with a delay in some conditions, so first see if we are in list:
-  rows := dbt.mustQuery("SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST where ID=CONNECTION_ID()")
-  if rows.Next() {
-  } else {
-    dbt.Error("no data in processlist")
-  }
+	// performance_schema seems to be updated with a delay in some conditions, so first see if we are in list:
+	rows := dbt.mustQuery("SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST where ID=CONNECTION_ID()")
+	if rows.Next() {
+	} else {
+		dbt.Error("no data in processlist")
+	}
 
 	rows, err = dbt.db.Query("select attr_value from performance_schema.session_account_connect_attrs where processlist_id=CONNECTION_ID() and attr_name='program_name'")
 	if err != nil {
-    fmt.Println(err)
+		fmt.Println(err)
 		dbt.Skip("server probably does not support performance_schema.session_account_connect_attrs")
 	}
 
