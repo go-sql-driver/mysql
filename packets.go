@@ -295,7 +295,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, addNUL bool, 
 		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte("_client_name"))
 		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte("go-mysql-driver"))
 
-		for k, v := range mc.cfg.Attributes {
+		for k, v := range mc.cfg.ConnectAttrs {
 			if k == "_client_name" {
 				// do not allow overwriting reserved values
 				continue

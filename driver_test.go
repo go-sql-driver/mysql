@@ -2077,21 +2077,29 @@ func TestEmptyPassword(t *testing.T) {
   }
 }
 
-func TestConnectionAttributes(t *testing.T) {
+func TestConnectAttrs(t *testing.T) {
 	if !available {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	db, err := sql.Open("mysql", dsn+"&connectionAttributes=program_name:GoTest,foo:bar")
+	db, err := sql.Open("mysql", dsn+"&connectAttrs=program_name:GoTest,foo:bar")
 	if err != nil {
 		t.Fatalf("error connecting: %s", err.Error())
 	}
 	defer db.Close()
 	dbt := &DBTest{t, db}
 
-	rows, err := dbt.db.Query("SELECT program_name FROM sys.processlist WHERE db=?", dbname)
+  // performance_schema seems to be updated with a delay in some conditions, so first see if we are in list:
+  rows := dbt.mustQuery("SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST where ID=CONNECTION_ID()")
+  if rows.Next() {
+  } else {
+    dbt.Error("no data in processlist")
+  }
+
+	rows, err = dbt.db.Query("select attr_value from performance_schema.session_account_connect_attrs where processlist_id=CONNECTION_ID() and attr_name='program_name'")
 	if err != nil {
-		dbt.Skip("server probably does not support program_name in sys.processlist")
+    fmt.Println(err)
+		dbt.Skip("server probably does not support performance_schema.session_account_connect_attrs")
 	}
 
 	if rows.Next() {
@@ -2101,7 +2109,7 @@ func TestConnectionAttributes(t *testing.T) {
 			dbt.Errorf("GoTest != %s", str)
 		}
 	} else {
-		dbt.Error("no data")
+		dbt.Error("no data for program_name")
 	}
 
 	rows = dbt.mustQuery("select attr_value from performance_schema.session_account_connect_attrs where processlist_id=CONNECTION_ID() and attr_name='foo'")
@@ -2112,7 +2120,7 @@ func TestConnectionAttributes(t *testing.T) {
 			dbt.Errorf("bar != %s", str)
 		}
 	} else {
-		dbt.Error("no data")
+		dbt.Error("no data for custom attribute")
 	}
 }
 

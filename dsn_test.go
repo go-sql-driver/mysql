@@ -72,8 +72,8 @@ var testDSNs = []struct {
 	"tcp(de:ad:be:ef::ca:fe)/dbname",
 	&Config{Net: "tcp", Addr: "[de:ad:be:ef::ca:fe]:3306", DBName: "dbname", Collation: "utf8_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true},
 }, {
-	"tcp(127.0.0.1)/dbname?connectionAttributes=program_name:SomeService",
-	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Attributes: map[string]string{"program_name": "SomeService"}, Collation: "utf8_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true},
+	"tcp(127.0.0.1)/dbname?connectAttrs=program_name:SomeService",
+	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", ConnectAttrs: map[string]string{"program_name": "SomeService"}, Collation: "utf8_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true},
 },
 }
 
@@ -322,16 +322,16 @@ func TestParamsAreSorted(t *testing.T) {
 }
 
 func TestAttributesAreSorted(t *testing.T) {
-	expected := "/dbname?connectionAttributes=p1:v1,p2:v2"
+	expected := "/dbname?connectAttrs=p1:v1,p2:v2"
 	cfg := NewConfig()
 	cfg.DBName = "dbname"
-	cfg.Attributes = map[string]string{
+	cfg.ConnectAttrs = map[string]string{
 		"p2": "v2",
 		"p1": "v1",
 	}
 	actual := cfg.FormatDSN()
 	if actual != expected {
-		t.Errorf("generic Config.Attributes were not sorted: want %#v, got %#v", expected, actual)
+		t.Errorf("generic Config.ConnectAttrs were not sorted: want %#v, got %#v", expected, actual)
 	}
 }
 

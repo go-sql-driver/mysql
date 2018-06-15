@@ -204,7 +204,7 @@ SELECT u.id FROM users as u
 
 will return `u.id` instead of just `id` if `columnsWithAlias=true`.
 
-##### `connectionAttributes`
+##### `connectAttrs`
 
 ```
 Type:           map
@@ -212,7 +212,7 @@ Valid Values:   comma-separated list of attribute:value pairs
 Default:        empty
 ```
 
-Allows setting of connection attributes, for example `connectionAttributes=program_name:YourProgramName` will show `YourProgramName` in `Program` field of connections list of Mysql Workbench.
+Allows setting of connection attributes, for example `connectAttrs=program_name:YourProgramName` will show `YourProgramName` in `Program` field of connections list of Mysql Workbench, if your server supports it (requires `performance_schema` to be supported and enabled).
 
 ##### `interpolateParams`
 
@@ -497,4 +497,3 @@ Please read the [MPL 2.0 FAQ](https://www.mozilla.org/en-US/MPL/2.0/FAQ/) if you
 You can read the full terms here: [LICENSE](https://raw.github.com/go-sql-driver/mysql/master/LICENSE).
 
 ![Go Gopher and MySQL Dolphin](https://raw.github.com/wiki/go-sql-driver/mysql/go-mysql-driver_m.jpg "Golang Gopher transporting the MySQL Dolphin in a wheelbarrow")
-

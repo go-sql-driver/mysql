@@ -39,7 +39,7 @@ type Config struct {
 	Addr             string            // Network address (requires Net)
 	DBName           string            // Database name
 	Params           map[string]string // Connection parameters
-	Attributes       map[string]string // Connection attributes
+	ConnectAttrs     map[string]string // Connection attributes
 	Collation        string            // Connection collation
 	Loc              *time.Location    // Location for time.Time values
 	MaxAllowedPacket int               // Max packet size allowed
@@ -309,17 +309,17 @@ func (cfg *Config) FormatDSN() string {
 
 	}
 
-	if len(cfg.Attributes) > 0 {
-		// connectionAttributes=program_name:Login Server,other_name:other
+	if len(cfg.ConnectAttrs) > 0 {
+		// connectAttrs=program_name:Login Server,other_name:other
 		if hasParam {
-			buf.WriteString("&connectionAttributes=")
+			buf.WriteString("&connectAttrs=")
 		} else {
 			hasParam = true
-			buf.WriteString("?connectionAttributes=")
+			buf.WriteString("?connectAttrs=")
 		}
 
 		var attr_names []string
-		for attr_name := range cfg.Attributes {
+		for attr_name := range cfg.ConnectAttrs {
 			attr_names = append(attr_names, attr_name)
 		}
 		sort.Strings(attr_names)
@@ -329,7 +329,7 @@ func (cfg *Config) FormatDSN() string {
 			}
 			buf.WriteString(attr_name)
 			buf.WriteByte(':')
-			buf.WriteString(url.QueryEscape(cfg.Attributes[attr_name]))
+			buf.WriteString(url.QueryEscape(cfg.ConnectAttrs[attr_name]))
 		}
 	}
 
@@ -613,23 +613,23 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			if err != nil {
 				return
 			}
-		case "connectionAttributes":
-			if cfg.Attributes == nil {
-				cfg.Attributes = make(map[string]string)
+		case "connectAttrs":
+			if cfg.ConnectAttrs == nil {
+				cfg.ConnectAttrs = make(map[string]string)
 			}
 
-			var attributes string
-			if attributes, err = url.QueryUnescape(value); err != nil {
+			var ConnectAttrs string
+			if ConnectAttrs, err = url.QueryUnescape(value); err != nil {
 				return
 			}
 
 			// program_name:Name,foo:bar
-			for _, attr_str := range strings.Split(attributes, ",") {
+			for _, attr_str := range strings.Split(ConnectAttrs, ",") {
 				attr := strings.SplitN(attr_str, ":", 2)
 				if len(attr) != 2 {
 					continue
 				}
-				cfg.Attributes[attr[0]] = attr[1]
+				cfg.ConnectAttrs[attr[0]] = attr[1]
 			}
 		default:
 			// lazy init
