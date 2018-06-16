@@ -17,25 +17,22 @@ import (
 )
 
 // Ping implements driver.Pinger interface
-func (mc *mysqlConn) Ping(ctx context.Context) error {
+func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
 	if mc.closed.IsSet() {
 		errLog.Print(ErrInvalidConn)
 		return driver.ErrBadConn
 	}
 
-	if err := mc.watchCancel(ctx); err != nil {
-		return err
+	if err = mc.watchCancel(ctx); err != nil {
+		return
 	}
 	defer mc.finish()
 
-	if err := mc.writeCommandPacket(comPing); err != nil {
-		return err
-	}
-	if _, err := mc.readResultOK(); err != nil {
-		return err
+	if err = mc.writeCommandPacket(comPing); err != nil {
+		return
 	}
 
-	return nil
+	return mc.readResultOK()
 }
 
 // BeginTx implements driver.ConnBeginTx interface
@@ -199,4 +196,13 @@ func (mc *mysqlConn) startWatcher() {
 func (mc *mysqlConn) CheckNamedValue(nv *driver.NamedValue) (err error) {
 	nv.Value, err = converter{}.ConvertValue(nv.Value)
 	return
+}
+
+// ResetSession implements driver.SessionResetter.
+// (From Go 1.10)
+func (mc *mysqlConn) ResetSession(ctx context.Context) error {
+	if mc.closed.IsSet() {
+		return driver.ErrBadConn
+	}
+	return nil
 }

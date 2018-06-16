@@ -1842,7 +1842,7 @@ func TestSQLInjection(t *testing.T) {
 
 	dsns := []string{
 		dsn,
-		dsn + "&sql_mode='NO_BACKSLASH_ESCAPES,NO_AUTO_CREATE_USER'",
+		dsn + "&sql_mode='NO_BACKSLASH_ESCAPES'",
 	}
 	for _, testdsn := range dsns {
 		runTests(t, testdsn, createTest("1 OR 1=1"))
@@ -1872,7 +1872,7 @@ func TestInsertRetrieveEscapedData(t *testing.T) {
 
 	dsns := []string{
 		dsn,
-		dsn + "&sql_mode='NO_BACKSLASH_ESCAPES,NO_AUTO_CREATE_USER'",
+		dsn + "&sql_mode='NO_BACKSLASH_ESCAPES'",
 	}
 	for _, testdsn := range dsns {
 		runTests(t, testdsn, testData)
@@ -2045,4 +2045,31 @@ func TestPing(t *testing.T) {
 			dbt.fail("Ping", "Ping", err)
 		}
 	})
+}
+
+// See Issue #799
+func TestEmptyPassword(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	dsn := fmt.Sprintf("%s:%s@%s/%s?timeout=30s", user, "", netAddr, dbname)
+	db, err := sql.Open("mysql", dsn)
+	if err == nil {
+		defer db.Close()
+		err = db.Ping()
+	}
+
+	if pass == "" {
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+	} else {
+		if err == nil {
+			t.Fatal("expected authentication error")
+		}
+		if !strings.HasPrefix(err.Error(), "Error 1045") {
+			t.Fatal(err.Error())
+		}
+	}
 }
