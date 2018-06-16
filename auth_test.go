@@ -13,6 +13,7 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"testing"
@@ -363,13 +364,16 @@ func TestAuthFastCleartextPassword(t *testing.T) {
 	}
 
 	// check written auth response
-	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1
+	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User)
 	authRespEnd := authRespStart + 1 + len(authResp)
-	writtenAuthRespLen := conn.written[authRespStart]
 	writtenAuthResp := conn.written[authRespStart+1 : authRespEnd]
-	expectedAuthResp := []byte{115, 101, 99, 114, 101, 116}
-	if writtenAuthRespLen != 6 || !bytes.Equal(writtenAuthResp, expectedAuthResp) {
-		t.Fatalf("unexpected written auth response (%d bytes): %v", writtenAuthRespLen, writtenAuthResp)
+	expectedAuthResp := []byte("secret")
+	if !bytes.Equal(writtenAuthResp, expectedAuthResp) {
+		t.Fatalf("unexpected written auth response:\n%s\nExpected:\n%s\n",
+			hex.Dump(writtenAuthResp), hex.Dump(expectedAuthResp))
+	}
+	if conn.written[authRespEnd] != 0 {
+		t.Fatalf("Expected null-terminated")
 	}
 	conn.written = nil
 
@@ -683,14 +687,18 @@ func TestAuthFastSHA256PasswordSecure(t *testing.T) {
 	}
 
 	// check written auth response
-	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1
-	authRespEnd := authRespStart + 1 + len(authResp) + 1
-	writtenAuthRespLen := conn.written[authRespStart]
+	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User)
+	authRespEnd := authRespStart + 1 + len(authResp)
 	writtenAuthResp := conn.written[authRespStart+1 : authRespEnd]
-	expectedAuthResp := []byte{115, 101, 99, 114, 101, 116, 0}
-	if writtenAuthRespLen != 6 || !bytes.Equal(writtenAuthResp, expectedAuthResp) {
-		t.Fatalf("unexpected written auth response (%d bytes): %v", writtenAuthRespLen, writtenAuthResp)
+	expectedAuthResp := []byte("secret")
+	if !bytes.Equal(writtenAuthResp, expectedAuthResp) {
+		t.Fatalf("unexpected written auth response:\n%s\nExpected:\n%s\n",
+			hex.Dump(writtenAuthResp), hex.Dump(expectedAuthResp))
 	}
+	if conn.written[authRespEnd] != 0 {
+		t.Fatalf("Expected null-terminated")
+	}
+
 	conn.written = nil
 
 	// auth response (OK)

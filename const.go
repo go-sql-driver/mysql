@@ -46,7 +46,7 @@ const (
 	clientIgnoreSIGPIPE
 	clientTransactions
 	clientReserved
-	clientSecureConn
+	clientSecureConn // reserved2 in 8.0
 	clientMultiStatements
 	clientMultiResults
 	clientPSMultiResults
@@ -56,6 +56,8 @@ const (
 	clientCanHandleExpiredPasswords
 	clientSessionTrack
 	clientDeprecateEOF
+	clientSslVerifyServerCert clientFlag = 1 << 30
+	clientRememberOptions     clientFlag = 1 << 31
 )
 
 const (

@@ -251,10 +251,9 @@ func (mc *mysqlConn) readHandshakePacket() ([]byte, string, error) {
 
 // Client Authentication Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::HandshakeResponse
-func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, addNUL bool, plugin string) error {
+func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, insecureAuth bool, plugin string) error {
 	// Adjust client flags based on server support
 	clientFlags := clientProtocol41 |
-		clientSecureConn |
 		clientLongPassword |
 		clientTransactions |
 		clientLocalFiles |
@@ -275,17 +274,21 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, addNUL bool, 
 		clientFlags |= clientMultiStatements
 	}
 
+	if !insecureAuth {
+		clientFlags |= clientSecureConn
+	}
+
 	// encode length of the auth plugin data
 	var authRespLEIBuf [9]byte
 	authRespLEI := appendLengthEncodedInteger(authRespLEIBuf[:0], uint64(len(authResp)))
-	if len(authRespLEI) > 1 {
+	if len(authRespLEI) > 1 && clientFlags&clientSecureConn != 0 {
 		// if the length can not be written in 1 byte, it must be written as a
 		// length encoded integer
 		clientFlags |= clientPluginAuthLenEncClientData
 	}
 
 	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1 + len(authRespLEI) + len(authResp) + 21 + 1
-	if addNUL {
+	if clientFlags&clientSecureConn == 0 || clientFlags&clientPluginAuthLenEncClientData == 0 {
 		pktLen++
 	}
 
@@ -308,7 +311,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, addNUL bool, 
 	}
 
 	// To specify a db name
-	if n := len(mc.cfg.DBName); n > 0 {
+	if n := len(mc.cfg.DBName); mc.flags&clientConnectWithDB != 0 && n > 0 {
 		clientFlags |= clientConnectWithDB
 		pktLen += n + 1
 	}
@@ -373,25 +376,36 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, addNUL bool, 
 	data[pos] = 0x00
 	pos++
 
-	// Auth Data [length encoded integer]
-	pos += copy(data[pos:], authRespLEI)
+	// Auth Data [length encoded integer + data] if clientPluginAuthLenEncClientData
+	// clientSecureConn => 1 byte len + data
+	// else null-terminated
+	if clientFlags&clientPluginAuthLenEncClientData != 0 {
+		pos += copy(data[pos:], authRespLEI)
+	} else if clientFlags&clientSecureConn != 0 {
+		data[pos] = uint8(len(authResp))
+		pos++
+	}
 	pos += copy(data[pos:], authResp)
-	if addNUL {
+	if clientFlags&clientSecureConn == 0 && clientFlags&clientPluginAuthLenEncClientData == 0 {
 		data[pos] = 0x00
 		pos++
 	}
 
 	// Databasename [null terminated string]
-	if len(mc.cfg.DBName) > 0 {
+	if clientFlags&clientConnectWithDB != 0 {
 		pos += copy(data[pos:], mc.cfg.DBName)
 		data[pos] = 0x00
 		pos++
 	}
 
-	pos += copy(data[pos:], plugin)
-	data[pos] = 0x00
-	pos++
+	// auth plugin name [null terminated string]
+	if clientFlags&clientPluginAuth != 0 {
+		pos += copy(data[pos:], plugin)
+		data[pos] = 0x00
+		pos++
+	}
 
+	// connection attributes [lenenc-int total + lenenc-str key-value pairs]
 	if clientFlags&clientConnectAttrs != 0 {
 		pos += copy(data[pos:], connectAttrsBuf)
 	}
