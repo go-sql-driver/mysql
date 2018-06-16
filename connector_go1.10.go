@@ -14,14 +14,9 @@ import (
 	"net"
 )
 
-// Connector is a driver in a fixed configuration.
-type Connector struct {
-	Config *Config
-}
-
 // Connect implements driver.Connector interface.
 // Connect returns a connection to the database.
-func (c Connector) Connect(ctx context.Context) (driver.Conn, error) {
+func (c *Config) Connect(ctx context.Context) (driver.Conn, error) {
 	var err error
 
 	// New mysqlConn
@@ -29,7 +24,7 @@ func (c Connector) Connect(ctx context.Context) (driver.Conn, error) {
 		maxAllowedPacket: maxPacketSize,
 		maxWriteSize:     maxPacketSize - 1,
 		closech:          make(chan struct{}),
-		cfg:              c.Config,
+		cfg:              c,
 	}
 	mc.parseTime = mc.cfg.ParseTime
 
@@ -120,6 +115,6 @@ func (c Connector) Connect(ctx context.Context) (driver.Conn, error) {
 
 // Driver implements driver.Connector interface.
 // Driver returns &MySQLDriver{}.
-func (c Connector) Driver() driver.Driver {
+func (c *Config) Driver() driver.Driver {
 	return &MySQLDriver{}
 }

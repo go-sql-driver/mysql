@@ -21,7 +21,5 @@ func (d MySQLDriver) OpenConnector(dsn string) (driver.Connector, error) {
 		return nil, err
 	}
 
-	return Connector{
-		Config: c,
-	}, nil
+	return c, nil
 }
