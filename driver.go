@@ -27,6 +27,7 @@ import (
 // watcher interface is used for context support (From Go 1.8)
 type watcher interface {
 	startWatcher()
+	watchCancel(ctx context.Context) error
 }
 
 // MySQLDriver is exported to make the driver directly accessible.
