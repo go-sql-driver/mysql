@@ -2089,17 +2089,20 @@ func TestConnectAttrs(t *testing.T) {
 	defer db.Close()
 	dbt := &DBTest{t, db}
 
-	// performance_schema seems to be updated with a delay in some conditions, so first see if we are in list:
-	rows := dbt.mustQuery("SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST where ID=CONNECTION_ID()")
+	rows := dbt.mustQuery("SHOW VARIABLES LIKE 'performance_schema'")
 	if rows.Next() {
+		var var_name, value string
+		rows.Scan(&var_name, &value)
+		if value != "ON" {
+			t.Skip("performance_schema is disabled")
+		}
 	} else {
-		dbt.Error("no data in processlist")
+		t.Skip("no performance_schema variable in mysql")
 	}
 
 	rows, err = dbt.db.Query("select attr_value from performance_schema.session_connect_attrs where processlist_id=CONNECTION_ID() and attr_name='program_name'")
 	if err != nil {
-		fmt.Println(err)
-		dbt.Skip("server probably does not support performance_schema.session_connect_attrs")
+		dbt.Skipf("server probably does not support performance_schema.session_connect_attrs: %s", err)
 	}
 
 	if rows.Next() {
