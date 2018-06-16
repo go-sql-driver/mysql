@@ -1,12 +1,10 @@
 // Go MySQL Driver - A MySQL-Driver for Go's database/sql package
 //
-// Copyright 2012 The Go-MySQL-Driver Authors. All rights reserved.
+// Copyright 2018 The Go-MySQL-Driver Authors. All rights reserved.
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
-
-// +build go1.10
 
 package mysql
 
@@ -37,7 +35,10 @@ func (c Connector) Connect(ctx context.Context) (driver.Conn, error) {
 
 	// Connect to Server
 	// TODO: needs RegisterDialContext
-	if dial, ok := dials[mc.cfg.Net]; ok {
+	dialsLock.RLock()
+	dial, ok := dials[mc.cfg.Net]
+	dialsLock.RUnlock()
+	if ok {
 		mc.netConn, err = dial(mc.cfg.Addr)
 	} else {
 		nd := net.Dialer{Timeout: mc.cfg.Timeout}
