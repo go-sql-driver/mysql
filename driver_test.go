@@ -2096,10 +2096,10 @@ func TestConnectAttrs(t *testing.T) {
 		dbt.Error("no data in processlist")
 	}
 
-	rows, err = dbt.db.Query("select attr_value from performance_schema.session_account_connect_attrs where processlist_id=CONNECTION_ID() and attr_name='program_name'")
+	rows, err = dbt.db.Query("select attr_value from performance_schema.session_connect_attrs where processlist_id=CONNECTION_ID() and attr_name='program_name'")
 	if err != nil {
 		fmt.Println(err)
-		dbt.Skip("server probably does not support performance_schema.session_account_connect_attrs")
+		dbt.Skip("server probably does not support performance_schema.session_connect_attrs")
 	}
 
 	if rows.Next() {
@@ -2112,7 +2112,7 @@ func TestConnectAttrs(t *testing.T) {
 		dbt.Error("no data for program_name")
 	}
 
-	rows = dbt.mustQuery("select attr_value from performance_schema.session_account_connect_attrs where processlist_id=CONNECTION_ID() and attr_name='foo'")
+	rows = dbt.mustQuery("select attr_value from performance_schema.session_connect_attrs where processlist_id=CONNECTION_ID() and attr_name='foo'")
 	if rows.Next() {
 		var str string
 		rows.Scan(&str)
