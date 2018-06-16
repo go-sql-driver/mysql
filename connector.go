@@ -6,8 +6,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// +build go1.8
-
 package mysql
 
 import (
@@ -56,7 +54,9 @@ func (c *Config) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	// Call startWatcher for context support (From Go 1.8)
-	mc.startWatcher()
+	if s, ok := interface{}(mc).(watcher); ok {
+		s.startWatcher()
+	}
 	if err := mc.watchCancel(ctx); err != nil {
 		return nil, err
 	}
