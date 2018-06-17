@@ -10,8 +10,10 @@ package mysql
 
 import (
 	"crypto/tls"
+	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -441,7 +443,7 @@ func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
 
 	// Check data length
 	if len(b) >= n {
-		return b[n-int(num) : n : n], false, n, nil
+		return b[n-int(num) : n:n], false, n, nil
 	}
 	return nil, false, n, io.EOF
 }
@@ -723,4 +725,35 @@ func (ae *atomicError) Value() error {
 		return v.(error)
 	}
 	return nil
+}
+
+func cloneTLSConfig(c *tls.Config) *tls.Config {
+	return c.Clone()
+}
+
+func namedValueToValue(named []driver.NamedValue) ([]driver.Value, error) {
+	dargs := make([]driver.Value, len(named))
+	for n, param := range named {
+		if len(param.Name) > 0 {
+			// TODO: support the use of Named Parameters #561
+			return nil, errors.New("mysql: driver does not support the use of Named Parameters")
+		}
+		dargs[n] = param.Value
+	}
+	return dargs, nil
+}
+
+func mapIsolationLevel(level driver.IsolationLevel) (string, error) {
+	switch sql.IsolationLevel(level) {
+	case sql.LevelRepeatableRead:
+		return "REPEATABLE READ", nil
+	case sql.LevelReadCommitted:
+		return "READ COMMITTED", nil
+	case sql.LevelReadUncommitted:
+		return "READ UNCOMMITTED", nil
+	case sql.LevelSerializable:
+		return "SERIALIZABLE", nil
+	default:
+		return "", fmt.Errorf("mysql: unsupported isolation level: %v", level)
+	}
 }
