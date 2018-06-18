@@ -82,7 +82,7 @@ func DeregisterTLSConfig(key string) {
 func getTLSConfigClone(key string) (config *tls.Config) {
 	tlsConfigLock.RLock()
 	if v, ok := tlsConfigRegistry[key]; ok {
-		config = cloneTLSConfig(v)
+		config = v.Clone()
 	}
 	tlsConfigLock.RUnlock()
 	return
@@ -725,10 +725,6 @@ func (ae *atomicError) Value() error {
 		return v.(error)
 	}
 	return nil
-}
-
-func cloneTLSConfig(c *tls.Config) *tls.Config {
-	return c.Clone()
 }
 
 func namedValueToValue(named []driver.NamedValue) ([]driver.Value, error) {
