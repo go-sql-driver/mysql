@@ -466,6 +466,12 @@ func skipLengthEncodedString(b []byte) (int, error) {
 	return n, io.EOF
 }
 
+// encodes a bytes slice with prepended length-encoded size and appends it to the given bytes slice
+func appendLengthEncodedString(b []byte, str []byte) []byte {
+	b = appendLengthEncodedInteger(b, uint64(len(str)))
+	return append(b, str...)
+}
+
 // returns the number read, whether the value is NULL and the number of bytes read
 func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
 	// See issue #349

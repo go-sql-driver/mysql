@@ -15,6 +15,7 @@ before_script:
   - sudo service mysql restart
   - .travis/wait_mysql.sh
   - mysql -e 'create database gotest;'
+  - mysql -e 'show databases;'
 
 matrix:
   include:

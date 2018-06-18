@@ -2077,6 +2077,56 @@ func TestEmptyPassword(t *testing.T) {
 	}
 }
 
+func TestConnectAttrs(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	db, err := sql.Open("mysql", dsn+"&connectAttrs=program_name:GoTest,foo:bar")
+	if err != nil {
+		t.Fatalf("error connecting: %s", err.Error())
+	}
+	defer db.Close()
+	dbt := &DBTest{t, db}
+
+	rows := dbt.mustQuery("SHOW VARIABLES LIKE 'performance_schema'")
+	if rows.Next() {
+		var var_name, value string
+		rows.Scan(&var_name, &value)
+		if value != "ON" {
+			t.Skip("performance_schema is disabled")
+		}
+	} else {
+		t.Skip("no performance_schema variable in mysql")
+	}
+
+	rows, err = dbt.db.Query("select attr_value from performance_schema.session_connect_attrs where processlist_id=CONNECTION_ID() and attr_name='program_name'")
+	if err != nil {
+		dbt.Skipf("server probably does not support performance_schema.session_connect_attrs: %s", err)
+	}
+
+	if rows.Next() {
+		var str string
+		rows.Scan(&str)
+		if "GoTest" != str {
+			dbt.Errorf("GoTest != %s", str)
+		}
+	} else {
+		dbt.Error("no data for program_name")
+	}
+
+	rows = dbt.mustQuery("select attr_value from performance_schema.session_connect_attrs where processlist_id=CONNECTION_ID() and attr_name='foo'")
+	if rows.Next() {
+		var str string
+		rows.Scan(&str)
+		if "bar" != str {
+			dbt.Errorf("bar != %s", str)
+		}
+	} else {
+		dbt.Error("no data for custom attribute")
+	}
+}
+
 // static interface implementation checks of mysqlConn
 var (
 	_ driver.ConnBeginTx        = &mysqlConn{}
