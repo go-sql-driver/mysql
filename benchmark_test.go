@@ -10,9 +10,12 @@ package mysql
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"database/sql/driver"
+	"fmt"
 	"math"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -238,5 +241,79 @@ func BenchmarkInterpolation(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+func benchmarkQueryContext(b *testing.B, db *sql.DB, p int) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db.SetMaxIdleConns(p * runtime.GOMAXPROCS(0))
+
+	tb := (*TB)(b)
+	stmt := tb.checkStmt(db.PrepareContext(ctx, "SELECT val FROM foo WHERE id=?"))
+	defer stmt.Close()
+
+	b.SetParallelism(p)
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		var got string
+		for pb.Next() {
+			tb.check(stmt.QueryRow(1).Scan(&got))
+			if got != "one" {
+				b.Fatalf("query = %q; want one", got)
+			}
+		}
+	})
+}
+
+func BenchmarkQueryContext(b *testing.B) {
+	db := initDB(b,
+		"DROP TABLE IF EXISTS foo",
+		"CREATE TABLE foo (id INT PRIMARY KEY, val CHAR(50))",
+		`INSERT INTO foo VALUES (1, "one")`,
+		`INSERT INTO foo VALUES (2, "two")`,
+	)
+	defer db.Close()
+	for _, p := range []int{1, 2, 3, 4} {
+		b.Run(fmt.Sprintf("%d", p), func(b *testing.B) {
+			benchmarkQueryContext(b, db, p)
+		})
+	}
+}
+
+func benchmarkExecContext(b *testing.B, db *sql.DB, p int) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db.SetMaxIdleConns(p * runtime.GOMAXPROCS(0))
+
+	tb := (*TB)(b)
+	stmt := tb.checkStmt(db.PrepareContext(ctx, "DO 1"))
+	defer stmt.Close()
+
+	b.SetParallelism(p)
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if _, err := stmt.ExecContext(ctx); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+func BenchmarkExecContext(b *testing.B) {
+	db := initDB(b,
+		"DROP TABLE IF EXISTS foo",
+		"CREATE TABLE foo (id INT PRIMARY KEY, val CHAR(50))",
+		`INSERT INTO foo VALUES (1, "one")`,
+		`INSERT INTO foo VALUES (2, "two")`,
+	)
+	defer db.Close()
+	for _, p := range []int{1, 2, 3, 4} {
+		b.Run(fmt.Sprintf("%d", p), func(b *testing.B) {
+			benchmarkQueryContext(b, db, p)
+		})
 	}
 }

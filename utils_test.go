@@ -10,6 +10,8 @@ package mysql
 
 import (
 	"bytes"
+	"database/sql"
+	"database/sql/driver"
 	"encoding/binary"
 	"testing"
 	"time"
@@ -288,5 +290,45 @@ func TestAtomicError(t *testing.T) {
 	}
 	if v := ae.Value(); v != ErrPktSync {
 		t.Fatal("Error did not match")
+	}
+}
+
+func TestIsolationLevelMapping(t *testing.T) {
+	data := []struct {
+		level    driver.IsolationLevel
+		expected string
+	}{
+		{
+			level:    driver.IsolationLevel(sql.LevelReadCommitted),
+			expected: "READ COMMITTED",
+		},
+		{
+			level:    driver.IsolationLevel(sql.LevelRepeatableRead),
+			expected: "REPEATABLE READ",
+		},
+		{
+			level:    driver.IsolationLevel(sql.LevelReadUncommitted),
+			expected: "READ UNCOMMITTED",
+		},
+		{
+			level:    driver.IsolationLevel(sql.LevelSerializable),
+			expected: "SERIALIZABLE",
+		},
+	}
+
+	for i, td := range data {
+		if actual, err := mapIsolationLevel(td.level); actual != td.expected || err != nil {
+			t.Fatal(i, td.expected, actual, err)
+		}
+	}
+
+	// check unsupported mapping
+	expectedErr := "mysql: unsupported isolation level: 7"
+	actual, err := mapIsolationLevel(driver.IsolationLevel(sql.LevelLinearizable))
+	if actual != "" || err == nil {
+		t.Fatal("Expected error on unsupported isolation level")
+	}
+	if err.Error() != expectedErr {
+		t.Fatalf("Expected error to be %q, got %q", expectedErr, err)
 	}
 }
