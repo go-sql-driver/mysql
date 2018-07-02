@@ -43,6 +43,14 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
   * Go 1.7 or higher. We aim to support the 3 latest versions of Go.
   * MySQL (4.1+), MariaDB, Percona Server, Google CloudSQL or Sphinx (2.2.3+)
 
+## See also
+  * [github.com/dolmen-go/mylogin-driver](https://godoc.org/github.com/dolmen-go/mylogin-driver)
+    is a wrapper of this driver with an alternate DSN syntax that allows to not
+    pass credentials in clear in the DSN but instead load them from file `~/.mylogin.cnf`
+    which is supported by `MySQL` tools since version 5.5. This can reduce risks
+    of issues related to DSN being passed in insecure ways (command-line arguments, 
+    environment variables...).
+
 ---------------------------------------
 
 ## Installation
