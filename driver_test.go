@@ -335,6 +335,36 @@ func TestMultiQuery(t *testing.T) {
 			dbt.Error("no data")
 		}
 
+		// Multi Read
+		rows = dbt.mustQuery("SELECT value FROM test WHERE id=?;SELECT 1;", 1)
+		if rows.Next() {
+			rows.Scan(&out)
+			if 5 != out {
+				dbt.Errorf("5 != %d", out)
+			}
+
+			if rows.Next() {
+				dbt.Error("unexpected data")
+			}
+		} else {
+			dbt.Error("no data")
+		}
+		if !rows.NextResultSet() {
+			dbt.Error("expected next result set")
+		}
+		if rows.Next() {
+			rows.Scan(&out)
+			if 1 != out {
+				dbt.Errorf("1 != %d", out)
+			}
+
+			if rows.Next() {
+				dbt.Error("unexpected data")
+			}
+		} else {
+			dbt.Error("no data")
+		}
+
 	})
 }
 
