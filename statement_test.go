@@ -110,7 +110,7 @@ func TestConvertUnsignedIntegers(t *testing.T) {
 			t.Fatalf("%T type not convertible %s", value, err)
 		}
 
-		if output != int64(42) {
+		if output != uint64(42) {
 			t.Fatalf("%T type not converted, got %#v %T", value, output, output)
 		}
 	}
