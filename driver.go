@@ -112,6 +112,9 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		mc.cleanup()
 		return nil, err
 	}
+	if plugin == "" {
+		plugin = defaultAuthPlugin
+	}
 
 	// Send Client Authentication Packet
 	authResp, addNUL, err := mc.auth(authData, plugin)
