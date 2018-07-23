@@ -48,7 +48,7 @@ func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []by
 	var b bytes.Buffer
 	connWriter := &b
 
-	cw := NewCompressedWriter(connWriter, mc)
+	cw := newCompressedWriter(connWriter, mc)
 
 	n, err := cw.Write(uncompressedPacket)
 
@@ -90,7 +90,7 @@ func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expS
 	mockConnReader := bytes.NewReader(compressedPacket)
 	mockBuf := newMockBuf(mockConnReader)
 
-	cr := NewCompressedReader(mockBuf, mc)
+	cr := newCompressedReader(mockBuf, mc)
 
 	uncompressedPacket, err := cr.readNext(expSize)
 	if err != nil {

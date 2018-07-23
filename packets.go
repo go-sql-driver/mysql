@@ -866,7 +866,8 @@ func (stmt *mysqlStmt) readPrepareResultPacket() (uint16, error) {
 
 // http://dev.mysql.com/doc/internals/en/com-stmt-send-long-data.html
 func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
-	maxLen := stmt.mc.maxAllowedPacket - 1
+	mc := stmt.mc
+	maxLen := mc.maxAllowedPacket - 1
 	pktLen := maxLen
 
 	// After the header (bytes 0-3) follows before the data:
@@ -887,8 +888,8 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 			pktLen = dataOffset + argLen
 		}
 
-		stmt.mc.sequence = 0
-		stmt.mc.compressionSequence = 0
+		mc.sequence = 0
+		mc.compressionSequence = 0
 		// Add command byte [1 byte]
 		data[4] = comStmtSendLongData
 
@@ -903,7 +904,7 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 		data[10] = byte(paramID >> 8)
 
 		// Send CMD packet
-		err := stmt.mc.writePacket(data[:4+pktLen])
+		err := mc.writePacket(data[:4+pktLen])
 		if err == nil {
 			data = data[pktLen-dataOffset:]
 			continue
@@ -913,8 +914,8 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 	}
 
 	// Reset Packet Sequence
-	stmt.mc.sequence = 0
-	stmt.mc.compressionSequence = 0
+	mc.sequence = 0
+	mc.compressionSequence = 0
 	return nil
 }
 
