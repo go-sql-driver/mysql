@@ -761,6 +761,15 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 						if err == nil {
 							continue
 						}
+					case fieldTypeTime:
+						dest[i], err = time.ParseInLocation(
+							"15:04:05",
+							string(dest[i].([]byte)),
+							mc.cfg.Loc,
+						)
+						if err == nil {
+							continue
+						}
 					default:
 						continue
 					}
