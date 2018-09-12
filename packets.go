@@ -28,7 +28,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 	var prevData []byte
 	for {
 		// read packet header
-		data, err := mc.reader.readNext(4)
+		data, err := mc.reader.readNext(4) 
 		if err != nil {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
@@ -64,7 +64,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		}
 
 		// read packet body [pktLen bytes]
-		data, err = mc.reader.readNext(pktLen)
+		data, err = mc.reader.readNext(pktLen) 
 		if err != nil {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
@@ -283,7 +283,8 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 	}
 
 	// Calculate packet length and get buffer with that size
-	data := mc.buf.takeSmallBuffer(pktLen + 4)
+	data, _ := mc.reader.readNext(pktLen + 4)
+	
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print(ErrBusyBuffer)
@@ -326,8 +327,12 @@ func (mc *mysqlConn) writeAuthPacket(cipher []byte) error {
 			return err
 		}
 		mc.netConn = tlsConn
-		mc.buf.nc = tlsConn
+		nc := tlsConn
 
+		// make newBuffer with tls conn, clean slate bc handshake 
+		newBuf := newBuffer(nc)
+		mc.reader = newSimpleReader(&newBuf)
+		
 		mc.writer = mc.netConn
 	}
 
@@ -373,7 +378,8 @@ func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 
 	// Calculate the packet length and add a tailing 0
 	pktLen := len(scrambleBuff) + 1
-	data := mc.buf.takeSmallBuffer(4 + pktLen)
+	data, _ := mc.reader.readNext(4 + pktLen) 
+
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print(ErrBusyBuffer)
@@ -392,7 +398,8 @@ func (mc *mysqlConn) writeOldAuthPacket(cipher []byte) error {
 func (mc *mysqlConn) writeClearAuthPacket() error {
 	// Calculate the packet length and add a tailing 0
 	pktLen := len(mc.cfg.Passwd) + 1
-	data := mc.buf.takeSmallBuffer(4 + pktLen)
+	data, _ := mc.reader.readNext(4 + pktLen)
+	
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print(ErrBusyBuffer)
@@ -415,7 +422,8 @@ func (mc *mysqlConn) writeNativeAuthPacket(cipher []byte) error {
 
 	// Calculate the packet length and add a tailing 0
 	pktLen := len(scrambleBuff)
-	data := mc.buf.takeSmallBuffer(4 + pktLen)
+	data, _ := mc.reader.readNext(4 + pktLen)
+	
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print(ErrBusyBuffer)
@@ -437,7 +445,8 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	mc.sequence = 0
 	mc.compressionSequence = 0
 
-	data := mc.buf.takeSmallBuffer(4 + 1)
+	data, _ := mc.reader.readNext(4+1)
+	
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print(ErrBusyBuffer)
@@ -457,7 +466,8 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	mc.compressionSequence = 0
 
 	pktLen := 1 + len(arg)
-	data := mc.buf.takeBuffer(pktLen + 4)
+	data, _ := mc.reader.readNext(pktLen + 4)
+	
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print(ErrBusyBuffer)
@@ -479,7 +489,8 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	mc.sequence = 0
 	mc.compressionSequence = 0
 
-	data := mc.buf.takeSmallBuffer(4 + 1 + 4)
+	data, _ := mc.reader.readNext(4 + 1 + 4)
+	
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print(ErrBusyBuffer)
@@ -946,9 +957,9 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	var data []byte
 
 	if len(args) == 0 {
-		data = mc.buf.takeBuffer(minPktLen)
+		data, _ = mc.reader.readNext(minPktLen)
 	} else {
-		data = mc.buf.takeCompleteBuffer()
+		data, _ = mc.reader.readNext(-1) //how does this work out with compressed?
 	}
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
@@ -1127,7 +1138,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		// In that case we must build the data packet with the new values buffer
 		if valuesCap != cap(paramValues) {
 			data = append(data[:pos], paramValues...)
-			mc.buf.buf = data
+			readerBuffer := mc.reader.getBuffer() //PROBLEM: what the fuck is going on here??
+			readerBuffer.buf = data
 		}
 
 		pos += len(paramValues)

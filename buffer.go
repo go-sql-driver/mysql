@@ -21,7 +21,7 @@ const defaultBufSize = 4096
 // In other words, we can't write and read simultaneously on the same connection.
 // The buffer is similar to bufio.Reader / Writer but zero-copy-ish
 // Also highly optimized for this particular use case.
-type buffer struct {
+type buffer struct { //PROBLEM: figure this all out better
 	buf     []byte
 	nc      net.Conn
 	idx     int
@@ -49,7 +49,7 @@ func (b *buffer) fill(need int) error {
 	// grow buffer if necessary
 	// TODO: let the buffer shrink again at some point
 	//       Maybe keep the org buf slice and swap back?
-	if need > len(b.buf) {
+	if need > len(b.buf) { //look up what len and cap mean again!
 		// Round up to the next multiple of the default size
 		newBuf := make([]byte, ((need/defaultBufSize)+1)*defaultBufSize)
 		copy(newBuf, b.buf)
@@ -92,6 +92,10 @@ func (b *buffer) fill(need int) error {
 // returns next N bytes from buffer.
 // The returned slice is only guaranteed to be valid until the next read
 func (b *buffer) readNext(need int) ([]byte, error) {
+	if need == -1 {
+		return b.takeCompleteBuffer()
+	}
+
 	if b.length < need {
 		// refill
 		if err := b.fill(need); err != nil {
@@ -110,7 +114,7 @@ func (b *buffer) readNext(need int) ([]byte, error) {
 // Otherwise a bigger buffer is made.
 // Only one buffer (total) can be used at a time.
 func (b *buffer) takeBuffer(length int) []byte {
-	if b.length > 0 {
+	if b.length > 0 { //assume its empty
 		return nil
 	}
 
@@ -126,15 +130,17 @@ func (b *buffer) takeBuffer(length int) []byte {
 	return make([]byte, length)
 }
 
+/*
 // shortcut which can be used if the requested buffer is guaranteed to be
 // smaller than defaultBufSize
 // Only one buffer (total) can be used at a time.
 func (b *buffer) takeSmallBuffer(length int) []byte {
-	if b.length == 0 {
+	if b.length == 0 { //assume its empty 
 		return b.buf[:length]
 	}
 	return nil
 }
+*/
 
 // takeCompleteBuffer returns the complete existing buffer.
 // This can be used if the necessary buffer size is unknown.

@@ -15,13 +15,13 @@ import (
 
 func TestInterpolateParams(t *testing.T) {
 	mc := &mysqlConn{
-		buf:              newBuffer(nil),
 		maxAllowedPacket: maxPacketSize,
 		cfg: &Config{
 			InterpolateParams: true,
 		},
 	}
-	mc.reader = &mc.buf
+	buf := newBuffer(nil)
+	mc.reader = newSimpleReader(&buf)
 
 	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42), "gopher"})
 	if err != nil {
@@ -36,13 +36,13 @@ func TestInterpolateParams(t *testing.T) {
 
 func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
 	mc := &mysqlConn{
-		buf:              newBuffer(nil),
 		maxAllowedPacket: maxPacketSize,
 		cfg: &Config{
 			InterpolateParams: true,
 		},
 	}
-	mc.reader = &mc.buf
+	buf := newBuffer(nil)
+	mc.reader = newSimpleReader(&buf)
 
 	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42)})
 	if err != driver.ErrSkip {
@@ -54,14 +54,14 @@ func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
 // https://github.com/go-sql-driver/mysql/pull/490
 func TestInterpolateParamsPlaceholderInString(t *testing.T) {
 	mc := &mysqlConn{
-		buf:              newBuffer(nil),
 		maxAllowedPacket: maxPacketSize,
 		cfg: &Config{
 			InterpolateParams: true,
 		},
 	}
 
-	mc.reader = &mc.buf
+	buf := newBuffer(nil)
+	mc.reader = newSimpleReader(&buf)
 
 	q, err := mc.interpolateParams("SELECT 'abc?xyz',?", []driver.Value{int64(42)})
 	// When InterpolateParams support string literal, this should return `"SELECT 'abc?xyz', 42`

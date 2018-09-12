@@ -89,11 +89,10 @@ var _ net.Conn = new(mockConn)
 
 func TestReadPacketSingleByte(t *testing.T) {
 	conn := new(mockConn)
+	buf := newBuffer(conn)
 	mc := &mysqlConn{
-		buf: newBuffer(conn),
+		reader: newSimpleReader(&buf),
 	}
-
-	mc.reader = &mc.buf
 
 	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
 	conn.maxReads = 1
@@ -111,10 +110,10 @@ func TestReadPacketSingleByte(t *testing.T) {
 
 func TestReadPacketWrongSequenceID(t *testing.T) {
 	conn := new(mockConn)
+	buf:= newBuffer(conn)
 	mc := &mysqlConn{
-		buf: newBuffer(conn),
+		reader: newSimpleReader(&buf),
 	}
-	mc.reader = &mc.buf
 
 	// too low sequence id
 	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
@@ -128,7 +127,8 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 	// reset
 	conn.reads = 0
 	mc.sequence = 0
-	mc.buf = newBuffer(conn)
+	newBuf := newBuffer(conn)
+	mc.reader = newSimpleReader(&newBuf)
 
 	// too high sequence id
 	conn.data = []byte{0x01, 0x00, 0x00, 0x42, 0xff}
@@ -140,11 +140,10 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 
 func TestReadPacketSplit(t *testing.T) {
 	conn := new(mockConn)
+	buf:= newBuffer(conn)
 	mc := &mysqlConn{
-		buf: newBuffer(conn),
+		reader : newSimpleReader(&buf),
 	}
-
-	mc.reader = &mc.buf
 
 	data := make([]byte, maxPacketSize*2+4*3)
 	const pkt2ofs = maxPacketSize + 4
@@ -247,11 +246,11 @@ func TestReadPacketSplit(t *testing.T) {
 
 func TestReadPacketFail(t *testing.T) {
 	conn := new(mockConn)
+	buf := newBuffer(conn)
 	mc := &mysqlConn{
-		buf:     newBuffer(conn),
+		reader: newSimpleReader(&buf),
 		closech: make(chan struct{}),
 	}
-	mc.reader = &mc.buf
 
 	// illegal empty (stand-alone) packet
 	conn.data = []byte{0x00, 0x00, 0x00, 0x00}
@@ -264,7 +263,8 @@ func TestReadPacketFail(t *testing.T) {
 	// reset
 	conn.reads = 0
 	mc.sequence = 0
-	mc.buf = newBuffer(conn)
+	newBuf := newBuffer(conn)
+	mc.reader = newSimpleReader(&newBuf)
 
 	// fail to read header
 	conn.closed = true
@@ -277,7 +277,8 @@ func TestReadPacketFail(t *testing.T) {
 	conn.closed = false
 	conn.reads = 0
 	mc.sequence = 0
-	mc.buf = newBuffer(conn)
+	newBuf = newBuffer(conn)
+	mc.reader = newSimpleReader(&newBuf)
 
 	// fail to read body
 	conn.maxReads = 1

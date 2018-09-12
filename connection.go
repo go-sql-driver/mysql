@@ -28,7 +28,6 @@ type mysqlContext interface {
 }
 
 type mysqlConn struct {
-	buf                 buffer
 	netConn             net.Conn
 	reader              packetReader
 	writer              io.Writer
@@ -56,6 +55,18 @@ type mysqlConn struct {
 type packetReader interface {
 	readNext(need int) ([]byte, error)
 }
+
+/*
+type packetReadCloser interface{
+	Read(n int) ([]byte, error)
+	Close() error // PROBLEM: is there a way to do this?
+}
+
+type packetWriteCloser interface{
+	Write([]byte) (int, error)
+	Close() error
+}
+*/ 
 
 // Handles parameters set in DSN after the connection is established
 func (mc *mysqlConn) handleParams() (err error) {
@@ -197,7 +208,11 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 		return "", driver.ErrSkip
 	}
 
-	buf := mc.buf.takeCompleteBuffer()
+	//https://stackoverflow.com/questions/29684609/how-to-check-if-an-object-has-a-particular-method
+
+	//reader has &buf which is a packetreader but also always a buffer
+	buf, _ := mc.reader.readNext(-1) //PROBLEM uncompressed so this works, what if compressed
+
 	if buf == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print(ErrBusyBuffer)

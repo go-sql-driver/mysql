@@ -91,15 +91,16 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		s.startWatcher()
 	}
 
-	mc.buf = newBuffer(mc.netConn)
-
-	// packet reader and writer in handshake are never compressed
-	mc.reader = &mc.buf
-	mc.writer = mc.netConn
+	buf := newBuffer(mc.netConn)
 
 	// Set I/O timeouts
-	mc.buf.timeout = mc.cfg.ReadTimeout
+	buf.timeout = mc.cfg.ReadTimeout
 	mc.writeTimeout = mc.cfg.WriteTimeout
+
+	// packet reader and writer in handshake are never compressed
+	mc.reader = newSimpleReader(&buf)
+	mc.writer = mc.netConn
+
 
 	// Reading Handshake Initialization Packet
 	cipher, err := mc.readInitPacket()
@@ -124,7 +125,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	}
 
 	if mc.cfg.Compress {
-		mc.reader = newCompressedReader(&mc.buf, mc)
+		mc.reader = newCompressedReader(&buf, mc)
 		mc.writer = newCompressedWriter(mc.writer, mc)
 	}
 
