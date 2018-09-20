@@ -294,6 +294,41 @@ func TestCRUD(t *testing.T) {
 	})
 }
 
+func TestParseNull(t *testing.T) {
+	dsn += "&parseNull=true&parseTime=true"
+
+	runTests(t, dsn, func(dbt *DBTest) {
+		// Create Table
+		dbt.mustExec("CREATE TABLE test (id int, a int, b float, c double, d varchar(1), e timestamp, f decimal(3,1))")
+		dbt.mustExec("INSERT INTO test (id) VALUES (1)")
+
+		a := int32(1)
+		b := float32(1.0)
+		c := float64(1.0)
+		d := "non-empty"
+		e := time.Now()
+		f := "1.1"
+		t := time.Time{}
+
+		err := dbt.db.QueryRow("SELECT a,b,c,d,e,f FROM test WHERE id = 1").Scan(&a, &b, &c, &d, &e, &f)
+		if err != nil {
+			dbt.Fatalf("Error on ParseNull-Query: %s", err.Error())
+		} else if a != 0 {
+			dbt.Errorf("ParseNull: a is not empty")
+		} else if b != 0 {
+			dbt.Errorf("ParseNull: b is not empty")
+		} else if c != 0 {
+			dbt.Errorf("ParseNull: c is not empty")
+		} else if d != "" {
+			dbt.Errorf("ParseNull: d is not empty")
+		} else if e != t {
+			dbt.Errorf("ParseNull: e is not empty")
+		} else if f != "" {
+			dbt.Errorf("ParseNull: e is not empty")
+		}
+	})
+}
+
 func TestMultiQuery(t *testing.T) {
 	runTestsWithMultiStatement(t, dsn, func(dbt *DBTest) {
 		// Create Table

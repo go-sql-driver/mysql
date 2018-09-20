@@ -770,7 +770,11 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 				}
 
 			} else {
-				dest[i] = nil
+				if rows.mc.parseNull {
+					dest[i] = getNullDefaultValue(rows.rs.columns[i], rows.mc.parseTime)
+				} else {
+					dest[i] = nil
+				}
 				continue
 			}
 		}
@@ -1154,7 +1158,11 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 		// Field is NULL
 		// (byte >> bit-pos) % 2 == 1
 		if ((nullMask[(i+2)>>3] >> uint((i+2)&7)) & 1) == 1 {
-			dest[i] = nil
+			if rows.mc.parseNull {
+				dest[i] = getNullDefaultValue(rows.rs.columns[i], rows.mc.parseTime)
+			} else {
+				dest[i] = nil
+			}
 			continue
 		}
 
@@ -1298,4 +1306,38 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 	}
 
 	return nil
+}
+func getNullDefaultValue(field mysqlField, parseTime bool) interface{} {
+	switch field.fieldType {
+	// Numeric Types
+	case fieldTypeTiny, fieldTypeShort, fieldTypeYear, fieldTypeInt24, fieldTypeLong, fieldTypeLongLong:
+		return int64(0)
+
+	case fieldTypeFloat:
+		return float32(0)
+
+	case fieldTypeDouble:
+		return float64(0)
+
+	// Length coded Binary Strings
+	case fieldTypeDecimal, fieldTypeNewDecimal, fieldTypeVarChar,
+		fieldTypeBit, fieldTypeEnum, fieldTypeSet, fieldTypeTinyBLOB,
+		fieldTypeMediumBLOB, fieldTypeLongBLOB, fieldTypeBLOB,
+		fieldTypeVarString, fieldTypeString, fieldTypeGeometry, fieldTypeJSON:
+
+		return []byte{}
+
+	case fieldTypeDate, fieldTypeNewDate, // Date YYYY-MM-DD
+		fieldTypeTime,                         // Time [-][H]HH:MM:SS[.fractal]
+		fieldTypeTimestamp, fieldTypeDateTime: // Timestamp YYYY-MM-DD HH:MM:SS[.fractal]
+
+		if parseTime {
+			return time.Time{}
+		}
+
+		return []byte{}
+
+	default:
+		return nil
+	}
 }

@@ -60,6 +60,7 @@ type Config struct {
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
 	RejectReadOnly          bool // Reject read-only connections
+	ParseNull               bool // Convert null to go default value
 }
 
 // NewConfig creates a new Config and sets default values.
@@ -235,6 +236,15 @@ func (cfg *Config) FormatDSN() string {
 		} else {
 			hasParam = true
 			buf.WriteString("?parseTime=true")
+		}
+	}
+
+	if cfg.ParseNull {
+		if hasParam {
+			buf.WriteString("&parseNull=true")
+		} else {
+			hasParam = true
+			buf.WriteString("?parseNull=true")
 		}
 	}
 
@@ -506,6 +516,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		case "parseTime":
 			var isBool bool
 			cfg.ParseTime, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+
+		// null parsing
+		case "parseNull":
+			var isBool bool
+			cfg.ParseNull, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}

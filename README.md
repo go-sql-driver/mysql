@@ -262,6 +262,17 @@ Default:        false
 The date or datetime like `0000-00-00 00:00:00` is converted into zero value of `time.Time`.
 
 
+##### `parseNull`
+
+```
+Type:           bool
+Valid Values:   true, false
+Default:        false
+```
+
+`parseNull=true` changes the output type of `null` to its golang default value.
+
+
 ##### `readTimeout`
 
 ```
