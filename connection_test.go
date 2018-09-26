@@ -21,7 +21,7 @@ func TestInterpolateParams(t *testing.T) {
 		},
 	}
 	buf := newBuffer(nil)
-	mc.reader = newSimpleReader(&buf)
+	mc.reader = &buf
 
 	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42), "gopher"})
 	if err != nil {
@@ -42,7 +42,7 @@ func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
 		},
 	}
 	buf := newBuffer(nil)
-	mc.reader = newSimpleReader(&buf)
+	mc.reader = &buf
 
 	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42)})
 	if err != driver.ErrSkip {
@@ -61,7 +61,7 @@ func TestInterpolateParamsPlaceholderInString(t *testing.T) {
 	}
 
 	buf := newBuffer(nil)
-	mc.reader = newSimpleReader(&buf)
+	mc.reader = &buf
 
 	q, err := mc.interpolateParams("SELECT 'abc?xyz',?", []driver.Value{int64(42)})
 	// When InterpolateParams support string literal, this should return `"SELECT 'abc?xyz', 42`

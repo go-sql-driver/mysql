@@ -11,15 +11,10 @@ const (
 )
 
 type compressedReader struct {
-	buf      *buffer //packetReader
+	buf      packetReader
 	bytesBuf []byte
 	mc       *mysqlConn
 	zr       io.ReadCloser
-}
-
-
-type simpleReader struct {
-	buf      *buffer //packetReader
 }
 
 type compressedWriter struct {
@@ -28,17 +23,11 @@ type compressedWriter struct {
 	zw         *zlib.Writer
 }
 
-func newCompressedReader(buf *buffer, mc *mysqlConn) *compressedReader {
+func newCompressedReader(buf packetReader, mc *mysqlConn) *compressedReader {
 	return &compressedReader{
 		buf:      buf,
 		bytesBuf: make([]byte, 0),
 		mc:       mc,
-	}
-}
-
-func newSimpleReader(buf *buffer) *simpleReader {
-	return &simpleReader{
-		buf:      buf,
 	}
 }
 
@@ -63,8 +52,8 @@ func (cr *compressedReader) readNext(need int) ([]byte, error) {
 	return data, nil
 }
 
-func (sr *simpleReader) readNext(need int) ([]byte, error) {
-	return sr.buf.readNext(need)
+func (cr *compressedReader) reuseBuffer(length int) []byte {
+	return cr.buf.reuseBuffer(length)
 }
 
 func (cr *compressedReader) uncompressPacket() error {

@@ -205,7 +205,7 @@ func BenchmarkRoundtripBin(b *testing.B) {
 			length = max
 		}
 		test := sample[0:length]
-		rows := tb.checkRows(stmt.Query(test))
+		rows := tb.checkRows(stmt.Query(test)) //run benchmark tests to test that bit of code
 		if !rows.Next() {
 			rows.Close()
 			b.Fatalf("crashed")
@@ -232,9 +232,9 @@ func BenchmarkInterpolation(b *testing.B) {
 		maxAllowedPacket: maxPacketSize,
 		maxWriteSize:     maxPacketSize - 1,
 	}
-	
+
 	buf := newBuffer(nil)
-	mc.reader = newSimpleReader(&buf)
+	mc.reader = &buf
 
 	args := []driver.Value{
 		int64(42424242),

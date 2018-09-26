@@ -91,7 +91,7 @@ func TestReadPacketSingleByte(t *testing.T) {
 	conn := new(mockConn)
 	buf := newBuffer(conn)
 	mc := &mysqlConn{
-		reader: newSimpleReader(&buf),
+		reader: &buf,
 	}
 
 	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
@@ -110,9 +110,9 @@ func TestReadPacketSingleByte(t *testing.T) {
 
 func TestReadPacketWrongSequenceID(t *testing.T) {
 	conn := new(mockConn)
-	buf:= newBuffer(conn)
+	buf := newBuffer(conn)
 	mc := &mysqlConn{
-		reader: newSimpleReader(&buf),
+		reader: &buf,
 	}
 
 	// too low sequence id
@@ -128,7 +128,7 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 	conn.reads = 0
 	mc.sequence = 0
 	newBuf := newBuffer(conn)
-	mc.reader = newSimpleReader(&newBuf)
+	mc.reader = &newBuf
 
 	// too high sequence id
 	conn.data = []byte{0x01, 0x00, 0x00, 0x42, 0xff}
@@ -140,9 +140,9 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 
 func TestReadPacketSplit(t *testing.T) {
 	conn := new(mockConn)
-	buf:= newBuffer(conn)
+	buf := newBuffer(conn)
 	mc := &mysqlConn{
-		reader : newSimpleReader(&buf),
+		reader: &buf,
 	}
 
 	data := make([]byte, maxPacketSize*2+4*3)
@@ -248,7 +248,7 @@ func TestReadPacketFail(t *testing.T) {
 	conn := new(mockConn)
 	buf := newBuffer(conn)
 	mc := &mysqlConn{
-		reader: newSimpleReader(&buf),
+		reader:  &buf,
 		closech: make(chan struct{}),
 	}
 
@@ -264,7 +264,7 @@ func TestReadPacketFail(t *testing.T) {
 	conn.reads = 0
 	mc.sequence = 0
 	newBuf := newBuffer(conn)
-	mc.reader = newSimpleReader(&newBuf)
+	mc.reader = &newBuf
 
 	// fail to read header
 	conn.closed = true
@@ -278,7 +278,7 @@ func TestReadPacketFail(t *testing.T) {
 	conn.reads = 0
 	mc.sequence = 0
 	newBuf = newBuffer(conn)
-	mc.reader = newSimpleReader(&newBuf)
+	mc.reader = &newBuf
 
 	// fail to read body
 	conn.maxReads = 1
