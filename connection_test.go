@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"context"
 	"database/sql/driver"
 	"testing"
 )
@@ -77,5 +78,33 @@ func TestCheckNamedValue(t *testing.T) {
 
 	if value.Value != "18446744073709551615" {
 		t.Fatalf("uint64 high-bit not converted, got %#v %T", value.Value, value.Value)
+	}
+}
+
+// TestCleanCancel tests passed context is cancelled at start.
+// No packet should be sent.  Connection should keep current status.
+func TestCleanCancel(t *testing.T) {
+	mc := &mysqlConn{
+		closech: make(chan struct{}),
+	}
+	mc.startWatcher()
+	defer mc.cleanup()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	for i := 0; i < 3; i++ { // Repeat same behavior
+		err := mc.Ping(ctx)
+		if err != context.Canceled {
+			t.Errorf("expected context.Canceled, got %#v", err)
+		}
+
+		if mc.closed.IsSet() {
+			t.Error("expected mc is not closed, closed actually")
+		}
+
+		if mc.watching {
+			t.Error("expected watching is false, but true")
+		}
 	}
 }
