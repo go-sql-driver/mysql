@@ -26,7 +26,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
 
 ---------------------------------------
 
-## Features
+#Features
   * Lightweight and [fast](https://github.com/go-sql-driver/sql-benchmark "golang MySQL-Driver performance")
   * Native Go implementation. No C-bindings, just pure Go
   * Connections over TCP/IPv4, TCP/IPv6, Unix domain sockets or [custom protocols](https://godoc.org/github.com/go-sql-driver/mysql#DialFunc)
@@ -39,20 +39,20 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
   * Optional `time.Time` parsing
   * Optional placeholder interpolation
 
-## Requirements
+# Requirements
   * Go 1.8 or higher. We aim to support the 3 latest versions of Go.
   * MySQL (4.1+), MariaDB, Percona Server, Google CloudSQL or Sphinx (2.2.3+)
 
 ---------------------------------------
 
-## Installation
+#Installation
 Simple install the package to your [$GOPATH](https://github.com/golang/go/wiki/GOPATH "GOPATH") with the [go tool](https://golang.org/cmd/go/ "go command") from shell:
 ```bash
 $ go get -u github.com/go-sql-driver/mysql
 ```
 Make sure [Git is installed](https://git-scm.com/downloads) on your machine and in your system's `PATH`.
 
-## Usage
+# Usage
 _Go MySQL Driver_ is an implementation of Go's `database/sql/driver` interface. You only need to import the driver and can use the full [`database/sql`](https://golang.org/pkg/database/sql/) API then.
 
 Use `mysql` as `driverName` and a valid [DSN](#dsn-data-source-name)  as `dataSourceName`:
@@ -66,7 +66,7 @@ db, err := sql.Open("mysql", "user:password@/dbname")
 [Examples are available in our Wiki](https://github.com/go-sql-driver/mysql/wiki/Examples "Go-MySQL-Driver Examples").
 
 
-### DSN (Data Source Name)
+# DSN (Data Source Name)
 
 The Data Source Name has a common format, like e.g. [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php) uses it, but without type-prefix (optional parts marked by squared brackets):
 ```
@@ -94,14 +94,14 @@ This has the same effect as an empty DSN string:
 
 Alternatively, [Config.FormatDSN](https://godoc.org/github.com/go-sql-driver/mysql#Config.FormatDSN) can be used to create a DSN string by filling a struct.
 
-#### Password
+# Password
 Passwords can consist of any character. Escaping is **not** necessary.
 
-#### Protocol
+#Protocol
 See [net.Dial](https://golang.org/pkg/net/#Dial) for more information which networks are available.
 In general you should use an Unix domain socket if available and TCP otherwise for best performance.
 
-#### Address
+#Address
 For TCP and UDP networks, addresses have the form `host[:port]`.
 If `port` is omitted, the default port will be used.
 If `host` is a literal IPv6 address, it must be enclosed in square brackets.
@@ -109,12 +109,12 @@ The functions [net.JoinHostPort](https://golang.org/pkg/net/#JoinHostPort) and [
 
 For Unix domain sockets the address is the absolute path to the MySQL-Server-socket, e.g. `/var/run/mysqld/mysqld.sock` or `/tmp/mysql.sock`.
 
-#### Parameters
+# Parameters
 *Parameters are case-sensitive!*
 
 Notice that any of `true`, `TRUE`, `True` or `1` is accepted to stand for a true boolean value. Not surprisingly, false can be specified as any of: `false`, `FALSE`, `False` or `0`.
 
-##### `allowAllFiles`
+#'allowAllFiles`
 
 ```
 Type:           bool
@@ -125,7 +125,7 @@ Default:        false
 `allowAllFiles=true` disables the file Whitelist for `LOAD DATA LOCAL INFILE` and allows *all* files.
 [*Might be insecure!*](http://dev.mysql.com/doc/refman/5.7/en/load-data-local.html)
 
-##### `allowCleartextPasswords`
+#`allowCleartextPasswords`
 
 ```
 Type:           bool
@@ -135,7 +135,7 @@ Default:        false
 
 `allowCleartextPasswords=true` allows using the [cleartext client side plugin](http://dev.mysql.com/doc/en/cleartext-authentication-plugin.html) if required by an account, such as one defined with the [PAM authentication plugin](http://dev.mysql.com/doc/en/pam-authentication-plugin.html). Sending passwords in clear text may be a security problem in some configurations. To avoid problems if there is any possibility that the password would be intercepted, clients should connect to MySQL Server using a method that protects the password. Possibilities include [TLS / SSL](#tls), IPsec, or a private network.
 
-##### `allowNativePasswords`
+# `allowNativePasswords`
 
 ```
 Type:           bool
@@ -144,7 +144,7 @@ Default:        true
 ```
 `allowNativePasswords=false` disallows the usage of MySQL native password method.
 
-##### `allowOldPasswords`
+# `allowOldPasswords`
 
 ```
 Type:           bool
@@ -153,7 +153,7 @@ Default:        false
 ```
 `allowOldPasswords=true` allows the usage of the insecure old password method. This should be avoided, but is necessary in some cases. See also [the old_passwords wiki page](https://github.com/go-sql-driver/mysql/wiki/old_passwords).
 
-##### `charset`
+# `charset`
 
 ```
 Type:           string
@@ -166,7 +166,7 @@ Sets the charset used for client-server interaction (`"SET NAMES <value>"`). If 
 Usage of the `charset` parameter is discouraged because it issues additional queries to the server.
 Unless you need the fallback behavior, please use `collation` instead.
 
-##### `collation`
+# `collation`
 
 ```
 Type:           string
@@ -178,7 +178,7 @@ Sets the collation used for client-server interaction on connection. In contrast
 
 A list of valid charsets for a server is retrievable with `SHOW COLLATION`.
 
-##### `clientFoundRows`
+#`clientFoundRows`
 
 ```
 Type:           bool
@@ -188,7 +188,7 @@ Default:        false
 
 `clientFoundRows=true` causes an UPDATE to return the number of matching rows instead of the number of rows changed.
 
-##### `columnsWithAlias`
+# `columnsWithAlias`
 
 ```
 Type:           bool
@@ -204,7 +204,7 @@ SELECT u.id FROM users as u
 
 will return `u.id` instead of just `id` if `columnsWithAlias=true`.
 
-##### `interpolateParams`
+# `interpolateParams`
 
 ```
 Type:           bool
@@ -216,7 +216,7 @@ If `interpolateParams` is true, placeholders (`?`) in calls to `db.Query()` and 
 
 *This can not be used together with the multibyte encodings BIG5, CP932, GB2312, GBK or SJIS. These are blacklisted as they may [introduce a SQL injection vulnerability](http://stackoverflow.com/a/12118602/3430118)!*
 
-##### `loc`
+# `loc`
 
 ```
 Type:           string
@@ -230,7 +230,7 @@ Note that this sets the location for time.Time values but does not change MySQL'
 
 Please keep in mind, that param values must be [url.QueryEscape](https://golang.org/pkg/net/url/#QueryEscape)'ed. Alternatively you can manually replace the `/` with `%2F`. For example `US/Pacific` would be `loc=US%2FPacific`.
 
-##### `maxAllowedPacket`
+# `maxAllowedPacket`
 ```
 Type:          decimal number
 Default:       4194304
@@ -238,7 +238,7 @@ Default:       4194304
 
 Max packet size allowed in bytes. The default value is 4 MiB and should be adjusted to match the server settings. `maxAllowedPacket=0` can be used to automatically fetch the `max_allowed_packet` variable from server *on every connection*.
 
-##### `multiStatements`
+# `multiStatements`
 
 ```
 Type:           bool
@@ -250,7 +250,7 @@ Allow multiple statements in one query. While this allows batch queries, it also
 
 When `multiStatements` is used, `?` parameters must only be used in the first statement.
 
-##### `parseTime`
+# `parseTime`
 
 ```
 Type:           bool
@@ -262,7 +262,7 @@ Default:        false
 The date or datetime like `0000-00-00 00:00:00` is converted into zero value of `time.Time`.
 
 
-##### `readTimeout`
+# `readTimeout`
 
 ```
 Type:           duration
@@ -271,7 +271,7 @@ Default:        0
 
 I/O read timeout. The value must be a decimal number with a unit suffix (*"ms"*, *"s"*, *"m"*, *"h"*), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
-##### `rejectReadOnly`
+# `rejectReadOnly`
 
 ```
 Type:           bool
@@ -301,7 +301,7 @@ other cases. You should ensure your application will never cause an ERROR 1290
 except for `read-only` mode when enabling this option.
 
 
-##### `serverPubKey`
+# `serverPubKey`
 
 ```
 Type:           string
@@ -314,7 +314,7 @@ Public keys are used to transmit encrypted data, e.g. for authentication.
 If the server's public key is known, it should be set manually to avoid expensive and potentially insecure transmissions of the public key from the server to the client each time it is required.
 
 
-##### `timeout`
+# `timeout`
 
 ```
 Type:           duration
@@ -324,7 +324,7 @@ Default:        OS default
 Timeout for establishing connections, aka dial timeout. The value must be a decimal number with a unit suffix (*"ms"*, *"s"*, *"m"*, *"h"*), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
 
-##### `tls`
+# `tls`
 
 ```
 Type:           bool / string
@@ -335,7 +335,7 @@ Default:        false
 `tls=true` enables TLS / SSL encrypted connection to the server. Use `skip-verify` if you want to use a self-signed or invalid certificate (server side). Use a custom value registered with [`mysql.RegisterTLSConfig`](https://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).
 
 
-##### `writeTimeout`
+# `writeTimeout`
 
 ```
 Type:           duration
@@ -345,7 +345,7 @@ Default:        0
 I/O write timeout. The value must be a decimal number with a unit suffix (*"ms"*, *"s"*, *"m"*, *"h"*), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
 
-##### System Variables
+#### System Variables
 
 Any other parameters are interpreted as system variables:
   * `<boolean_var>=<value>`: `SET <boolean_var>=<value>`
@@ -428,7 +428,7 @@ Go 1.8 added `database/sql` support for `context.Context`. This driver supports 
 See [context support in the database/sql package](https://golang.org/doc/go1.8#database_sql) for more details.
 
 
-### `LOAD DATA LOCAL INFILE` support
+#`LOAD DATA LOCAL INFILE` support
 For this feature you need direct access to the package. Therefore you must change the import path (no `_`):
 ```go
 import "github.com/go-sql-driver/mysql"
@@ -470,7 +470,7 @@ See the [Contribution Guidelines](https://github.com/go-sql-driver/mysql/blob/ma
 
 ---------------------------------------
 
-## License
+# License
 Go-MySQL-Driver is licensed under the [Mozilla Public License Version 2.0](https://raw.github.com/go-sql-driver/mysql/master/LICENSE)
 
 Mozilla summarizes the license scope as follows:
@@ -487,4 +487,3 @@ Please read the [MPL 2.0 FAQ](https://www.mozilla.org/en-US/MPL/2.0/FAQ/) if you
 You can read the full terms here: [LICENSE](https://raw.github.com/go-sql-driver/mysql/master/LICENSE).
 
 ![Go Gopher and MySQL Dolphin](https://raw.github.com/wiki/go-sql-driver/mysql/go-mysql-driver_m.jpg "Golang Gopher transporting the MySQL Dolphin in a wheelbarrow")
-
