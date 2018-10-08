@@ -28,7 +28,6 @@ type mysqlContext interface {
 }
 
 type mysqlConn struct {
-	buf                 buffer
 	netConn             net.Conn
 	reader              packetReader
 	writer              io.Writer
@@ -55,6 +54,7 @@ type mysqlConn struct {
 
 type packetReader interface {
 	readNext(need int) ([]byte, error)
+	reuseBuffer(length int) []byte
 }
 
 // Handles parameters set in DSN after the connection is established
@@ -197,7 +197,8 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 		return "", driver.ErrSkip
 	}
 
-	buf := mc.buf.takeCompleteBuffer()
+	buf := mc.reader.reuseBuffer(-1)
+
 	if buf == nil {
 		// can not take the buffer. Something must be wrong with the connection
 		errLog.Print(ErrBusyBuffer)

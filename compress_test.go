@@ -39,6 +39,10 @@ func (mb *mockBuf) readNext(need int) ([]byte, error) {
 	return data, nil
 }
 
+func (mb *mockBuf) reuseBuffer(length int) []byte {
+	return make([]byte, length) //just give them a new buffer
+}
+
 // compressHelper compresses uncompressedPacket and checks state variables
 func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []byte {
 	// get status variables

@@ -109,7 +109,11 @@ func (b *buffer) readNext(need int) ([]byte, error) {
 // If possible, a slice from the existing buffer is returned.
 // Otherwise a bigger buffer is made.
 // Only one buffer (total) can be used at a time.
-func (b *buffer) takeBuffer(length int) []byte {
+func (b *buffer) reuseBuffer(length int) []byte {
+	if length == -1 {
+		return b.takeCompleteBuffer()
+	}
+
 	if b.length > 0 {
 		return nil
 	}
@@ -124,16 +128,6 @@ func (b *buffer) takeBuffer(length int) []byte {
 		return b.buf
 	}
 	return make([]byte, length)
-}
-
-// shortcut which can be used if the requested buffer is guaranteed to be
-// smaller than defaultBufSize
-// Only one buffer (total) can be used at a time.
-func (b *buffer) takeSmallBuffer(length int) []byte {
-	if b.length == 0 {
-		return b.buf[:length]
-	}
-	return nil
 }
 
 // takeCompleteBuffer returns the complete existing buffer.

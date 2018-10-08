@@ -52,6 +52,10 @@ func (cr *compressedReader) readNext(need int) ([]byte, error) {
 	return data, nil
 }
 
+func (cr *compressedReader) reuseBuffer(length int) []byte {
+	return cr.buf.reuseBuffer(length)
+}
+
 func (cr *compressedReader) uncompressPacket() error {
 	header, err := cr.buf.readNext(7) // size of compressed header
 
