@@ -205,7 +205,7 @@ func BenchmarkRoundtripBin(b *testing.B) {
 			length = max
 		}
 		test := sample[0:length]
-		rows := tb.checkRows(stmt.Query(test)) //run benchmark tests to test that bit of code
+		rows := tb.checkRows(stmt.Query(test))
 		if !rows.Next() {
 			rows.Close()
 			b.Fatalf("crashed")
