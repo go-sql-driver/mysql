@@ -1801,6 +1801,23 @@ func TestConcurrent(t *testing.T) {
 	})
 }
 
+func TestDialErrBadConn(t *testing.T) {
+	RegisterDial("mydial", func(addr string) (net.Conn, error) {
+		return nil, fmt.Errorf("test")
+	})
+
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@mydial(%s)/%s?timeout=30s", user, pass, addr, dbname))
+	if err != nil {
+		t.Fatalf("error connecting: %s", err.Error())
+	}
+	defer db.Close()
+
+	_, err = db.Exec("DO 1")
+	if err != driver.ErrBadConn {
+		t.Fatalf("was expecting ErrBadConn. Got: %s", err)
+	}
+}
+
 // Tests custom dial functions
 func TestCustomDial(t *testing.T) {
 	if !available {

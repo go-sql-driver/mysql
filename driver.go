@@ -77,7 +77,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		mc.netConn, err = nd.Dial(mc.cfg.Net, mc.cfg.Addr)
 	}
 	if err != nil {
-		return nil, err
+		return nil, driver.ErrBadConn
 	}
 
 	// Enable TCP Keepalives on TCP connections
