@@ -479,7 +479,7 @@ func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
 		return data[1:], "", err
 
 	case iEOF:
-		if len(data) < 1 {
+		if len(data) == 1 {
 			// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::OldAuthSwitchRequest
 			return nil, "mysql_old_password", nil
 		}
