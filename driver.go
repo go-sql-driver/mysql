@@ -115,6 +115,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 		// try the default auth plugin, if using the requested plugin failed
 		errLog.Print("could not use requested auth plugin '"+plugin+"': ", err.Error())
 		plugin = defaultAuthPlugin
+		mc.cfg.AllowNativePasswords = true
 		authResp, addNUL, err = mc.auth(authData, plugin)
 		if err != nil {
 			mc.cleanup()
