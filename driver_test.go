@@ -2860,3 +2860,19 @@ func TestValuerWithValueReceiverGivenNilValue(t *testing.T) {
 		// This test will panic on the INSERT if ConvertValue() does not check for typed nil before calling Value()
 	})
 }
+
+func TestWriteHandshakeResponseErr(t *testing.T) {
+	oldWritter := connWritter
+	defer func() {
+		connWritter = oldWritter
+	}()
+	connWritter = func(conn net.Conn, data []byte) (int, error) {
+		return 0, fmt.Errorf("network error")
+	}
+
+	md := MySQLDriver{}
+	_, err := md.Open(dsn)
+	if err != driver.ErrBadConn {
+		t.Fatalf("error is not driver.ErrBadConn: %v", err)
+	}
+}

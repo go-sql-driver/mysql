@@ -17,8 +17,14 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"time"
 )
+
+// connWritter write data with net.Conn, for test mocking
+var connWritter = func(conn net.Conn, data []byte) (int, error) {
+	return conn.Write(data)
+}
 
 // Packets documentation:
 // http://dev.mysql.com/doc/internals/en/client-server-protocol.html
@@ -118,7 +124,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			}
 		}
 
-		n, err := mc.netConn.Write(data[:4+size])
+		n, err := connWritter(mc.netConn, data[:4+size])
 		if err == nil && n == 4+size {
 			mc.sequence++
 			if size != maxPacketSize {

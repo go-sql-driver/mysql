@@ -123,7 +123,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	}
 	if err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin); err != nil {
 		mc.cleanup()
-		return nil, err
+		return nil, mc.markBadConn(err)
 	}
 
 	// Handle response to auth packet, switch methods if possible
