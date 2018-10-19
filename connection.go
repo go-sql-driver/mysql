@@ -475,7 +475,7 @@ func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
 	defer mc.finish()
 
 	if err = mc.writeCommandPacket(comPing); err != nil {
-		return
+		return mc.markBadConn(err)
 	}
 
 	return mc.readResultOK()
