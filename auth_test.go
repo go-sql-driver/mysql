@@ -1064,6 +1064,22 @@ func TestAuthSwitchOldPasswordNotAllowed(t *testing.T) {
 	}
 }
 
+// Same to TestAuthSwitchOldPasswordNotAllowed, but use OldAuthSwitch request.
+func TestOldAuthSwitchNotAllowed(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+
+	// OldAuthSwitch request
+	conn.data = []byte{1, 0, 0, 2, 0xfe}
+	conn.maxReads = 1
+	authData := []byte{95, 84, 103, 43, 61, 49, 123, 61, 91, 50, 40, 113, 35,
+		84, 96, 101, 92, 123, 121, 107}
+	plugin := "mysql_native_password"
+	err := mc.handleAuthResult(authData, plugin)
+	if err != ErrOldPassword {
+		t.Errorf("expected ErrOldPassword, got %v", err)
+	}
+}
+
 func TestAuthSwitchOldPassword(t *testing.T) {
 	conn, mc := newRWMockConn(2)
 	mc.cfg.AllowOldPasswords = true
@@ -1092,6 +1108,32 @@ func TestAuthSwitchOldPassword(t *testing.T) {
 	}
 }
 
+// Same to TestAuthSwitchOldPassword, but use OldAuthSwitch request.
+func TestOldAuthSwitch(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.AllowOldPasswords = true
+	mc.cfg.Passwd = "secret"
+
+	// OldAuthSwitch request
+	conn.data = []byte{1, 0, 0, 2, 0xfe}
+
+	// auth response
+	conn.queuedReplies = [][]byte{{8, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 0}}
+	conn.maxReads = 2
+
+	authData := []byte{95, 84, 103, 43, 61, 49, 123, 61, 91, 50, 40, 113, 35,
+		84, 96, 101, 92, 123, 121, 107}
+	plugin := "mysql_native_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReply := []byte{9, 0, 0, 3, 86, 83, 83, 79, 74, 78, 65, 66, 0}
+	if !bytes.Equal(conn.written, expectedReply) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
 func TestAuthSwitchOldPasswordEmpty(t *testing.T) {
 	conn, mc := newRWMockConn(2)
 	mc.cfg.AllowOldPasswords = true
@@ -1101,6 +1143,33 @@ func TestAuthSwitchOldPasswordEmpty(t *testing.T) {
 	conn.data = []byte{41, 0, 0, 2, 254, 109, 121, 115, 113, 108, 95, 111, 108,
 		100, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0, 95, 84, 103, 43, 61,
 		49, 123, 61, 91, 50, 40, 113, 35, 84, 96, 101, 92, 123, 121, 107, 0}
+
+	// auth response
+	conn.queuedReplies = [][]byte{{8, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 0}}
+	conn.maxReads = 2
+
+	authData := []byte{95, 84, 103, 43, 61, 49, 123, 61, 91, 50, 40, 113, 35,
+		84, 96, 101, 92, 123, 121, 107}
+	plugin := "mysql_native_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReply := []byte{1, 0, 0, 3, 0}
+	if !bytes.Equal(conn.written, expectedReply) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
+// Same to TestAuthSwitchOldPasswordEmpty, but use OldAuthSwitch request.
+func TestOldAuthSwitchPasswordEmpty(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.AllowOldPasswords = true
+	mc.cfg.Passwd = ""
+
+	// OldAuthSwitch request.
+	conn.data = []byte{1, 0, 0, 2, 0xfe}
 
 	// auth response
 	conn.queuedReplies = [][]byte{{8, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 0}}
