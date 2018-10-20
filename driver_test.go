@@ -1845,11 +1845,6 @@ func TestDialNonRetryableNetErr(t *testing.T) {
 	testDialError(t, testErr, testErr)
 }
 
-func TestDialTimeoutNetErr(t *testing.T) {
-	testErr := netErrorMock{timeout: true}
-	testDialError(t, testErr, driver.ErrBadConn)
-}
-
 func TestDialTemporaryNetErr(t *testing.T) {
 	testErr := netErrorMock{temporary: true}
 	testDialError(t, testErr, driver.ErrBadConn)
