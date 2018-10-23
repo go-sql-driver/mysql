@@ -60,7 +60,7 @@ Use `mysql` as `driverName` and a valid [DSN](#dsn-data-source-name)  as `dataSo
 import "database/sql"
 import _ "github.com/go-sql-driver/mysql"
 
-db, err := sql.Open("mysql", "user:password@/dbname")
+db, err := sql.Open("mysql", "user:password@tcp(localhost:3306)/dbname")
 ```
 
 [Examples are available in our Wiki](https://github.com/go-sql-driver/mysql/wiki/Examples "Go-MySQL-Driver Examples").
