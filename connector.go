@@ -73,6 +73,10 @@ func (c *Config) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 
+	if plugin == "" {
+		plugin = defaultAuthPlugin
+	}
+
 	// Send Client Authentication Packet
 	authResp, addNUL, err := mc.auth(authData, plugin)
 	if err != nil {
