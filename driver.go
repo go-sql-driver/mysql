@@ -161,5 +161,10 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 }
 
 func init() {
+	for _, driver := range sql.Drivers() {
+		if driver == "mysql" {
+			return
+		}
+	}
 	sql.Register("mysql", &MySQLDriver{})
 }
