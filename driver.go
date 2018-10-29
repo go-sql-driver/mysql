@@ -53,9 +53,12 @@ func RegisterDial(net string, dial DialFunc) {
 // See https://github.com/go-sql-driver/mysql#dsn-data-source-name for how
 // the DSN string is formated
 func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
-	c, err := ParseDSN(dsn)
+	cfg, err := ParseDSN(dsn)
 	if err != nil {
 		return nil, err
+	}
+	c := &connector{
+		cfg: cfg,
 	}
 	return c.Connect(context.Background())
 }

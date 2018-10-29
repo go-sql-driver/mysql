@@ -16,5 +16,11 @@ import (
 
 // OpenConnector implements driver.DriverContext.
 func (d MySQLDriver) OpenConnector(dsn string) (driver.Connector, error) {
-	return ParseDSN(dsn)
+	cfg, err := ParseDSN(dsn)
+	if err != nil {
+		return nil, err
+	}
+	return &connector{
+		cfg: cfg,
+	}, nil
 }

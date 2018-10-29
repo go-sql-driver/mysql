@@ -14,9 +14,13 @@ import (
 	"net"
 )
 
+type connector struct {
+	cfg *Config // immutable private copy.
+}
+
 // Connect implements driver.Connector interface.
 // Connect returns a connection to the database.
-func (c *Config) Connect(ctx context.Context) (driver.Conn, error) {
+func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	var err error
 
 	// New mysqlConn
@@ -24,7 +28,7 @@ func (c *Config) Connect(ctx context.Context) (driver.Conn, error) {
 		maxAllowedPacket: maxPacketSize,
 		maxWriteSize:     maxPacketSize - 1,
 		closech:          make(chan struct{}),
-		cfg:              c,
+		cfg:              c.cfg,
 	}
 	mc.parseTime = mc.cfg.ParseTime
 
@@ -130,6 +134,6 @@ func (c *Config) Connect(ctx context.Context) (driver.Conn, error) {
 
 // Driver implements driver.Connector interface.
 // Driver returns &MySQLDriver{}.
-func (c *Config) Driver() driver.Driver {
+func (c *connector) Driver() driver.Driver {
 	return &MySQLDriver{}
 }
