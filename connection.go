@@ -19,16 +19,6 @@ import (
 	"time"
 )
 
-// a copy of context.Context for Go 1.7 and earlier
-type mysqlContext interface {
-	Done() <-chan struct{}
-	Err() error
-
-	// defined in context.Context, but not used in this driver:
-	// Deadline() (deadline time.Time, ok bool)
-	// Value(key interface{}) interface{}
-}
-
 type mysqlConn struct {
 	buf              buffer
 	netConn          net.Conn
@@ -45,7 +35,7 @@ type mysqlConn struct {
 
 	// for context support (Go 1.8+)
 	watching bool
-	watcher  chan<- mysqlContext
+	watcher  chan<- context.Context
 	closech  chan struct{}
 	finished chan<- struct{}
 	canceled atomicError // set non-nil if conn is canceled
@@ -614,13 +604,13 @@ func (mc *mysqlConn) watchCancel(ctx context.Context) error {
 }
 
 func (mc *mysqlConn) startWatcher() {
-	watcher := make(chan mysqlContext, 1)
+	watcher := make(chan context.Context, 1)
 	mc.watcher = watcher
 	finished := make(chan struct{})
 	mc.finished = finished
 	go func() {
 		for {
-			var ctx mysqlContext
+			var ctx context.Context
 			select {
 			case ctx = <-watcher:
 			case <-mc.closech:
