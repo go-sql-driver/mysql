@@ -269,7 +269,11 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, addNUL bool, 
 
 	// encode length of the auth plugin data
 	var authRespLEIBuf [9]byte
-	authRespLEI := appendLengthEncodedInteger(authRespLEIBuf[:0], uint64(len(authResp)))
+	authRespLen := len(authResp)
+	if addNUL {
+		authRespLen++
+	}
+	authRespLEI := appendLengthEncodedInteger(authRespLEIBuf[:0], uint64(authRespLen))
 	if len(authRespLEI) > 1 {
 		// if the length can not be written in 1 byte, it must be written as a
 		// length encoded integer
@@ -364,9 +368,10 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, addNUL bool, 
 
 	pos += copy(data[pos:], plugin)
 	data[pos] = 0x00
+	pos++
 
 	// Send Auth packet
-	return mc.writePacket(data)
+	return mc.writePacket(data[:pos])
 }
 
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
