@@ -368,7 +368,7 @@ func TestAuthFastCleartextPassword(t *testing.T) {
 	writtenAuthRespLen := conn.written[authRespStart]
 	writtenAuthResp := conn.written[authRespStart+1 : authRespEnd]
 	expectedAuthResp := []byte{115, 101, 99, 114, 101, 116, 0}
-	if !bytes.Equal(writtenAuthResp, expectedAuthResp) {
+	if writtenAuthRespLen != 7 || !bytes.Equal(writtenAuthResp, expectedAuthResp) {
 		t.Fatalf("unexpected written auth response (%d bytes): %v", writtenAuthRespLen, writtenAuthResp)
 	}
 	conn.written = nil
@@ -411,7 +411,7 @@ func TestAuthFastCleartextPasswordEmpty(t *testing.T) {
 	writtenAuthRespLen := conn.written[authRespStart]
 	writtenAuthResp := conn.written[authRespStart+1 : authRespEnd]
 	expectedAuthResp := []byte{0}
-	if !bytes.Equal(writtenAuthResp, expectedAuthResp) {
+	if writtenAuthRespLen != 1 || !bytes.Equal(writtenAuthResp, expectedAuthResp) {
 		t.Fatalf("unexpected written auth response (%d bytes): %v", writtenAuthRespLen, writtenAuthResp)
 	}
 	conn.written = nil
@@ -689,7 +689,7 @@ func TestAuthFastSHA256PasswordSecure(t *testing.T) {
 	writtenAuthRespLen := conn.written[authRespStart]
 	writtenAuthResp := conn.written[authRespStart+1 : authRespEnd]
 	expectedAuthResp := []byte{115, 101, 99, 114, 101, 116, 0}
-	if !bytes.Equal(writtenAuthResp, expectedAuthResp) {
+	if writtenAuthRespLen != 7 || !bytes.Equal(writtenAuthResp, expectedAuthResp) {
 		t.Fatalf("unexpected written auth response (%d bytes): %v", writtenAuthRespLen, writtenAuthResp)
 	}
 	conn.written = nil
