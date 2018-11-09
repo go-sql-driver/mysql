@@ -51,7 +51,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		mc.sequence++
 
 		// packets with length 0 terminate a previous packet which is a
-		// multiple of (2^24)−1 bytes long
+		// multiple of (2^24)-1 bytes long
 		if pktLen == 0 {
 			// there was no previous packet
 			if prevData == nil {
@@ -286,10 +286,10 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	}
 
 	// Calculate packet length and get buffer with that size
-	data := mc.buf.takeSmallBuffer(pktLen + 4)
-	if data == nil {
+	data, err := mc.buf.takeSmallBuffer(pktLen + 4)
+	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
+		errLog.Print(err)
 		return errBadConnNoWrite
 	}
 
@@ -367,10 +367,10 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
 func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
 	pktLen := 4 + len(authData)
-	data := mc.buf.takeSmallBuffer(pktLen)
-	if data == nil {
+	data, err := mc.buf.takeSmallBuffer(pktLen)
+	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
+		errLog.Print(err)
 		return errBadConnNoWrite
 	}
 
@@ -387,10 +387,10 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
-	data := mc.buf.takeSmallBuffer(4 + 1)
-	if data == nil {
+	data, err := mc.buf.takeSmallBuffer(4 + 1)
+	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
+		errLog.Print(err)
 		return errBadConnNoWrite
 	}
 
@@ -406,10 +406,10 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	mc.sequence = 0
 
 	pktLen := 1 + len(arg)
-	data := mc.buf.takeBuffer(pktLen + 4)
-	if data == nil {
+	data, err := mc.buf.takeBuffer(pktLen + 4)
+	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
+		errLog.Print(err)
 		return errBadConnNoWrite
 	}
 
@@ -427,10 +427,10 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
-	data := mc.buf.takeSmallBuffer(4 + 1 + 4)
-	if data == nil {
+	data, err := mc.buf.takeSmallBuffer(4 + 1 + 4)
+	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
+		errLog.Print(err)
 		return errBadConnNoWrite
 	}
 
@@ -883,7 +883,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	const minPktLen = 4 + 1 + 4 + 1 + 4
 	mc := stmt.mc
 
-	// Determine threshould dynamically to avoid packet size shortage.
+	// Determine threshold dynamically to avoid packet size shortage.
 	longDataSize := mc.maxAllowedPacket / (stmt.paramCount + 1)
 	if longDataSize < 64 {
 		longDataSize = 64
@@ -893,15 +893,17 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	mc.sequence = 0
 
 	var data []byte
+	var err error
 
 	if len(args) == 0 {
-		data = mc.buf.takeBuffer(minPktLen)
+		data, err = mc.buf.takeBuffer(minPktLen)
 	} else {
-		data = mc.buf.takeCompleteBuffer()
+		data, err = mc.buf.takeCompleteBuffer()
+		// In this case the len(data) == cap(data) which is used to optimise the flow below.
 	}
-	if data == nil {
+	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		errLog.Print(ErrBusyBuffer)
+		errLog.Print(err)
 		return errBadConnNoWrite
 	}
 
@@ -927,7 +929,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		pos := minPktLen
 
 		var nullMask []byte
-		if maskLen, typesLen := (len(args)+7)/8, 1+2*len(args); pos+maskLen+typesLen >= len(data) {
+		if maskLen, typesLen := (len(args)+7)/8, 1+2*len(args); pos+maskLen+typesLen >= cap(data) {
 			// buffer has to be extended but we don't know by how much so
 			// we depend on append after all data with known sizes fit.
 			// We stop at that because we deal with a lot of columns here
@@ -936,10 +938,11 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			copy(tmp[:pos], data[:pos])
 			data = tmp
 			nullMask = data[pos : pos+maskLen]
+			// No need to clean nullMask as make ensures that.
 			pos += maskLen
 		} else {
 			nullMask = data[pos : pos+maskLen]
-			for i := 0; i < maskLen; i++ {
+			for i := range nullMask {
 				nullMask[i] = 0
 			}
 			pos += maskLen
@@ -1076,7 +1079,10 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		// In that case we must build the data packet with the new values buffer
 		if valuesCap != cap(paramValues) {
 			data = append(data[:pos], paramValues...)
-			mc.buf.buf = data
+			if err = mc.buf.store(data); err != nil {
+				errLog.Print(err)
+				return errBadConnNoWrite
+			}
 		}
 
 		pos += len(paramValues)
