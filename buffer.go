@@ -31,7 +31,7 @@ type buffer struct {
 
 func newBuffer(nc net.Conn) buffer {
 	return buffer{
-		buf: make([]byte, defaultBufSize, defaultBufSize),
+		buf: make([]byte, defaultBufSize),
 		nc:  nc,
 	}
 }
@@ -50,8 +50,7 @@ func (b *buffer) fill(need int) error {
 	//       Maybe keep the org buf slice and swap back?
 	if need > len(b.buf) {
 		// Round up to the next multiple of the default size
-		newSize := ((need / defaultBufSize) + 1) * defaultBufSize
-		newBuf := make([]byte, newSize, newSize)
+		newBuf := make([]byte, ((need/defaultBufSize)+1)*defaultBufSize)
 		copy(newBuf, b.buf)
 		b.buf = newBuf
 	}
@@ -119,7 +118,7 @@ func (b *buffer) takeBuffer(length int) []byte {
 	}
 
 	if length < maxPacketSize {
-		b.buf = make([]byte, length, length)
+		b.buf = make([]byte, length)
 		return b.buf
 	}
 	return make([]byte, length)
@@ -149,7 +148,9 @@ func (b *buffer) takeCompleteBuffer() []byte {
 // than len(b.buf).  It can be used when you took buffer by
 // takeCompleteBuffer and append some data to it.
 func (b *buffer) setGrownBuffer(buf []byte) {
-	if cap(buf) >= len(b.buf) {
-		b.buf = buf[:cap(buf)]
+	// buf may be grown by `buf = append(buf, ...)`.  So set len=cap explicitly.
+	buf = buf[:cap(buf)]
+	if len(buf) > len(b.buf) {
+		b.buf = buf
 	}
 }
