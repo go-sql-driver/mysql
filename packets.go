@@ -1076,7 +1076,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		// In that case we must build the data packet with the new values buffer
 		if valuesCap != cap(paramValues) {
 			data = append(data[:pos], paramValues...)
-			mc.buf.buf = data
+			mc.buf.setGrownBuffer(data)
 		}
 
 		pos += len(paramValues)

@@ -30,9 +30,8 @@ type buffer struct {
 }
 
 func newBuffer(nc net.Conn) buffer {
-	var b [defaultBufSize]byte
 	return buffer{
-		buf: b[:],
+		buf: make([]byte, defaultBufSize, defaultBufSize),
 		nc:  nc,
 	}
 }
@@ -51,7 +50,8 @@ func (b *buffer) fill(need int) error {
 	//       Maybe keep the org buf slice and swap back?
 	if need > len(b.buf) {
 		// Round up to the next multiple of the default size
-		newBuf := make([]byte, ((need/defaultBufSize)+1)*defaultBufSize)
+		newSize := ((need / defaultBufSize) + 1) * defaultBufSize
+		newBuf := make([]byte, newSize, newSize)
 		copy(newBuf, b.buf)
 		b.buf = newBuf
 	}
@@ -114,13 +114,12 @@ func (b *buffer) takeBuffer(length int) []byte {
 		return nil
 	}
 
-	// test (cheap) general case first
-	if length <= defaultBufSize || length <= cap(b.buf) {
+	if length <= len(b.buf) {
 		return b.buf[:length]
 	}
 
 	if length < maxPacketSize {
-		b.buf = make([]byte, length)
+		b.buf = make([]byte, length, length)
 		return b.buf
 	}
 	return make([]byte, length)
@@ -144,4 +143,13 @@ func (b *buffer) takeCompleteBuffer() []byte {
 		return nil
 	}
 	return b.buf
+}
+
+// setGrownBuffer set buf as internal buffer if cap(buf) is larger
+// than len(b.buf).  It can be used when you took buffer by
+// takeCompleteBuffer and append some data to it.
+func (b *buffer) setGrownBuffer(buf []byte) {
+	if cap(buf) >= len(b.buf) {
+		b.buf = buf[:cap(buf)]
+	}
 }
