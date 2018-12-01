@@ -1304,7 +1304,7 @@ func TestFoundRows(t *testing.T) {
 }
 
 func TestTLS(t *testing.T) {
-	tlsTest := func(dbt *DBTest) {
+	tlsTestReq := func(dbt *DBTest) {
 		if err := dbt.db.Ping(); err != nil {
 			if err == ErrNoTLS {
 				dbt.Skip("server does not support TLS")
@@ -1321,19 +1321,27 @@ func TestTLS(t *testing.T) {
 				dbt.Fatal(err.Error())
 			}
 
-			if value == nil {
-				dbt.Fatal("no Cipher")
+			if (*value == nil) || (len(*value) == 0) {
+				dbt.Fatalf("no Cipher")
+			} else {
+				dbt.Logf("Cipher: %s", *value)
 			}
 		}
 	}
+	tlsTestOpt := func(dbt *DBTest) {
+		if err := dbt.db.Ping(); err != nil {
+			dbt.Fatalf("error on Ping: %s", err.Error())
+		}
+	}
 
-	runTests(t, dsn+"&tls=skip-verify", tlsTest)
+	runTests(t, dsn+"&tls=preferred", tlsTestOpt)
+	runTests(t, dsn+"&tls=skip-verify", tlsTestReq)
 
 	// Verify that registering / using a custom cfg works
 	RegisterTLSConfig("custom-skip-verify", &tls.Config{
 		InsecureSkipVerify: true,
 	})
-	runTests(t, dsn+"&tls=custom-skip-verify", tlsTest)
+	runTests(t, dsn+"&tls=custom-skip-verify", tlsTestReq)
 }
 
 func TestReuseClosedConnection(t *testing.T) {
