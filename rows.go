@@ -111,6 +111,10 @@ func (rows *mysqlRows) Close() (err error) {
 		return err
 	}
 
+	// We can't reuse receive buffer when rows.Close() is called.
+	// See https://github.com/golang/go/commit/651ddbdb5056ded455f47f9c494c67b389622a47
+	mc.buf.reset()
+
 	// Remove unread packets from stream
 	if !rows.rs.done {
 		err = mc.readUntilEOF()

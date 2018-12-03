@@ -37,6 +37,12 @@ func newBuffer(nc net.Conn) buffer {
 	}
 }
 
+func (b *buffer) reset() {
+	b.buf = make([]byte, defaultBufSize)
+	b.idx = 0
+	b.length = 0
+}
+
 // fill reads into the buffer until at least _need_ bytes are in it
 func (b *buffer) fill(need int) error {
 	n := b.length
