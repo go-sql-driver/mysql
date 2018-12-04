@@ -14,7 +14,8 @@ import (
 	"time"
 )
 
-const defaultBufSize = 4096
+const minBufSize = 4096
+const defaultBufSize = 16 * 1024
 
 // A buffer which is used for both reading and writing.
 // This is possible since communication on each connection is synchronous.
@@ -42,7 +43,7 @@ func newBuffer(nc net.Conn) buffer {
 // This is required by Rows.Close().
 // See https://github.com/golang/go/commit/651ddbdb5056ded455f47f9c494c67b389622a47
 func (b *buffer) discard() {
-	if len(b.buf)-b.idx >= defaultBufSize {
+	if len(b.buf)-b.idx >= minBufSize {
 		b.buf = b.buf[b.idx:]
 		b.idx = 0
 		return
@@ -68,11 +69,9 @@ func (b *buffer) fill(need int) error {
 	}
 
 	// grow buffer if necessary
-	// TODO: let the buffer shrink again at some point
-	//       Maybe keep the org buf slice and swap back?
 	if need > len(b.buf) {
 		// Round up to the next multiple of the default size
-		newBuf := make([]byte, ((need/defaultBufSize)+1)*defaultBufSize)
+		newBuf := make([]byte, ((need/minBufSize)+1)*minBufSize)
 		copy(newBuf, b.buf)
 		b.buf = newBuf
 	}
@@ -150,7 +149,7 @@ func (b *buffer) takeBuffer(length int) ([]byte, error) {
 }
 
 // takeSmallBuffer is shortcut which can be used if length is
-// known to be smaller than defaultBufSize.
+// known to be smaller than minBufSize.
 // Only one buffer (total) can be used at a time.
 func (b *buffer) takeSmallBuffer(length int) ([]byte, error) {
 	if b.length > 0 {
