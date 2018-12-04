@@ -37,10 +37,25 @@ func newBuffer(nc net.Conn) buffer {
 	}
 }
 
-func (b *buffer) reset() {
-	b.buf = make([]byte, defaultBufSize)
+// discard trims b.buf[:b.idx] to prohibit it reused.
+//
+// This is required by Rows.Close().
+// See https://github.com/golang/go/commit/651ddbdb5056ded455f47f9c494c67b389622a47
+func (b *buffer) discard() {
+	if len(b.buf)-b.idx >= defaultBufSize {
+		b.buf = b.buf[b.idx:]
+		b.idx = 0
+		return
+	}
+
+	bufSize := defaultBufSize
+	if bufSize < b.length {
+		bufSize = b.length
+	}
+	newBuf := make([]byte, bufSize)
+	copy(newBuf, b.buf[b.idx:b.idx+b.length])
+	b.buf = newBuf
 	b.idx = 0
-	b.length = 0
 }
 
 // fill reads into the buffer until at least _need_ bytes are in it
