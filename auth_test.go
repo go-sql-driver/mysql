@@ -428,6 +428,110 @@ func TestAuthFastCleartextPasswordEmpty(t *testing.T) {
 	}
 }
 
+func TestAuthFastDialogNotAllowed(t *testing.T) {
+	_, mc := newRWMockConn(1)
+	mc.cfg.User = "root"
+	mc.cfg.Passwd = "secret"
+
+	authData := []byte{70, 114, 92, 94, 1, 38, 11, 116, 63, 114, 23, 101, 126,
+		103, 26, 95, 81, 17, 24, 21}
+	plugin := "dialog"
+
+	// Send Client Authentication Packet
+	_, err := mc.auth(authData, plugin)
+	if err != ErrCleartextPassword {
+		t.Errorf("expected ErrCleartextPassword, got %v", err)
+	}
+}
+
+func TestAuthFastDialogNoImpl(t *testing.T) {
+	conn, mc := newRWMockConn(1)
+	mc.cfg.User = "root"
+	mc.cfg.Passwd = "secret"
+	mc.cfg.AllowCleartextPasswords = true
+
+	authData := []byte{70, 114, 92, 94, 1, 38, 11, 116, 63, 114, 23, 101, 126,
+		103, 26, 95, 81, 17, 24, 21}
+	plugin := "dialog"
+
+	// Send Client Authentication Packet
+	authResp, err := mc.auth(authData, plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check written auth response
+	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1
+	authRespEnd := authRespStart + 1 + len(authResp)
+	writtenAuthRespLen := conn.written[authRespStart]
+	writtenAuthResp := conn.written[authRespStart+1 : authRespEnd]
+	expectedAuthResp := []byte{115, 101, 99, 114, 101, 116, 0}
+	if writtenAuthRespLen != 7 || !bytes.Equal(writtenAuthResp, expectedAuthResp) {
+		t.Fatalf("unexpected written auth response (%d bytes): %v", writtenAuthRespLen, writtenAuthResp)
+	}
+	conn.written = nil
+
+	// auth response
+	conn.data = []byte{
+		7, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, // OK
+	}
+	conn.maxReads = 1
+
+	// Handle response to auth packet
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+}
+
+func TestAuthFastDialog(t *testing.T) {
+	conn, mc := newRWMockConn(1)
+	mc.cfg.User = "root"
+	mc.cfg.AllowCleartextPasswords = true
+	mc.cfg.DialogFunc = func(t byte, prompt string) (string, error) {
+		return "secret", nil
+	}
+
+	authData := []byte{70, 114, 92, 94, 1, 38, 11, 116, 63, 114, 23, 101, 126,
+		103, 26, 95, 81, 17, 24, 21}
+	plugin := "dialog"
+
+	// Send Client Authentication Packet
+	authResp, err := mc.auth(authData, plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check written auth response
+	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1
+	authRespEnd := authRespStart + 1 + len(authResp)
+	writtenAuthRespLen := conn.written[authRespStart]
+	writtenAuthResp := conn.written[authRespStart+1 : authRespEnd]
+	expectedAuthResp := []byte{115, 101, 99, 114, 101, 116, 0}
+	if writtenAuthRespLen != 7 || !bytes.Equal(writtenAuthResp, expectedAuthResp) {
+		t.Fatalf("unexpected written auth response (%d bytes): %v", writtenAuthRespLen, writtenAuthResp)
+	}
+	conn.written = nil
+
+	// auth response
+	conn.data = []byte{
+		7, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, // OK
+	}
+	conn.maxReads = 1
+
+	// Handle response to auth packet
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+}
+
 func TestAuthFastNativePasswordNotAllowed(t *testing.T) {
 	_, mc := newRWMockConn(1)
 	mc.cfg.User = "root"
