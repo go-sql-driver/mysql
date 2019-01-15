@@ -294,7 +294,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 			return nil, ErrCleartextPassword
 		}
 		if mc.cfg.DialogFunc != nil {
-			dialogPasswd, err := mc.cfg.DialogFunc(authData[0] >> 1, string(authData[1:]))
+			dialogPasswd, err := mc.cfg.DialogFunc(authData[0]>>1, string(authData[1:]))
 			if err != nil {
 				return nil, err
 			}
