@@ -116,10 +116,10 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 					defer deferredClose(&err, cl)
 				}
 			} else {
-				err = fmt.Errorf("Reader '%s' is <nil>", name)
+				err = fmt.Errorf("reader '%s' is <nil>", name)
 			}
 		} else {
-			err = fmt.Errorf("Reader '%s' is not registered", name)
+			err = fmt.Errorf("reader '%s' is not registered", name)
 		}
 	} else { // File
 		name = strings.Trim(name, `"`)

@@ -596,7 +596,7 @@ type testValuerWithValidation struct {
 
 func (tv testValuerWithValidation) Value() (driver.Value, error) {
 	if len(tv.value) == 0 {
-		return nil, fmt.Errorf("Invalid string valuer. Value must not be empty")
+		return nil, fmt.Errorf("invalid string valuer. Value must not be empty")
 	}
 
 	return tv.value, nil
