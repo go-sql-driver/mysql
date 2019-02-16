@@ -44,6 +44,10 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		mc.netConn, err = nd.DialContext(ctx, mc.cfg.Net, mc.cfg.Addr)
 	}
 	if err != nil {
+		if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
+			errLog.Print("net.Error from Dial()': ", nerr.Error())
+			return nil, driver.ErrBadConn
+		}
 		return nil, err
 	}
 
@@ -82,18 +86,18 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	// Send Client Authentication Packet
-	authResp, addNUL, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		// try the default auth plugin, if using the requested plugin failed
 		errLog.Print("could not use requested auth plugin '"+plugin+"': ", err.Error())
 		plugin = defaultAuthPlugin
-		authResp, addNUL, err = mc.auth(authData, plugin)
+		authResp, err = mc.auth(authData, plugin)
 		if err != nil {
 			mc.cleanup()
 			return nil, err
 		}
 	}
-	if err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin); err != nil {
+	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
 		mc.cleanup()
 		return nil, err
 	}
