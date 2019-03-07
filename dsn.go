@@ -46,6 +46,7 @@ type Config struct {
 	pubKey           *rsa.PublicKey    // Server public key
 	TLSConfig        string            // TLS configuration name
 	tls              *tls.Config       // TLS configuration
+	TLSOptional      bool              // Allows non-TLS for servers that don't have TLS capability
 	Timeout          time.Duration     // Dial timeout
 	ReadTimeout      time.Duration     // I/O read timeout
 	WriteTimeout     time.Duration     // I/O write timeout
@@ -285,6 +286,10 @@ func (cfg *Config) FormatDSN() string {
 			buf.WriteString("?tls=")
 		}
 		buf.WriteString(url.QueryEscape(cfg.TLSConfig))
+	}
+
+	if cfg.TLSOptional && cfg.TLSConfig != "preferred" {
+		buf.WriteString("&tls-mode=preferred")
 	}
 
 	if cfg.WriteTimeout > 0 {
@@ -550,6 +555,18 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				return
 			}
 
+		// TLS enforcement settings
+		case "tls-mode":
+			switch value {
+			case "preferred":
+				cfg.TLSOptional = true
+				if cfg.tls == nil {
+					cfg.tls = &tls.Config{InsecureSkipVerify: true}
+				}
+			default:
+				return errors.New("invalid value / unknown tls-mode: " + value)
+			}
+
 		// TLS-Encryption
 		case "tls":
 			boolValue, isBool := readBool(value)
@@ -563,6 +580,9 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			} else if vl := strings.ToLower(value); vl == "skip-verify" || vl == "preferred" {
 				cfg.TLSConfig = vl
 				cfg.tls = &tls.Config{InsecureSkipVerify: true}
+				if vl == "preferred" {
+					cfg.TLSOptional = true
+				}
 			} else {
 				name, err := url.QueryUnescape(value)
 				if err != nil {

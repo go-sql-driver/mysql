@@ -194,7 +194,7 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 		return nil, "", ErrOldProtocol
 	}
 	if mc.flags&clientSSL == 0 && mc.cfg.tls != nil {
-		if mc.cfg.TLSConfig == "preferred" {
+		if mc.cfg.TLSOptional {
 			mc.cfg.tls = nil
 		} else {
 			return nil, "", ErrNoTLS

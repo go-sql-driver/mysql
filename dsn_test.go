@@ -36,6 +36,12 @@ var testDSNs = []struct {
 	"user:password@tcp(localhost:5555)/dbname?charset=utf8&tls=true",
 	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", Params: map[string]string{"charset": "utf8"}, Collation: "utf8_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, TLSConfig: "true"},
 }, {
+	"user:password@tcp(localhost:5555)/dbname?charset=utf8&tls=preferred",
+	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", Params: map[string]string{"charset": "utf8"}, Collation: "utf8_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, TLSConfig: "preferred", TLSOptional: true},
+}, {
+	"user:password@tcp(localhost:5555)/dbname?charset=utf8&tls=true&tls-mode=preferred",
+	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", Params: map[string]string{"charset": "utf8"}, Collation: "utf8_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, TLSConfig: "true", TLSOptional: true},
+}, {
 	"user:password@tcp(localhost:5555)/dbname?charset=utf8mb4,utf8&tls=skip-verify",
 	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", Params: map[string]string{"charset": "utf8mb4,utf8"}, Collation: "utf8_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, TLSConfig: "skip-verify"},
 }, {
@@ -245,6 +251,31 @@ func TestDSNTLSConfig(t *testing.T) {
 	}
 	if cfg.tls.ServerName != expectedServerName {
 		t.Errorf("cfg.tls.ServerName should be %q, got %q (host without port)", expectedServerName, cfg.tls.ServerName)
+	}
+
+	dsn = "tcp(example.com)/?tls-mode=invalid"
+	_, err = ParseDSN(dsn)
+	wantError := "invalid value / unknown tls-mode: invalid"
+	if err == nil || err.Error() != wantError {
+		t.Errorf("ParseDSN(%s). Got error: %v. Want error: %v", dsn, err, wantError)
+	}
+
+	dsn = "tcp(example.com)/?tls-mode=preferred"
+	cfg, err = ParseDSN(dsn)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	if cfg.tls == nil {
+		t.Error("cfg.tls should not be nil")
+	}
+	if cfg.tls.ServerName != expectedServerName {
+		t.Errorf("cfg.tls.ServerName should be %q, got %q (host without port)", expectedServerName, cfg.tls.ServerName)
+	}
+	if !cfg.tls.InsecureSkipVerify {
+		t.Errorf("cfg.tls.InsecureSkipVerify should be true")
+	}
+	if !cfg.TLSOptional {
+		t.Error("cfg.TLSOptional should be true")
 	}
 }
 

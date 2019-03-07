@@ -335,6 +335,17 @@ Default:        false
 `tls=true` enables TLS / SSL encrypted connection to the server. Use `skip-verify` if you want to use a self-signed or invalid certificate (server side) or use `preferred` to use TLS only when advertised by the server. This is similar to `skip-verify`, but additionally allows a fallback to a connection which is not encrypted. Neither `skip-verify` nor `preferred` add any reliable security. You can use a custom TLS config after registering it with [`mysql.RegisterTLSConfig`](https://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).
 
 
+##### `tls-mode`
+
+```
+Type:           string
+Valid Values:   preferred
+Default:        <none>
+```
+
+Use `tls-mode=preferred` to opt-in to TLS / SSL only with servers that support it. `preferred` does not authenticate the server but allows servers to optionally authenticate clients. The [`tls`](#tls) DSN parameter allows customizing the TLS config.
+
+
 ##### `writeTimeout`
 
 ```
