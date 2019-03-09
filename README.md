@@ -178,7 +178,7 @@ Sets the collation used for client-server interaction on connection. In contrast
 
 A list of valid charsets for a server is retrievable with `SHOW COLLATION`.
 
-The default collation (`utf8mb4_general_ci`) is supported from MySQL 5.5.  You should use older collation (e.g. `utf8_general_ci`) for older MySQL.
+The default collation (`utf8mb4_general_ci`) is supported from MySQL 5.5.  You should use an older collation (e.g. `utf8_general_ci`) for older MySQL.
 
 Collations for charset "ucs2", "utf16", "utf16le", and "utf32" can not be used ([ref](https://dev.mysql.com/doc/refman/5.7/en/charset-connection.html#charset-connection-impermissible-client-charset)).
 
