@@ -101,7 +101,7 @@ matrix:
 
     - os: osx
       osx_image: xcode10.1
-      language: go
+      go: 1.12.x
       before_install:
         - go get golang.org/x/tools/cmd/cover
         - go get github.com/mattn/goveralls
