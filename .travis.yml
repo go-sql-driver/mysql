@@ -99,6 +99,23 @@ matrix:
         - export MYSQL_TEST_ADDR=127.0.0.1:3307
         - export MYSQL_TEST_CONCURRENT=1
 
+    - os: osx
+      osx_image: xcode10.1
+      language: go
+      before_install:
+        - go get golang.org/x/tools/cmd/cover
+        - go get github.com/mattn/goveralls
+        - brew install mysql
+      before_script:
+        - echo -e "[server]\ninnodb_log_file_size=256MB\ninnodb_buffer_pool_size=512MB\nmax_allowed_packet=16MB" >> /usr/local/etc/my.cnf
+        - mysql.server start
+        - mysql -uroot -e 'CREATE USER gotest IDENTIFIED BY "secret"'
+        - mysql -uroot -e 'GRANT ALL ON *.* TO gotest'
+        - export MYSQL_TEST_USER=gotest
+        - export MYSQL_TEST_PASS=secret
+        - export MYSQL_TEST_ADDR=127.0.0.1:3307
+        - export MYSQL_TEST_CONCURRENT=1
+
 script:
   - go test -v -covermode=count -coverprofile=coverage.out
   - go vet ./...
