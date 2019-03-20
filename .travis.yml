@@ -111,6 +111,7 @@ matrix:
         - mysql.server start
         - mysql -uroot -e 'CREATE USER gotest IDENTIFIED BY "secret"'
         - mysql -uroot -e 'GRANT ALL ON *.* TO gotest'
+        - mysql -uroot -e 'create database gotest;'
         - export MYSQL_TEST_USER=gotest
         - export MYSQL_TEST_PASS=secret
         - export MYSQL_TEST_ADDR=127.0.0.1:3306
