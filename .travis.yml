@@ -113,7 +113,7 @@ matrix:
         - mysql -uroot -e 'GRANT ALL ON *.* TO gotest'
         - export MYSQL_TEST_USER=gotest
         - export MYSQL_TEST_PASS=secret
-        - export MYSQL_TEST_ADDR=127.0.0.1:3307
+        - export MYSQL_TEST_ADDR=127.0.0.1:3306
         - export MYSQL_TEST_CONCURRENT=1
 
 script:
