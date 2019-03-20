@@ -107,7 +107,7 @@ matrix:
         - go get github.com/mattn/goveralls
         - brew install mysql
       before_script:
-        - echo -e "[server]\ninnodb_log_file_size=256MB\ninnodb_buffer_pool_size=512MB\nmax_allowed_packet=16MB" >> /usr/local/etc/my.cnf
+        - echo -e "[server]\ninnodb_log_file_size=256MB\ninnodb_buffer_pool_size=512MB\nmax_allowed_packet=16MB\nlocal_infile=1" >> /usr/local/etc/my.cnf
         - mysql.server start
         - mysql -uroot -e 'CREATE USER gotest IDENTIFIED BY "secret"'
         - mysql -uroot -e 'GRANT ALL ON *.* TO gotest'
