@@ -1846,7 +1846,7 @@ func TestConcurrent(t *testing.T) {
 }
 
 func testDialError(t *testing.T, dialErr error, expectErr error) {
-	RegisterDial("mydial", func(addr string) (net.Conn, error) {
+	RegisterDialContext("mydial", func(ctx context.Context, addr string) (net.Conn, error) {
 		return nil, dialErr
 	})
 
@@ -1884,8 +1884,9 @@ func TestCustomDial(t *testing.T) {
 	}
 
 	// our custom dial function which justs wraps net.Dial here
-	RegisterDial("mydial", func(addr string) (net.Conn, error) {
-		return net.Dial(prot, addr)
+	RegisterDialContext("mydial", func(ctx context.Context, addr string) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, prot, addr)
 	})
 
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@mydial(%s)/%s?timeout=30s", user, pass, addr, dbname))

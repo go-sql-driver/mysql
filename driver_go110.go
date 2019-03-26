@@ -11,26 +11,18 @@
 package mysql
 
 import (
-	"crypto/rsa"
 	"database/sql/driver"
-	"math/big"
 )
 
 // NewConnector returns new driver.Connector.
-func NewConnector(cfg *Config) driver.Connector {
-	copyCfg := *cfg
-	copyCfg.tls = cfg.tls.Clone()
-	copyCfg.Params = make(map[string]string, len(cfg.Params))
-	for k, v := range cfg.Params {
-		copyCfg.Params[k] = v
+func NewConnector(cfg *Config) (driver.Connector, error) {
+	cfg = cfg.Clone()
+	// normalize the contents of cfg so calls to NewConnector have the same
+	// behavior as MySQLDriver.OpenConnector
+	if err := cfg.normalize(); err != nil {
+		return nil, err
 	}
-	if cfg.pubKey != nil {
-		copyCfg.pubKey = &rsa.PublicKey{
-			N: new(big.Int).Set(cfg.pubKey.N),
-			E: cfg.pubKey.E,
-		}
-	}
-	return &connector{cfg: &copyCfg}
+	return &connector{cfg: cfg}, nil
 }
 
 // OpenConnector implements driver.DriverContext.
