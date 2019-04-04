@@ -74,7 +74,7 @@ func (b *buffer) fill(need int) error {
 	// if we're filling the fg buffer, move the existing data to the start of it.
 	// if we're filling the bg buffer, copy over the data
 	if n > 0 {
-		copy(dest[0:n], b.buf[b.idx:])
+		copy(dest[:n], b.buf[b.idx:])
 	}
 
 	b.buf = dest
