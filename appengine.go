@@ -12,12 +12,13 @@ package mysql
 
 import (
 	"context"
+	"net"
 
 	"google.golang.org/appengine/cloudsql"
 )
 
 func init() {
-	RegisterDialContext("cloudsql", func(_ context.Context, instance addr) (net.Conn, error) {
+	RegisterDialContext("cloudsql", func(_ context.Context, instance string) (net.Conn, error) {
 		// XXX: the cloudsql driver still does not export a Context-aware dialer.
 		return cloudsql.Dial(instance)
 	})
