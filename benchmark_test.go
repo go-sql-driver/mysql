@@ -338,9 +338,14 @@ func BenchmarkQueryRawBytes(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+
 	for _, s := range sizes {
 		b.Run(fmt.Sprintf("size=%v", s), func(b *testing.B) {
+			db.SetMaxIdleConns(0)
+			db.SetMaxIdleConns(1)
 			b.ReportAllocs()
+			b.ResetTimer()
+
 			for j := 0; j < b.N; j++ {
 				rows, err := db.Query("SELECT LEFT(val, ?) as v FROM bench_rawbytes", s)
 				if err != nil {
