@@ -318,6 +318,46 @@ func TestParamsAreSorted(t *testing.T) {
 	}
 }
 
+func TestCloneConfig(t *testing.T) {
+	RegisterServerPubKey("testKey", testPubKeyRSA)
+	defer DeregisterServerPubKey("testKey")
+
+	expectedServerName := "example.com"
+	dsn := "tcp(example.com:1234)/?tls=true&foobar=baz&serverPubKey=testKey"
+	cfg, err := ParseDSN(dsn)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	cfg2 := cfg.Clone()
+	if cfg == cfg2 {
+		t.Errorf("Config.Clone did not create a separate config struct")
+	}
+
+	if cfg2.tls.ServerName != expectedServerName {
+		t.Errorf("cfg.tls.ServerName should be %q, got %q (host with port)", expectedServerName, cfg.tls.ServerName)
+	}
+
+	cfg2.tls.ServerName = "example2.com"
+	if cfg.tls.ServerName == cfg2.tls.ServerName {
+		t.Errorf("changed cfg.tls.Server name should not propagate to original Config")
+	}
+
+	if _, ok := cfg2.Params["foobar"]; !ok {
+		t.Errorf("cloned Config is missing custom params")
+	}
+
+	delete(cfg2.Params, "foobar")
+
+	if _, ok := cfg.Params["foobar"]; !ok {
+		t.Errorf("custom params in cloned Config should not propagate to original Config")
+	}
+
+	if !reflect.DeepEqual(cfg.pubKey, cfg2.pubKey) {
+		t.Errorf("public key in Config should be identical")
+	}
+}
+
 func BenchmarkParseDSN(b *testing.B) {
 	b.ReportAllocs()
 
