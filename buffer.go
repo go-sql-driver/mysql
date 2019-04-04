@@ -15,7 +15,7 @@ import (
 )
 
 const defaultBufSize = 4096
-const maxCachedBufSize = 16 * 1024
+const maxCachedBufSize = 256 * 1024
 
 // A buffer which is used for both reading and writing.
 // This is possible since communication on each connection is synchronous.
