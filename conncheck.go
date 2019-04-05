@@ -14,7 +14,7 @@ import (
 	"errors"
 	"io"
 	"net"
-	"golang.org/x/sys/unix"
+	syscall "golang.org/x/sys/unix"
 )
 
 var errUnexpectedRead = errors.New("unexpected read from socket")
@@ -26,7 +26,7 @@ func connCheck(c net.Conn) error {
 		buff [1]byte
 	)
 
-	sconn, ok := c.(unix.Conn)
+	sconn, ok := c.(syscall.Conn)
 	if !ok {
 		return nil
 	}
@@ -35,7 +35,7 @@ func connCheck(c net.Conn) error {
 		return err
 	}
 	rerr := rc.Read(func(fd uintptr) bool {
-		n, err = unix.Read(int(fd), buff[:])
+		n, err = syscall.Read(int(fd), buff[:])
 		return true
 	})
 	switch {
@@ -45,7 +45,7 @@ func connCheck(c net.Conn) error {
 		return io.EOF
 	case n > 0:
 		return errUnexpectedRead
-	case err == unix.EAGAIN || err == unix.EWOULDBLOCK:
+	case err == syscall.EAGAIN || err == syscall.EWOULDBLOCK:
 		return nil
 	default:
 		return err
