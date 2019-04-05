@@ -1448,7 +1448,7 @@ func TestCollation(t *testing.T) {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	defaultCollation := "utf8_general_ci"
+	defaultCollation := "utf8mb4_general_ci"
 	testCollations := []string{
 		"",               // do not set
 		defaultCollation, // driver default
