@@ -78,8 +78,8 @@ func TestCheckNamedValue(t *testing.T) {
 		t.Fatal("uint64 high-bit not convertible", err)
 	}
 
-	if value.Value != "18446744073709551615" {
-		t.Fatalf("uint64 high-bit not converted, got %#v %T", value.Value, value.Value)
+	if value.Value != ^uint64(0) {
+		t.Fatalf("uint64 high-bit converted, got %#v %T", value.Value, value.Value)
 	}
 }
 
