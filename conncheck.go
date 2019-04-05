@@ -6,7 +6,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// +build !windows
+// +build !windows,!appengine
 
 package mysql
 
@@ -14,7 +14,7 @@ import (
 	"errors"
 	"io"
 	"net"
-	"syscall"
+	"golang.org/x/sys/unix"
 )
 
 var errUnexpectedRead = errors.New("unexpected read from socket")
@@ -26,7 +26,7 @@ func connCheck(c net.Conn) error {
 		buff [1]byte
 	)
 
-	sconn, ok := c.(syscall.Conn)
+	sconn, ok := c.(unix.Conn)
 	if !ok {
 		return nil
 	}
@@ -35,7 +35,7 @@ func connCheck(c net.Conn) error {
 		return err
 	}
 	rerr := rc.Read(func(fd uintptr) bool {
-		n, err = syscall.Read(int(fd), buff[:])
+		n, err = unix.Read(int(fd), buff[:])
 		return true
 	})
 	switch {
@@ -45,7 +45,7 @@ func connCheck(c net.Conn) error {
 		return io.EOF
 	case n > 0:
 		return errUnexpectedRead
-	case err == syscall.EAGAIN || err == syscall.EWOULDBLOCK:
+	case err == unix.EAGAIN || err == unix.EWOULDBLOCK:
 		return nil
 	default:
 		return err
