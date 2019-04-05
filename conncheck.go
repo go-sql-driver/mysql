@@ -14,7 +14,7 @@ import (
 	"errors"
 	"io"
 	"net"
-	syscall "golang.org/x/sys/unix"
+	"syscall"
 )
 
 var errUnexpectedRead = errors.New("unexpected read from socket")
