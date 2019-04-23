@@ -69,6 +69,24 @@ func TestInterpolateParamsPlaceholderInString(t *testing.T) {
 	}
 }
 
+func TestInterpolateParamsUint64(t *testing.T) {
+	mc := &mysqlConn{
+		buf:              newBuffer(nil),
+		maxAllowedPacket: maxPacketSize,
+		cfg: &Config{
+			InterpolateParams: true,
+		},
+	}
+
+	q, err := mc.interpolateParams("SELECT ?", []driver.Value{uint64(42)})
+	if err != nil {
+		t.Errorf("Expected err=nil, got err=%#v, q=%#v", err, q)
+	}
+	if q != "SELECT 42" {
+		t.Errorf("Expected uint64 interpolation to work, got q=%#v", q)
+	}
+}
+
 func TestCheckNamedValue(t *testing.T) {
 	value := driver.NamedValue{Value: ^uint64(0)}
 	x := &mysqlConn{}
