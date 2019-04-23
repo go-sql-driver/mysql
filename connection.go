@@ -213,6 +213,9 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 		switch v := arg.(type) {
 		case int64:
 			buf = strconv.AppendInt(buf, v, 10)
+		case uint64:
+			// Handle uint64 explicitly because our custom ConvertValue emits unsigned values
+			buf = strconv.AppendUint(buf, v, 10)
 		case float64:
 			buf = strconv.AppendFloat(buf, v, 'g', -1, 64)
 		case bool:
