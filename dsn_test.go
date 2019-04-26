@@ -358,6 +358,50 @@ func TestCloneConfig(t *testing.T) {
 	}
 }
 
+func TestNormalizeTLSConfig(t *testing.T) {
+	tt := []struct {
+		tlsConfig string
+		want      *tls.Config
+	}{
+		{"", nil},
+		{"false", nil},
+		{"true", &tls.Config{ServerName: "myserver"}},
+		{"skip-verify", &tls.Config{InsecureSkipVerify: true}},
+		{"preferred", &tls.Config{InsecureSkipVerify: true}},
+		{"test_tls_config", &tls.Config{ServerName: "myServerName"}},
+	}
+
+	RegisterTLSConfig("test_tls_config", &tls.Config{ServerName: "myServerName"})
+	defer func() { DeregisterTLSConfig("test_tls_config") }()
+
+	for _, tc := range tt {
+		t.Run(tc.tlsConfig, func(t *testing.T) {
+			cfg := &Config{
+				Addr:      "myserver:3306",
+				TLSConfig: tc.tlsConfig,
+			}
+
+			cfg.normalize()
+
+			if cfg.tls == nil {
+				if tc.want != nil {
+					t.Fatal("wanted a tls config but got nil instead")
+				}
+				return
+			}
+
+			if cfg.tls.ServerName != tc.want.ServerName {
+				t.Errorf("tls.ServerName doesn't match (want: '%s', got: '%s')",
+					tc.want.ServerName, cfg.tls.ServerName)
+			}
+			if cfg.tls.InsecureSkipVerify != tc.want.InsecureSkipVerify {
+				t.Errorf("tls.InsecureSkipVerify doesn't match (want: %T, got :%T)",
+					tc.want.InsecureSkipVerify, cfg.tls.InsecureSkipVerify)
+			}
+		})
+	}
+}
+
 func BenchmarkParseDSN(b *testing.B) {
 	b.ReportAllocs()
 
