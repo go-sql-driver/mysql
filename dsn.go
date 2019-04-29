@@ -138,6 +138,13 @@ func (cfg *Config) normalize() error {
 		}
 	}
 
+	if cfg.ServerPubKey != "" {
+		cfg.pubKey = getServerPubKey(cfg.ServerPubKey)
+		if cfg.pubKey == nil {
+			return errors.New("invalid value / unknown server pub key name: " + cfg.ServerPubKey)
+		}
+	}
+
 	return nil
 }
 
@@ -563,13 +570,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			if err != nil {
 				return fmt.Errorf("invalid value for server pub key name: %v", err)
 			}
-
-			if pubKey := getServerPubKey(name); pubKey != nil {
-				cfg.ServerPubKey = name
-				cfg.pubKey = pubKey
-			} else {
-				return errors.New("invalid value / unknown server pub key name: " + name)
-			}
+			cfg.ServerPubKey = name
 
 		// Strict mode
 		case "strict":
