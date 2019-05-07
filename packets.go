@@ -108,7 +108,17 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		if mc.rawConn != nil {
 			conn = mc.rawConn
 		}
-		if err := connCheck(conn); err != nil {
+		var err error
+		// If this connection has a ReadTimeout which we've been setting on
+		// reads, reset it to its default value before we attempt a non-blocking
+		// read, otherwise the scheduler will just time us out before we can read
+		if mc.cfg.ReadTimeout != 0 {
+			err = conn.SetReadDeadline(time.Time{})
+		}
+		if err == nil {
+			err = connCheck(conn)
+		}
+		if err != nil {
 			errLog.Print("closing bad idle connection: ", err)
 			mc.Close()
 			return driver.ErrBadConn
