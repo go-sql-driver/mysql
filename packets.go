@@ -113,7 +113,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		// reads, reset it to its default value before we attempt a non-blocking
 		// read, otherwise the scheduler will just time us out before we can read
 		if mc.cfg.ReadTimeout != 0 {
-			err = conn.SetReadDeadline(time.Now().Add(mc.cfg.ReadTimeout))
+			err = conn.SetReadDeadline(time.Time{})
 		}
 		if err == nil {
 			err = connCheck(conn)
