@@ -39,8 +39,8 @@ var testDSNs = []struct {
 	"user:password@tcp(localhost:5555)/dbname?charset=utf8mb4,utf8&tls=skip-verify",
 	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", Params: map[string]string{"charset": "utf8mb4,utf8"}, Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, TLSConfig: "skip-verify"},
 }, {
-	"user:password@/dbname?loc=UTC&timeout=30s&readTimeout=1s&writeTimeout=1s&allowAllFiles=1&clientFoundRows=true&allowOldPasswords=TRUE&collation=utf8mb4_unicode_ci&maxAllowedPacket=16777216",
-	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Collation: "utf8mb4_unicode_ci", Loc: time.UTC, AllowNativePasswords: true, Timeout: 30 * time.Second, ReadTimeout: time.Second, WriteTimeout: time.Second, AllowAllFiles: true, AllowOldPasswords: true, ClientFoundRows: true, MaxAllowedPacket: 16777216},
+	"user:password@/dbname?loc=UTC&timeout=30s&readTimeout=1s&writeTimeout=1s&allowAllFiles=1&clientFoundRows=true&allowOldPasswords=TRUE&collation=utf8mb4_unicode_ci&maxAllowedPacket=16777216&tls=false&allowCleartextPasswords=true&parseTime=true&rejectReadOnly=true",
+	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Collation: "utf8mb4_unicode_ci", Loc: time.UTC, TLSConfig: "false", AllowCleartextPasswords: true, AllowNativePasswords: true, Timeout: 30 * time.Second, ReadTimeout: time.Second, WriteTimeout: time.Second, AllowAllFiles: true, AllowOldPasswords: true, ClientFoundRows: true, MaxAllowedPacket: 16777216, ParseTime: true, RejectReadOnly: true},
 }, {
 	"user:password@/dbname?allowNativePasswords=false&maxAllowedPacket=0",
 	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: 0, AllowNativePasswords: false},
@@ -355,6 +355,50 @@ func TestCloneConfig(t *testing.T) {
 
 	if !reflect.DeepEqual(cfg.pubKey, cfg2.pubKey) {
 		t.Errorf("public key in Config should be identical")
+	}
+}
+
+func TestNormalizeTLSConfig(t *testing.T) {
+	tt := []struct {
+		tlsConfig string
+		want      *tls.Config
+	}{
+		{"", nil},
+		{"false", nil},
+		{"true", &tls.Config{ServerName: "myserver"}},
+		{"skip-verify", &tls.Config{InsecureSkipVerify: true}},
+		{"preferred", &tls.Config{InsecureSkipVerify: true}},
+		{"test_tls_config", &tls.Config{ServerName: "myServerName"}},
+	}
+
+	RegisterTLSConfig("test_tls_config", &tls.Config{ServerName: "myServerName"})
+	defer func() { DeregisterTLSConfig("test_tls_config") }()
+
+	for _, tc := range tt {
+		t.Run(tc.tlsConfig, func(t *testing.T) {
+			cfg := &Config{
+				Addr:      "myserver:3306",
+				TLSConfig: tc.tlsConfig,
+			}
+
+			cfg.normalize()
+
+			if cfg.tls == nil {
+				if tc.want != nil {
+					t.Fatal("wanted a tls config but got nil instead")
+				}
+				return
+			}
+
+			if cfg.tls.ServerName != tc.want.ServerName {
+				t.Errorf("tls.ServerName doesn't match (want: '%s', got: '%s')",
+					tc.want.ServerName, cfg.tls.ServerName)
+			}
+			if cfg.tls.InsecureSkipVerify != tc.want.InsecureSkipVerify {
+				t.Errorf("tls.InsecureSkipVerify doesn't match (want: %T, got :%T)",
+					tc.want.InsecureSkipVerify, cfg.tls.InsecureSkipVerify)
+			}
+		})
 	}
 }
 

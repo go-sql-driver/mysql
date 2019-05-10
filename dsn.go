@@ -113,17 +113,35 @@ func (cfg *Config) normalize() error {
 		default:
 			return errors.New("default addr for network '" + cfg.Net + "' unknown")
 		}
-
 	} else if cfg.Net == "tcp" {
 		cfg.Addr = ensureHavePort(cfg.Addr)
 	}
 
-	if cfg.tls != nil {
-		if cfg.tls.ServerName == "" && !cfg.tls.InsecureSkipVerify {
-			host, _, err := net.SplitHostPort(cfg.Addr)
-			if err == nil {
-				cfg.tls.ServerName = host
-			}
+	switch cfg.TLSConfig {
+	case "false", "":
+		// don't set anything
+	case "true":
+		cfg.tls = &tls.Config{}
+	case "skip-verify", "preferred":
+		cfg.tls = &tls.Config{InsecureSkipVerify: true}
+	default:
+		cfg.tls = getTLSConfigClone(cfg.TLSConfig)
+		if cfg.tls == nil {
+			return errors.New("invalid value / unknown config name: " + cfg.TLSConfig)
+		}
+	}
+
+	if cfg.tls != nil && cfg.tls.ServerName == "" && !cfg.tls.InsecureSkipVerify {
+		host, _, err := net.SplitHostPort(cfg.Addr)
+		if err == nil {
+			cfg.tls.ServerName = host
+		}
+	}
+
+	if cfg.ServerPubKey != "" {
+		cfg.pubKey = getServerPubKey(cfg.ServerPubKey)
+		if cfg.pubKey == nil {
+			return errors.New("invalid value / unknown server pub key name: " + cfg.ServerPubKey)
 		}
 	}
 
@@ -552,13 +570,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			if err != nil {
 				return fmt.Errorf("invalid value for server pub key name: %v", err)
 			}
-
-			if pubKey := getServerPubKey(name); pubKey != nil {
-				cfg.ServerPubKey = name
-				cfg.pubKey = pubKey
-			} else {
-				return errors.New("invalid value / unknown server pub key name: " + name)
-			}
+			cfg.ServerPubKey = name
 
 		// Strict mode
 		case "strict":
@@ -577,25 +589,17 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			if isBool {
 				if boolValue {
 					cfg.TLSConfig = "true"
-					cfg.tls = &tls.Config{}
 				} else {
 					cfg.TLSConfig = "false"
 				}
 			} else if vl := strings.ToLower(value); vl == "skip-verify" || vl == "preferred" {
 				cfg.TLSConfig = vl
-				cfg.tls = &tls.Config{InsecureSkipVerify: true}
 			} else {
 				name, err := url.QueryUnescape(value)
 				if err != nil {
 					return fmt.Errorf("invalid value for TLS config name: %v", err)
 				}
-
-				if tlsConfig := getTLSConfigClone(name); tlsConfig != nil {
-					cfg.TLSConfig = name
-					cfg.tls = tlsConfig
-				} else {
-					return errors.New("invalid value / unknown config name: " + name)
-				}
+				cfg.TLSConfig = name
 			}
 
 		// I/O write Timeout

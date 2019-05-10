@@ -56,7 +56,7 @@ var (
 //  db, err := sql.Open("mysql", "user@tcp(localhost:3306)/test?tls=custom")
 //
 func RegisterTLSConfig(key string, config *tls.Config) error {
-	if _, isBool := readBool(key); isBool || strings.ToLower(key) == "skip-verify" {
+	if _, isBool := readBool(key); isBool || strings.ToLower(key) == "skip-verify" || strings.ToLower(key) == "preferred" {
 		return fmt.Errorf("key '%s' is reserved", key)
 	}
 
