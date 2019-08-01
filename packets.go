@@ -1102,6 +1102,21 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 					}
 				}
 
+			case Decimal:
+				paramTypes[i+i] = byte(fieldTypeNewDecimal)
+				paramTypes[i+i+1] = 0x00
+
+				if len(v) < longDataSize {
+					paramValues = appendLengthEncodedInteger(paramValues,
+						uint64(len(v)),
+					)
+					paramValues = append(paramValues, v...)
+				} else {
+					if err := stmt.writeCommandLongData(i, []byte(v)); err != nil {
+						return err
+					}
+				}
+
 			case time.Time:
 				paramTypes[i+i] = byte(fieldTypeString)
 				paramTypes[i+i+1] = 0x00

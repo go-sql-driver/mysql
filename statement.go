@@ -146,6 +146,9 @@ func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
 		if err != nil {
 			return nil, err
 		}
+		if _, ok = sv.(Decimal); ok {
+			return sv, nil
+		}
 		if !driver.IsValue(sv) {
 			return nil, fmt.Errorf("non-Value type %T returned from Value", sv)
 		}
