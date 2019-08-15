@@ -1106,13 +1106,13 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				paramTypes[i+i] = byte(fieldTypeNewDecimal)
 				paramTypes[i+i+1] = 0x00
 
-				if len(v) < longDataSize {
+				if len(v.DecimalString()) < longDataSize {
 					paramValues = appendLengthEncodedInteger(paramValues,
-						uint64(len(v)),
+						uint64(len(v.DecimalString())),
 					)
-					paramValues = append(paramValues, v...)
+					paramValues = append(paramValues, v.DecimalString()...)
 				} else {
-					if err := stmt.writeCommandLongData(i, []byte(v)); err != nil {
+					if err := stmt.writeCommandLongData(i, []byte(v.DecimalString())); err != nil {
 						return err
 					}
 				}
