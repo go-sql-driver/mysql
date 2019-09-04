@@ -406,6 +406,11 @@ Google Cloud SQL on App Engine (Second Generation MySQL Server):
 user@cloudsql(project-id:regionname:instance-name)/dbname
 ```
 
+Google Cloud SQL on App Engine (Second Generation MySQL Server on Flexible Environment):
+```
+user:password@unix(/cloudsql/project-id:region-name:instance-name)/dbname
+```
+
 TCP using default port (3306) on localhost:
 ```
 user:password@tcp/dbname?charset=utf8mb4,utf8&sys_var=esc%40ped
