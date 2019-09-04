@@ -9,8 +9,16 @@
 package mysql
 
 import (
+	"database/sql"
+	"database/sql/driver"
 	"testing"
 	"time"
+)
+
+var (
+	// Check implementation of interfaces
+	_ driver.Valuer = NullTime{}
+	_ sql.Scanner   = (*NullTime)(nil)
 )
 
 func TestScanNullTime(t *testing.T) {
