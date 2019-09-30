@@ -13,6 +13,7 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"errors"
+	"flag"
 	"fmt"
 	"math/big"
 	"net"
@@ -633,4 +634,28 @@ func ensureHavePort(addr string) string {
 		return net.JoinHostPort(addr, "3306")
 	}
 	return addr
+}
+
+// Implements flag.Value
+type configFlag struct {
+	config Config
+}
+
+func (f *configFlag) String() string {
+	return f.config.FormatDSN()
+}
+
+func (f *configFlag) Set(dsn string) error {
+	cfg, err := ParseDSN(dsn)
+	if err != nil {
+		return err
+	}
+	f.config = *cfg
+	return nil
+}
+
+func ConfigFlag(name string, value Config, usage string) *Config {
+	f := configFlag{config: value}
+	flag.Var(&f, name, usage)
+	return &f.config
 }
