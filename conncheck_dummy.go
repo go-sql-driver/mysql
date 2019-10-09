@@ -12,6 +12,6 @@ package mysql
 
 import "net"
 
-func connCheck(c net.Conn) error {
+func connCheck(conn net.Conn) error {
 	return nil
 }
