@@ -44,7 +44,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	if err != nil {
-		if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
+		if nerr, ok := err.(net.Error); ok {
 			errLog.Print("net.Error from Dial()': ", nerr.Error())
 			return nil, driver.ErrBadConn
 		}

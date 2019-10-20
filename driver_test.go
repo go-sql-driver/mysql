@@ -1867,13 +1867,8 @@ func TestDialUnknownError(t *testing.T) {
 	testDialError(t, testErr, testErr)
 }
 
-func TestDialNonRetryableNetErr(t *testing.T) {
+func TestDialNetErr(t *testing.T) {
 	testErr := netErrorMock{}
-	testDialError(t, testErr, testErr)
-}
-
-func TestDialTemporaryNetErr(t *testing.T) {
-	testErr := netErrorMock{temporary: true}
 	testDialError(t, testErr, driver.ErrBadConn)
 }
 
