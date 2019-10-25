@@ -1874,7 +1874,7 @@ func TestDialNonRetryableNetErr(t *testing.T) {
 
 func TestDialTemporaryNetErr(t *testing.T) {
 	testErr := netErrorMock{temporary: true}
-	testDialError(t, testErr, driver.ErrBadConn)
+	testDialError(t, testErr, testErr)
 }
 
 // Tests custom dial functions
