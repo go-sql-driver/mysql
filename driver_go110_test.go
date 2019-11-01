@@ -175,6 +175,7 @@ func TestConnectorTimeoutsWatchCancel(t *testing.T) {
 
 	var ctx context.Context
 	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
 
 	if _, err := db.Conn(ctx); err != context.Canceled {
 		t.Errorf("got %v, want context.Canceled", err)
