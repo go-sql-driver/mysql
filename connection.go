@@ -594,6 +594,7 @@ func (mc *mysqlConn) watchCancel(ctx context.Context) error {
 	}
 	// When ctx is already cancelled, don't watch it.
 	if err := ctx.Err(); err != nil {
+		mc.cleanup()
 		return err
 	}
 	// When ctx is not cancellable, don't watch it.

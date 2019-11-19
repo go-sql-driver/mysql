@@ -60,7 +60,6 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	// Call startWatcher for context support (From Go 1.8)
 	mc.startWatcher()
 	if err := mc.watchCancel(ctx); err != nil {
-		mc.cleanup()
 		return nil, err
 	}
 	defer mc.finish()
