@@ -37,7 +37,13 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	dial, ok := dials[mc.cfg.Net]
 	dialsLock.RUnlock()
 	if ok {
-		mc.netConn, err = dial(ctx, mc.cfg.Addr)
+		dctx := ctx
+		if mc.cfg.Timeout > 0 {
+			var cancel context.CancelFunc
+			dctx, cancel = context.WithTimeout(ctx, c.cfg.Timeout)
+			defer cancel()
+		}
+		mc.netConn, err = dial(dctx, mc.cfg.Addr)
 	} else {
 		nd := net.Dialer{Timeout: mc.cfg.Timeout}
 		mc.netConn, err = nd.DialContext(ctx, mc.cfg.Net, mc.cfg.Addr)
