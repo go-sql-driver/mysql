@@ -37,17 +37,19 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	dial, ok := dials[mc.cfg.Net]
 	dialsLock.RUnlock()
 	if ok {
-		mc.netConn, err = dial(ctx, mc.cfg.Addr)
+		dctx := ctx
+		if mc.cfg.Timeout > 0 {
+			var cancel context.CancelFunc
+			dctx, cancel = context.WithTimeout(ctx, c.cfg.Timeout)
+			defer cancel()
+		}
+		mc.netConn, err = dial(dctx, mc.cfg.Addr)
 	} else {
 		nd := net.Dialer{Timeout: mc.cfg.Timeout}
 		mc.netConn, err = nd.DialContext(ctx, mc.cfg.Net, mc.cfg.Addr)
 	}
 
 	if err != nil {
-		if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
-			errLog.Print("net.Error from Dial()': ", nerr.Error())
-			return nil, driver.ErrBadConn
-		}
 		return nil, err
 	}
 
@@ -64,6 +66,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	// Call startWatcher for context support (From Go 1.8)
 	mc.startWatcher()
 	if err := mc.watchCancel(ctx); err != nil {
+		mc.cleanup()
 		return nil, err
 	}
 	defer mc.finish()

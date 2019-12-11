@@ -1874,7 +1874,7 @@ func TestDialNonRetryableNetErr(t *testing.T) {
 
 func TestDialTemporaryNetErr(t *testing.T) {
 	testErr := netErrorMock{temporary: true}
-	testDialError(t, testErr, driver.ErrBadConn)
+	testDialError(t, testErr, testErr)
 }
 
 // Tests custom dial functions
@@ -3108,5 +3108,58 @@ func TestConnectorTimeoutsDuringOpen(t *testing.T) {
 	}
 	if hijack.connErr != context.DeadlineExceeded {
 		t.Fatalf("(*Connector).Connect should have timed out")
+	}
+}
+
+// A connection which can only be closed.
+type dummyConnection struct {
+	net.Conn
+	closed bool
+}
+
+func (d *dummyConnection) Close() error {
+	d.closed = true
+	return nil
+}
+
+func TestConnectorTimeoutsWatchCancel(t *testing.T) {
+	var (
+		cancel  func()           // Used to cancel the context just after connecting.
+		created *dummyConnection // The created connection.
+	)
+
+	RegisterDialContext("TestConnectorTimeoutsWatchCancel", func(ctx context.Context, addr string) (net.Conn, error) {
+		// Canceling at this time triggers the watchCancel error branch in Connect().
+		cancel()
+		created = &dummyConnection{}
+		return created, nil
+	})
+
+	mycnf := NewConfig()
+	mycnf.User = "root"
+	mycnf.Addr = "foo"
+	mycnf.Net = "TestConnectorTimeoutsWatchCancel"
+
+	conn, err := NewConnector(mycnf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	db := sql.OpenDB(conn)
+	defer db.Close()
+
+	var ctx context.Context
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+
+	if _, err := db.Conn(ctx); err != context.Canceled {
+		t.Errorf("got %v, want context.Canceled", err)
+	}
+
+	if created == nil {
+		t.Fatal("no connection created")
+	}
+	if !created.closed {
+		t.Errorf("connection not closed")
 	}
 }
