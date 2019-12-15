@@ -71,8 +71,10 @@ var testDSNs = []struct {
 }, {
 	"tcp(de:ad:be:ef::ca:fe)/dbname",
 	&Config{Net: "tcp", Addr: "[de:ad:be:ef::ca:fe]:3306", DBName: "dbname", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true},
-},
-}
+}, {
+	"tcp(localhost)/dbname?credentialProvider=foobar",
+	&Config{Net: "tcp", Addr: "localhost:3306", DBName: "dbname", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CredentialProvider: "foobar"},
+}}
 
 func TestDSNParser(t *testing.T) {
 	for i, tst := range testDSNs {

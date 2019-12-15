@@ -15,13 +15,16 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"sync"
 )
 
 // server pub keys registry
 var (
-	serverPubKeyLock     sync.RWMutex
-	serverPubKeyRegistry map[string]*rsa.PublicKey
+	serverPubKeyLock           sync.RWMutex
+	serverPubKeyRegistry       map[string]*rsa.PublicKey
+	credentialProviderLock     sync.RWMutex
+	credentialProviderRegistry map[string]CredentialProviderFunc
 )
 
 // RegisterServerPubKey registers a server RSA public key which can be used to
@@ -79,6 +82,44 @@ func getServerPubKey(name string) (pubKey *rsa.PublicKey) {
 	}
 	serverPubKeyLock.RUnlock()
 	return
+}
+
+// CredentialProviderFunc is a function which can be used to fetch a username/password
+// pair for use when opening a new MySQL connection. The first return value is the username
+// and the second the password.
+type CredentialProviderFunc func() (user string, password string, error error)
+
+// RegisterCredentialProvider registers a function to be called on every connection open to
+// get the username and password to call
+func RegisterCredentialProvider(name string, providerFunc CredentialProviderFunc) {
+	credentialProviderLock.Lock()
+	if credentialProviderRegistry == nil {
+		credentialProviderRegistry = make(map[string]CredentialProviderFunc)
+	}
+	credentialProviderRegistry[name] = providerFunc
+	credentialProviderLock.Unlock()
+}
+
+// DeregisterCredentialProvider removes a function registered with RegisterCredentialProvider
+func DeregisterCredentialProvider(name string) {
+	credentialProviderLock.Lock()
+	if credentialProviderRegistry != nil {
+		delete(credentialProviderRegistry, name)
+	}
+	credentialProviderLock.Unlock()
+}
+
+func getCredentialsFromConfig(cfg *Config) (user string, password string, error error) {
+	if cfg.CredentialProvider != "" {
+		credentialProviderLock.RLock()
+		defer credentialProviderLock.RUnlock()
+		cpFunc, ok := credentialProviderRegistry[cfg.CredentialProvider]
+		if !ok {
+			return "", "", fmt.Errorf("credential provider %s not registered", cfg.CredentialProvider)
+		}
+		return cpFunc()
+	}
+	return cfg.User, cfg.Passwd, nil
 }
 
 // Hash password using pre 4.1 (old password) method
@@ -237,10 +278,10 @@ func (mc *mysqlConn) sendEncryptedPassword(seed []byte, pub *rsa.PublicKey) erro
 	return mc.writeAuthSwitchPacket(enc)
 }
 
-func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
+func (mc *mysqlConn) auth(authData []byte, plugin string, password string) ([]byte, error) {
 	switch plugin {
 	case "caching_sha2_password":
-		authResp := scrambleSHA256Password(authData, mc.cfg.Passwd)
+		authResp := scrambleSHA256Password(authData, password)
 		return authResp, nil
 
 	case "mysql_old_password":
@@ -250,7 +291,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		// Note: there are edge cases where this should work but doesn't;
 		// this is currently "wontfix":
 		// https://github.com/go-sql-driver/mysql/issues/184
-		authResp := append(scrambleOldPassword(authData[:8], mc.cfg.Passwd), 0)
+		authResp := append(scrambleOldPassword(authData[:8], password), 0)
 		return authResp, nil
 
 	case "mysql_clear_password":
@@ -259,7 +300,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		}
 		// http://dev.mysql.com/doc/refman/5.7/en/cleartext-authentication-plugin.html
 		// http://dev.mysql.com/doc/refman/5.7/en/pam-authentication-plugin.html
-		return append([]byte(mc.cfg.Passwd), 0), nil
+		return append([]byte(password), 0), nil
 
 	case "mysql_native_password":
 		if !mc.cfg.AllowNativePasswords {
@@ -267,16 +308,16 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		}
 		// https://dev.mysql.com/doc/internals/en/secure-password-authentication.html
 		// Native password authentication only need and will need 20-byte challenge.
-		authResp := scramblePassword(authData[:20], mc.cfg.Passwd)
+		authResp := scramblePassword(authData[:20], password)
 		return authResp, nil
 
 	case "sha256_password":
-		if len(mc.cfg.Passwd) == 0 {
+		if len(password) == 0 {
 			return []byte{0}, nil
 		}
 		if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
 			// write cleartext auth packet
-			return append([]byte(mc.cfg.Passwd), 0), nil
+			return append([]byte(password), 0), nil
 		}
 
 		pubKey := mc.cfg.pubKey
@@ -286,7 +327,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		}
 
 		// encrypted password
-		enc, err := encryptPassword(mc.cfg.Passwd, authData, pubKey)
+		enc, err := encryptPassword(password, authData, pubKey)
 		return enc, err
 
 	default:
@@ -295,7 +336,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 	}
 }
 
-func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
+func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string, password string) error {
 	// Read Result Packet
 	authData, newPlugin, err := mc.readAuthResult()
 	if err != nil {
@@ -315,7 +356,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 
 		plugin = newPlugin
 
-		authResp, err := mc.auth(authData, plugin)
+		authResp, err := mc.auth(authData, plugin, password)
 		if err != nil {
 			return err
 		}
@@ -352,7 +393,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 			case cachingSha2PasswordPerformFullAuthentication:
 				if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
 					// write cleartext auth packet
-					err = mc.writeAuthSwitchPacket(append([]byte(mc.cfg.Passwd), 0))
+					err = mc.writeAuthSwitchPacket(append([]byte(password), 0))
 					if err != nil {
 						return err
 					}
