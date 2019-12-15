@@ -88,25 +88,32 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		plugin = defaultAuthPlugin
 	}
 
+	user, password, err := getCredentialsFromConfig(c.cfg)
+	if err != nil {
+		mc.cleanup()
+		return nil, err
+	}
+
 	// Send Client Authentication Packet
-	authResp, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin, password)
 	if err != nil {
 		// try the default auth plugin, if using the requested plugin failed
 		errLog.Print("could not use requested auth plugin '"+plugin+"': ", err.Error())
 		plugin = defaultAuthPlugin
-		authResp, err = mc.auth(authData, plugin)
+		authResp, err = mc.auth(authData, plugin, password)
 		if err != nil {
 			mc.cleanup()
 			return nil, err
 		}
 	}
-	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
+
+	if err = mc.writeHandshakeResponsePacket(authResp, plugin, user); err != nil {
 		mc.cleanup()
 		return nil, err
 	}
 
 	// Handle response to auth packet, switch methods if possible
-	if err = mc.handleAuthResult(authData, plugin); err != nil {
+	if err = mc.handleAuthResult(authData, plugin, password); err != nil {
 		// Authentication failed and MySQL has already closed the connection
 		// (https://dev.mysql.com/doc/internals/en/authentication-fails.html).
 		// Do not send COM_QUIT, just cleanup and return the error.

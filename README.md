@@ -209,6 +209,16 @@ SELECT u.id FROM users as u
 
 will return `u.id` instead of just `id` if `columnsWithAlias=true`.
 
+#### `credentialProvider`
+
+```
+Type:           string
+Valid Values:   <name>
+Default:        ""
+```
+
+If set, this must refer to a credential provider name registerd with `RegisterCredentialProvider`. When this is set, the username and password in the DSN will be ignored; instead, each time a conneciton is to be opened, the named credential provider function will be called to obtain a username/password to connect with. This is useful when using, for example, IAM database auth in Amazon AWS, where "passwords" are actually temporary tokens that expire.
+
 ##### `interpolateParams`
 
 ```

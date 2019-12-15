@@ -3163,3 +3163,75 @@ func TestConnectorTimeoutsWatchCancel(t *testing.T) {
 		t.Errorf("connection not closed")
 	}
 }
+
+func TestCredentialProviderFunc(t *testing.T) {
+	// Our test provider func should return a valid password, then an invalid one, then a valid one
+	// to test that it really is having an effect.
+	shouldFailCreds := false
+	shouldFailError := false
+	RegisterCredentialProvider("TestCredentialProviderFunc", func() (string, string, error) {
+		if shouldFailCreds {
+			return "fail", "fail", nil
+		}
+		if shouldFailError {
+			return "", "", fmt.Errorf("credential_error")
+		}
+		return user, pass, nil
+	})
+	defer DeregisterCredentialProvider("TestCredentialProviderFunc")
+	dsn := fmt.Sprintf("%s/%s?timeout=30s&credentialProvider=TestCredentialProviderFunc", netAddr, dbname)
+	runTests(t, dsn, func(dbt *DBTest) {
+		ctx := context.Background()
+		c1, err := dbt.db.Conn(ctx)
+		if err != nil {
+			dbt.Fatalf("error opening conn: %s", err)
+		}
+		defer c1.Close()
+
+		rows, err := c1.QueryContext(ctx, "SELECT USER()")
+		if err != nil {
+			dbt.Fatalf("error running SELECT USER(): %s", err)
+		}
+		connUserAndHost := ""
+		for rows.Next() {
+			err := rows.Scan(&connUserAndHost)
+			if err != nil {
+				dbt.Fatalf("error running query: %s", err)
+			}
+		}
+		parts := strings.Split(connUserAndHost, "@")
+		connUser := strings.Join(parts[:len(parts)-1], "@")
+		if connUser != user {
+			dbt.Errorf("USER() and credentials don't match: %s != %s", connUser, user)
+		}
+
+		// open one that should fail (wrong creds)
+		shouldFailCreds = true
+		_, err = dbt.db.Conn(ctx)
+		shouldFailCreds = false
+		if err == nil {
+			dbt.Errorf("expected second open to fail")
+		}
+
+		// open one that should fail (with an error)
+		shouldFailError = true
+		_, err = dbt.db.Conn(ctx)
+		shouldFailError = false
+		if err == nil {
+			dbt.Errorf("expected third open to fail")
+		}
+		if !strings.Contains(err.Error(), "credential_error") {
+			dbt.Errorf("expected third open to fail with credential_error")
+		}
+
+		c4, err := dbt.db.Conn(ctx)
+		if err != nil {
+			dbt.Fatalf("error opening conn: %s", err)
+		}
+		defer c4.Close()
+		err = c4.PingContext(ctx)
+		if err != nil {
+			dbt.Errorf("error running PingContext: %s", err)
+		}
+	})
+}

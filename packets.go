@@ -276,7 +276,7 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 
 // Client Authentication Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::HandshakeResponse
-func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string) error {
+func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string, user string) error {
 	// Adjust client flags based on server support
 	clientFlags := clientProtocol41 |
 		clientSecureConn |
@@ -310,7 +310,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		clientFlags |= clientPluginAuthLenEncClientData
 	}
 
-	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1 + len(authRespLEI) + len(authResp) + 21 + 1
+	pktLen := 4 + 4 + 1 + 23 + len(user) + 1 + len(authRespLEI) + len(authResp) + 21 + 1
 
 	// To specify a db name
 	if n := len(mc.cfg.DBName); n > 0 {
@@ -373,8 +373,8 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	}
 
 	// User [null terminated string]
-	if len(mc.cfg.User) > 0 {
-		pos += copy(data[pos:], mc.cfg.User)
+	if len(user) > 0 {
+		pos += copy(data[pos:], user)
 	}
 	data[pos] = 0x00
 	pos++
