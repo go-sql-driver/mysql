@@ -15,16 +15,13 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"sync"
 )
 
 // server pub keys registry
 var (
-	serverPubKeyLock           sync.RWMutex
-	serverPubKeyRegistry       map[string]*rsa.PublicKey
-	credentialProviderLock     sync.RWMutex
-	credentialProviderRegistry map[string]CredentialProviderFunc
+	serverPubKeyLock     sync.RWMutex
+	serverPubKeyRegistry map[string]*rsa.PublicKey
 )
 
 // RegisterServerPubKey registers a server RSA public key which can be used to
@@ -88,39 +85,6 @@ func getServerPubKey(name string) (pubKey *rsa.PublicKey) {
 // pair for use when opening a new MySQL connection. The first return value is the username
 // and the second the password.
 type CredentialProviderFunc func() (user string, password string, error error)
-
-// RegisterCredentialProvider registers a function to be called on every connection open to
-// get the username and password to call
-func RegisterCredentialProvider(name string, providerFunc CredentialProviderFunc) {
-	credentialProviderLock.Lock()
-	if credentialProviderRegistry == nil {
-		credentialProviderRegistry = make(map[string]CredentialProviderFunc)
-	}
-	credentialProviderRegistry[name] = providerFunc
-	credentialProviderLock.Unlock()
-}
-
-// DeregisterCredentialProvider removes a function registered with RegisterCredentialProvider
-func DeregisterCredentialProvider(name string) {
-	credentialProviderLock.Lock()
-	if credentialProviderRegistry != nil {
-		delete(credentialProviderRegistry, name)
-	}
-	credentialProviderLock.Unlock()
-}
-
-func getCredentialsFromConfig(cfg *Config) (user string, password string, error error) {
-	if cfg.CredentialProvider != "" {
-		credentialProviderLock.RLock()
-		defer credentialProviderLock.RUnlock()
-		cpFunc, ok := credentialProviderRegistry[cfg.CredentialProvider]
-		if !ok {
-			return "", "", fmt.Errorf("credential provider %s not registered", cfg.CredentialProvider)
-		}
-		return cpFunc()
-	}
-	return cfg.User, cfg.Passwd, nil
-}
 
 // Hash password using pre 4.1 (old password) method
 // https://github.com/atcurtis/mariadb/blob/master/mysys/my_rnd.c

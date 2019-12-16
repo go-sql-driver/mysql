@@ -209,16 +209,6 @@ SELECT u.id FROM users as u
 
 will return `u.id` instead of just `id` if `columnsWithAlias=true`.
 
-#### `credentialProvider`
-
-```
-Type:           string
-Valid Values:   <name>
-Default:        ""
-```
-
-If set, this must refer to a credential provider name registered with `RegisterCredentialProvider`. When this is set, the username and password in the DSN will be ignored; instead, each time a conneciton is to be opened, the named credential provider function will be called to obtain a username/password to connect with. This is useful when using, for example, IAM database auth in Amazon AWS, where "passwords" are actually temporary tokens that expire.
-
 ##### `interpolateParams`
 
 ```
@@ -376,6 +366,31 @@ Examples:
   * `autocommit=1`: `SET autocommit=1`
   * [`time_zone=%27Europe%2FParis%27`](https://dev.mysql.com/doc/refman/5.5/en/time-zone-support.html): `SET time_zone='Europe/Paris'`
   * [`tx_isolation=%27REPEATABLE-READ%27`](https://dev.mysql.com/doc/refman/5.5/en/server-system-variables.html#sysvar_tx_isolation): `SET tx_isolation='REPEATABLE-READ'`
+
+#### Non-DSN parameters
+
+Some parameters (those that have types too complex to fit into a string) are not supported as part of a DSN string, but can only be specified by using the Connector interface. To use these parameters, set your database client up like so:
+
+```go
+dbConfig := mysql.Config {
+    Addr: "localhost:3306",
+    // ... other parameters ...
+}
+connector, err := mysql.NewConnector(dbConfig)
+if err != nil {
+    panic(error)
+}
+db := sql.OpenDB(connector)
+```
+
+##### `CredentialProvider`
+
+```
+Type:           CredentialProviderFunc
+Default:        nil
+```
+
+If set, this must refer to a credential provider function of type `CredentialProviderFunc`. When this is set, the `User` and `Passwd` fields in the config will be ignored; instead, each time a connection is to be opened, the credential provider function will be called to obtain a username/password to connect with. This is useful when using, for example, IAM database auth in Amazon AWS, where "passwords" are actually temporary tokens that expire.
 
 
 #### Examples

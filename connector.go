@@ -88,7 +88,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		plugin = defaultAuthPlugin
 	}
 
-	user, password, err := getCredentialsFromConfig(c.cfg)
+	user, password, err := c.cfg.getCredentials()
 	if err != nil {
 		mc.cleanup()
 		return nil, err

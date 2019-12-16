@@ -125,36 +125,47 @@ func runTestsWithMultiStatement(t *testing.T, dsn string, tests ...func(dbt *DBT
 }
 
 func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
+	cfg, err := ParseDSN(dsn)
+	if err != nil {
+		t.Fatalf("error formatting DSN")
+	}
+	runTestsWithConfig(t, cfg, tests...)
+}
+
+func runTestsWithConfig(t *testing.T, cfg *Config, tests ...func(dbt *DBTest)) {
 	if !available {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	db, err := sql.Open("mysql", dsn)
+	connector, err := NewConnector(cfg)
 	if err != nil {
 		t.Fatalf("error connecting: %s", err.Error())
 	}
+	db := sql.OpenDB(connector)
 	defer db.Close()
 
 	db.Exec("DROP TABLE IF EXISTS test")
 
-	dsn2 := dsn + "&interpolateParams=true"
+	cfg2 := cfg.Clone()
+	cfg2.InterpolateParams = true
 	var db2 *sql.DB
-	if _, err := ParseDSN(dsn2); err != errInvalidDSNUnsafeCollation {
-		db2, err = sql.Open("mysql", dsn2)
-		if err != nil {
-			t.Fatalf("error connecting: %s", err.Error())
-		}
+	connector2, err := NewConnector(cfg2)
+	if err != errInvalidDSNUnsafeCollation {
+		db2 = sql.OpenDB(connector2)
 		defer db2.Close()
+	} else if err != nil {
+		t.Fatalf("error connecting: %s", err.Error())
 	}
 
-	dsn3 := dsn + "&multiStatements=true"
+	cfg3 := cfg.Clone()
+	cfg3.MultiStatements = true
 	var db3 *sql.DB
-	if _, err := ParseDSN(dsn3); err != errInvalidDSNUnsafeCollation {
-		db3, err = sql.Open("mysql", dsn3)
-		if err != nil {
-			t.Fatalf("error connecting: %s", err.Error())
-		}
+	connector3, err := NewConnector(cfg2)
+	if err != errInvalidDSNUnsafeCollation {
+		db3 = sql.OpenDB(connector3)
 		defer db3.Close()
+	} else if err != nil {
+		t.Fatalf("error connecting: %s", err.Error())
 	}
 
 	dbt := &DBTest{t, db}
@@ -3169,18 +3180,23 @@ func TestCredentialProviderFunc(t *testing.T) {
 	// to test that it really is having an effect.
 	shouldFailCreds := false
 	shouldFailError := false
-	RegisterCredentialProvider("TestCredentialProviderFunc", func() (string, string, error) {
-		if shouldFailCreds {
-			return "fail", "fail", nil
-		}
-		if shouldFailError {
-			return "", "", fmt.Errorf("credential_error")
-		}
-		return user, pass, nil
-	})
-	defer DeregisterCredentialProvider("TestCredentialProviderFunc")
-	dsn := fmt.Sprintf("%s/%s?timeout=30s&credentialProvider=TestCredentialProviderFunc", netAddr, dbname)
-	runTests(t, dsn, func(dbt *DBTest) {
+	cfg := &Config{
+		Addr:                 addr,
+		Net:                  prot,
+		DBName:               dbname,
+		Collation:            defaultCollation,
+		AllowNativePasswords: true,
+		CredentialProvider: func() (string, string, error) {
+			if shouldFailCreds {
+				return "fail", "fail", nil
+			}
+			if shouldFailError {
+				return "", "", fmt.Errorf("credential_error")
+			}
+			return user, pass, nil
+		},
+	}
+	runTestsWithConfig(t, cfg, func(dbt *DBTest) {
 		ctx := context.Background()
 		c1, err := dbt.db.Conn(ctx)
 		if err != nil {
