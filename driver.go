@@ -108,7 +108,7 @@ func (d MySQLDriver) OpenConnector(dsn string) (driver.Connector, error) {
 
 // Connect connects to MySQL server.
 // You can use this function to create custom connector which dynamically
-// change the config.  The cfg object must not be changed during calling
+// change the config. The cfg object must not be changed during calling
 // this function.
 func Connect(ctx context.Context, cfg *Config) (driver.Conn, error) {
 	connector, err := NewConnector(cfg)
