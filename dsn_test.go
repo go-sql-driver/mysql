@@ -120,7 +120,7 @@ func TestDSNReformat(t *testing.T) {
 		cfg1.tls = nil // pointer not static
 		res1 := fmt.Sprintf("%+v", cfg1)
 
-		dsn2 := cfg1.FormatDSN()
+		dsn2, _ := cfg1.FormatDSN()
 		cfg2, err := ParseDSN(dsn2)
 		if err != nil {
 			t.Error(err.Error())
@@ -312,7 +312,7 @@ func TestParamsAreSorted(t *testing.T) {
 		"quux":   "loo",
 		"foobar": "baz",
 	}
-	actual := cfg.FormatDSN()
+	actual, _ := cfg.FormatDSN()
 	if actual != expected {
 		t.Errorf("generic Config.Params were not sorted: want %#v, got %#v", expected, actual)
 	}

@@ -150,7 +150,7 @@ func (cfg *Config) normalize() error {
 
 // FormatDSN formats the given Config into a DSN string which can be passed to
 // the driver.
-func (cfg *Config) FormatDSN() string {
+func (cfg *Config) FormatDSN() (dsn string, err error) {
 	var buf bytes.Buffer
 
 	// [username[:password]@]
@@ -368,7 +368,7 @@ func (cfg *Config) FormatDSN() string {
 		}
 	}
 
-	return buf.String()
+	return buf.String(), nil
 }
 
 // ParseDSN parses the DSN string to a Config
