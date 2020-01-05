@@ -28,4 +28,4 @@ import (
 //  }
 //
 // This NullTime implementation is not driver-specific
-type NullTime sql.NullTime
+type NullTime = sql.NullTime
