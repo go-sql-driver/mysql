@@ -150,6 +150,19 @@ func (cfg *Config) normalize() error {
 	return nil
 }
 
+func writeDSNParam(buf *bytes.Buffer, hasParam *bool, name, value string) {
+	buf.Grow(1 + len(name) + 1 + len(value))
+	if !*hasParam {
+		*hasParam = true
+		buf.WriteByte('?')
+	} else {
+		buf.WriteByte('&')
+	}
+	buf.WriteString(name)
+	buf.WriteByte('=')
+	buf.WriteString(value)
+}
+
 // FormatDSN formats the given Config into a DSN string which can be passed to
 // the driver.
 func (cfg *Config) FormatDSN() string {
@@ -188,174 +201,75 @@ func (cfg *Config) FormatDSN() string {
 	}
 
 	if cfg.AllowCleartextPasswords {
-		if hasParam {
-			buf.WriteString("&allowCleartextPasswords=true")
-		} else {
-			hasParam = true
-			buf.WriteString("?allowCleartextPasswords=true")
-		}
+		writeDSNParam(&buf, &hasParam, "allowCleartextPasswords", "true")
 	}
 
 	if !cfg.AllowNativePasswords {
-		if hasParam {
-			buf.WriteString("&allowNativePasswords=false")
-		} else {
-			hasParam = true
-			buf.WriteString("?allowNativePasswords=false")
-		}
+		writeDSNParam(&buf, &hasParam, "allowNativePasswords", "false")
 	}
 
 	if cfg.AllowOldPasswords {
-		if hasParam {
-			buf.WriteString("&allowOldPasswords=true")
-		} else {
-			hasParam = true
-			buf.WriteString("?allowOldPasswords=true")
-		}
+		writeDSNParam(&buf, &hasParam, "allowOldPasswords", "true")
 	}
 
 	if !cfg.CheckConnLiveness {
-		if hasParam {
-			buf.WriteString("&checkConnLiveness=false")
-		} else {
-			hasParam = true
-			buf.WriteString("?checkConnLiveness=false")
-		}
+		writeDSNParam(&buf, &hasParam, "checkConnLiveness", "false")
 	}
 
 	if cfg.ClientFoundRows {
-		if hasParam {
-			buf.WriteString("&clientFoundRows=true")
-		} else {
-			hasParam = true
-			buf.WriteString("?clientFoundRows=true")
-		}
+		writeDSNParam(&buf, &hasParam, "clientFoundRows", "true")
 	}
 
 	if col := cfg.Collation; col != defaultCollation && len(col) > 0 {
-		if hasParam {
-			buf.WriteString("&collation=")
-		} else {
-			hasParam = true
-			buf.WriteString("?collation=")
-		}
-		buf.WriteString(col)
+		writeDSNParam(&buf, &hasParam, "collation", col)
 	}
 
 	if cfg.ColumnsWithAlias {
-		if hasParam {
-			buf.WriteString("&columnsWithAlias=true")
-		} else {
-			hasParam = true
-			buf.WriteString("?columnsWithAlias=true")
-		}
+		writeDSNParam(&buf, &hasParam, "columnsWithAlias", "true")
 	}
 
 	if cfg.InterpolateParams {
-		if hasParam {
-			buf.WriteString("&interpolateParams=true")
-		} else {
-			hasParam = true
-			buf.WriteString("?interpolateParams=true")
-		}
+		writeDSNParam(&buf, &hasParam, "interpolateParams", "true")
 	}
 
 	if cfg.Loc != time.UTC && cfg.Loc != nil {
-		if hasParam {
-			buf.WriteString("&loc=")
-		} else {
-			hasParam = true
-			buf.WriteString("?loc=")
-		}
-		buf.WriteString(url.QueryEscape(cfg.Loc.String()))
+		writeDSNParam(&buf, &hasParam, "loc", url.QueryEscape(cfg.Loc.String()))
 	}
 
 	if cfg.MultiStatements {
-		if hasParam {
-			buf.WriteString("&multiStatements=true")
-		} else {
-			hasParam = true
-			buf.WriteString("?multiStatements=true")
-		}
+		writeDSNParam(&buf, &hasParam, "multiStatements", "true")
 	}
 
 	if cfg.ParseTime {
-		if hasParam {
-			buf.WriteString("&parseTime=true")
-		} else {
-			hasParam = true
-			buf.WriteString("?parseTime=true")
-		}
+		writeDSNParam(&buf, &hasParam, "parseTime", "true")
 	}
 
 	if cfg.ReadTimeout > 0 {
-		if hasParam {
-			buf.WriteString("&readTimeout=")
-		} else {
-			hasParam = true
-			buf.WriteString("?readTimeout=")
-		}
-		buf.WriteString(cfg.ReadTimeout.String())
+		writeDSNParam(&buf, &hasParam, "readTimeout", cfg.ReadTimeout.String())
 	}
 
 	if cfg.RejectReadOnly {
-		if hasParam {
-			buf.WriteString("&rejectReadOnly=true")
-		} else {
-			hasParam = true
-			buf.WriteString("?rejectReadOnly=true")
-		}
+		writeDSNParam(&buf, &hasParam, "rejectReadOnly", "true")
 	}
 
 	if len(cfg.ServerPubKey) > 0 {
-		if hasParam {
-			buf.WriteString("&serverPubKey=")
-		} else {
-			hasParam = true
-			buf.WriteString("?serverPubKey=")
-		}
-		buf.WriteString(url.QueryEscape(cfg.ServerPubKey))
+		writeDSNParam(&buf, &hasParam, "serverPubKey", url.QueryEscape(cfg.ServerPubKey))
 	}
 
 	if cfg.Timeout > 0 {
-		if hasParam {
-			buf.WriteString("&timeout=")
-		} else {
-			hasParam = true
-			buf.WriteString("?timeout=")
-		}
-		buf.WriteString(cfg.Timeout.String())
+		writeDSNParam(&buf, &hasParam, "timeout", cfg.Timeout.String())
 	}
 
 	if len(cfg.TLSConfig) > 0 {
-		if hasParam {
-			buf.WriteString("&tls=")
-		} else {
-			hasParam = true
-			buf.WriteString("?tls=")
-		}
-		buf.WriteString(url.QueryEscape(cfg.TLSConfig))
+		writeDSNParam(&buf, &hasParam, "tls", url.QueryEscape(cfg.TLSConfig))
 	}
 
 	if cfg.WriteTimeout > 0 {
-		if hasParam {
-			buf.WriteString("&writeTimeout=")
-		} else {
-			hasParam = true
-			buf.WriteString("?writeTimeout=")
-		}
-		buf.WriteString(cfg.WriteTimeout.String())
+		writeDSNParam(&buf, &hasParam, "writeTimeout", cfg.WriteTimeout.String())
 	}
 
 	if cfg.MaxAllowedPacket != defaultMaxAllowedPacket {
-		if hasParam {
-			buf.WriteString("&maxAllowedPacket=")
-		} else {
-			hasParam = true
-			buf.WriteString("?maxAllowedPacket=")
-		}
-		buf.WriteString(strconv.Itoa(cfg.MaxAllowedPacket))
-
+		writeDSNParam(&buf, &hasParam, "maxAllowedPacket", strconv.Itoa(cfg.MaxAllowedPacket))
 	}
 
 	// other params
@@ -366,16 +280,7 @@ func (cfg *Config) FormatDSN() string {
 		}
 		sort.Strings(params)
 		for _, param := range params {
-			if hasParam {
-				buf.WriteByte('&')
-			} else {
-				hasParam = true
-				buf.WriteByte('?')
-			}
-
-			buf.WriteString(param)
-			buf.WriteByte('=')
-			buf.WriteString(url.QueryEscape(cfg.Params[param]))
+			writeDSNParam(&buf, &hasParam, param, url.QueryEscape(cfg.Params[param]))
 		}
 	}
 
