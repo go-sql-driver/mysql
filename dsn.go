@@ -55,6 +55,7 @@ type Config struct {
 	AllowCleartextPasswords bool // Allows the cleartext client side plugin
 	AllowNativePasswords    bool // Allows the native password authentication method
 	AllowOldPasswords       bool // Allows the old insecure password method
+	CheckConnLiveness       bool // Check connections for liveness before using them
 	ClientFoundRows         bool // Return number of matching rows instead of rows changed
 	ColumnsWithAlias        bool // Prepend table alias to column names
 	InterpolateParams       bool // Interpolate placeholders into query string
@@ -70,6 +71,7 @@ func NewConfig() *Config {
 		Loc:                  time.UTC,
 		MaxAllowedPacket:     defaultMaxAllowedPacket,
 		AllowNativePasswords: true,
+		CheckConnLiveness:    true,
 	}
 }
 
@@ -209,6 +211,15 @@ func (cfg *Config) FormatDSN() string {
 		} else {
 			hasParam = true
 			buf.WriteString("?allowOldPasswords=true")
+		}
+	}
+
+	if !cfg.CheckConnLiveness {
+		if hasParam {
+			buf.WriteString("&checkConnLiveness=false")
+		} else {
+			hasParam = true
+			buf.WriteString("?checkConnLiveness=false")
 		}
 	}
 
@@ -487,6 +498,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		case "allowOldPasswords":
 			var isBool bool
 			cfg.AllowOldPasswords, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+
+		// Check connections for Liveness before using them
+		case "checkConnLiveness":
+			var isBool bool
+			cfg.CheckConnLiveness, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}
