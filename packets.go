@@ -115,7 +115,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		if mc.cfg.ReadTimeout != 0 {
 			err = conn.SetReadDeadline(time.Time{})
 		}
-		if err == nil {
+		if err == nil && mc.cfg.CheckConnLiveness {
 			err = connCheck(conn)
 		}
 		if err != nil {

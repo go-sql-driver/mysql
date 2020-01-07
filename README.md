@@ -166,6 +166,17 @@ Sets the charset used for client-server interaction (`"SET NAMES <value>"`). If 
 Usage of the `charset` parameter is discouraged because it issues additional queries to the server.
 Unless you need the fallback behavior, please use `collation` instead.
 
+##### `checkConnLiveness`
+
+```
+Type:           bool
+Valid Values:   true, false
+Default:        true
+```
+
+On supported platforms connections retrieved from the connection pool are checked for liveness before using them. If the check fails, the respective connection is marked as bad and the query retried with another connection.
+`checkConnLiveness=false` disables this liveness check of connections.
+
 ##### `collation`
 
 ```
