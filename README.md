@@ -41,7 +41,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
 
 ## Requirements
   * Go 1.10 or higher. We aim to support the 3 latest versions of Go.
-  * MySQL (4.1+), MariaDB, Percona Server, Google CloudSQL or Sphinx (2.2.3+)
+  * MySQL (4.1+), MariaDB, Percona Server, or Sphinx (2.2.3+)
 
 ---------------------------------------
 
@@ -405,11 +405,6 @@ user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname?timeout=90s&collation=utf8mb4_
 TCP on a remote host, e.g. Amazon RDS:
 ```
 id:password@tcp(your-amazonaws-uri.com:3306)/dbname
-```
-
-Google Cloud SQL on App Engine:
-```
-user:password@unix(/cloudsql/project-id:region-name:instance-name)/dbname
 ```
 
 TCP using default port (3306) on localhost:
