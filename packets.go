@@ -13,6 +13,7 @@ import (
 	"crypto/tls"
 	"database/sql/driver"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -1003,6 +1004,9 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				continue
 			}
 
+			if v, ok := arg.(json.RawMessage); ok {
+				arg = []byte(v)
+			}
 			// cache types and values
 			switch v := arg.(type) {
 			case int64:
