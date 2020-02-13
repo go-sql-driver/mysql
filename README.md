@@ -477,7 +477,7 @@ To run the driver tests you may need to adjust the configuration. See the [Testi
 Go-MySQL-Driver is not feature-complete yet. Your help is very appreciated.
 If you want to contribute, you can work on an [open issue](https://github.com/go-sql-driver/mysql/issues?state=open) or review a [pull request](https://github.com/go-sql-driver/mysql/pulls).
 
-See the [Contribution Guidelines](https://github.com/go-sql-driver/mysql/blob/master/CONTRIBUTING.md) for details.
+See the [Contribution Guidelines](https://github.com/go-sql-driver/mysql/blob/master/.github/CONTRIBUTING.md) for details.
 
 ---------------------------------------
 
