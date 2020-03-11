@@ -125,5 +125,6 @@ script:
   - go test -v -covermode=count -coverprofile=coverage.out
   - go vet ./...
   - .travis/gofmt.sh
+  - .travis/complie_check.sh
 after_script:
   - $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci
