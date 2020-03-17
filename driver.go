@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"net"
+	"fmt"
 )
 
 // MySQLDriver is exported to make the driver directly accessible.
@@ -123,6 +124,8 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	if mc.maxAllowedPacket < maxPacketSize {
 		mc.maxWriteSize = mc.maxAllowedPacket
 	}
+
+	fmt.Printf("max_allowed_packet = %d\n", mc.maxWriteSize)
 
 	// Handle DSN Params
 	err = mc.handleParams()
