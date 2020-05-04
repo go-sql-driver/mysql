@@ -7,10 +7,6 @@ go:
   - 1.13.x
   - master
 
-jobs:
-  allow_failures:
-  - go: master
-
 before_install:
   - go get golang.org/x/tools/cmd/cover
   - go get github.com/mattn/goveralls
@@ -21,7 +17,10 @@ before_script:
   - .travis/wait_mysql.sh
   - mysql -e 'create database gotest;'
 
-matrix:
+jobs:
+  allow_failures:
+  - go: master
+
   include:
     - env: DB=MYSQL8
       sudo: required
