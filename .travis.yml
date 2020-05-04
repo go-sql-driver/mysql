@@ -22,7 +22,6 @@ jobs:
 
   include:
     - env: DB=MYSQL8
-      sudo: required
       dist: trusty
       go: 1.10.x
       services:
@@ -42,7 +41,6 @@ jobs:
         - export MYSQL_TEST_CONCURRENT=1
 
     - env: DB=MYSQL57
-      sudo: required
       dist: trusty
       go: 1.10.x
       services:
@@ -62,7 +60,6 @@ jobs:
         - export MYSQL_TEST_CONCURRENT=1
 
     - env: DB=MARIA55
-      sudo: required
       dist: trusty
       go: 1.10.x
       services:
@@ -82,7 +79,6 @@ jobs:
         - export MYSQL_TEST_CONCURRENT=1
 
     - env: DB=MARIA10_1
-      sudo: required
       dist: trusty
       go: 1.10.x
       services:
