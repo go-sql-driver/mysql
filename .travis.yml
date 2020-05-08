@@ -1,4 +1,3 @@
-sudo: false
 language: go
 go:
   - 1.10.x
@@ -17,10 +16,12 @@ before_script:
   - .travis/wait_mysql.sh
   - mysql -e 'create database gotest;'
 
-matrix:
+jobs:
+  allow_failures:
+  - go: master
+
   include:
     - env: DB=MYSQL8
-      sudo: required
       dist: trusty
       go: 1.10.x
       services:
@@ -40,7 +41,6 @@ matrix:
         - export MYSQL_TEST_CONCURRENT=1
 
     - env: DB=MYSQL57
-      sudo: required
       dist: trusty
       go: 1.10.x
       services:
@@ -60,7 +60,6 @@ matrix:
         - export MYSQL_TEST_CONCURRENT=1
 
     - env: DB=MARIA55
-      sudo: required
       dist: trusty
       go: 1.10.x
       services:
@@ -80,7 +79,6 @@ matrix:
         - export MYSQL_TEST_CONCURRENT=1
 
     - env: DB=MARIA10_1
-      sudo: required
       dist: trusty
       go: 1.10.x
       services:
