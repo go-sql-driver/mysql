@@ -489,6 +489,10 @@ func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
 
 // BeginTx implements driver.ConnBeginTx interface
 func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
+	if mc.closed.IsSet() {
+		return nil, driver.ErrBadConn
+	}
+
 	if err := mc.watchCancel(ctx); err != nil {
 		return nil, err
 	}
