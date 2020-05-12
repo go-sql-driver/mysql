@@ -2608,7 +2608,12 @@ func TestContextCancelBegin(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
-		tx, err := dbt.db.BeginTx(ctx, nil)
+		conn, err := dbt.db.Conn(ctx)
+		if err != nil {
+			dbt.Fatal(err)
+		}
+		defer conn.Close()
+		tx, err := conn.BeginTx(ctx, nil)
 		if err != nil {
 			dbt.Fatal(err)
 		}
@@ -2638,7 +2643,17 @@ func TestContextCancelBegin(t *testing.T) {
 			dbt.Errorf("expected sql.ErrTxDone or context.Canceled, got %v", err)
 		}
 
-		// Context is canceled, so cannot begin a transaction.
+		// The connection is now in an inoperable state - so performing other
+		// operations should fail with ErrBadConn
+		// Important to exercise isolation level too - it runs SET TRANSACTION ISOLATION
+		// LEVEL XXX first, which needs to return ErrBadConn if the connection's context
+		// is cancelled
+		_, err = conn.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+		if err != driver.ErrBadConn {
+			dbt.Errorf("expected driver.ErrBadConn, got %v", err)
+		}
+
+		// cannot begin a transaction (on a different conn) with a canceled context
 		if _, err := dbt.db.BeginTx(ctx, nil); err != context.Canceled {
 			dbt.Errorf("expected context.Canceled, got %v", err)
 		}
