@@ -27,7 +27,7 @@ jobs:
   include:
     - env: DB=MYSQL8
       dist: trusty
-      go: 1.10.x
+      go: 1.14.x
       services:
         - docker
       before_install:
@@ -46,7 +46,7 @@ jobs:
 
     - env: DB=MYSQL57
       dist: trusty
-      go: 1.10.x
+      go: 1.14.x
       services:
         - docker
       before_install:
@@ -65,7 +65,7 @@ jobs:
 
     - env: DB=MARIA55
       dist: trusty
-      go: 1.10.x
+      go: 1.14.x
       services:
         - docker
       before_install:
@@ -84,7 +84,7 @@ jobs:
 
     - env: DB=MARIA10_1
       dist: trusty
-      go: 1.10.x
+      go: 1.14.x
       services:
         - docker
       before_install:
@@ -108,7 +108,7 @@ jobs:
           packages:
             - mysql
           update: true
-      go: 1.12.x
+      go: 1.14.x
       before_install:
         - go get golang.org/x/tools/cmd/cover
         - go get github.com/mattn/goveralls
