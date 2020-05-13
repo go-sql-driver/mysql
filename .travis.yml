@@ -1,11 +1,14 @@
 language: go
 go:
+  # Keep the most recent production release at the top
   - 1.14.x
+  # Go development version
+  - master
+  # Older production releases
   - 1.13.x
   - 1.12.x
   - 1.11.x
   - 1.10.x
-  - master
 
 before_install:
   - go get golang.org/x/tools/cmd/cover
