@@ -14,6 +14,7 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"testing"
+	"time"
 )
 
 func TestLengthEncodedInteger(t *testing.T) {
@@ -289,5 +290,47 @@ func TestIsolationLevelMapping(t *testing.T) {
 	}
 	if err.Error() != expectedErr {
 		t.Fatalf("Expected error to be %q, got %q", expectedErr, err)
+	}
+}
+
+func TestParseDateTime(t *testing.T) {
+	// UTC loc
+	{
+		str := "2020-05-13 21:30:45"
+		t1, err := parseDateTime(str, time.UTC)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		t2 := time.Date(2020, 5, 13,
+			21, 30, 45, 0, time.UTC)
+		if !t1.Equal(t2) {
+			t.Errorf("want equal, have: %v, want: %v", t1, t2)
+			return
+		}
+	}
+	// non-UTC loc
+	{
+		str := "2020-05-13 21:30:45"
+		loc := time.FixedZone("test", 8*60*60)
+		t1, err := parseDateTime(str, loc)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		t2 := time.Date(2020, 5, 13,
+			21, 30, 45, 0, loc)
+		if !t1.Equal(t2) {
+			t.Errorf("want equal, have: %v, want: %v", t1, t2)
+			return
+		}
+	}
+}
+
+func BenchmarkParseDateTime(b *testing.B) {
+	str := "2020-05-13 21:30:45"
+	loc := time.FixedZone("test", 8*60*60)
+	for i := 0; i < b.N; i++ {
+		_, _ = parseDateTime(str, loc)
 	}
 }
