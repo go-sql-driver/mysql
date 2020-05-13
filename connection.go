@@ -47,9 +47,10 @@ type mysqlConn struct {
 
 // Handles parameters set in DSN after the connection is established
 func (mc *mysqlConn) handleParams() (err error) {
+	var params []string
 	for param, val := range mc.cfg.Params {
 		switch param {
-		// Charset
+		// Charset: character_set_connection, character_set_client, character_set_results
 		case "charset":
 			charsets := strings.Split(val, ",")
 			for i := range charsets {
@@ -63,12 +64,16 @@ func (mc *mysqlConn) handleParams() (err error) {
 				return
 			}
 
-		// System Vars
+		// Other system vars
 		default:
-			err = mc.exec("SET " + param + "=" + val + "")
-			if err != nil {
-				return
-			}
+			params = append(params, param+"="+val)
+		}
+	}
+
+	if len(params) > 0 {
+		err = mc.exec("SET " + strings.Join(params, ","))
+		if err != nil {
+			return
 		}
 	}
 
