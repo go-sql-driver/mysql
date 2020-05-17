@@ -26,7 +26,7 @@ jobs:
 
   include:
     - env: DB=MYSQL8
-      dist: trusty
+      dist: xenial
       go: 1.14.x
       services:
         - docker
@@ -45,7 +45,7 @@ jobs:
         - export MYSQL_TEST_CONCURRENT=1
 
     - env: DB=MYSQL57
-      dist: trusty
+      dist: xenial
       go: 1.14.x
       services:
         - docker
@@ -64,7 +64,7 @@ jobs:
         - export MYSQL_TEST_CONCURRENT=1
 
     - env: DB=MARIA55
-      dist: trusty
+      dist: xenial
       go: 1.14.x
       services:
         - docker
@@ -83,7 +83,7 @@ jobs:
         - export MYSQL_TEST_CONCURRENT=1
 
     - env: DB=MARIA10_1
-      dist: trusty
+      dist: xenial
       go: 1.14.x
       services:
         - docker
@@ -102,7 +102,7 @@ jobs:
         - export MYSQL_TEST_CONCURRENT=1
 
     - os: osx
-      osx_image: xcode10.1
+      osx_image: xcode11.4
       addons:
         homebrew:
           packages:
