@@ -113,20 +113,14 @@ func parseDateTime(str string, loc *time.Location) (t time.Time, err error) {
 		if str == base[:len(str)] {
 			return
 		}
-		t, err = time.Parse(timeFormat[:len(str)], str)
+		if loc == time.UTC {
+			return time.Parse(timeFormat[:len(str)], str)
+		}
+		return time.ParseInLocation(timeFormat[:len(str)], str, loc)
 	default:
 		err = fmt.Errorf("invalid time string: %s", str)
 		return
 	}
-
-	// Adjust location
-	if err == nil && loc != time.UTC {
-		y, mo, d := t.Date()
-		h, mi, s := t.Clock()
-		t, err = time.Date(y, mo, d, h, mi, s, t.Nanosecond(), loc), nil
-	}
-
-	return
 }
 
 func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Value, error) {
