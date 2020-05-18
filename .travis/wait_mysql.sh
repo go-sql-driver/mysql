@@ -7,7 +7,7 @@
 
 while :
 do
-    if mysql --protocol=tcp --password=${MYSQL_ROOT_PASSWORD} -e 'select version()'; then
+    if mysql --protocol=tcp -e 'select version()'; then
         break
     fi
     sleep 3
