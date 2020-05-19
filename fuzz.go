@@ -11,7 +11,7 @@
 package mysql
 
 import (
-    "database/sql"
+	"database/sql"
 )
 
 func Fuzz(data []byte) int {
