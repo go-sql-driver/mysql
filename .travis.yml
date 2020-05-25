@@ -39,6 +39,7 @@ jobs:
         - cp .travis/docker.cnf ~/.my.cnf
         - .travis/wait_mysql.sh
       before_script:
+        - export cross_compile=false
         - export MYSQL_TEST_USER=gotest
         - export MYSQL_TEST_PASS=secret
         - export MYSQL_TEST_ADDR=127.0.0.1:3307
@@ -58,6 +59,7 @@ jobs:
         - cp .travis/docker.cnf ~/.my.cnf
         - .travis/wait_mysql.sh
       before_script:
+        - export cross_compile=false
         - export MYSQL_TEST_USER=gotest
         - export MYSQL_TEST_PASS=secret
         - export MYSQL_TEST_ADDR=127.0.0.1:3307
@@ -77,6 +79,7 @@ jobs:
         - cp .travis/docker.cnf ~/.my.cnf
         - .travis/wait_mysql.sh
       before_script:
+        - export cross_compile=false
         - export MYSQL_TEST_USER=gotest
         - export MYSQL_TEST_PASS=secret
         - export MYSQL_TEST_ADDR=127.0.0.1:3307
@@ -96,6 +99,7 @@ jobs:
         - cp .travis/docker.cnf ~/.my.cnf
         - .travis/wait_mysql.sh
       before_script:
+        - export cross_compile=false
         - export MYSQL_TEST_USER=gotest
         - export MYSQL_TEST_PASS=secret
         - export MYSQL_TEST_ADDR=127.0.0.1:3307
@@ -113,6 +117,7 @@ jobs:
         - go get golang.org/x/tools/cmd/cover
         - go get github.com/mattn/goveralls
       before_script:
+        - export cross_compile=false
         - echo -e "[server]\ninnodb_log_file_size=256MB\ninnodb_buffer_pool_size=512MB\nmax_allowed_packet=16MB\nlocal_infile=1" >> /usr/local/etc/my.cnf
         - mysql.server start
         - mysql -uroot -e 'CREATE USER gotest IDENTIFIED BY "secret"'
@@ -127,6 +132,6 @@ script:
   - go test -v -covermode=count -coverprofile=coverage.out
   - go vet ./...
   - .travis/gofmt.sh
-  - .travis/complie_check.sh
+  - if [ "$cross_compile" != "false" ]; then .travis/compile_check.sh; fi
 after_script:
   - $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci
