@@ -1,7 +1,13 @@
 #!/bin/sh
+
+# use the mysql client inside the docker container if docker is running
+[ "$(docker inspect -f '{{.State.Running}}' mysqld 2>/dev/null)" = "true" ] && mysql() {
+    docker exec mysqld mysql "${@}"
+}
+
 while :
 do
-    if mysql -e 'select version()' 2>&1 | grep 'version()\|ERROR 2059 (HY000):'; then
+    if mysql --protocol=tcp -e 'select version()'; then
         break
     fi
     sleep 3
