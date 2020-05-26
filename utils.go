@@ -147,7 +147,7 @@ func parseByteDateTime(b []byte, loc *time.Location) (time.Time, error) {
 			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[4])
 		}
 
-		m, err := parseByte2Digits(b, 5)
+		m, err := parseByte2Digits(b[5], b[6])
 		if err != nil {
 			return time.Time{}, err
 		}
@@ -160,7 +160,7 @@ func parseByteDateTime(b []byte, loc *time.Location) (time.Time, error) {
 			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[7])
 		}
 
-		day, err := parseByte2Digits(b, 8)
+		day, err := parseByte2Digits(b[8], b[9])
 		if err != nil {
 			return time.Time{}, err
 		}
@@ -175,7 +175,7 @@ func parseByteDateTime(b []byte, loc *time.Location) (time.Time, error) {
 			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[10])
 		}
 
-		hour, err := parseByte2Digits(b, 11)
+		hour, err := parseByte2Digits(b[11], b[12])
 		if err != nil {
 			return time.Time{}, err
 		}
@@ -183,7 +183,7 @@ func parseByteDateTime(b []byte, loc *time.Location) (time.Time, error) {
 			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[13])
 		}
 
-		min, err := parseByte2Digits(b, 14)
+		min, err := parseByte2Digits(b[14], b[15])
 		if err != nil {
 			return time.Time{}, err
 		}
@@ -191,7 +191,7 @@ func parseByteDateTime(b []byte, loc *time.Location) (time.Time, error) {
 			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[16])
 		}
 
-		sec, err := parseByte2Digits(b, 17)
+		sec, err := parseByte2Digits(b[17], b[18])
 		if err != nil {
 			return time.Time{}, err
 		}
@@ -217,7 +217,7 @@ func parseByteYear(b []byte) (int, error) {
 	for i := 0; i < 4; i++ {
 		v, err := bToi(b[i])
 		if err != nil {
-			return 0, fmt.Errorf("invalid time bytes: %s", b)
+			return 0, err
 		}
 		year += v * n
 		n = n / 10
@@ -225,14 +225,14 @@ func parseByteYear(b []byte) (int, error) {
 	return year, nil
 }
 
-func parseByte2Digits(b []byte, index int) (int, error) {
-	d2, err := bToi(b[index])
+func parseByte2Digits(b1, b2 byte) (int, error) {
+	d2, err := bToi(b1)
 	if err != nil {
-		return 0, fmt.Errorf("invalid time bytes: %s", b)
+		return 0, err
 	}
-	d1, err := bToi(b[index+1])
+	d1, err := bToi(b2)
 	if err != nil {
-		return 0, fmt.Errorf("invalid time bytes: %s", b)
+		return 0, err
 	}
 	return d2*10 + d1, nil
 }
@@ -248,7 +248,7 @@ func parseByteNanoSec(b []byte) (int, error) {
 		ns += v * digit
 		digit /= 10
 	}
-	// nanoseconds has 10-digits.
+	// nanoseconds has 10-digits. (needs to scale digits)
 	// 10 - 6 = 4, so we have to multiple 1000.
 	return ns * 1000, nil
 }
