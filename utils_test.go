@@ -295,9 +295,10 @@ func TestIsolationLevelMapping(t *testing.T) {
 }
 
 func deprecatedParseDateTime(str string, loc *time.Location) (t time.Time, err error) {
+	const base = "0000-00-00 00:00:00.000000"
 	switch len(str) {
 	case 10, 19, 21, 22, 23, 24, 25, 26: // up to "YYYY-MM-DD HH:MM:SS.MMMMMM"
-		if str == nullTimeBaseStr[:len(str)] {
+		if str == base[:len(str)] {
 			return
 		}
 		if loc == time.UTC {

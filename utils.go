@@ -9,7 +9,6 @@
 package mysql
 
 import (
-	"bytes"
 	"crypto/tls"
 	"database/sql"
 	"database/sql/driver"
@@ -107,15 +106,11 @@ func readBool(input string) (value bool, valid bool) {
 *                           Time related utils                                *
 ******************************************************************************/
 
-var (
-	nullTimeBaseStr  = "0000-00-00 00:00:00.000000"
-	nullTimeBaseByte = []byte(nullTimeBaseStr)
-)
-
 func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
+	const base = "0000-00-00 00:00:00.000000"
 	switch len(b) {
 	case 10, 19, 21, 22, 23, 24, 25, 26: // up to "YYYY-MM-DD HH:MM:SS.MMMMMM"
-		if bytes.Compare(b, nullTimeBaseByte[:len(b)]) == 0 {
+		if string(b) == base[:len(b)] {
 			return time.Time{}, nil
 		}
 
