@@ -327,10 +327,98 @@ func TestParseDateTime(t *testing.T) {
 	}
 }
 
+func TestParseByteDateTime(t *testing.T) {
+	cases := []struct {
+		name string
+		str  string
+	}{
+		{
+			name: "parse date",
+			str:  "2020-05-13",
+		},
+		{
+			name: "parse null date",
+			str:  sDate0,
+		},
+		{
+			name: "parse datetime",
+			str:  "2020-05-13 21:30:45",
+		},
+		{
+			name: "parse null datetime",
+			str:  sDateTime0,
+		},
+		{
+			name: "parse datetime nanosec 1-digit",
+			str:  "2020-05-25 23:22:01.1",
+		},
+		{
+			name: "parse datetime nanosec 2-digits",
+			str:  "2020-05-25 23:22:01.15",
+		},
+		{
+			name: "parse datetime nanosec 3-digits",
+			str:  "2020-05-25 23:22:01.159",
+		},
+		{
+			name: "parse datetime nanosec 4-digits",
+			str:  "2020-05-25 23:22:01.1594",
+		},
+		{
+			name: "parse datetime nanosec 5-digits",
+			str:  "2020-05-25 23:22:01.15949",
+		},
+		{
+			name: "parse datetime nanosec 6-digits",
+			str:  "2020-05-25 23:22:01.159491",
+		},
+	}
+
+	for _, loc := range []*time.Location{
+		time.UTC,
+		time.FixedZone("test", 8*60*60),
+	} {
+		for _, cc := range cases {
+			t.Run(cc.name+"-"+loc.String(), func(t *testing.T) {
+				want, err := parseDateTime(cc.str, loc)
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, err := parseByteDateTime([]byte(cc.str), loc)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if !want.Equal(got) {
+					t.Fatalf("want: %v, but got %v", want, got)
+				}
+			})
+		}
+	}
+}
+
 func BenchmarkParseDateTime(b *testing.B) {
 	str := "2020-05-13 21:30:45"
 	loc := time.FixedZone("test", 8*60*60)
 	for i := 0; i < b.N; i++ {
 		_, _ = parseDateTime(str, loc)
+	}
+}
+
+func BenchmarkParseByteDateTime(b *testing.B) {
+	bStr := []byte("2020-05-25 23:22:01.159491")
+	loc := time.FixedZone("test", 8*60*60)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = parseByteDateTime(bStr, loc)
+	}
+}
+
+func BenchmarkParseByteDateTimeStringCast(b *testing.B) {
+	bStr := []byte("2020-05-25 23:22:01.159491")
+	loc := time.FixedZone("test", 8*60*60)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = parseDateTime(string(bStr), loc)
 	}
 }

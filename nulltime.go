@@ -28,7 +28,7 @@ func (nt *NullTime) Scan(value interface{}) (err error) {
 		nt.Time, nt.Valid = v, true
 		return
 	case []byte:
-		nt.Time, err = parseDateTime(string(v), time.UTC)
+		nt.Time, err = parseByteDateTime(v, time.UTC)
 		nt.Valid = (err == nil)
 		return
 	case string:

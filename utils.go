@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"bytes"
 	"crypto/tls"
 	"database/sql"
 	"database/sql/driver"
@@ -106,11 +107,15 @@ func readBool(input string) (value bool, valid bool) {
 *                           Time related utils                                *
 ******************************************************************************/
 
+var (
+	nullTimeBaseStr  = "0000-00-00 00:00:00.0000000"
+	nullTimeBaseByte = []byte(nullTimeBaseStr)
+)
+
 func parseDateTime(str string, loc *time.Location) (t time.Time, err error) {
-	base := "0000-00-00 00:00:00.0000000"
 	switch len(str) {
 	case 10, 19, 21, 22, 23, 24, 25, 26: // up to "YYYY-MM-DD HH:MM:SS.MMMMMM"
-		if str == base[:len(str)] {
+		if str == nullTimeBaseStr[:len(str)] {
 			return
 		}
 		if loc == time.UTC {
@@ -121,6 +126,138 @@ func parseDateTime(str string, loc *time.Location) (t time.Time, err error) {
 		err = fmt.Errorf("invalid time string: %s", str)
 		return
 	}
+}
+
+func parseByteDateTime(b []byte, loc *time.Location) (time.Time, error) {
+	switch len(b) {
+	case 10, 19, 21, 22, 23, 24, 25, 26: // up to "YYYY-MM-DD HH:MM:SS.MMMMMM"
+		if bytes.Compare(b, nullTimeBaseByte[:len(b)]) == 0 {
+			return time.Time{}, nil
+		}
+
+		year, err := parseByteYear(b)
+		if err != nil {
+			return time.Time{}, err
+		}
+		if year <= 0 {
+			year = 1
+		}
+
+		if b[4] != '-' {
+			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[4])
+		}
+
+		m, err := parseByte2Digits(b, 5)
+		if err != nil {
+			return time.Time{}, err
+		}
+		if m <= 0 {
+			m = 1
+		}
+		month := time.Month(m)
+
+		if b[7] != '-' {
+			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[7])
+		}
+
+		day, err := parseByte2Digits(b, 8)
+		if err != nil {
+			return time.Time{}, err
+		}
+		if day <= 0 {
+			day = 1
+		}
+		if len(b) == 10 {
+			return time.Date(year, month, day, 0, 0, 0, 0, loc), nil
+		}
+
+		if b[10] != ' ' {
+			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[10])
+		}
+
+		hour, err := parseByte2Digits(b, 11)
+		if err != nil {
+			return time.Time{}, err
+		}
+		if b[13] != ':' {
+			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[13])
+		}
+
+		min, err := parseByte2Digits(b, 14)
+		if err != nil {
+			return time.Time{}, err
+		}
+		if b[16] != ':' {
+			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[16])
+		}
+
+		sec, err := parseByte2Digits(b, 17)
+		if err != nil {
+			return time.Time{}, err
+		}
+		if len(b) == 19 {
+			return time.Date(year, month, day, hour, min, sec, 0, loc), nil
+		}
+
+		if b[19] != '.' {
+			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[19])
+		}
+		nsec, err := parseByteNanoSec(b)
+		if err != nil {
+			return time.Time{}, err
+		}
+		return time.Date(year, month, day, hour, min, sec, nsec, loc), nil
+	default:
+		return time.Time{}, fmt.Errorf("invalid time bytes: %s", b)
+	}
+}
+
+func parseByteYear(b []byte) (int, error) {
+	year, n := 0, 1000
+	for i := 0; i < 4; i++ {
+		v, err := bToi(b[i])
+		if err != nil {
+			return 0, fmt.Errorf("invalid time bytes: %s", b)
+		}
+		year += v * n
+		n = n / 10
+	}
+	return year, nil
+}
+
+func parseByte2Digits(b []byte, index int) (int, error) {
+	d2, err := bToi(b[index])
+	if err != nil {
+		return 0, fmt.Errorf("invalid time bytes: %s", b)
+	}
+	d1, err := bToi(b[index+1])
+	if err != nil {
+		return 0, fmt.Errorf("invalid time bytes: %s", b)
+	}
+	return d2*10 + d1, nil
+}
+
+func parseByteNanoSec(b []byte) (int, error) {
+	l := len(b)
+	ns, digit := 0, 100000 // max is 6-digits
+	for i := 20; i < l; i++ {
+		v, err := bToi(b[i])
+		if err != nil {
+			return 0, err
+		}
+		ns += v * digit
+		digit /= 10
+	}
+	// nanoseconds has 10-digits.
+	// 10 - 6 = 4, so we have to multiple 1000.
+	return ns * 1000, nil
+}
+
+func bToi(b byte) (int, error) {
+	if b < '0' || b > '9' {
+		return 0, errors.New("not [0-9]")
+	}
+	return int(b - '0'), nil
 }
 
 func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Value, error) {
