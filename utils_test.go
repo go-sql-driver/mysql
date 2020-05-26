@@ -397,6 +397,75 @@ func TestParseByteDateTime(t *testing.T) {
 	}
 }
 
+func TestParseByteDateTimeFail(t *testing.T) {
+	cases := []struct {
+		name    string
+		str     string
+		wantErr string
+	}{
+		{
+			name:    "parse invalid time",
+			str:     "hello",
+			wantErr: "invalid time bytes: hello",
+		},
+		{
+			name:    "parse year",
+			str:     "000!-00-00 00:00:00.000000",
+			wantErr: "not [0-9]",
+		},
+		{
+			name:    "parse month",
+			str:     "0000-!0-00 00:00:00.000000",
+			wantErr: "not [0-9]",
+		},
+		{
+			name:    `parse "-" after parsed year`,
+			str:     "0000:00-00 00:00:00.000000",
+			wantErr: "bad value for field: `:`",
+		},
+		{
+			name:    `parse "-" after parsed month`,
+			str:     "0000-00:00 00:00:00.000000",
+			wantErr: "bad value for field: `:`",
+		},
+		{
+			name:    `parse " " after parsed date`,
+			str:     "0000-00-00+00:00:00.000000",
+			wantErr: "bad value for field: `+`",
+		},
+		{
+			name:    `parse ":" after parsed date`,
+			str:     "0000-00-00 00-00:00.000000",
+			wantErr: "bad value for field: `-`",
+		},
+		{
+			name:    `parse ":" after parsed hour`,
+			str:     "0000-00-00 00:00-00.000000",
+			wantErr: "bad value for field: `-`",
+		},
+		{
+			name:    `parse "." after parsed sec`,
+			str:     "0000-00-00 00:00:00?000000",
+			wantErr: "bad value for field: `?`",
+		},
+	}
+
+	for _, cc := range cases {
+		t.Run(cc.name, func(t *testing.T) {
+			got, err := parseByteDateTime([]byte(cc.str), time.UTC)
+			if err == nil {
+				t.Fatal("want error")
+			}
+			if cc.wantErr != err.Error() {
+				t.Fatalf("want `%s`, but got `%s`", cc.wantErr, err)
+			}
+			if !got.IsZero() {
+				t.Fatal("want zero time")
+			}
+		})
+	}
+}
+
 func BenchmarkParseDateTime(b *testing.B) {
 	str := "2020-05-13 21:30:45"
 	loc := time.FixedZone("test", 8*60*60)
