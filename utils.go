@@ -108,7 +108,7 @@ func readBool(input string) (value bool, valid bool) {
 ******************************************************************************/
 
 var (
-	nullTimeBaseStr  = "0000-00-00 00:00:00.0000000"
+	nullTimeBaseStr  = "0000-00-00 00:00:00.000000"
 	nullTimeBaseByte = []byte(nullTimeBaseStr)
 )
 
