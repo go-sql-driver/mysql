@@ -112,23 +112,7 @@ var (
 	nullTimeBaseByte = []byte(nullTimeBaseStr)
 )
 
-func parseDateTime(str string, loc *time.Location) (t time.Time, err error) {
-	switch len(str) {
-	case 10, 19, 21, 22, 23, 24, 25, 26: // up to "YYYY-MM-DD HH:MM:SS.MMMMMM"
-		if str == nullTimeBaseStr[:len(str)] {
-			return
-		}
-		if loc == time.UTC {
-			return time.Parse(timeFormat[:len(str)], str)
-		}
-		return time.ParseInLocation(timeFormat[:len(str)], str, loc)
-	default:
-		err = fmt.Errorf("invalid time string: %s", str)
-		return
-	}
-}
-
-func parseByteDateTime(b []byte, loc *time.Location) (time.Time, error) {
+func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 	switch len(b) {
 	case 10, 19, 21, 22, 23, 24, 25, 26: // up to "YYYY-MM-DD HH:MM:SS.MMMMMM"
 		if bytes.Compare(b, nullTimeBaseByte[:len(b)]) == 0 {

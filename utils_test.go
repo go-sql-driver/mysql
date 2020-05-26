@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -293,41 +294,23 @@ func TestIsolationLevelMapping(t *testing.T) {
 	}
 }
 
-func TestParseDateTime(t *testing.T) {
-	// UTC loc
-	{
-		str := "2020-05-13 21:30:45"
-		t1, err := parseDateTime(str, time.UTC)
-		if err != nil {
-			t.Error(err)
+func deprecatedParseDateTime(str string, loc *time.Location) (t time.Time, err error) {
+	switch len(str) {
+	case 10, 19, 21, 22, 23, 24, 25, 26: // up to "YYYY-MM-DD HH:MM:SS.MMMMMM"
+		if str == nullTimeBaseStr[:len(str)] {
 			return
 		}
-		t2 := time.Date(2020, 5, 13,
-			21, 30, 45, 0, time.UTC)
-		if !t1.Equal(t2) {
-			t.Errorf("want equal, have: %v, want: %v", t1, t2)
-			return
+		if loc == time.UTC {
+			return time.Parse(timeFormat[:len(str)], str)
 		}
-	}
-	// non-UTC loc
-	{
-		str := "2020-05-13 21:30:45"
-		loc := time.FixedZone("test", 8*60*60)
-		t1, err := parseDateTime(str, loc)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		t2 := time.Date(2020, 5, 13,
-			21, 30, 45, 0, loc)
-		if !t1.Equal(t2) {
-			t.Errorf("want equal, have: %v, want: %v", t1, t2)
-			return
-		}
+		return time.ParseInLocation(timeFormat[:len(str)], str, loc)
+	default:
+		err = fmt.Errorf("invalid time string: %s", str)
+		return
 	}
 }
 
-func TestParseByteDateTime(t *testing.T) {
+func TestParseDateTime(t *testing.T) {
 	cases := []struct {
 		name string
 		str  string
@@ -380,11 +363,11 @@ func TestParseByteDateTime(t *testing.T) {
 	} {
 		for _, cc := range cases {
 			t.Run(cc.name+"-"+loc.String(), func(t *testing.T) {
-				want, err := parseDateTime(cc.str, loc)
+				want, err := deprecatedParseDateTime(cc.str, loc)
 				if err != nil {
 					t.Fatal(err)
 				}
-				got, err := parseByteDateTime([]byte(cc.str), loc)
+				got, err := parseDateTime([]byte(cc.str), loc)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -397,7 +380,7 @@ func TestParseByteDateTime(t *testing.T) {
 	}
 }
 
-func TestParseByteDateTimeFail(t *testing.T) {
+func TestParseDateTimeFail(t *testing.T) {
 	cases := []struct {
 		name    string
 		str     string
@@ -452,7 +435,7 @@ func TestParseByteDateTimeFail(t *testing.T) {
 
 	for _, cc := range cases {
 		t.Run(cc.name, func(t *testing.T) {
-			got, err := parseByteDateTime([]byte(cc.str), time.UTC)
+			got, err := parseDateTime([]byte(cc.str), time.UTC)
 			if err == nil {
 				t.Fatal("want error")
 			}
@@ -470,7 +453,7 @@ func BenchmarkParseDateTime(b *testing.B) {
 	str := "2020-05-13 21:30:45"
 	loc := time.FixedZone("test", 8*60*60)
 	for i := 0; i < b.N; i++ {
-		_, _ = parseDateTime(str, loc)
+		_, _ = deprecatedParseDateTime(str, loc)
 	}
 }
 
@@ -479,7 +462,7 @@ func BenchmarkParseByteDateTime(b *testing.B) {
 	loc := time.FixedZone("test", 8*60*60)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = parseByteDateTime(bStr, loc)
+		_, _ = parseDateTime(bStr, loc)
 	}
 }
 
@@ -488,6 +471,6 @@ func BenchmarkParseByteDateTimeStringCast(b *testing.B) {
 	loc := time.FixedZone("test", 8*60*60)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = parseDateTime(string(bStr), loc)
+		_, _ = deprecatedParseDateTime(string(bStr), loc)
 	}
 }
