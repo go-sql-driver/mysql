@@ -18,6 +18,10 @@ type connector struct {
 	cfg *Config // immutable private copy.
 }
 
+func newConnector(cfg *Config) *connector {
+	return &connector{cfg: cfg}
+}
+
 // Connect implements driver.Connector interface.
 // Connect returns a connection to the database.
 func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
