@@ -47,7 +47,7 @@ type mysqlConn struct {
 
 // Handles parameters set in DSN after the connection is established
 func (mc *mysqlConn) handleParams() (err error) {
-	var cmdSet []byte
+	var cmdSet strings.Builder
 	for param, val := range mc.cfg.Params {
 		switch param {
 		// Charset: character_set_connection, character_set_client, character_set_results
@@ -66,21 +66,21 @@ func (mc *mysqlConn) handleParams() (err error) {
 
 		// Other system vars accumulated in a single SET command
 		default:
-			if cmdSet == nil {
+			if cmdSet.Len() == 0 {
 				// Heuristic: 29 chars for each other key=value to reduce reallocations
-				cmdSet = make([]byte, 0, 4+len(param)+1+len(val)+30*(len(mc.cfg.Params)-1))
-				cmdSet = append(cmdSet, "SET "...)
+				cmdSet.Grow(4 + len(param) + 1 + len(val) + 30*(len(mc.cfg.Params)-1))
+				cmdSet.WriteString("SET ")
 			} else {
-				cmdSet = append(cmdSet, ',')
+				cmdSet.WriteByte(',')
 			}
-			cmdSet = append(cmdSet, param...)
-			cmdSet = append(cmdSet, '=')
-			cmdSet = append(cmdSet, val...)
+			cmdSet.WriteString(param)
+			cmdSet.WriteByte('=')
+			cmdSet.WriteString(val)
 		}
 	}
 
-	if cmdSet != nil {
-		err = mc.exec(string(cmdSet))
+	if cmdSet.Len() > 0 {
+		err = mc.exec(cmdSet.String())
 		if err != nil {
 			return
 		}
