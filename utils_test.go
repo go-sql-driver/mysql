@@ -13,7 +13,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
-	"fmt"
 	"testing"
 	"time"
 )
@@ -294,23 +293,6 @@ func TestIsolationLevelMapping(t *testing.T) {
 	}
 }
 
-func deprecatedParseDateTime(str string, loc *time.Location) (t time.Time, err error) {
-	const base = "0000-00-00 00:00:00.000000"
-	switch len(str) {
-	case 10, 19, 21, 22, 23, 24, 25, 26: // up to "YYYY-MM-DD HH:MM:SS.MMMMMM"
-		if str == base[:len(str)] {
-			return
-		}
-		if loc == time.UTC {
-			return time.Parse(timeFormat[:len(str)], str)
-		}
-		return time.ParseInLocation(timeFormat[:len(str)], str, loc)
-	default:
-		err = fmt.Errorf("invalid time string: %s", str)
-		return
-	}
-}
-
 func TestParseDateTime(t *testing.T) {
 	cases := []struct {
 		name string
@@ -364,9 +346,13 @@ func TestParseDateTime(t *testing.T) {
 	} {
 		for _, cc := range cases {
 			t.Run(cc.name+"-"+loc.String(), func(t *testing.T) {
-				want, err := deprecatedParseDateTime(cc.str, loc)
-				if err != nil {
-					t.Fatal(err)
+				var want time.Time
+				if cc.str != sDate0 && cc.str != sDateTime0 {
+					var err error
+					want, err = time.ParseInLocation(timeFormat[:len(cc.str)], cc.str, loc)
+					if err != nil {
+						t.Fatal(err)
+					}
 				}
 				got, err := parseDateTime([]byte(cc.str), loc)
 				if err != nil {
@@ -447,31 +433,5 @@ func TestParseDateTimeFail(t *testing.T) {
 				t.Fatal("want zero time")
 			}
 		})
-	}
-}
-
-func BenchmarkParseDateTime(b *testing.B) {
-	str := "2020-05-13 21:30:45"
-	loc := time.FixedZone("test", 8*60*60)
-	for i := 0; i < b.N; i++ {
-		_, _ = deprecatedParseDateTime(str, loc)
-	}
-}
-
-func BenchmarkParseByteDateTime(b *testing.B) {
-	bStr := []byte("2020-05-25 23:22:01.159491")
-	loc := time.FixedZone("test", 8*60*60)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _ = parseDateTime(bStr, loc)
-	}
-}
-
-func BenchmarkParseByteDateTimeStringCast(b *testing.B) {
-	bStr := []byte("2020-05-25 23:22:01.159491")
-	loc := time.FixedZone("test", 8*60*60)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _ = deprecatedParseDateTime(string(bStr), loc)
 	}
 }
