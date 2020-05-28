@@ -205,15 +205,15 @@ func parseByteYear(b []byte) (int, error) {
 }
 
 func parseByte2Digits(b1, b2 byte) (int, error) {
-	d2, err := bToi(b1)
+	d1, err := bToi(b1)
 	if err != nil {
 		return 0, err
 	}
-	d1, err := bToi(b2)
+	d2, err := bToi(b2)
 	if err != nil {
 		return 0, err
 	}
-	return d2*10 + d1, nil
+	return d1*10 + d2, nil
 }
 
 func parseByteNanoSec(b []byte) (int, error) {
