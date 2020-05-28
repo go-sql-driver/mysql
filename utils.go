@@ -217,9 +217,8 @@ func parseByte2Digits(b1, b2 byte) (int, error) {
 }
 
 func parseByteNanoSec(b []byte) (int, error) {
-	l := len(b)
 	ns, digit := 0, 100000 // max is 6-digits
-	for i := 20; i < l; i++ {
+	for i := 0; i < len(b); i++ {
 		v, err := bToi(b[i])
 		if err != nil {
 			return 0, err
