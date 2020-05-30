@@ -293,6 +293,117 @@ func TestIsolationLevelMapping(t *testing.T) {
 	}
 }
 
+func TestFormatDateTime(t *testing.T) {
+	tests := []struct {
+		t   time.Time
+		str string
+	}{
+		{
+			t:   time.Date(2020, 05, 30, 0, 0, 0, 0, time.UTC),
+			str: "2020-05-30",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 0, 0, 0, time.UTC),
+			str: "2020-05-30 22:00:00",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 33, 0, 0, time.UTC),
+			str: "2020-05-30 22:33:00",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 33, 44, 0, time.UTC),
+			str: "2020-05-30 22:33:44",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000000, time.UTC),
+			str: "2020-05-30 22:33:44.550000",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000499, time.UTC),
+			str: "2020-05-30 22:33:44.550000",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000500, time.UTC),
+			str: "2020-05-30 22:33:44.550001",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000567, time.UTC),
+			str: "2020-05-30 22:33:44.550001",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 33, 44, 999999567, time.UTC),
+			str: "2020-05-30 22:33:45",
+		},
+	}
+	for _, v := range tests {
+		b, n, _ := formatDateTime(v.t)
+		if str := string(b[:n]); str != v.str {
+			t.Errorf("formatDateTime(%v), have: %s, want: %s", v.t, str, v.str)
+			return
+		}
+	}
+
+	// year out of range
+	{
+		v := time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC)
+		_, _, err := formatDateTime(v)
+		if err == nil {
+			t.Error("want an error")
+			return
+		}
+	}
+	{
+		v := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
+		_, _, err := formatDateTime(v)
+		if err == nil {
+			t.Error("want an error")
+			return
+		}
+	}
+}
+
+func BenchmarkGetTimeDateClockIndependent(b *testing.B) {
+	t := time.Now()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		t.Year()
+		t.Month()
+		t.Day()
+		t.Hour()
+		t.Minute()
+		t.Second()
+	}
+}
+
+func BenchmarkGetTimeDateClockTogether(b *testing.B) {
+	t := time.Now()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		t.Date()
+		t.Clock()
+	}
+}
+
+func BenchmarkFormatDatetime(b *testing.B) {
+	t := time.Now()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		formatDateTime(t)
+	}
+}
+
+func BenchmarkFormatDatetimeViaStandardFormat(b *testing.B) {
+	t := time.Now()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		t.Format("2006-01-02 15:04:05.999999")
+	}
+}
+
 func TestParseDateTime(t *testing.T) {
 	// UTC loc
 	{

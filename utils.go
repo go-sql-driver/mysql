@@ -161,6 +161,57 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 	return nil, fmt.Errorf("invalid DATETIME packet length %d", num)
 }
 
+func formatDateTime(t time.Time) (buf [32]byte, n int, err error) {
+	nsec := t.Nanosecond()
+	if nsec%1000 >= 500 {
+		t = t.Add(500 * time.Nanosecond) // to round under microsecond
+		nsec = t.Nanosecond()
+	}
+	year, month, day := t.Date()
+	hour, min, sec := t.Clock()
+	micro := nsec / 1000
+
+	if year < 1 || year > 9999 {
+		err = fmt.Errorf("invalid year: %d", year)
+		return
+	}
+	year100 := year / 100
+	year1 := year % 100
+
+	buf[0], buf[1], buf[2], buf[3] = digits10[year100], digits01[year100], digits10[year1], digits01[year1]
+	buf[4] = '-'
+	buf[5], buf[6] = digits10[month], digits01[month]
+	buf[7] = '-'
+	buf[8], buf[9] = digits10[day], digits01[day]
+
+	if hour == 0 && min == 0 && sec == 0 && micro == 0 {
+		n = 10
+		return
+	}
+
+	buf[10] = ' '
+	buf[11], buf[12] = digits10[hour], digits01[hour]
+	buf[13] = ':'
+	buf[14], buf[15] = digits10[min], digits01[min]
+	buf[16] = ':'
+	buf[17], buf[18] = digits10[sec], digits01[sec]
+
+	if micro == 0 {
+		n = 19
+		return
+	}
+
+	micro10000 := micro / 10000
+	micro100 := (micro / 100) % 100
+	micro1 := micro % 100
+	buf[19] = '.'
+	buf[20], buf[21], buf[22], buf[23], buf[24], buf[25] =
+		digits10[micro10000], digits01[micro10000], digits10[micro100], digits01[micro100], digits10[micro1], digits01[micro1]
+
+	n = 26
+	return
+}
+
 // zeroDateTime is used in formatBinaryDateTime to avoid an allocation
 // if the DATE or DATETIME has the zero value.
 // It must never be changed.
