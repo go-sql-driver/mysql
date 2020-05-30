@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
+	"io"
 	"testing"
 	"time"
 )
@@ -294,34 +295,311 @@ func TestIsolationLevelMapping(t *testing.T) {
 }
 
 func TestParseDateTime(t *testing.T) {
-	// UTC loc
-	{
-		str := "2020-05-13 21:30:45"
-		t1, err := parseDateTime(str, time.UTC)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		t2 := time.Date(2020, 5, 13,
-			21, 30, 45, 0, time.UTC)
-		if !t1.Equal(t2) {
-			t.Errorf("want equal, have: %v, want: %v", t1, t2)
-			return
-		}
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	tests := []struct {
+		str string
+		loc *time.Location
+		t   time.Time
+		err error
+	}{
+		// zero time
+		{
+			str: "0000-00-00",
+			loc: time.UTC,
+			t:   time.Time{},
+			err: nil,
+		},
+		{
+			str: "0000-00-00 00:00:00",
+			loc: time.UTC,
+			t:   time.Time{},
+			err: nil,
+		},
+		{
+			str: "0000-00-00 00:00:00.0",
+			loc: time.UTC,
+			t:   time.Time{},
+			err: nil,
+		},
+		{
+			str: "0000-00-00 00:00:00.00",
+			loc: time.UTC,
+			t:   time.Time{},
+			err: nil,
+		},
+		{
+			str: "0000-00-00 00:00:00.000",
+			loc: time.UTC,
+			t:   time.Time{},
+			err: nil,
+		},
+		{
+			str: "0000-00-00 00:00:00.0000",
+			loc: time.UTC,
+			t:   time.Time{},
+			err: nil,
+		},
+		{
+			str: "0000-00-00 00:00:00.00000",
+			loc: time.UTC,
+			t:   time.Time{},
+			err: nil,
+		},
+		{
+			str: "0000-00-00 00:00:00.000000",
+			loc: time.UTC,
+			t:   time.Time{},
+			err: nil,
+		},
+		// non-zero time
+		{
+			str: "2020-05-30",
+			loc: time.UTC,
+			t:   time.Date(2020, 5, 30, 0, 0, 0, 0, time.UTC),
+			err: nil,
+		},
+		{
+			str: "2020-05-30 15:22:38",
+			loc: time.UTC,
+			t:   time.Date(2020, 5, 30, 15, 22, 38, 0, time.UTC),
+			err: nil,
+		},
+		{
+			str: "2020-05-30 15:22:38.1",
+			loc: time.UTC,
+			t:   time.Date(2020, 5, 30, 15, 22, 38, 100000000, time.UTC),
+			err: nil,
+		},
+		{
+			str: "2020-05-30 15:22:38.12",
+			loc: time.UTC,
+			t:   time.Date(2020, 5, 30, 15, 22, 38, 120000000, time.UTC),
+			err: nil,
+		},
+		{
+			str: "2020-05-30 15:22:38.123",
+			loc: time.UTC,
+			t:   time.Date(2020, 5, 30, 15, 22, 38, 123000000, time.UTC),
+			err: nil,
+		},
+		{
+			str: "2020-05-30 15:22:38.1234",
+			loc: time.UTC,
+			t:   time.Date(2020, 5, 30, 15, 22, 38, 123400000, time.UTC),
+			err: nil,
+		},
+		{
+			str: "2020-05-30 15:22:38.12345",
+			loc: time.UTC,
+			t:   time.Date(2020, 5, 30, 15, 22, 38, 123450000, time.UTC),
+			err: nil,
+		},
+		{
+			str: "2020-05-30 15:22:38.123456",
+			loc: time.UTC,
+			t:   time.Date(2020, 5, 30, 15, 22, 38, 123456000, time.UTC),
+			err: nil,
+		},
+		// zero time with loc
+		{
+			str: "0000-00-00",
+			loc: loc,
+			t:   time.Time{},
+			err: nil,
+		},
+		{
+			str: "0000-00-00 00:00:00",
+			loc: loc,
+			t:   time.Time{},
+			err: nil,
+		},
+		{
+			str: "0000-00-00 00:00:00.0",
+			loc: loc,
+			t:   time.Time{},
+			err: nil,
+		},
+		{
+			str: "0000-00-00 00:00:00.00",
+			loc: loc,
+			t:   time.Time{},
+			err: nil,
+		},
+		{
+			str: "0000-00-00 00:00:00.000",
+			loc: loc,
+			t:   time.Time{},
+			err: nil,
+		},
+		{
+			str: "0000-00-00 00:00:00.0000",
+			loc: loc,
+			t:   time.Time{},
+			err: nil,
+		},
+		{
+			str: "0000-00-00 00:00:00.00000",
+			loc: loc,
+			t:   time.Time{},
+			err: nil,
+		},
+		{
+			str: "0000-00-00 00:00:00.000000",
+			loc: loc,
+			t:   time.Time{},
+			err: nil,
+		},
+		// non-zero time with loc
+		{
+			str: "2020-05-30",
+			loc: loc,
+			t:   time.Date(2020, 5, 30, 0, 0, 0, 0, loc),
+			err: nil,
+		},
+		{
+			str: "2020-05-30 15:22:38",
+			loc: loc,
+			t:   time.Date(2020, 5, 30, 15, 22, 38, 0, loc),
+			err: nil,
+		},
+		{
+			str: "2020-05-30 15:22:38.1",
+			loc: loc,
+			t:   time.Date(2020, 5, 30, 15, 22, 38, 100000000, loc),
+			err: nil,
+		},
+		{
+			str: "2020-05-30 15:22:38.12",
+			loc: loc,
+			t:   time.Date(2020, 5, 30, 15, 22, 38, 120000000, loc),
+			err: nil,
+		},
+		{
+			str: "2020-05-30 15:22:38.123",
+			loc: loc,
+			t:   time.Date(2020, 5, 30, 15, 22, 38, 123000000, loc),
+			err: nil,
+		},
+		{
+			str: "2020-05-30 15:22:38.1234",
+			loc: loc,
+			t:   time.Date(2020, 5, 30, 15, 22, 38, 123400000, loc),
+			err: nil,
+		},
+		{
+			str: "2020-05-30 15:22:38.12345",
+			loc: loc,
+			t:   time.Date(2020, 5, 30, 15, 22, 38, 123450000, loc),
+			err: nil,
+		},
+		{
+			str: "2020-05-30 15:22:38.123456",
+			loc: loc,
+			t:   time.Date(2020, 5, 30, 15, 22, 38, 123456000, loc),
+			err: nil,
+		},
+		// invalid time string, returns a non-nil error
+		{
+			str: "0000-00-0",
+			loc: time.UTC,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "0000-00-00 ",
+			loc: time.UTC,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "0000-00-00 00:00",
+			loc: time.UTC,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "0000-00-00 00:00:00.",
+			loc: time.UTC,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "0000-00-00 00:00:00.0000000",
+			loc: time.UTC,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "2020-05",
+			loc: loc,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "2020-5-30",
+			loc: loc,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "2020-05-30 15:22",
+			loc: loc,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "2020-05-30 15:22:38.",
+			loc: loc,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "2020-05-30 15:22:38.1234567",
+			loc: loc,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "202x-05-30 15:22:38.123456",
+			loc: loc,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "2020-0x-30 15:22:38.123456",
+			loc: loc,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "2020-05-3x 15:22:38.123456",
+			loc: loc,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "2020-05-30 1x:22:38.123456",
+			loc: loc,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "2020-05-30 15:2x:38.123456",
+			loc: loc,
+			t:   time.Time{},
+			err: io.EOF,
+		},
+		{
+			str: "2020-05-30 15:2x:38.12345x",
+			loc: loc,
+			t:   time.Time{},
+			err: io.EOF,
+		},
 	}
-	// non-UTC loc
-	{
-		str := "2020-05-13 21:30:45"
-		loc := time.FixedZone("test", 8*60*60)
-		t1, err := parseDateTime(str, loc)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		t2 := time.Date(2020, 5, 13,
-			21, 30, 45, 0, loc)
-		if !t1.Equal(t2) {
-			t.Errorf("want equal, have: %v, want: %v", t1, t2)
+	for _, v := range tests {
+		tt, err := parseDateTime(v.str, v.loc)
+		if !tt.Equal(v.t) || (err == nil) != (v.err == nil) {
+			t.Errorf("parseDateTime(%s, %s) failed, have: (%v, %v), want: (%v, %v)", v.str, v.loc.String(), tt, err, v.t, v.err)
 			return
 		}
 	}
@@ -329,7 +607,7 @@ func TestParseDateTime(t *testing.T) {
 
 func BenchmarkParseDateTime(b *testing.B) {
 	str := "2020-05-13 21:30:45"
-	loc := time.FixedZone("test", 8*60*60)
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
 	for i := 0; i < b.N; i++ {
 		_, _ = parseDateTime(str, loc)
 	}

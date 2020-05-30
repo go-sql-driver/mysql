@@ -107,20 +107,73 @@ func readBool(input string) (value bool, valid bool) {
 ******************************************************************************/
 
 func parseDateTime(str string, loc *time.Location) (t time.Time, err error) {
-	base := "0000-00-00 00:00:00.0000000"
+	var (
+		year, month, day, hour, min, sec, nsec int
+	)
 	switch len(str) {
-	case 10, 19, 21, 22, 23, 24, 25, 26: // up to "YYYY-MM-DD HH:MM:SS.MMMMMM"
-		if str == base[:len(str)] {
-			return
-		}
-		if loc == time.UTC {
-			return time.Parse(timeFormat[:len(str)], str)
-		}
-		return time.ParseInLocation(timeFormat[:len(str)], str, loc)
 	default:
 		err = fmt.Errorf("invalid time string: %s", str)
 		return
+	case 10:
+		if str == "0000-00-00" {
+			return
+		}
+		goto parseFromDate
+	case 19:
+		if str == "0000-00-00 00:00:00" {
+			return
+		}
+		goto parseFromClock
+	case 21, 22, 23, 24, 25, 26:
+		if str == "0000-00-00 00:00:00.000000"[:len(str)] {
+			return
+		}
 	}
+	if nsec, err = strconv.Atoi(str[20:] + "0000-00-00 00:00:00.000000"[len(str):]); err != nil {
+		err = fmt.Errorf("invalid time string: %s", str)
+		return
+	}
+	nsec *= 1000
+	if str[19] != '.' {
+		err = fmt.Errorf("invalid time string: %s", str)
+		return
+	}
+parseFromClock:
+	if sec, err = strconv.Atoi(str[17:19]); err != nil {
+		err = fmt.Errorf("invalid time string: %s", str)
+		return
+	}
+	if min, err = strconv.Atoi(str[14:16]); err != nil {
+		err = fmt.Errorf("invalid time string: %s", str)
+		return
+	}
+	if hour, err = strconv.Atoi(str[11:13]); err != nil {
+		err = fmt.Errorf("invalid time string: %s", str)
+		return
+	}
+	if str[16] != ':' || str[13] != ':' || str[10] != ' ' {
+		err = fmt.Errorf("invalid time string: %s", str)
+		return
+	}
+parseFromDate:
+	if day, err = strconv.Atoi(str[8:10]); err != nil {
+		err = fmt.Errorf("invalid time string: %s", str)
+		return
+	}
+	if month, err = strconv.Atoi(str[5:7]); err != nil {
+		err = fmt.Errorf("invalid time string: %s", str)
+		return
+	}
+	if year, err = strconv.Atoi(str[:4]); err != nil {
+		err = fmt.Errorf("invalid time string: %s", str)
+		return
+	}
+	if str[7] != '-' || str[4] != '-' {
+		err = fmt.Errorf("invalid time string: %s", str)
+		return
+	}
+
+	return time.Date(year, time.Month(month), day, hour, min, sec, nsec, loc), nil
 }
 
 func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Value, error) {
