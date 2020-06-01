@@ -778,7 +778,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 					case fieldTypeTimestamp, fieldTypeDateTime,
 						fieldTypeDate, fieldTypeNewDate:
 						dest[i], err = parseDateTime(
-							string(dest[i].([]byte)),
+							dest[i].([]byte),
 							mc.cfg.Loc,
 						)
 						if err == nil {
