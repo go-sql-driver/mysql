@@ -147,6 +147,17 @@ func (cfg *Config) normalize() error {
 		}
 	}
 
+	if cfg.Loc == nil || cfg.Loc == time.UTC {
+		// lazy init
+		if cfg.Params == nil {
+			cfg.Params = make(map[string]string)
+		}
+
+		if _, ok := cfg.Params["time_zone"]; !ok {
+			cfg.Params["time_zone"] = "'UTC'"
+		}
+	}
+
 	return nil
 }
 
