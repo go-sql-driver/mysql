@@ -293,7 +293,7 @@ func TestIsolationLevelMapping(t *testing.T) {
 	}
 }
 
-func TestFormatDateTime(t *testing.T) {
+func TestAppendDateTime(t *testing.T) {
 	tests := []struct {
 		t   time.Time
 		str string
@@ -336,9 +336,10 @@ func TestFormatDateTime(t *testing.T) {
 		},
 	}
 	for _, v := range tests {
-		b, n, _ := formatDateTime(v.t)
-		if str := string(b[:n]); str != v.str {
-			t.Errorf("formatDateTime(%v), have: %s, want: %s", v.t, str, v.str)
+		buf := make([]byte, 0, 32)
+		buf, _ = appendDateTime(buf, v.t)
+		if str := string(buf); str != v.str {
+			t.Errorf("appendDateTime(%v), have: %s, want: %s", v.t, str, v.str)
 			return
 		}
 	}
@@ -346,7 +347,8 @@ func TestFormatDateTime(t *testing.T) {
 	// year out of range
 	{
 		v := time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC)
-		_, _, err := formatDateTime(v)
+		buf := make([]byte, 0, 32)
+		_, err := appendDateTime(buf, v)
 		if err == nil {
 			t.Error("want an error")
 			return
@@ -354,7 +356,8 @@ func TestFormatDateTime(t *testing.T) {
 	}
 	{
 		v := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
-		_, _, err := formatDateTime(v)
+		buf := make([]byte, 0, 32)
+		_, err := appendDateTime(buf, v)
 		if err == nil {
 			t.Error("want an error")
 			return

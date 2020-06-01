@@ -1110,17 +1110,20 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				paramTypes[i+i] = byte(fieldTypeString)
 				paramTypes[i+i+1] = 0x00
 
+				var a [64]byte
+				var b = a[:0]
 				if v.IsZero() {
-					paramValues = appendLengthEncodedInteger(paramValues, uint64(len("0000-00-00")))
-					paramValues = append(paramValues, "0000-00-00"...)
+					b = append(b, "0000-00-00"...)
 				} else {
-					b, n, err := formatDateTime(v.In(mc.cfg.Loc))
+					b, err = appendDateTime(b, v.In(mc.cfg.Loc))
 					if err != nil {
 						return err
 					}
-					paramValues = appendLengthEncodedInteger(paramValues, uint64(n))
-					paramValues = append(paramValues, b[:n]...)
 				}
+				paramValues = appendLengthEncodedInteger(paramValues,
+					uint64(len(b)),
+				)
+				paramValues = append(paramValues, b...)
 			default:
 				return fmt.Errorf("cannot convert type: %T", arg)
 			}

@@ -245,12 +245,11 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 			if v.IsZero() {
 				buf = append(buf, "'0000-00-00'"...)
 			} else {
-				b, n, err := formatDateTime(v.In(mc.cfg.Loc))
+				buf = append(buf, '\'')
+				buf, err = appendDateTime(buf, v.In(mc.cfg.Loc))
 				if err != nil {
 					return "", err
 				}
-				buf = append(buf, '\'')
-				buf = append(buf, b[:n]...)
 				buf = append(buf, '\'')
 			}
 		case json.RawMessage:
