@@ -1112,6 +1112,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 				var a [64]byte
 				var b = a[:0]
+
 				if v.IsZero() {
 					b = append(b, "0000-00-00"...)
 				} else {
@@ -1120,10 +1121,12 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 						return err
 					}
 				}
+
 				paramValues = appendLengthEncodedInteger(paramValues,
 					uint64(len(b)),
 				)
 				paramValues = append(paramValues, b...)
+
 			default:
 				return fmt.Errorf("cannot convert type: %T", arg)
 			}
