@@ -242,7 +242,11 @@ Default:        UTC
 
 Sets the location for time.Time values (when using `parseTime=true`). *"Local"* sets the system's location. See [time.LoadLocation](https://golang.org/pkg/time/#LoadLocation) for details.
 
-Note that this sets the location for time.Time values but does not change MySQL's [time_zone setting](https://dev.mysql.com/doc/refman/5.5/en/time-zone-support.html). For that see the [time_zone system variable](#system-variables), which can also be set as a DSN parameter.
+Note that this sets the location for `time.Time` values but does not change MySQL's
+[time_zone setting](https://dev.mysql.com/doc/refman/5.5/en/time-zone-support.html),
+except when `loc` is not set or UTC, in this case he driver will set `current session time_zone`
+to UTC, to avoid data difference errors when using `TIMESTAMP` fields. For that see the
+[time_zone system variable](#system-variables), which can also be set as a DSN parameter.
 
 Please keep in mind, that param values must be [url.QueryEscape](https://golang.org/pkg/net/url/#QueryEscape)'ed. Alternatively you can manually replace the `/` with `%2F`. For example `US/Pacific` would be `loc=US%2FPacific`.
 
