@@ -362,48 +362,6 @@ func TestFormatDateTime(t *testing.T) {
 	}
 }
 
-func BenchmarkGetTimeDateClockIndependent(b *testing.B) {
-	t := time.Now()
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		t.Year()
-		t.Month()
-		t.Day()
-		t.Hour()
-		t.Minute()
-		t.Second()
-	}
-}
-
-func BenchmarkGetTimeDateClockTogether(b *testing.B) {
-	t := time.Now()
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		t.Date()
-		t.Clock()
-	}
-}
-
-func BenchmarkFormatDatetime(b *testing.B) {
-	t := time.Now()
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		formatDateTime(t)
-	}
-}
-
-func BenchmarkFormatDatetimeViaStandardFormat(b *testing.B) {
-	t := time.Now()
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		t.Format("2006-01-02 15:04:05.999999")
-	}
-}
-
 func TestParseDateTime(t *testing.T) {
 	// UTC loc
 	{
