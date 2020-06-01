@@ -154,7 +154,7 @@ func (cfg *Config) normalize() error {
 		}
 
 		if _, ok := cfg.Params["time_zone"]; !ok {
-			cfg.Params["time_zone"] = "'UTC'"
+			cfg.Params["time_zone"] = "'+00:00'"
 		}
 	}
 
