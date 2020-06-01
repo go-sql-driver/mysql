@@ -74,6 +74,9 @@ var testDSNs = []struct {
 }, {
 	"tcp(127.0.0.1)/dbname?time_zone=%27Europe%2FParis%27",
 	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Params: map[string]string{"time_zone": "'Europe/Paris'"}, Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+}, {
+	"tcp(127.0.0.1)/dbname?loc=Local&time_zone=%27Europe%2FParis%27",
+	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Params: map[string]string{"time_zone": "'Europe/Paris'"}, Collation: "utf8mb4_general_ci", Loc: time.Local, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
 },
 }
 
