@@ -761,40 +761,34 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 	}
 
 	// RowSet Packet
-	var n int
-	var isNull bool
 	pos := 0
 
 	for i := range dest {
-		// Read bytes and convert to string
-		dest[i], isNull, n, err = readLengthEncodedString(data[pos:])
-		pos += n
-		if err == nil {
-			if !isNull {
-				if !mc.parseTime {
-					continue
-				} else {
-					switch rows.rs.columns[i].fieldType {
-					case fieldTypeTimestamp, fieldTypeDateTime,
-						fieldTypeDate, fieldTypeNewDate:
-						dest[i], err = parseDateTime(
-							dest[i].([]byte),
-							mc.cfg.Loc,
-						)
-						if err == nil {
-							continue
-						}
-					default:
-						continue
-					}
-				}
-
-			} else {
-				dest[i] = nil
-				continue
-			}
+		b, isNull, n, err := readLengthEncodedString(data[pos:])
+		if err != nil {
+			return err
 		}
-		return err // err != nil
+		pos += n
+		switch {
+		case isNull:
+			dest[i] = nil
+		case mc.parseTime:
+			switch rows.rs.columns[i].fieldType {
+
+			case fieldTypeTimestamp, fieldTypeDateTime,
+				fieldTypeDate, fieldTypeNewDate:
+
+				t, err := parseDateTime(b, mc.cfg.Loc)
+				if err == nil {
+					dest[i] = t
+					continue
+				}
+				// If parseDateTime failed, leave as []byte
+			}
+			fallthrough
+		default:
+			dest[i] = b
+		}
 	}
 
 	return nil
