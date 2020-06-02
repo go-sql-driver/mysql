@@ -769,25 +769,29 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 			return err
 		}
 		pos += n
-		switch {
-		case isNull:
+
+		if isNull {
 			dest[i] = nil
-		case mc.parseTime:
-			switch rows.rs.columns[i].fieldType {
+			continue
+		}
+		if !mc.parseTime {
+			dest[i] = b // type: []byte
+			continue
+		}
+		switch rows.rs.columns[i].fieldType {
 
-			case fieldTypeTimestamp, fieldTypeDateTime,
-				fieldTypeDate, fieldTypeNewDate:
+		case fieldTypeTimestamp, fieldTypeDateTime,
+			fieldTypeDate, fieldTypeNewDate:
 
-				t, err := parseDateTime(b, mc.cfg.Loc)
-				if err == nil {
-					dest[i] = t
-					continue
-				}
-				// If parseDateTime failed, leave as []byte
+			t, err := parseDateTime(b, mc.cfg.Loc)
+			if err == nil {
+				dest[i] = t // type: time.Time
+				continue
 			}
+			// If parseDateTime failed, leave as []byte
 			fallthrough
 		default:
-			dest[i] = b
+			dest[i] = b // type: []byte
 		}
 	}
 
