@@ -789,10 +789,9 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 				continue
 			}
 			// If parseDateTime failed, leave as []byte
-			fallthrough
-		default:
-			dest[i] = b // type: []byte
 		}
+
+		dest[i] = b // type: []byte
 	}
 
 	return nil
