@@ -778,8 +778,8 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 			dest[i] = b // type: []byte
 			continue
 		}
-		switch rows.rs.columns[i].fieldType {
 
+		switch rows.rs.columns[i].fieldType {
 		case fieldTypeTimestamp, fieldTypeDateTime,
 			fieldTypeDate, fieldTypeNewDate:
 
