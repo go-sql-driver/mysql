@@ -11,6 +11,7 @@ package mysql
 import (
 	"bytes"
 	"errors"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -343,6 +344,7 @@ func TestReadOkPacketWithTrackReceivedGtids(t *testing.T) {
 	}
 
 	data := make([]byte, maxPacketSize)
+	conn.data = data
 
 	// https://dev.mysql.com/doc/internals/en/packet-OK_Packet.html
 	data[0] = 0x00
@@ -366,8 +368,38 @@ func TestReadOkPacketWithTrackReceivedGtids(t *testing.T) {
 	data[18] = 0x49                                // 'I'
 	data[19] = 0x44                                // 'D'
 
+	// Error 1
+	saved := data[7]
+	data[7] = 0x00
 	conn.data = data
 	err := mc.handleOkPacket(data)
+	if err != io.EOF {
+		t.Fatalf("got error: %v", err)
+	}
+	data[7] = saved
+
+	// Error 2
+	saved = data[9]
+	data[9] = 0x00
+	conn.data = data
+	err = mc.handleOkPacket(data)
+	if err != io.EOF {
+		t.Fatalf("got error: %v", err)
+	}
+	data[9] = saved
+
+	// Error 3
+	saved = data[11]
+	data[11] = 0x00
+	conn.data = data
+	err = mc.handleOkPacket(data)
+	if err != io.EOF {
+		t.Fatalf("got error: %v", err)
+	}
+	data[11] = saved
+
+	// Success
+	err = mc.handleOkPacket(data)
 	if err != nil {
 		t.Fatalf("got error: %v", err)
 	}
