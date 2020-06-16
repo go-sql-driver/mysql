@@ -179,7 +179,7 @@ func TestReadPacketSplit(t *testing.T) {
 	data[4] = 0x11
 	data[maxPacketSize+3] = 0x22
 
-	// 2nd packet has payload length 0 and squence id 1
+	// 2nd packet has payload length 0 and sequence id 1
 	// 00 00 00 01
 	data[pkt2ofs+3] = 0x01
 
@@ -211,7 +211,7 @@ func TestReadPacketSplit(t *testing.T) {
 	data[pkt2ofs+4] = 0x33
 	data[pkt2ofs+maxPacketSize+3] = 0x44
 
-	// 3rd packet has payload length 0 and squence id 2
+	// 3rd packet has payload length 0 and sequence id 2
 	// 00 00 00 02
 	data[pkt3ofs+3] = 0x02
 
@@ -332,5 +332,48 @@ func TestRegression801(t *testing.T) {
 		47, 85, 75, 109, 99, 51, 77, 50, 64}
 	if !bytes.Equal(authData, expectedAuthData) {
 		t.Errorf("expected authData '%v', got '%v'", expectedAuthData, authData)
+	}
+}
+
+func TestReadOkPacketWithTrackReceivedGtids(t *testing.T) {
+	conn := new(mockConn)
+	mc := &mysqlConn{
+		buf:   newBuffer(conn),
+		flags: clientSessionTrack,
+	}
+
+	data := make([]byte, maxPacketSize)
+
+	// 1st packet has maxPacketSize length and sequence id 0
+	// ff ff ff 00 ...
+	data[0] = 0x00
+	data[1] = 0x42                                 // affected rows
+	data[2] = 0x17                                 // insert id
+	data[3] = 0x00                                 // first byte of status
+	data[4] = byte(statusSessionStateChanged >> 8) // second byte of status
+	data[5] = 0x00                                 // warning count
+	data[6] = 0x00                                 // warning count
+	data[7] = 0x01                                 // Human readable status information length
+	data[8] = 0x00                                 // Human readable status information string
+	data[9] = 0x0A                                 // Length of session_state_changes
+	data[10] = 0x02                                // SESSION_TRACK_STATE_CHANGE == 0x02
+	data[11] = 0x02                                // length
+	data[12] = 0x58                                // 'X'
+	data[13] = 0x58                                // 'X'
+	data[14] = 0x03                                // SESSION_TRACK_GTIDS == 0x03
+	data[15] = 0x04                                // GTIDs length
+	data[16] = 0x47                                // 'G'
+	data[17] = 0x54                                // 'T'
+	data[18] = 0x49                                // 'I'
+	data[19] = 0x44                                // 'D'
+
+	conn.data = data
+	err := mc.handleOkPacket(data)
+	if err != nil {
+		t.Fatalf("got error: %v", err)
+	}
+
+	if mc.recvGtids != "GTID" {
+		t.Fatalf("could not parse GTIDs from session tracking. got: %v", mc.recvGtids)
 	}
 }

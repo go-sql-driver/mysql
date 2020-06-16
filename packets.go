@@ -634,14 +634,22 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 	// warning count [2 bytes]
 	c += 2
 
+	mc.recvGtids = ""
+
 	if mc.flags&clientSessionTrack != 0 && mc.status&statusSessionStateChanged != 0 {
-		// Human readable status information
+		// Human readable status information (ignored)
 		num, _, n := readLengthEncodedInteger(data[c:])
 		if num < 1 {
 			return io.EOF
 		}
 		c += n + int(num)
 
+		// Length of session state changes
+		num, _, n = readLengthEncodedInteger(data[c:])
+		if num < 1 {
+			return io.EOF
+		}
+		c += n
 		for t := 0; t < int(num); {
 			infoType := data[c]
 			c += 1
@@ -653,6 +661,7 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 
 			if infoType == sessionTrackGtids {
 				mc.recvGtids = string(data[c : c+int(m)])
+				return nil
 			}
 			c += int(m)
 			t += 1 + n + int(m)
