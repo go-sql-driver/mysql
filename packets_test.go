@@ -344,8 +344,7 @@ func TestReadOkPacketWithTrackReceivedGtids(t *testing.T) {
 
 	data := make([]byte, maxPacketSize)
 
-	// 1st packet has maxPacketSize length and sequence id 0
-	// ff ff ff 00 ...
+	// https://dev.mysql.com/doc/internals/en/packet-OK_Packet.html
 	data[0] = 0x00
 	data[1] = 0x42                                 // affected rows
 	data[2] = 0x17                                 // insert id
