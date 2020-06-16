@@ -301,6 +301,10 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		clientFlags |= clientMultiStatements
 	}
 
+	if mc.cfg.TrackReceivedGtids {
+		clientFlags |= clientSessionTrack
+	}
+
 	// encode length of the auth plugin data
 	var authRespLEIBuf [9]byte
 	authRespLen := len(authResp)
@@ -610,23 +614,50 @@ func readStatus(b []byte) statusFlag {
 // Ok Packet
 // http://dev.mysql.com/doc/internals/en/generic-response-packets.html#packet-OK_Packet
 func (mc *mysqlConn) handleOkPacket(data []byte) error {
-	var n, m int
+	var c, n int
 
 	// 0x00 [1 byte]
+	c = 1
 
 	// Affected rows [Length Coded Binary]
-	mc.affectedRows, _, n = readLengthEncodedInteger(data[1:])
+	mc.affectedRows, _, n = readLengthEncodedInteger(data[c:])
+	c += n
 
 	// Insert id [Length Coded Binary]
-	mc.insertId, _, m = readLengthEncodedInteger(data[1+n:])
+	mc.insertId, _, n = readLengthEncodedInteger(data[c:])
+	c += n
 
 	// server_status [2 bytes]
-	mc.status = readStatus(data[1+n+m : 1+n+m+2])
-	if mc.status&statusMoreResultsExists != 0 {
-		return nil
-	}
+	mc.status = readStatus(data[c : c+2])
+	c += 2
 
 	// warning count [2 bytes]
+	c += 2
+
+	if mc.flags&clientSessionTrack != 0 && mc.status&statusSessionStateChanged != 0 {
+		// Human readable status information
+		num, _, n := readLengthEncodedInteger(data[c:])
+		if num < 1 {
+			return io.EOF
+		}
+		c += n + int(num)
+
+		for t := 0; t < int(num); {
+			infoType := data[c]
+			c += 1
+			m, _, n := readLengthEncodedInteger(data[c:])
+			if m < 1 {
+				return io.EOF
+			}
+			c += n
+
+			if infoType == sessionTrackGtids {
+				mc.recvGtids = string(data[c : c+int(m)])
+			}
+			c += int(m)
+			t += 1 + n + int(m)
+		}
+	}
 
 	return nil
 }

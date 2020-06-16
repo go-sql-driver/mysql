@@ -26,6 +26,7 @@ type mysqlConn struct {
 	rawConn          net.Conn // underlying connection when netConn is TLS connection.
 	affectedRows     uint64
 	insertId         uint64
+	recvGtids        string
 	cfg              *Config
 	maxAllowedPacket int
 	maxWriteSize     int

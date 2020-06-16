@@ -62,6 +62,7 @@ type Config struct {
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
 	RejectReadOnly          bool // Reject read-only connections
+	TrackReceivedGtids      bool // Track received gtids
 }
 
 // NewConfig creates a new Config and sets default values.

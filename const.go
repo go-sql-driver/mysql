@@ -172,3 +172,10 @@ const (
 	cachingSha2PasswordFastAuthSuccess           = 3
 	cachingSha2PasswordPerformFullAuthentication = 4
 )
+
+const (
+	sessionTrackSystemVariables = 0
+	sessionTrackSchema          = 1
+	sessionTrackStateChange     = 2
+	sessionTrackGtids           = 3
+)
