@@ -1157,7 +1157,7 @@ func TestAuthSwitchOldPasswordEmpty(t *testing.T) {
 		t.Errorf("got error: %v", err)
 	}
 
-	expectedReply := []byte{1, 0, 0, 3, 0}
+	expectedReply := []byte{0, 0, 0, 3}
 	if !bytes.Equal(conn.written, expectedReply) {
 		t.Errorf("got unexpected data: %v", conn.written)
 	}
@@ -1184,7 +1184,7 @@ func TestOldAuthSwitchPasswordEmpty(t *testing.T) {
 		t.Errorf("got error: %v", err)
 	}
 
-	expectedReply := []byte{1, 0, 0, 3, 0}
+	expectedReply := []byte{0, 0, 0, 3}
 	if !bytes.Equal(conn.written, expectedReply) {
 		t.Errorf("got unexpected data: %v", conn.written)
 	}
