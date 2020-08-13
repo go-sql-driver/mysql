@@ -276,6 +276,55 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 	return nil, fmt.Errorf("invalid DATETIME packet length %d", num)
 }
 
+func appendDateTime(buf []byte, t time.Time) ([]byte, error) {
+	nsec := t.Nanosecond()
+	// to round under microsecond
+	if nsec%1000 >= 500 { // save half of time.Time.Add calls
+		t = t.Add(500 * time.Nanosecond)
+		nsec = t.Nanosecond()
+	}
+	year, month, day := t.Date()
+	hour, min, sec := t.Clock()
+	micro := nsec / 1000
+
+	if year < 1 || year > 9999 {
+		return buf, errors.New("year is not in the range [1, 9999]: " + strconv.Itoa(year)) // use errors.New instead of fmt.Errorf to avoid year escape to heap
+	}
+	year100 := year / 100
+	year1 := year % 100
+
+	var localBuf [26]byte // does not escape
+	localBuf[0], localBuf[1], localBuf[2], localBuf[3] = digits10[year100], digits01[year100], digits10[year1], digits01[year1]
+	localBuf[4] = '-'
+	localBuf[5], localBuf[6] = digits10[month], digits01[month]
+	localBuf[7] = '-'
+	localBuf[8], localBuf[9] = digits10[day], digits01[day]
+
+	if hour == 0 && min == 0 && sec == 0 && micro == 0 {
+		return append(buf, localBuf[:10]...), nil
+	}
+
+	localBuf[10] = ' '
+	localBuf[11], localBuf[12] = digits10[hour], digits01[hour]
+	localBuf[13] = ':'
+	localBuf[14], localBuf[15] = digits10[min], digits01[min]
+	localBuf[16] = ':'
+	localBuf[17], localBuf[18] = digits10[sec], digits01[sec]
+
+	if micro == 0 {
+		return append(buf, localBuf[:19]...), nil
+	}
+
+	micro10000 := micro / 10000
+	micro100 := (micro / 100) % 100
+	micro1 := micro % 100
+	localBuf[19] = '.'
+	localBuf[20], localBuf[21], localBuf[22], localBuf[23], localBuf[24], localBuf[25] =
+		digits10[micro10000], digits01[micro10000], digits10[micro100], digits01[micro100], digits10[micro1], digits01[micro1]
+
+	return append(buf, localBuf[:]...), nil
+}
+
 // zeroDateTime is used in formatBinaryDateTime to avoid an allocation
 // if the DATE or DATETIME has the zero value.
 // It must never be changed.

@@ -293,6 +293,78 @@ func TestIsolationLevelMapping(t *testing.T) {
 	}
 }
 
+func TestAppendDateTime(t *testing.T) {
+	tests := []struct {
+		t   time.Time
+		str string
+	}{
+		{
+			t:   time.Date(2020, 05, 30, 0, 0, 0, 0, time.UTC),
+			str: "2020-05-30",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 0, 0, 0, time.UTC),
+			str: "2020-05-30 22:00:00",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 33, 0, 0, time.UTC),
+			str: "2020-05-30 22:33:00",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 33, 44, 0, time.UTC),
+			str: "2020-05-30 22:33:44",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000000, time.UTC),
+			str: "2020-05-30 22:33:44.550000",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000499, time.UTC),
+			str: "2020-05-30 22:33:44.550000",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000500, time.UTC),
+			str: "2020-05-30 22:33:44.550001",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000567, time.UTC),
+			str: "2020-05-30 22:33:44.550001",
+		},
+		{
+			t:   time.Date(2020, 05, 30, 22, 33, 44, 999999567, time.UTC),
+			str: "2020-05-30 22:33:45",
+		},
+	}
+	for _, v := range tests {
+		buf := make([]byte, 0, 32)
+		buf, _ = appendDateTime(buf, v.t)
+		if str := string(buf); str != v.str {
+			t.Errorf("appendDateTime(%v), have: %s, want: %s", v.t, str, v.str)
+			return
+		}
+	}
+
+	// year out of range
+	{
+		v := time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC)
+		buf := make([]byte, 0, 32)
+		_, err := appendDateTime(buf, v)
+		if err == nil {
+			t.Error("want an error")
+			return
+		}
+	}
+	{
+		v := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
+		buf := make([]byte, 0, 32)
+		_, err := appendDateTime(buf, v)
+		if err == nil {
+			t.Error("want an error")
+			return
+		}
+	}
+}
+
 func TestParseDateTime(t *testing.T) {
 	cases := []struct {
 		name string
