@@ -2844,131 +2844,125 @@ func TestRowsColumnTypes(t *testing.T) {
 	values2 = values2[:len(values2)-2]
 	values3 = values3[:len(values3)-2]
 
-	dsns := []string{
-		dsn + "&parseTime=true",
-		dsn + "&parseTime=false",
-	}
-	for _, testdsn := range dsns {
-		runTests(t, testdsn, func(dbt *DBTest) {
-			dbt.mustExec("CREATE TABLE test (" + schema + ")")
-			dbt.mustExec("INSERT INTO test VALUES (" + values1 + "), (" + values2 + "), (" + values3 + ")")
+	runTests(t, dsn+"&parseTime=true", func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (" + schema + ")")
+		dbt.mustExec("INSERT INTO test VALUES (" + values1 + "), (" + values2 + "), (" + values3 + ")")
 
-			rows, err := dbt.db.Query("SELECT * FROM test")
-			if err != nil {
-				t.Fatalf("Query: %v", err)
+		rows, err := dbt.db.Query("SELECT * FROM test")
+		if err != nil {
+			t.Fatalf("Query: %v", err)
+		}
+
+		tt, err := rows.ColumnTypes()
+		if err != nil {
+			t.Fatalf("ColumnTypes: %v", err)
+		}
+
+		if len(tt) != len(columns) {
+			t.Fatalf("unexpected number of columns: expected %d, got %d", len(columns), len(tt))
+		}
+
+		types := make([]reflect.Type, len(tt))
+		for i, tp := range tt {
+			column := columns[i]
+
+			// Name
+			name := tp.Name()
+			if name != column.name {
+				t.Errorf("column name mismatch %s != %s", name, column.name)
+				continue
 			}
 
-			tt, err := rows.ColumnTypes()
-			if err != nil {
-				t.Fatalf("ColumnTypes: %v", err)
+			// DatabaseTypeName
+			databaseTypeName := tp.DatabaseTypeName()
+			if databaseTypeName != column.databaseTypeName {
+				t.Errorf("databasetypename name mismatch for column %q: %s != %s", name, databaseTypeName, column.databaseTypeName)
+				continue
 			}
 
-			if len(tt) != len(columns) {
-				t.Fatalf("unexpected number of columns: expected %d, got %d", len(columns), len(tt))
+			// ScanType
+			scanType := tp.ScanType()
+			if scanType != column.scanType {
+				if scanType == nil {
+					t.Errorf("scantype is null for column %q", name)
+				} else {
+					t.Errorf("scantype mismatch for column %q: %s != %s", name, scanType.Name(), column.scanType.Name())
+				}
+				continue
+			}
+			types[i] = scanType
+
+			// Nullable
+			nullable, ok := tp.Nullable()
+			if !ok {
+				t.Errorf("nullable not ok %q", name)
+				continue
+			}
+			if nullable != column.nullable {
+				t.Errorf("nullable mismatch for column %q: %t != %t", name, nullable, column.nullable)
 			}
 
-			types := make([]reflect.Type, len(tt))
-			for i, tp := range tt {
-				column := columns[i]
+			// Length
+			// length, ok := tp.Length()
+			// if length != column.length {
+			// 	if !ok {
+			// 		t.Errorf("length not ok for column %q", name)
+			// 	} else {
+			// 		t.Errorf("length mismatch for column %q: %d != %d", name, length, column.length)
+			// 	}
+			// 	continue
+			// }
 
-				// Name
-				name := tp.Name()
-				if name != column.name {
-					t.Errorf("column name mismatch %s != %s", name, column.name)
-					continue
-				}
-
-				// DatabaseTypeName
-				databaseTypeName := tp.DatabaseTypeName()
-				if databaseTypeName != column.databaseTypeName {
-					t.Errorf("databasetypename name mismatch for column %q: %s != %s", name, databaseTypeName, column.databaseTypeName)
-					continue
-				}
-
-				// ScanType
-				scanType := tp.ScanType()
-				if scanType != column.scanType {
-					if scanType == nil {
-						t.Errorf("scantype is null for column %q", name)
-					} else {
-						t.Errorf("scantype mismatch for column %q: %s != %s", name, scanType.Name(), column.scanType.Name())
-					}
-					continue
-				}
-				types[i] = scanType
-
-				// Nullable
-				nullable, ok := tp.Nullable()
+			// Precision and Scale
+			precision, scale, ok := tp.DecimalSize()
+			if precision != column.precision {
 				if !ok {
-					t.Errorf("nullable not ok %q", name)
-					continue
+					t.Errorf("precision not ok for column %q", name)
+				} else {
+					t.Errorf("precision mismatch for column %q: %d != %d", name, precision, column.precision)
 				}
-				if nullable != column.nullable {
-					t.Errorf("nullable mismatch for column %q: %t != %t", name, nullable, column.nullable)
+				continue
+			}
+			if scale != column.scale {
+				if !ok {
+					t.Errorf("scale not ok for column %q", name)
+				} else {
+					t.Errorf("scale mismatch for column %q: %d != %d", name, scale, column.scale)
 				}
+				continue
+			}
+		}
 
-				// Length
-				// length, ok := tp.Length()
-				// if length != column.length {
-				// 	if !ok {
-				// 		t.Errorf("length not ok for column %q", name)
-				// 	} else {
-				// 		t.Errorf("length mismatch for column %q: %d != %d", name, length, column.length)
-				// 	}
-				// 	continue
-				// }
-
-				// Precision and Scale
-				precision, scale, ok := tp.DecimalSize()
-				if precision != column.precision {
-					if !ok {
-						t.Errorf("precision not ok for column %q", name)
+		values := make([]interface{}, len(tt))
+		for i := range values {
+			values[i] = reflect.New(types[i]).Interface()
+		}
+		i := 0
+		for rows.Next() {
+			err = rows.Scan(values...)
+			if err != nil {
+				t.Fatalf("failed to scan values in %v", err)
+			}
+			for j := range values {
+				value := reflect.ValueOf(values[j]).Elem().Interface()
+				if !reflect.DeepEqual(value, columns[j].valuesOut[i]) {
+					if columns[j].scanType == scanTypeRawBytes {
+						t.Errorf("row %d, column %d: %v != %v", i, j, string(value.(sql.RawBytes)), string(columns[j].valuesOut[i].(sql.RawBytes)))
 					} else {
-						t.Errorf("precision mismatch for column %q: %d != %d", name, precision, column.precision)
+						t.Errorf("row %d, column %d: %v != %v", i, j, value, columns[j].valuesOut[i])
 					}
-					continue
-				}
-				if scale != column.scale {
-					if !ok {
-						t.Errorf("scale not ok for column %q", name)
-					} else {
-						t.Errorf("scale mismatch for column %q: %d != %d", name, scale, column.scale)
-					}
-					continue
 				}
 			}
+			i++
+		}
+		if i != 3 {
+			t.Errorf("expected 3 rows, got %d", i)
+		}
 
-			values := make([]interface{}, len(tt))
-			for i := range values {
-				values[i] = reflect.New(types[i]).Interface()
-			}
-			i := 0
-			for rows.Next() {
-				err = rows.Scan(values...)
-				if err != nil {
-					t.Fatalf("failed to scan values in %v", err)
-				}
-				for j := range values {
-					value := reflect.ValueOf(values[j]).Elem().Interface()
-					if !reflect.DeepEqual(value, columns[j].valuesOut[i]) {
-						if columns[j].scanType == scanTypeRawBytes {
-							t.Errorf("row %d, column %d: %v != %v", i, j, string(value.(sql.RawBytes)), string(columns[j].valuesOut[i].(sql.RawBytes)))
-						} else {
-							t.Errorf("row %d, column %d: %v != %v", i, j, value, columns[j].valuesOut[i])
-						}
-					}
-				}
-				i++
-			}
-			if i != 3 {
-				t.Errorf("expected 3 rows, got %d", i)
-			}
-
-			if err := rows.Close(); err != nil {
-				t.Errorf("error closing rows: %s", err)
-			}
-		})
-	}
+		if err := rows.Close(); err != nil {
+			t.Errorf("error closing rows: %s", err)
+		}
+	})
 }
 
 func TestValuerWithValueReceiverGivenNilValue(t *testing.T) {
