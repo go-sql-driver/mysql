@@ -1,10 +1,11 @@
 language: go
 go:
   # Keep the most recent production release at the top
-  - 1.14.x
+  - 1.15.x
   # Go development version
   - master
   # Older production releases
+  - 1.14.x
   - 1.13.x
   - 1.12.x
   - 1.11.x
@@ -22,12 +23,12 @@ before_script:
 
 jobs:
   allow_failures:
-  - go: master
+    - go: master
 
   include:
     - env: DB=MYSQL8
       dist: xenial
-      go: 1.14.x
+      go: 1.15.x
       services:
         - docker
       before_install:
@@ -47,7 +48,7 @@ jobs:
 
     - env: DB=MYSQL57
       dist: xenial
-      go: 1.14.x
+      go: 1.15.x
       services:
         - docker
       before_install:
@@ -67,7 +68,7 @@ jobs:
 
     - env: DB=MARIA55
       dist: xenial
-      go: 1.14.x
+      go: 1.15.x
       services:
         - docker
       before_install:
@@ -87,7 +88,7 @@ jobs:
 
     - env: DB=MARIA10_1
       dist: xenial
-      go: 1.14.x
+      go: 1.15.x
       services:
         - docker
       before_install:
@@ -112,7 +113,7 @@ jobs:
           packages:
             - mysql
           update: true
-      go: 1.14.x
+      go: 1.15.x
       before_install:
         - go get golang.org/x/tools/cmd/cover
         - go get github.com/mattn/goveralls
