@@ -29,3 +29,8 @@ import (
 //
 // This NullTime implementation is not driver-specific
 type NullTime sql.NullTime
+
+// for internal use.
+// the mysql package uses sql.NullTime if it is available.
+// if not, the package uses mysql.NullTime.
+type nullTime = sql.NullTime // sql.NullTime is available
