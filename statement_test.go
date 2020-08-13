@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"bytes"
+	"database/sql/driver"
 	"encoding/json"
 	"testing"
 )
@@ -96,6 +97,14 @@ func TestConvertSignedIntegers(t *testing.T) {
 	}
 }
 
+type myUint64 struct {
+	value uint64
+}
+
+func (u myUint64) Value() (driver.Value, error) {
+	return u.value, nil
+}
+
 func TestConvertUnsignedIntegers(t *testing.T) {
 	values := []interface{}{
 		uint8(42),
@@ -103,6 +112,7 @@ func TestConvertUnsignedIntegers(t *testing.T) {
 		uint32(42),
 		uint64(42),
 		uint(42),
+		myUint64{uint64(42)},
 	}
 
 	for _, value := range values {
