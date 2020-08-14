@@ -3162,7 +3162,10 @@ func TestRawBytesAreNotModified(t *testing.T) {
 						t.Fatalf("the backing storage for sql.RawBytes has been modified (i=%v)", i)
 					}
 				}
-				if err = rows.Err(); err != nil {
+				if err = rows.Err(); err != context.Canceled {
+					if err == nil {
+						t.Fatal("expected 'context canceled' error, but got none")
+					}
 					dbt.Fatal(err)
 				}
 				rows.Close()
