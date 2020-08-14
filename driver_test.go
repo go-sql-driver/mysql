@@ -218,6 +218,9 @@ func TestEmptyQuery(t *testing.T) {
 		if rows.Next() {
 			dbt.Errorf("next on rows must be false")
 		}
+		if err := rows.Err(); err != nil {
+			dbt.Error(err)
+		}
 	})
 }
 
@@ -231,6 +234,9 @@ func TestCRUD(t *testing.T) {
 		rows := dbt.mustQuery("SELECT * FROM test")
 		if rows.Next() {
 			dbt.Error("unexpected data in empty table")
+		}
+		if err := rows.Err(); err != nil {
+			dbt.Fatal(err)
 		}
 		rows.Close()
 
@@ -266,6 +272,9 @@ func TestCRUD(t *testing.T) {
 		} else {
 			dbt.Error("no data")
 		}
+		if err = rows.Err(); err != nil {
+			dbt.Fatal(err)
+		}
 		rows.Close()
 
 		// Update
@@ -291,6 +300,9 @@ func TestCRUD(t *testing.T) {
 			}
 		} else {
 			dbt.Error("no data")
+		}
+		if err = rows.Err(); err != nil {
+			dbt.Fatal(err)
 		}
 		rows.Close()
 
@@ -356,6 +368,9 @@ func TestMultiQuery(t *testing.T) {
 		} else {
 			dbt.Error("no data")
 		}
+		if err = rows.Err(); err != nil {
+			dbt.Fatal(err)
+		}
 		rows.Close()
 
 	})
@@ -383,6 +398,9 @@ func TestInt(t *testing.T) {
 			} else {
 				dbt.Errorf("%s: no data", v)
 			}
+			if err := rows.Err(); err != nil {
+				dbt.Fatal(err)
+			}
 			rows.Close()
 
 			dbt.mustExec("DROP TABLE IF EXISTS test")
@@ -402,6 +420,9 @@ func TestInt(t *testing.T) {
 				}
 			} else {
 				dbt.Errorf("%s ZEROFILL: no data", v)
+			}
+			if err := rows.Err(); err != nil {
+				dbt.Fatal(err)
 			}
 			rows.Close()
 
@@ -428,6 +449,9 @@ func TestFloat32(t *testing.T) {
 			} else {
 				dbt.Errorf("%s: no data", v)
 			}
+			if err := rows.Err(); err != nil {
+				dbt.Fatal(err)
+			}
 			rows.Close()
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
@@ -452,6 +476,9 @@ func TestFloat64(t *testing.T) {
 			} else {
 				dbt.Errorf("%s: no data", v)
 			}
+			if err := rows.Err(); err != nil {
+				dbt.Fatal(err)
+			}
 			rows.Close()
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
@@ -475,6 +502,9 @@ func TestFloat64Placeholder(t *testing.T) {
 				}
 			} else {
 				dbt.Errorf("%s: no data", v)
+			}
+			if err := rows.Err(); err != nil {
+				dbt.Fatal(err)
 			}
 			rows.Close()
 			dbt.mustExec("DROP TABLE IF EXISTS test")
@@ -502,6 +532,9 @@ func TestString(t *testing.T) {
 				}
 			} else {
 				dbt.Errorf("%s: no data", v)
+			}
+			if err := rows.Err(); err != nil {
+				dbt.Fatal(err)
 			}
 			rows.Close()
 
@@ -557,6 +590,9 @@ func TestRawBytes(t *testing.T) {
 		} else {
 			dbt.Errorf("no data")
 		}
+		if err := rows.Err(); err != nil {
+			dbt.Fatal(err)
+		}
 	})
 }
 
@@ -579,6 +615,9 @@ func TestRawMessage(t *testing.T) {
 			}
 		} else {
 			dbt.Errorf("no data")
+		}
+		if err := rows.Err(); err != nil {
+			dbt.Fatal(err)
 		}
 	})
 }
@@ -607,6 +646,9 @@ func TestValuer(t *testing.T) {
 			}
 		} else {
 			dbt.Errorf("Valuer: no data")
+		}
+		if err := rows.Err(); err != nil {
+			dbt.Fatal(err)
 		}
 		rows.Close()
 
@@ -645,6 +687,9 @@ func TestValuerWithValidation(t *testing.T) {
 			}
 		} else {
 			dbt.Errorf("Valuer: no data")
+		}
+		if err := rows.Err(); err != nil {
+			dbt.Fatal(err)
 		}
 
 		if _, err := dbt.db.Exec("INSERT INTO testValuer VALUES (?)", testValuerWithValidation{""}); err == nil {
@@ -850,11 +895,17 @@ func TestDateTime(t *testing.T) {
 			rows, err = dbt.db.Query(`SELECT cast("00:00:00.1" as TIME(1)) = "00:00:00.1"`)
 			if err == nil {
 				rows.Scan(&microsecsSupported)
+				if err = rows.Err(); err != nil {
+					dbt.Fatal(err)
+				}
 				rows.Close()
 			}
 			rows, err = dbt.db.Query(`SELECT cast("0000-00-00" as DATE) = "0000-00-00"`)
 			if err == nil {
 				rows.Scan(&zeroDateSupported)
+				if err = rows.Err(); err != nil {
+					dbt.Fatal(err)
+				}
 				rows.Close()
 			}
 			for _, setups := range testcases {
@@ -901,6 +952,9 @@ func TestTimestampMicros(t *testing.T) {
 		microsecsSupported := false
 		if rows, err := dbt.db.Query(`SELECT cast("00:00:00.1" as TIME(1)) = "00:00:00.1"`); err == nil {
 			rows.Scan(&microsecsSupported)
+			if err := rows.Err(); err != nil {
+				dbt.Fatal(err)
+			}
 			rows.Close()
 		}
 		if !microsecsSupported {
@@ -924,6 +978,9 @@ func TestTimestampMicros(t *testing.T) {
 		defer rows.Close()
 		if !rows.Next() {
 			dbt.Errorf("test contained no selectable values")
+		}
+		if err = rows.Err(); err != nil {
+			dbt.Fatal(err)
 		}
 		err = rows.Scan(&res0, &res1, &res6)
 		if err != nil {
@@ -1089,6 +1146,9 @@ func TestNULL(t *testing.T) {
 		} else {
 			dbt.Error("no data")
 		}
+		if err := rows.Err(); err != nil {
+			dbt.Fatal(err)
+		}
 	})
 }
 
@@ -1171,6 +1231,9 @@ func TestLongData(t *testing.T) {
 			}
 		} else {
 			dbt.Fatalf("LONGBLOB: no data")
+		}
+		if err = rows.Err(); err != nil {
+			dbt.Fatal(err)
 		}
 
 		// Empty table
@@ -1369,6 +1432,9 @@ func TestTLS(t *testing.T) {
 				dbt.Logf("Cipher: %s", *value)
 			}
 		}
+		if err := rows.Err(); err != nil {
+			dbt.Fatal(err)
+		}
 	}
 	tlsTestOpt := func(dbt *DBTest) {
 		if err := dbt.db.Ping(); err != nil {
@@ -1508,6 +1574,9 @@ func TestCollation(t *testing.T) {
 func TestColumnsWithAlias(t *testing.T) {
 	runTests(t, dsn+"&columnsWithAlias=true", func(dbt *DBTest) {
 		rows := dbt.mustQuery("SELECT 1 AS A")
+		if err := rows.Err(); err != nil {
+			dbt.Fatal(err)
+		}
 		defer rows.Close()
 		cols, _ := rows.Columns()
 		if len(cols) != 1 {
@@ -1518,6 +1587,9 @@ func TestColumnsWithAlias(t *testing.T) {
 		}
 
 		rows = dbt.mustQuery("SELECT * FROM (SELECT 1 AS one) AS A")
+		if err := rows.Err(); err != nil {
+			dbt.Fatal(err)
+		}
 		defer rows.Close()
 		cols, _ = rows.Columns()
 		if len(cols) != 1 {
@@ -1538,6 +1610,9 @@ func TestRawBytesResultExceedsBuffer(t *testing.T) {
 		defer rows.Close()
 		if !rows.Next() {
 			dbt.Error("expected result, got none")
+		}
+		if err := rows.Err(); err != nil {
+			dbt.Fatal(err)
 		}
 		var result sql.RawBytes
 		rows.Scan(&result)
@@ -1565,6 +1640,9 @@ func TestTimezoneConversion(t *testing.T) {
 		defer rows.Close()
 		if !rows.Next() {
 			dbt.Fatal("did not get any rows out")
+		}
+		if err := rows.Err(); err != nil {
+			dbt.Fatal(err)
 		}
 
 		var dbTime time.Time
@@ -1786,6 +1864,9 @@ func TestPreparedManyCols(t *testing.T) {
 		if err != nil {
 			dbt.Fatal(err)
 		}
+		if err = rows.Err(); err != nil {
+			dbt.Fatal(err)
+		}
 		rows.Close()
 
 		// Create 0byte string which we can't send via STMT_LONG_DATA.
@@ -1794,6 +1875,9 @@ func TestPreparedManyCols(t *testing.T) {
 		}
 		rows, err = stmt.Query(params...)
 		if err != nil {
+			dbt.Fatal(err)
+		}
+		if err = rows.Err(); err != nil {
 			dbt.Fatal(err)
 		}
 		rows.Close()
@@ -2061,6 +2145,9 @@ func TestInterruptBySignal(t *testing.T) {
 				dbt.Errorf("expected val to be 42")
 			}
 		}
+		if err = rows.Err(); rows != nil {
+			dbt.Fatal(err)
+		}
 		rows.Close()
 
 		// binary protocol
@@ -2074,6 +2161,9 @@ func TestInterruptBySignal(t *testing.T) {
 			} else if val != 42 {
 				dbt.Errorf("expected val to be 42")
 			}
+		}
+		if err = rows.Err(); rows != nil {
+			dbt.Fatal(err)
 		}
 		rows.Close()
 	})
@@ -2246,6 +2336,9 @@ func TestMultiResultSet(t *testing.T) {
 			}
 			res1.values = append(res1.values, res[:])
 		}
+		if err := rows.Err(); err != nil {
+			dbt.Fatal(err)
+		}
 
 		cols, err := rows.Columns()
 		if err != nil {
@@ -2281,6 +2374,9 @@ func TestMultiResultSet(t *testing.T) {
 			}
 			res2.values = append(res2.values, res[:])
 		}
+		if err = rows.Err(); err != nil {
+			dbt.Fatal(err)
+		}
 
 		if !reflect.DeepEqual(expected[1], res2) {
 			dbt.Error(desc, "want =", expected[1], "got =", res2)
@@ -2301,6 +2397,9 @@ func TestMultiResultSet(t *testing.T) {
 		DO 1;
 		SELECT 0 UNION SELECT 1;
 		SELECT 1 AS col1, 2 AS col2, 3 AS col3 UNION SELECT 4, 5, 6;`)
+		if err := rows.Err(); err != nil {
+			dbt.Fatal(err)
+		}
 		defer rows.Close()
 		checkRows("query: ", rows, dbt)
 	})
@@ -2346,6 +2445,10 @@ func TestMultiResultSet(t *testing.T) {
 					dbt.Fatalf("%v (i=%d) (j=%d)", err, i, j)
 				}
 				checkRows(fmt.Sprintf("prepared stmt query (i=%d) (j=%d): ", i, j), rows, dbt)
+				if err := rows.Err(); err != nil {
+					dbt.Fatal(err)
+				}
+				rows.Close()
 			}
 		}
 	})
@@ -2457,7 +2560,14 @@ func TestContextCancelQuery(t *testing.T) {
 
 		// This query will be canceled.
 		startTime := time.Now()
-		if _, err := dbt.db.QueryContext(ctx, "INSERT INTO test VALUES (SLEEP(1))"); err != context.Canceled {
+		rows, err := dbt.db.QueryContext(ctx, "INSERT INTO test VALUES (SLEEP(1))")
+		if rows != nil {
+			if err = rows.Err(); err != nil {
+				dbt.Fatal(err)
+			}
+			rows.Close()
+		}
+		if err != context.Canceled {
 			dbt.Errorf("expected context.Canceled, got %v", err)
 		}
 		if d := time.Since(startTime); d > 500*time.Millisecond {
@@ -2477,7 +2587,14 @@ func TestContextCancelQuery(t *testing.T) {
 		}
 
 		// Context is already canceled, so error should come before execution.
-		if _, err := dbt.db.QueryContext(ctx, "INSERT INTO test VALUES (1)"); err != context.Canceled {
+		rows, err = dbt.db.QueryContext(ctx, "INSERT INTO test VALUES (1)")
+		if rows != nil {
+			if err = rows.Err(); err != nil {
+				dbt.Fatal(err)
+			}
+			rows.Close()
+		}
+		if err != context.Canceled {
 			dbt.Errorf("expected context.Canceled, got %v", err)
 		}
 
@@ -2528,7 +2645,11 @@ func TestContextCancelPrepare(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		if _, err := dbt.db.PrepareContext(ctx, "SELECT 1"); err != context.Canceled {
+		rows, err := dbt.db.PrepareContext(ctx, "SELECT 1")
+		if rows != nil {
+			rows.Close()
+		}
+		if err != context.Canceled {
 			dbt.Errorf("expected context.Canceled, got %v", err)
 		}
 	})
@@ -2583,7 +2704,14 @@ func TestContextCancelStmtQuery(t *testing.T) {
 
 		// This query will be canceled.
 		startTime := time.Now()
-		if _, err := stmt.QueryContext(ctx); err != context.Canceled {
+		rows, err := stmt.QueryContext(ctx)
+		if rows != nil {
+			if err = rows.Err(); err != nil {
+				dbt.Fatal(err)
+			}
+			rows.Close()
+		}
+		if err != context.Canceled {
 			dbt.Errorf("expected context.Canceled, got %v", err)
 		}
 		if d := time.Since(startTime); d > 500*time.Millisecond {
@@ -2963,6 +3091,9 @@ func TestRowsColumnTypes(t *testing.T) {
 			if i != 3 {
 				t.Errorf("expected 3 rows, got %d", i)
 			}
+			if err = rows.Err(); rows != nil {
+				dbt.Fatal(err)
+			}
 
 			if err := rows.Close(); err != nil {
 				t.Errorf("error closing rows: %s", err)
@@ -3027,6 +3158,9 @@ func TestRawBytesAreNotModified(t *testing.T) {
 					if before != after {
 						t.Fatalf("the backing storage for sql.RawBytes has been modified (i=%v)", i)
 					}
+				}
+				if err = rows.Err(); rows != nil {
+					dbt.Fatal(err)
 				}
 				rows.Close()
 			}()

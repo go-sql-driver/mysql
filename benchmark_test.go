@@ -41,6 +41,10 @@ func (tb *TB) checkRows(rows *sql.Rows, err error) *sql.Rows {
 	return rows
 }
 
+func (tb *TB) checkRowsErr(rows *sql.Rows) {
+	tb.check(rows.Err())
+}
+
 func (tb *TB) checkStmt(stmt *sql.Stmt, err error) *sql.Stmt {
 	tb.check(err)
 	return stmt
@@ -165,6 +169,7 @@ func BenchmarkRoundtripTxt(b *testing.B) {
 			rows.Close()
 			b.Fatalf("crashed")
 		}
+		tb.checkRowsErr(rows)
 		err := rows.Scan(&result)
 		if err != nil {
 			rows.Close()
@@ -200,6 +205,7 @@ func BenchmarkRoundtripBin(b *testing.B) {
 			rows.Close()
 			b.Fatalf("crashed")
 		}
+		tb.checkRowsErr(rows)
 		err := rows.Scan(&result)
 		if err != nil {
 			rows.Close()
@@ -357,14 +363,16 @@ func BenchmarkQueryRawBytes(b *testing.B) {
 				nrows := 0
 				for rows.Next() {
 					var buf sql.RawBytes
-					err := rows.Scan(&buf)
-					if err != nil {
+					if err = rows.Scan(&buf); err != nil {
 						b.Fatal(err)
 					}
 					if len(buf) != size {
 						b.Fatalf("size mismatch: expected %v, got %v", size, len(buf))
 					}
 					nrows++
+				}
+				if err = rows.Err(); rows != nil {
+					b.Fatal(err)
 				}
 				rows.Close()
 				if nrows != 100 {

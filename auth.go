@@ -15,6 +15,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"sync"
 )
 
@@ -168,19 +169,19 @@ func scramblePassword(scramble []byte, password string) []byte {
 
 	// stage1Hash = SHA1(password)
 	crypt := sha1.New()
-	crypt.Write([]byte(password))
+	_, _ = crypt.Write([]byte(password))
 	stage1 := crypt.Sum(nil)
 
 	// scrambleHash = SHA1(scramble + SHA1(stage1Hash))
 	// inner Hash
 	crypt.Reset()
-	crypt.Write(stage1)
+	_, _ = crypt.Write(stage1)
 	hash := crypt.Sum(nil)
 
 	// outer Hash
 	crypt.Reset()
-	crypt.Write(scramble)
-	crypt.Write(hash)
+	_, _ = crypt.Write(scramble)
+	_, _ = crypt.Write(hash)
 	scramble = crypt.Sum(nil)
 
 	// token = scrambleHash XOR stage1Hash
@@ -199,16 +200,16 @@ func scrambleSHA256Password(scramble []byte, password string) []byte {
 	// XOR(SHA256(password), SHA256(SHA256(SHA256(password)), scramble))
 
 	crypt := sha256.New()
-	crypt.Write([]byte(password))
+	_, _ = crypt.Write([]byte(password))
 	message1 := crypt.Sum(nil)
 
 	crypt.Reset()
-	crypt.Write(message1)
+	_, _ = crypt.Write(message1)
 	message1Hash := crypt.Sum(nil)
 
 	crypt.Reset()
-	crypt.Write(message1Hash)
-	crypt.Write(scramble)
+	_, _ = crypt.Write(message1Hash)
+	_, _ = crypt.Write(scramble)
 	message2 := crypt.Sum(nil)
 
 	for i := range message1 {
@@ -365,7 +366,11 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 							return err
 						}
 						data[4] = cachingSha2PasswordRequestPublicKey
-						mc.writePacket(data)
+
+						err = mc.writePacket(data)
+						if err != nil {
+							return err
+						}
 
 						// parse public key
 						if data, err = mc.readPacket(); err != nil {
@@ -373,11 +378,16 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 						}
 
 						block, _ := pem.Decode(data[1:])
-						pkix, err := x509.ParsePKIXPublicKey(block.Bytes)
+						var pkix interface{}
+						pkix, err = x509.ParsePKIXPublicKey(block.Bytes)
 						if err != nil {
 							return err
 						}
-						pubKey = pkix.(*rsa.PublicKey)
+						var ok bool
+						pubKey, ok = pkix.(*rsa.PublicKey)
+						if !ok {
+							return errors.New("invalid public key")
+						}
 					}
 
 					// send encrypted password

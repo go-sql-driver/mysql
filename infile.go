@@ -172,11 +172,12 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 		return ioErr
 	}
 
-	// read OK packet
-	if err == nil {
-		return mc.readResultOK()
+	if err != nil {
+		// we already have an error, ignore return values
+		_, _ = mc.readPacket()
+		return err
 	}
 
-	mc.readPacket()
-	return err
+	// read OK packet
+	return mc.readResultOK()
 }
