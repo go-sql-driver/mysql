@@ -116,10 +116,10 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 					defer deferredClose(&err, cl)
 				}
 			} else {
-				err = fmt.Errorf("Reader '%s' is <nil>", name)
+				err = fmt.Errorf("nil value for Reader '%s'", name)
 			}
 		} else {
-			err = fmt.Errorf("Reader '%s' is not registered", name)
+			err = fmt.Errorf("unknown Reader '%s'", name)
 		}
 	} else { // File
 		name = strings.Trim(name, `"`)
@@ -149,7 +149,7 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 	// send content packets
 	// if packetSize == 0, the Reader contains no data
 	if err == nil && packetSize > 0 {
-		data := make([]byte, 4+packetSize)
+		data = make([]byte, 4+packetSize)
 		var n int
 		for err == nil {
 			n, err = rdr.Read(data[4:])
@@ -172,11 +172,12 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 		return ioErr
 	}
 
-	// read OK packet
-	if err == nil {
-		return mc.readResultOK()
+	if err != nil {
+		// we already have an error, ignore return values
+		_, _ = mc.readPacket()
+		return err
 	}
 
-	mc.readPacket()
-	return err
+	// read OK packet
+	return mc.readResultOK()
 }

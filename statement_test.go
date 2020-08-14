@@ -36,7 +36,7 @@ func TestConvertDerivedByteSlice(t *testing.T) {
 		t.Fatal("Byte slice not convertible", err)
 	}
 
-	if bytes.Compare(output.([]byte), []byte("value")) != 0 {
+	if !bytes.Equal(output.([]byte), []byte("value")) {
 		t.Fatalf("Byte slice not converted, got %#v %T", output, output)
 	}
 }

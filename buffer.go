@@ -47,7 +47,7 @@ func newBuffer(nc net.Conn) buffer {
 // this is a delayed flip that simply increases the buffer counter;
 // the actual flip will be performed the next time we call `buffer.fill`
 func (b *buffer) flip() {
-	b.flipcnt += 1
+	b.flipcnt++
 }
 
 // fill reads into the buffer until at least _need_ bytes are in it

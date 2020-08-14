@@ -486,7 +486,7 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 *                              Result Packets                                 *
 ******************************************************************************/
 
-func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
+func (mc *mysqlConn) readAuthResult() (authData []byte, plugin string, err error) {
 	data, err := mc.readPacket()
 	if err != nil {
 		return nil, "", err
@@ -494,26 +494,22 @@ func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
 
 	// packet indicator
 	switch data[0] {
-
 	case iOK:
 		return nil, "", mc.handleOkPacket(data)
-
 	case iAuthMoreData:
 		return data[1:], "", err
-
 	case iEOF:
 		if len(data) == 1 {
 			// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::OldAuthSwitchRequest
-			return nil, "mysql_old_password", nil
+			return nil, authOldPassword, nil
 		}
 		pluginEndIndex := bytes.IndexByte(data, 0x00)
 		if pluginEndIndex < 0 {
 			return nil, "", ErrMalformPkt
 		}
 		plugin := string(data[1:pluginEndIndex])
-		authData := data[pluginEndIndex+1:]
+		authData = data[pluginEndIndex+1:]
 		return authData, plugin, nil
-
 	default: // Error otherwise
 		return nil, "", mc.handleErrorPacket(data)
 	}
@@ -538,13 +534,10 @@ func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
 	data, err := mc.readPacket()
 	if err == nil {
 		switch data[0] {
-
 		case iOK:
 			return 0, mc.handleOkPacket(data)
-
 		case iERR:
 			return 0, mc.handleErrorPacket(data)
-
 		case iLocalInFile:
 			return 0, mc.handleInFileRequest(string(data[1:]))
 		}
@@ -592,7 +585,7 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 
 	// SQL State [optional: # + 5bytes string]
 	if data[3] == 0x23 {
-		//sqlstate := string(data[4 : 4+5])
+		// sqlstate := string(data[4 : 4+5])
 		pos = 9
 	}
 
@@ -665,7 +658,8 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 
 		// Table [len coded string]
 		if mc.cfg.ColumnsWithAlias {
-			tableName, _, n, err := readLengthEncodedString(data[pos:])
+			var tableName []byte
+			tableName, _, n, err = readLengthEncodedString(data[pos:])
 			if err != nil {
 				return nil, err
 			}
@@ -722,12 +716,12 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 
 		// Decimals [uint8]
 		columns[i].decimals = data[pos]
-		//pos++
+		// pos++
 
 		// Default value [len coded binary]
-		//if pos < len(data) {
-		//	defaultVal, _, err = bytesToLengthCodedBinary(data[pos:])
-		//}
+		// if pos < len(data) {
+		// 	defaultVal, _, err = bytesToLengthCodedBinary(data[pos:])
+		// }
 	}
 }
 
@@ -788,7 +782,6 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 						continue
 					}
 				}
-
 			} else {
 				dest[i] = nil
 				continue
@@ -896,7 +889,6 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 			continue
 		}
 		return err
-
 	}
 
 	// Reset Packet Sequence
@@ -1031,14 +1023,9 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 				if cap(paramValues)-len(paramValues)-8 >= 0 {
 					paramValues = paramValues[:len(paramValues)+8]
-					binary.LittleEndian.PutUint64(
-						paramValues[len(paramValues)-8:],
-						uint64(v),
-					)
+					binary.LittleEndian.PutUint64(paramValues[len(paramValues)-8:], v)
 				} else {
-					paramValues = append(paramValues,
-						uint64ToBytes(uint64(v))...,
-					)
+					paramValues = append(paramValues, uint64ToBytes(v)...)
 				}
 
 			case float64:
@@ -1078,10 +1065,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 							uint64(len(v)),
 						)
 						paramValues = append(paramValues, v...)
-					} else {
-						if err := stmt.writeCommandLongData(i, v); err != nil {
-							return err
-						}
+					} else if err = stmt.writeCommandLongData(i, v); err != nil {
+						return err
 					}
 					continue
 				}
@@ -1100,10 +1085,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 						uint64(len(v)),
 					)
 					paramValues = append(paramValues, v...)
-				} else {
-					if err := stmt.writeCommandLongData(i, []byte(v)); err != nil {
-						return err
-					}
+				} else if err = stmt.writeCommandLongData(i, []byte(v)); err != nil {
+					return err
 				}
 
 			case time.Time:

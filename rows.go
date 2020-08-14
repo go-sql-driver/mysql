@@ -71,7 +71,7 @@ func (rows *mysqlRows) ColumnTypeNullable(i int) (nullable, ok bool) {
 	return rows.rs.columns[i].flags&flagNotNULL == 0, true
 }
 
-func (rows *mysqlRows) ColumnTypePrecisionScale(i int) (int64, int64, bool) {
+func (rows *mysqlRows) ColumnTypePrecisionScale(i int) (precision, scale int64, ok bool) {
 	column := rows.rs.columns[i]
 	decimals := int64(column.decimals)
 
@@ -88,9 +88,9 @@ func (rows *mysqlRows) ColumnTypePrecisionScale(i int) (int64, int64, bool) {
 			return math.MaxInt64, math.MaxInt64, true
 		}
 		return math.MaxInt64, decimals, true
+	default:
+		return 0, 0, false
 	}
-
-	return 0, 0, false
 }
 
 func (rows *mysqlRows) ColumnTypeScanType(i int) reflect.Type {
@@ -107,7 +107,7 @@ func (rows *mysqlRows) Close() (err error) {
 	if mc == nil {
 		return nil
 	}
-	if err := mc.error(); err != nil {
+	if err = mc.error(); err != nil {
 		return err
 	}
 

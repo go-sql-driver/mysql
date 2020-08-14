@@ -38,11 +38,11 @@ type mysqlConn struct {
 
 	// for context support (Go 1.8+)
 	watching bool
+	closed   atomicBool  // set when conn is closed, before closech is closed
+	canceled atomicError // set non-nil if conn is canceled
 	watcher  chan<- context.Context
 	closech  chan struct{}
 	finished chan<- struct{}
-	canceled atomicError // set non-nil if conn is canceled
-	closed   atomicBool  // set when conn is closed, before closech is closed
 }
 
 // Handles parameters set in DSN after the connection is established
@@ -61,7 +61,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 				}
 			}
 			if err != nil {
-				return
+				return err
 			}
 
 		// Other system vars accumulated in a single SET command
@@ -80,13 +80,9 @@ func (mc *mysqlConn) handleParams() (err error) {
 	}
 
 	if cmdSet.Len() > 0 {
-		err = mc.exec(cmdSet.String())
-		if err != nil {
-			return
-		}
+		return mc.exec(cmdSet.String())
 	}
-
-	return
+	return err
 }
 
 func (mc *mysqlConn) markBadConn(err error) error {
@@ -384,7 +380,7 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 			if resLen == 0 {
 				rows.rs.done = true
 
-				switch err := rows.NextResultSet(); err {
+				switch err = rows.NextResultSet(); err {
 				case nil, io.EOF:
 					return rows, nil
 				default:
@@ -417,7 +413,7 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 
 		if resLen > 0 {
 			// Columns
-			if err := mc.readUntilEOF(); err != nil {
+			if err = mc.readUntilEOF(); err != nil {
 				return nil, err
 			}
 		}
@@ -498,7 +494,7 @@ func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driv
 		return nil, err
 	}
 
-	if err := mc.watchCancel(ctx); err != nil {
+	if err = mc.watchCancel(ctx); err != nil {
 		return nil, err
 	}
 
@@ -551,7 +547,7 @@ func (stmt *mysqlStmt) QueryContext(ctx context.Context, args []driver.NamedValu
 		return nil, err
 	}
 
-	if err := stmt.mc.watchCancel(ctx); err != nil {
+	if err = stmt.mc.watchCancel(ctx); err != nil {
 		return nil, err
 	}
 

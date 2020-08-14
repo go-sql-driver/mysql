@@ -99,7 +99,7 @@ func TestDSNParserInvalid(t *testing.T) {
 		"net(addr)//",                 // unescaped
 		"User:pass@tcp(1.2.3.4:3306)", // no trailing slash
 		"net()/",                      // unknown default addr
-		//"/dbname?arg=/some/unescaped/path",
+		// "/dbname?arg=/some/unescaped/path",
 	}
 
 	for i, tst := range invalidDSNs {
@@ -211,11 +211,12 @@ func TestDSNWithCustomTLS(t *testing.T) {
 	tlsCfg.ServerName = ""
 	cfg, err = ParseDSN(tst)
 
-	if err != nil {
+	switch {
+	case err != nil:
 		t.Error(err.Error())
-	} else if cfg.tls.ServerName != name {
+	case cfg.tls.ServerName != name:
 		t.Errorf("did not get the correct ServerName (%s) parsing DSN (%s).", name, tst)
-	} else if tlsCfg.ServerName != "" {
+	case tlsCfg.ServerName != "":
 		t.Errorf("tlsCfg was mutated ServerName (%s) should be empty parsing DSN (%s).", name, tst)
 	}
 }
@@ -372,9 +373,10 @@ func TestNormalizeTLSConfig(t *testing.T) {
 	}
 
 	RegisterTLSConfig("test_tls_config", &tls.Config{ServerName: "myServerName"})
-	defer func() { DeregisterTLSConfig("test_tls_config") }()
+	defer DeregisterTLSConfig("test_tls_config")
 
 	for _, tc := range tt {
+		tc := tc
 		t.Run(tc.tlsConfig, func(t *testing.T) {
 			cfg := &Config{
 				Addr:      "myserver:3306",

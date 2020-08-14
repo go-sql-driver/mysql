@@ -50,7 +50,7 @@ func (m *mockConn) Read(b []byte) (n int, err error) {
 	n = copy(b, m.data)
 	m.read += n
 	m.data = m.data[n:]
-	return
+	return n, err
 }
 func (m *mockConn) Write(b []byte) (n int, err error) {
 	if m.closed {
@@ -69,7 +69,7 @@ func (m *mockConn) Write(b []byte) (n int, err error) {
 		m.data = m.queuedReplies[0]
 		m.queuedReplies = m.queuedReplies[1:]
 	}
-	return
+	return n, err
 }
 func (m *mockConn) Close() error {
 	m.closed = true
@@ -324,8 +324,8 @@ func TestRegression801(t *testing.T) {
 		t.Fatalf("got error: %v", err)
 	}
 
-	if pluginName != "mysql_native_password" {
-		t.Errorf("expected plugin name 'mysql_native_password', got '%s'", pluginName)
+	if pluginName != authNativePassword {
+		t.Errorf("expected plugin name '%s', got '%s'", authNativePassword, pluginName)
 	}
 
 	expectedAuthData := []byte{60, 70, 63, 58, 68, 104, 34, 97, 98, 120, 114,

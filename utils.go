@@ -56,7 +56,7 @@ var (
 //  db, err := sql.Open("mysql", "user@tcp(localhost:3306)/test?tls=custom")
 //
 func RegisterTLSConfig(key string, config *tls.Config) error {
-	if _, isBool := readBool(key); isBool || strings.ToLower(key) == "skip-verify" || strings.ToLower(key) == "preferred" {
+	if _, isBool := readBool(key); isBool || strings.EqualFold(key, "skip-verify") || strings.EqualFold(key, "preferred") {
 		return fmt.Errorf("key '%s' is reserved", key)
 	}
 
@@ -90,7 +90,7 @@ func getTLSConfigClone(key string) (config *tls.Config) {
 
 // Returns the bool value of the input.
 // The 2nd return value indicates if the input was a valid bool value
-func readBool(input string) (value bool, valid bool) {
+func readBool(input string) (value, valid bool) {
 	switch input {
 	case "1", "true", "TRUE", "True":
 		return true, true
@@ -199,7 +199,7 @@ func parseByteYear(b []byte) (int, error) {
 			return 0, err
 		}
 		year += v * n
-		n = n / 10
+		n /= 10
 	}
 	return year, nil
 }
@@ -414,7 +414,7 @@ func formatBinaryDateTime(src []byte, length uint8) (driver.Value, error) {
 	// start with the date
 	year := binary.LittleEndian.Uint16(src[:2])
 	pt := year / 100
-	p1 = byte(year - 100*uint16(pt))
+	p1 = byte(year - 100*pt)
 	p2, p3 = src[2], src[3]
 	dst = append(dst,
 		digits10[pt], digits01[pt],
@@ -533,10 +533,10 @@ func stringToInt(b []byte) int {
 	return val
 }
 
-// returns the string read as a bytes slice, wheter the value is NULL,
+// returns the string read as a bytes slice, whether the value is NULL,
 // the number of bytes read and an error, in case the string is longer than
 // the input slice
-func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
+func readLengthEncodedString(b []byte) (str []byte, isNull bool, n int, err error) {
 	// Get length
 	num, isNull, n := readLengthEncodedInteger(b)
 	if num < 1 {
@@ -554,7 +554,7 @@ func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
 
 // returns the number of bytes skipped and an error, in case the string is
 // longer than the input slice
-func skipLengthEncodedString(b []byte) (int, error) {
+func skipLengthEncodedString(b []byte) (n int, err error) {
 	// Get length
 	num, _, n := readLengthEncodedInteger(b)
 	if num < 1 {
@@ -571,7 +571,7 @@ func skipLengthEncodedString(b []byte) (int, error) {
 }
 
 // returns the number read, whether the value is NULL and the number of bytes read
-func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
+func readLengthEncodedInteger(b []byte) (value uint64, isNull bool, n int) {
 	// See issue #349
 	if len(b) == 0 {
 		return 0, true, 1

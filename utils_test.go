@@ -299,39 +299,39 @@ func TestAppendDateTime(t *testing.T) {
 		str string
 	}{
 		{
-			t:   time.Date(2020, 05, 30, 0, 0, 0, 0, time.UTC),
+			t:   time.Date(2020, 5, 30, 0, 0, 0, 0, time.UTC),
 			str: "2020-05-30",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 0, 0, 0, time.UTC),
+			t:   time.Date(2020, 5, 30, 22, 0, 0, 0, time.UTC),
 			str: "2020-05-30 22:00:00",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 33, 0, 0, time.UTC),
+			t:   time.Date(2020, 5, 30, 22, 33, 0, 0, time.UTC),
 			str: "2020-05-30 22:33:00",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 33, 44, 0, time.UTC),
+			t:   time.Date(2020, 5, 30, 22, 33, 44, 0, time.UTC),
 			str: "2020-05-30 22:33:44",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000000, time.UTC),
+			t:   time.Date(2020, 5, 30, 22, 33, 44, 550000000, time.UTC),
 			str: "2020-05-30 22:33:44.550000",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000499, time.UTC),
+			t:   time.Date(2020, 5, 30, 22, 33, 44, 550000499, time.UTC),
 			str: "2020-05-30 22:33:44.550000",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000500, time.UTC),
+			t:   time.Date(2020, 5, 30, 22, 33, 44, 550000500, time.UTC),
 			str: "2020-05-30 22:33:44.550001",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000567, time.UTC),
+			t:   time.Date(2020, 5, 30, 22, 33, 44, 550000567, time.UTC),
 			str: "2020-05-30 22:33:44.550001",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 33, 44, 999999567, time.UTC),
+			t:   time.Date(2020, 5, 30, 22, 33, 44, 999999567, time.UTC),
 			str: "2020-05-30 22:33:45",
 		},
 	}
@@ -416,7 +416,9 @@ func TestParseDateTime(t *testing.T) {
 		time.UTC,
 		time.FixedZone("test", 8*60*60),
 	} {
+		loc := loc
 		for _, cc := range cases {
+			cc := cc
 			t.Run(cc.name+"-"+loc.String(), func(t *testing.T) {
 				var want time.Time
 				if cc.str != sDate0 && cc.str != sDateTime0 {
@@ -493,6 +495,7 @@ func TestParseDateTimeFail(t *testing.T) {
 	}
 
 	for _, cc := range cases {
+		cc := cc
 		t.Run(cc.name, func(t *testing.T) {
 			got, err := parseDateTime([]byte(cc.str), time.UTC)
 			if err == nil {

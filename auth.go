@@ -15,6 +15,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"sync"
 )
 
@@ -131,12 +132,12 @@ func pwHash(password []byte) (result [2]uint32) {
 	result[0] &= 0x7FFFFFFF
 	result[1] &= 0x7FFFFFFF
 
-	return
+	return result
 }
 
 // Hash password using insecure pre 4.1 method
 func scrambleOldPassword(scramble []byte, password string) []byte {
-	if len(password) == 0 {
+	if password == "" {
 		return nil
 	}
 
@@ -162,25 +163,25 @@ func scrambleOldPassword(scramble []byte, password string) []byte {
 
 // Hash password using 4.1+ method (SHA1)
 func scramblePassword(scramble []byte, password string) []byte {
-	if len(password) == 0 {
+	if password == "" {
 		return nil
 	}
 
 	// stage1Hash = SHA1(password)
 	crypt := sha1.New()
-	crypt.Write([]byte(password))
+	_, _ = crypt.Write([]byte(password))
 	stage1 := crypt.Sum(nil)
 
 	// scrambleHash = SHA1(scramble + SHA1(stage1Hash))
 	// inner Hash
 	crypt.Reset()
-	crypt.Write(stage1)
+	_, _ = crypt.Write(stage1)
 	hash := crypt.Sum(nil)
 
 	// outer Hash
 	crypt.Reset()
-	crypt.Write(scramble)
-	crypt.Write(hash)
+	_, _ = crypt.Write(scramble)
+	_, _ = crypt.Write(hash)
 	scramble = crypt.Sum(nil)
 
 	// token = scrambleHash XOR stage1Hash
@@ -192,23 +193,23 @@ func scramblePassword(scramble []byte, password string) []byte {
 
 // Hash password using MySQL 8+ method (SHA256)
 func scrambleSHA256Password(scramble []byte, password string) []byte {
-	if len(password) == 0 {
+	if password == "" {
 		return nil
 	}
 
 	// XOR(SHA256(password), SHA256(SHA256(SHA256(password)), scramble))
 
 	crypt := sha256.New()
-	crypt.Write([]byte(password))
+	_, _ = crypt.Write([]byte(password))
 	message1 := crypt.Sum(nil)
 
 	crypt.Reset()
-	crypt.Write(message1)
+	_, _ = crypt.Write(message1)
 	message1Hash := crypt.Sum(nil)
 
 	crypt.Reset()
-	crypt.Write(message1Hash)
-	crypt.Write(scramble)
+	_, _ = crypt.Write(message1Hash)
+	_, _ = crypt.Write(scramble)
 	message2 := crypt.Sum(nil)
 
 	for i := range message1 {
@@ -239,11 +240,11 @@ func (mc *mysqlConn) sendEncryptedPassword(seed []byte, pub *rsa.PublicKey) erro
 
 func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 	switch plugin {
-	case "caching_sha2_password":
+	case authCachingSHA2:
 		authResp := scrambleSHA256Password(authData, mc.cfg.Passwd)
 		return authResp, nil
 
-	case "mysql_old_password":
+	case authOldPassword:
 		if !mc.cfg.AllowOldPasswords {
 			return nil, ErrOldPassword
 		}
@@ -253,7 +254,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		authResp := append(scrambleOldPassword(authData[:8], mc.cfg.Passwd), 0)
 		return authResp, nil
 
-	case "mysql_clear_password":
+	case authCleartextPassword:
 		if !mc.cfg.AllowCleartextPasswords {
 			return nil, ErrCleartextPassword
 		}
@@ -261,7 +262,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		// http://dev.mysql.com/doc/refman/5.7/en/pam-authentication-plugin.html
 		return append([]byte(mc.cfg.Passwd), 0), nil
 
-	case "mysql_native_password":
+	case authNativePassword:
 		if !mc.cfg.AllowNativePasswords {
 			return nil, ErrNativePassword
 		}
@@ -270,8 +271,8 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		authResp := scramblePassword(authData[:20], mc.cfg.Passwd)
 		return authResp, nil
 
-	case "sha256_password":
-		if len(mc.cfg.Passwd) == 0 {
+	case authSHA256Password:
+		if mc.cfg.Passwd == "" {
 			return []byte{0}, nil
 		}
 		if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
@@ -315,7 +316,8 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 
 		plugin = newPlugin
 
-		authResp, err := mc.auth(authData, plugin)
+		var authResp []byte
+		authResp, err = mc.auth(authData, plugin)
 		if err != nil {
 			return err
 		}
@@ -336,9 +338,8 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 	}
 
 	switch plugin {
-
-	// https://insidemysql.com/preparing-your-community-connector-for-mysql-8-part-2-sha256/
-	case "caching_sha2_password":
+	case authCachingSHA2:
+		// https://insidemysql.com/preparing-your-community-connector-for-mysql-8-part-2-sha256/
 		switch len(authData) {
 		case 0:
 			return nil // auth successful
@@ -360,12 +361,17 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 					pubKey := mc.cfg.pubKey
 					if pubKey == nil {
 						// request public key from server
-						data, err := mc.buf.takeSmallBuffer(4 + 1)
+						var data []byte
+						data, err = mc.buf.takeSmallBuffer(4 + 1)
 						if err != nil {
 							return err
 						}
 						data[4] = cachingSha2PasswordRequestPublicKey
-						mc.writePacket(data)
+
+						err = mc.writePacket(data)
+						if err != nil {
+							return err
+						}
 
 						// parse public key
 						if data, err = mc.readPacket(); err != nil {
@@ -373,11 +379,16 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 						}
 
 						block, _ := pem.Decode(data[1:])
-						pkix, err := x509.ParsePKIXPublicKey(block.Bytes)
+						var pkix interface{}
+						pkix, err = x509.ParsePKIXPublicKey(block.Bytes)
 						if err != nil {
 							return err
 						}
-						pubKey = pkix.(*rsa.PublicKey)
+						var ok bool
+						pubKey, ok = pkix.(*rsa.PublicKey)
+						if !ok {
+							return errors.New("invalid public key")
+						}
 					}
 
 					// send encrypted password
@@ -394,14 +405,14 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 		default:
 			return ErrMalformPkt
 		}
-
-	case "sha256_password":
+	case authSHA256Password:
 		switch len(authData) {
 		case 0:
 			return nil // auth successful
 		default:
 			block, _ := pem.Decode(authData)
-			pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+			var pub interface{}
+			pub, err = x509.ParsePKIXPublicKey(block.Bytes)
 			if err != nil {
 				return err
 			}
@@ -413,7 +424,6 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 			}
 			return mc.readResultOK()
 		}
-
 	default:
 		return nil // auth successful
 	}

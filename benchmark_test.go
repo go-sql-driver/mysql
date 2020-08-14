@@ -41,6 +41,10 @@ func (tb *TB) checkRows(rows *sql.Rows, err error) *sql.Rows {
 	return rows
 }
 
+func (tb *TB) checkRowsErr(rows *sql.Rows) {
+	tb.check(rows.Err())
+}
+
 func (tb *TB) checkStmt(stmt *sql.Stmt, err error) *sql.Stmt {
 	tb.check(err)
 	return stmt
@@ -48,7 +52,7 @@ func (tb *TB) checkStmt(stmt *sql.Stmt, err error) *sql.Stmt {
 
 func initDB(b *testing.B, queries ...string) *sql.DB {
 	tb := (*TB)(b)
-	db := tb.checkDB(sql.Open("mysql", dsn))
+	db := tb.checkDB(sql.Open("mysql", env.dsn))
 	for _, query := range queries {
 		if _, err := db.Exec(query); err != nil {
 			b.Fatalf("error on %q: %v", query, err)
@@ -105,7 +109,7 @@ func BenchmarkExec(b *testing.B) {
 	tb := (*TB)(b)
 	b.StopTimer()
 	b.ReportAllocs()
-	db := tb.checkDB(sql.Open("mysql", dsn))
+	db := tb.checkDB(sql.Open("mysql", env.dsn))
 	db.SetMaxIdleConns(concurrencyLevel)
 	defer db.Close()
 
@@ -115,9 +119,10 @@ func BenchmarkExec(b *testing.B) {
 	remain := int64(b.N)
 	var wg sync.WaitGroup
 	wg.Add(concurrencyLevel)
-	defer wg.Wait()
-	b.StartTimer()
 
+	errChan := make(chan error, 1)
+
+	b.StartTimer()
 	for i := 0; i < concurrencyLevel; i++ {
 		go func() {
 			for {
@@ -127,17 +132,32 @@ func BenchmarkExec(b *testing.B) {
 				}
 
 				if _, err := stmt.Exec(); err != nil {
-					b.Fatal(err.Error())
+					// attempt to report error back via errChan without blocking.
+					// only the first goroutine attempting to report an error will be successful.
+					select {
+					case errChan <- err:
+					default:
+					}
+					return
 				}
 			}
 		}()
 	}
+	wg.Wait()
+
+	// check if an error was reported by a goroutine
+	select {
+	case err := <-errChan:
+		b.Fatal(err)
+	default:
+	}
+	close(errChan)
 }
 
 // data, but no db writes
 var roundtripSample []byte
 
-func initRoundtripBenchmarks() ([]byte, int, int) {
+func initRoundtripBenchmarks() (sample []byte, min, max int) {
 	if roundtripSample == nil {
 		roundtripSample = []byte(strings.Repeat("0123456789abcdef", 1024*1024))
 	}
@@ -150,7 +170,7 @@ func BenchmarkRoundtripTxt(b *testing.B) {
 	sampleString := string(sample)
 	b.ReportAllocs()
 	tb := (*TB)(b)
-	db := tb.checkDB(sql.Open("mysql", dsn))
+	db := tb.checkDB(sql.Open("mysql", env.dsn))
 	defer db.Close()
 	b.StartTimer()
 	var result string
@@ -165,6 +185,7 @@ func BenchmarkRoundtripTxt(b *testing.B) {
 			rows.Close()
 			b.Fatalf("crashed")
 		}
+		tb.checkRowsErr(rows)
 		err := rows.Scan(&result)
 		if err != nil {
 			rows.Close()
@@ -183,7 +204,7 @@ func BenchmarkRoundtripBin(b *testing.B) {
 	sample, min, max := initRoundtripBenchmarks()
 	b.ReportAllocs()
 	tb := (*TB)(b)
-	db := tb.checkDB(sql.Open("mysql", dsn))
+	db := tb.checkDB(sql.Open("mysql", env.dsn))
 	defer db.Close()
 	stmt := tb.checkStmt(db.Prepare("SELECT ?"))
 	defer stmt.Close()
@@ -200,6 +221,7 @@ func BenchmarkRoundtripBin(b *testing.B) {
 			rows.Close()
 			b.Fatalf("crashed")
 		}
+		tb.checkRowsErr(rows)
 		err := rows.Scan(&result)
 		if err != nil {
 			rows.Close()
@@ -276,6 +298,7 @@ func BenchmarkQueryContext(b *testing.B) {
 	)
 	defer db.Close()
 	for _, p := range []int{1, 2, 3, 4} {
+		p := p
 		b.Run(fmt.Sprintf("%d", p), func(b *testing.B) {
 			benchmarkQueryContext(b, db, p)
 		})
@@ -312,8 +335,9 @@ func BenchmarkExecContext(b *testing.B) {
 	)
 	defer db.Close()
 	for _, p := range []int{1, 2, 3, 4} {
+		p := p
 		b.Run(fmt.Sprintf("%d", p), func(b *testing.B) {
-			benchmarkQueryContext(b, db, p)
+			benchmarkExecContext(b, db, p)
 		})
 	}
 }
@@ -339,29 +363,32 @@ func BenchmarkQueryRawBytes(b *testing.B) {
 		}
 	}
 
-	for _, s := range sizes {
-		b.Run(fmt.Sprintf("size=%v", s), func(b *testing.B) {
+	for _, size := range sizes {
+		size := size
+		b.Run(fmt.Sprintf("size=%v", size), func(b *testing.B) {
 			db.SetMaxIdleConns(0)
 			db.SetMaxIdleConns(1)
 			b.ReportAllocs()
 			b.ResetTimer()
 
 			for j := 0; j < b.N; j++ {
-				rows, err := db.Query("SELECT LEFT(val, ?) as v FROM bench_rawbytes", s)
+				rows, err := db.Query("SELECT LEFT(val, ?) as v FROM bench_rawbytes", size)
 				if err != nil {
 					b.Fatal(err)
 				}
 				nrows := 0
 				for rows.Next() {
 					var buf sql.RawBytes
-					err := rows.Scan(&buf)
-					if err != nil {
+					if err = rows.Scan(&buf); err != nil {
 						b.Fatal(err)
 					}
-					if len(buf) != s {
-						b.Fatalf("size mismatch: expected %v, got %v", s, len(buf))
+					if len(buf) != size {
+						b.Fatalf("size mismatch: expected %v, got %v", size, len(buf))
 					}
 					nrows++
+				}
+				if err = rows.Err(); rows != nil {
+					b.Fatal(err)
 				}
 				rows.Close()
 				if nrows != 100 {
