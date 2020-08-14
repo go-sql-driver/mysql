@@ -2146,7 +2146,7 @@ func TestInterruptBySignal(t *testing.T) {
 				dbt.Errorf("expected val to be 42")
 			}
 		}
-		if err = rows.Err(); rows != nil {
+		if err = rows.Err(); err != nil {
 			dbt.Fatal(err)
 		}
 		rows.Close()
@@ -2163,7 +2163,7 @@ func TestInterruptBySignal(t *testing.T) {
 				dbt.Errorf("expected val to be 42")
 			}
 		}
-		if err = rows.Err(); rows != nil {
+		if err = rows.Err(); err != nil {
 			dbt.Fatal(err)
 		}
 		rows.Close()
@@ -3094,7 +3094,7 @@ func TestRowsColumnTypes(t *testing.T) {
 			if i != 3 {
 				t.Errorf("expected 3 rows, got %d", i)
 			}
-			if err = rows.Err(); rows != nil {
+			if err = rows.Err(); err != nil {
 				dbt.Fatal(err)
 			}
 
@@ -3162,7 +3162,7 @@ func TestRawBytesAreNotModified(t *testing.T) {
 						t.Fatalf("the backing storage for sql.RawBytes has been modified (i=%v)", i)
 					}
 				}
-				if err = rows.Err(); rows != nil {
+				if err = rows.Err(); err != nil {
 					dbt.Fatal(err)
 				}
 				rows.Close()
