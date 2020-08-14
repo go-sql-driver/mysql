@@ -1557,7 +1557,7 @@ func TestTimezoneConversion(t *testing.T) {
 
 		// Insert local time into database (should be converted)
 		usCentral, _ := time.LoadLocation("US/Central")
-		reftime := time.Date(2014, 05, 30, 18, 03, 17, 0, time.UTC).In(usCentral)
+		reftime := time.Date(2014, 5, 30, 18, 3, 17, 0, time.UTC).In(usCentral)
 		dbt.mustExec("INSERT INTO test VALUE (?)", reftime)
 
 		// Retrieve time from DB
@@ -2758,12 +2758,12 @@ func TestRowsColumnTypes(t *testing.T) {
 	nfNULL := sql.NullFloat64{Float64: 0.0, Valid: false}
 	nf0 := sql.NullFloat64{Float64: 0.0, Valid: true}
 	nf1337 := sql.NullFloat64{Float64: 13.37, Valid: true}
-	nt0 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 0, time.UTC), Valid: true}
-	nt1 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 100000000, time.UTC), Valid: true}
-	nt2 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 110000000, time.UTC), Valid: true}
-	nt6 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 111111000, time.UTC), Valid: true}
-	nd1 := NullTime{Time: time.Date(2006, 01, 02, 0, 0, 0, 0, time.UTC), Valid: true}
-	nd2 := NullTime{Time: time.Date(2006, 03, 04, 0, 0, 0, 0, time.UTC), Valid: true}
+	nt0 := NullTime{Time: time.Date(2006, 1, 2, 15, 4, 5, 0, time.UTC), Valid: true}
+	nt1 := NullTime{Time: time.Date(2006, 1, 2, 15, 4, 5, 100000000, time.UTC), Valid: true}
+	nt2 := NullTime{Time: time.Date(2006, 1, 2, 15, 4, 5, 110000000, time.UTC), Valid: true}
+	nt6 := NullTime{Time: time.Date(2006, 1, 2, 15, 4, 5, 111111000, time.UTC), Valid: true}
+	nd1 := NullTime{Time: time.Date(2006, 1, 2, 0, 0, 0, 0, time.UTC), Valid: true}
+	nd2 := NullTime{Time: time.Date(2006, 3, 4, 0, 0, 0, 0, time.UTC), Valid: true}
 	ndNULL := NullTime{Time: time.Time{}, Valid: false}
 	rbNULL := sql.RawBytes(nil)
 	rb0 := sql.RawBytes("0")
