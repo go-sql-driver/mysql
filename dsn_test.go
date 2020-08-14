@@ -372,7 +372,7 @@ func TestNormalizeTLSConfig(t *testing.T) {
 	}
 
 	RegisterTLSConfig("test_tls_config", &tls.Config{ServerName: "myServerName"})
-	defer func() { DeregisterTLSConfig("test_tls_config") }()
+	defer DeregisterTLSConfig("test_tls_config")
 
 	for _, tc := range tt {
 		tc := tc

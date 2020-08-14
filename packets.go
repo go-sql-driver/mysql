@@ -1031,14 +1031,9 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 				if cap(paramValues)-len(paramValues)-8 >= 0 {
 					paramValues = paramValues[:len(paramValues)+8]
-					binary.LittleEndian.PutUint64(
-						paramValues[len(paramValues)-8:],
-						uint64(v),
-					)
+					binary.LittleEndian.PutUint64(paramValues[len(paramValues)-8:], v)
 				} else {
-					paramValues = append(paramValues,
-						uint64ToBytes(uint64(v))...,
-					)
+					paramValues = append(paramValues, uint64ToBytes(v)...)
 				}
 
 			case float64:
@@ -1078,10 +1073,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 							uint64(len(v)),
 						)
 						paramValues = append(paramValues, v...)
-					} else {
-						if err := stmt.writeCommandLongData(i, v); err != nil {
-							return err
-						}
+					} else if err = stmt.writeCommandLongData(i, v); err != nil {
+						return err
 					}
 					continue
 				}
@@ -1100,10 +1093,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 						uint64(len(v)),
 					)
 					paramValues = append(paramValues, v...)
-				} else {
-					if err := stmt.writeCommandLongData(i, []byte(v)); err != nil {
-						return err
-					}
+				} else if err = stmt.writeCommandLongData(i, []byte(v)); err != nil {
+					return err
 				}
 
 			case time.Time:

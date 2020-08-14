@@ -56,7 +56,7 @@ var (
 //  db, err := sql.Open("mysql", "user@tcp(localhost:3306)/test?tls=custom")
 //
 func RegisterTLSConfig(key string, config *tls.Config) error {
-	if _, isBool := readBool(key); isBool || strings.ToLower(key) == "skip-verify" || strings.ToLower(key) == "preferred" {
+	if _, isBool := readBool(key); isBool || strings.EqualFold(key, "skip-verify") || strings.EqualFold(key, "preferred") {
 		return fmt.Errorf("key '%s' is reserved", key)
 	}
 
@@ -90,7 +90,7 @@ func getTLSConfigClone(key string) (config *tls.Config) {
 
 // Returns the bool value of the input.
 // The 2nd return value indicates if the input was a valid bool value
-func readBool(input string) (value bool, valid bool) {
+func readBool(input string) (value, valid bool) {
 	switch input {
 	case "1", "true", "TRUE", "True":
 		return true, true
@@ -199,7 +199,7 @@ func parseByteYear(b []byte) (int, error) {
 			return 0, err
 		}
 		year += v * n
-		n = n / 10
+		n /= 10
 	}
 	return year, nil
 }
@@ -414,7 +414,7 @@ func formatBinaryDateTime(src []byte, length uint8) (driver.Value, error) {
 	// start with the date
 	year := binary.LittleEndian.Uint16(src[:2])
 	pt := year / 100
-	p1 = byte(year - 100*uint16(pt))
+	p1 = byte(year - 100*pt)
 	p2, p3 = src[2], src[3]
 	dst = append(dst,
 		digits10[pt], digits01[pt],

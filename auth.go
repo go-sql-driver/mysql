@@ -136,7 +136,7 @@ func pwHash(password []byte) (result [2]uint32) {
 
 // Hash password using insecure pre 4.1 method
 func scrambleOldPassword(scramble []byte, password string) []byte {
-	if len(password) == 0 {
+	if password == "" {
 		return nil
 	}
 
@@ -162,7 +162,7 @@ func scrambleOldPassword(scramble []byte, password string) []byte {
 
 // Hash password using 4.1+ method (SHA1)
 func scramblePassword(scramble []byte, password string) []byte {
-	if len(password) == 0 {
+	if password == "" {
 		return nil
 	}
 
@@ -192,7 +192,7 @@ func scramblePassword(scramble []byte, password string) []byte {
 
 // Hash password using MySQL 8+ method (SHA256)
 func scrambleSHA256Password(scramble []byte, password string) []byte {
-	if len(password) == 0 {
+	if password == "" {
 		return nil
 	}
 
@@ -271,7 +271,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		return authResp, nil
 
 	case "sha256_password":
-		if len(mc.cfg.Passwd) == 0 {
+		if mc.cfg.Passwd == "" {
 			return []byte{0}, nil
 		}
 		if mc.cfg.tls != nil || mc.cfg.Net == "unix" {

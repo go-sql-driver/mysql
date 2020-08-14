@@ -80,10 +80,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 	}
 
 	if cmdSet.Len() > 0 {
-		err = mc.exec(cmdSet.String())
-		if err != nil {
-			return
-		}
+		return mc.exec(cmdSet.String())
 	}
 
 	return

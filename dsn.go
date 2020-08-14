@@ -296,62 +296,64 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 	// Find the last '/' (since the password or the net addr might contain a '/')
 	foundSlash := false
 	for i := len(dsn) - 1; i >= 0; i-- {
-		if dsn[i] == '/' {
-			foundSlash = true
-			var j, k int
+		if dsn[i] != '/' {
+			continue
+		}
 
-			// left part is empty if i <= 0
-			if i > 0 {
-				// [username[:password]@][protocol[(address)]]
-				// Find the last '@' in dsn[:i]
-				for j = i; j >= 0; j-- {
-					if dsn[j] == '@' {
-						// username[:password]
-						// Find the first ':' in dsn[:j]
-						for k = 0; k < j; k++ {
-							if dsn[k] == ':' {
-								cfg.Passwd = dsn[k+1 : j]
-								break
-							}
+		foundSlash = true
+		var j, k int
+
+		// left part is empty if i <= 0
+		if i > 0 {
+			// [username[:password]@][protocol[(address)]]
+			// Find the last '@' in dsn[:i]
+			for j = i; j >= 0; j-- {
+				if dsn[j] == '@' {
+					// username[:password]
+					// Find the first ':' in dsn[:j]
+					for k = 0; k < j; k++ {
+						if dsn[k] == ':' {
+							cfg.Passwd = dsn[k+1 : j]
+							break
 						}
-						cfg.User = dsn[:k]
-
-						break
 					}
-				}
+					cfg.User = dsn[:k]
 
-				// [protocol[(address)]]
-				// Find the first '(' in dsn[j+1:i]
-				for k = j + 1; k < i; k++ {
-					if dsn[k] == '(' {
-						// dsn[i-1] must be == ')' if an address is specified
-						if dsn[i-1] != ')' {
-							if strings.ContainsRune(dsn[k+1:i], ')') {
-								return nil, errInvalidDSNUnescaped
-							}
-							return nil, errInvalidDSNAddr
-						}
-						cfg.Addr = dsn[k+1 : i-1]
-						break
-					}
-				}
-				cfg.Net = dsn[j+1 : k]
-			}
-
-			// dbname[?param1=value1&...&paramN=valueN]
-			// Find the first '?' in dsn[i+1:]
-			for j = i + 1; j < len(dsn); j++ {
-				if dsn[j] == '?' {
-					if err = parseDSNParams(cfg, dsn[j+1:]); err != nil {
-						return
-					}
 					break
 				}
 			}
-			cfg.DBName = dsn[i+1 : j]
 
-			break
+			// [protocol[(address)]]
+			// Find the first '(' in dsn[j+1:i]
+			for k = j + 1; k < i; k++ {
+				if dsn[k] == '(' {
+					// dsn[i-1] must be == ')' if an address is specified
+					if dsn[i-1] != ')' {
+						if strings.ContainsRune(dsn[k+1:i], ')') {
+							return nil, errInvalidDSNUnescaped
+						}
+						return nil, errInvalidDSNAddr
+					}
+					cfg.Addr = dsn[k+1 : i-1]
+					break
+				}
+			}
+			cfg.Net = dsn[j+1 : k]
 		}
+
+		// dbname[?param1=value1&...&paramN=valueN]
+		// Find the first '?' in dsn[i+1:]
+		for j = i + 1; j < len(dsn); j++ {
+			if dsn[j] == '?' {
+				if err = parseDSNParams(cfg, dsn[j+1:]); err != nil {
+					return
+				}
+				break
+			}
+		}
+		cfg.DBName = dsn[i+1 : j]
+
+		break
 	}
 
 	if !foundSlash && len(dsn) > 0 {
