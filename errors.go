@@ -21,7 +21,7 @@ var (
 	ErrMalformPkt        = errors.New("malformed packet")
 	ErrNoTLS             = errors.New("TLS requested but server does not support TLS")
 	ErrCleartextPassword = errors.New("this user requires clear text authentication. If you still want to use it, please add 'allowCleartextPasswords=1' to your DSN")
-	ErrNativePassword    = errors.New("this user requires mysql native password authentication.")
+	ErrNativePassword    = errors.New("this user requires mysql native password authentication")
 	ErrOldPassword       = errors.New("this user requires old password authentication. If you still want to use it, please add 'allowOldPasswords=1' to your DSN. See also https://github.com/go-sql-driver/mysql/wiki/old_passwords")
 	ErrUnknownPlugin     = errors.New("this authentication plugin is not supported")
 	ErrOldProtocol       = errors.New("MySQL server does not support required protocol 41+")

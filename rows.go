@@ -88,9 +88,9 @@ func (rows *mysqlRows) ColumnTypePrecisionScale(i int) (precision, scale int64, 
 			return math.MaxInt64, math.MaxInt64, true
 		}
 		return math.MaxInt64, decimals, true
+	default:
+		return 0, 0, false
 	}
-
-	return 0, 0, false
 }
 
 func (rows *mysqlRows) ColumnTypeScanType(i int) reflect.Type {

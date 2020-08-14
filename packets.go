@@ -494,13 +494,10 @@ func (mc *mysqlConn) readAuthResult() (authData []byte, plugin string, err error
 
 	// packet indicator
 	switch data[0] {
-
 	case iOK:
 		return nil, "", mc.handleOkPacket(data)
-
 	case iAuthMoreData:
 		return data[1:], "", err
-
 	case iEOF:
 		if len(data) == 1 {
 			// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::OldAuthSwitchRequest
@@ -513,7 +510,6 @@ func (mc *mysqlConn) readAuthResult() (authData []byte, plugin string, err error
 		plugin := string(data[1:pluginEndIndex])
 		authData = data[pluginEndIndex+1:]
 		return authData, plugin, nil
-
 	default: // Error otherwise
 		return nil, "", mc.handleErrorPacket(data)
 	}
@@ -538,13 +534,10 @@ func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
 	data, err := mc.readPacket()
 	if err == nil {
 		switch data[0] {
-
 		case iOK:
 			return 0, mc.handleOkPacket(data)
-
 		case iERR:
 			return 0, mc.handleErrorPacket(data)
-
 		case iLocalInFile:
 			return 0, mc.handleInFileRequest(string(data[1:]))
 		}
@@ -592,7 +585,7 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 
 	// SQL State [optional: # + 5bytes string]
 	if data[3] == 0x23 {
-		//sqlstate := string(data[4 : 4+5])
+		// sqlstate := string(data[4 : 4+5])
 		pos = 9
 	}
 
@@ -723,12 +716,12 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 
 		// Decimals [uint8]
 		columns[i].decimals = data[pos]
-		//pos++
+		// pos++
 
 		// Default value [len coded binary]
-		//if pos < len(data) {
-		//	defaultVal, _, err = bytesToLengthCodedBinary(data[pos:])
-		//}
+		// if pos < len(data) {
+		// 	defaultVal, _, err = bytesToLengthCodedBinary(data[pos:])
+		// }
 	}
 }
 
@@ -789,7 +782,6 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 						continue
 					}
 				}
-
 			} else {
 				dest[i] = nil
 				continue
@@ -897,7 +889,6 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 			continue
 		}
 		return err
-
 	}
 
 	// Reset Packet Sequence

@@ -158,11 +158,11 @@ const (
 	statusNoIndexUsed
 	statusCursorExists
 	statusLastRowSent
-	statusDbDropped
+	statusDBDropped
 	statusNoBackslashEscapes
 	statusMetadataChanged
 	statusQueryWasSlow
-	statusPsOutParams
+	statusPSOutParams
 	statusInTransReadonly
 	statusSessionStateChanged
 )

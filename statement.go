@@ -27,7 +27,6 @@ func (stmt *mysqlStmt) Close() error {
 		// driver.Stmt.Close can be called more than once, thus this function
 		// has to be idempotent.
 		// See also Issue #450 and golang/go#16019.
-		//errLog.Print(ErrInvalidConn)
 		return driver.ErrBadConn
 	}
 
@@ -171,9 +170,8 @@ func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
 		// indirect pointers
 		if rv.IsNil() {
 			return nil, nil
-		} else {
-			return c.ConvertValue(rv.Elem().Interface())
 		}
+		return c.ConvertValue(rv.Elem().Interface())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return rv.Int(), nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
@@ -193,8 +191,9 @@ func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
 		}
 	case reflect.String:
 		return rv.String(), nil
+	default:
+		return nil, fmt.Errorf("unsupported type %T, a %s", v, rv.Kind())
 	}
-	return nil, fmt.Errorf("unsupported type %T, a %s", v, rv.Kind())
 }
 
 var valuerReflectType = reflect.TypeOf((*driver.Valuer)(nil)).Elem()

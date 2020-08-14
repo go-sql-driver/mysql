@@ -338,9 +338,8 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 	}
 
 	switch plugin {
-
-	// https://insidemysql.com/preparing-your-community-connector-for-mysql-8-part-2-sha256/
 	case "caching_sha2_password":
+		// https://insidemysql.com/preparing-your-community-connector-for-mysql-8-part-2-sha256/
 		switch len(authData) {
 		case 0:
 			return nil // auth successful
@@ -406,7 +405,6 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 		default:
 			return ErrMalformPkt
 		}
-
 	case "sha256_password":
 		switch len(authData) {
 		case 0:
@@ -426,7 +424,6 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 			}
 			return mc.readResultOK()
 		}
-
 	default:
 		return nil // auth successful
 	}

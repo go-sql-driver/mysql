@@ -358,8 +358,8 @@ func TestMultiQuery(t *testing.T) {
 		rows := dbt.mustQuery("SELECT value FROM test WHERE id=1;")
 		if rows.Next() {
 			rows.Scan(&out)
-			if 5 != out {
-				dbt.Errorf("5 != %d", out)
+			if out != 5 {
+				dbt.Errorf("%d != 5", out)
 			}
 
 			if rows.Next() {
@@ -372,7 +372,6 @@ func TestMultiQuery(t *testing.T) {
 			dbt.Fatal(err)
 		}
 		rows.Close()
-
 	})
 }
 
@@ -661,10 +660,9 @@ type testValuerWithValidation struct {
 }
 
 func (tv testValuerWithValidation) Value() (driver.Value, error) {
-	if len(tv.value) == 0 {
+	if tv.value == "" {
 		return nil, fmt.Errorf("Invalid string valuer. Value must not be empty")
 	}
-
 	return tv.value, nil
 }
 
@@ -737,8 +735,9 @@ func (t timeMode) Binary() bool {
 	switch t {
 	case binaryString, binaryTime:
 		return true
+	default:
+		return false
 	}
-	return false
 }
 
 const (
@@ -2018,11 +2017,12 @@ func TestSQLInjection(t *testing.T) {
 			// NULL can't be equal to anything, the idea here is to inject query so it returns row
 			// This test verifies that escapeQuotes and escapeBackslash are working properly
 			err := dbt.db.QueryRow("SELECT v FROM test WHERE NULL = ?", arg).Scan(&v)
-			if err == sql.ErrNoRows {
+			switch err {
+			case sql.ErrNoRows:
 				return // success, sql injection failed
-			} else if err == nil {
+			case nil:
 				dbt.Errorf("sql injection successful with arg: %s", arg)
-			} else {
+			default:
 				dbt.Errorf("error running query with arg: %s; err: %s", arg, err.Error())
 			}
 		}
@@ -2385,7 +2385,6 @@ func TestMultiResultSet(t *testing.T) {
 		if rows.NextResultSet() {
 			dbt.Error(desc, "unexpected next result set")
 		}
-
 		if err := rows.Err(); err != nil {
 			dbt.Error(desc, err)
 		}
