@@ -511,7 +511,7 @@ func (mc *mysqlConn) readAuthResult() (authData []byte, plugin string, err error
 			return nil, "", ErrMalformPkt
 		}
 		plugin := string(data[1:pluginEndIndex])
-		authData := data[pluginEndIndex+1:]
+		authData = data[pluginEndIndex+1:]
 		return authData, plugin, nil
 
 	default: // Error otherwise
@@ -665,7 +665,8 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 
 		// Table [len coded string]
 		if mc.cfg.ColumnsWithAlias {
-			tableName, _, n, err := readLengthEncodedString(data[pos:])
+			var tableName []byte
+			tableName, _, n, err = readLengthEncodedString(data[pos:])
 			if err != nil {
 				return nil, err
 			}

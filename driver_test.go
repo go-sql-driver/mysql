@@ -2139,7 +2139,7 @@ func TestInterruptBySignal(t *testing.T) {
 			dbt.Fatalf("error on text query: %s", err.Error())
 		}
 		for rows.Next() {
-			if err := rows.Scan(&val); err != nil {
+			if err = rows.Scan(&val); err != nil {
 				dbt.Error(err)
 			} else if val != 42 {
 				dbt.Errorf("expected val to be 42")
@@ -2156,7 +2156,7 @@ func TestInterruptBySignal(t *testing.T) {
 			dbt.Fatalf("error on binary query: %s", err.Error())
 		}
 		for rows.Next() {
-			if err := rows.Scan(&val); err != nil {
+			if err = rows.Scan(&val); err != nil {
 				dbt.Error(err)
 			} else if val != 42 {
 				dbt.Errorf("expected val to be 42")
@@ -2369,7 +2369,7 @@ func TestMultiResultSet(t *testing.T) {
 
 		for rows.Next() {
 			var res [3]int
-			if err := rows.Scan(&res[0], &res[1], &res[2]); err != nil {
+			if err = rows.Scan(&res[0], &res[1], &res[2]); err != nil {
 				dbt.Fatal(desc, err)
 			}
 			res2.values = append(res2.values, res[:])
@@ -2579,7 +2579,7 @@ func TestContextCancelQuery(t *testing.T) {
 
 		// Check how many times the query is executed.
 		var v int
-		if err := dbt.db.QueryRow("SELECT COUNT(*) FROM test").Scan(&v); err != nil {
+		if err = dbt.db.QueryRow("SELECT COUNT(*) FROM test").Scan(&v); err != nil {
 			dbt.Fatalf("%s", err.Error())
 		}
 		if v != 1 { // TODO: need to kill the query, and v should be 0.
@@ -2751,7 +2751,7 @@ func TestContextCancelBegin(t *testing.T) {
 
 		// This query will be canceled.
 		startTime := time.Now()
-		if _, err := tx.ExecContext(ctx, "INSERT INTO test VALUES (SLEEP(1))"); err != context.Canceled {
+		if _, err = tx.ExecContext(ctx, "INSERT INTO test VALUES (SLEEP(1))"); err != context.Canceled {
 			dbt.Errorf("expected context.Canceled, got %v", err)
 		}
 		if d := time.Since(startTime); d > 500*time.Millisecond {
@@ -2759,7 +2759,7 @@ func TestContextCancelBegin(t *testing.T) {
 		}
 
 		// Transaction is canceled, so expect an error.
-		switch err := tx.Commit(); err {
+		switch err = tx.Commit(); err {
 		case sql.ErrTxDone:
 			// because the transaction has already been rollbacked.
 			// the database/sql package watches ctx
@@ -2815,7 +2815,7 @@ func TestContextBeginIsolationLevel(t *testing.T) {
 
 		var v int
 		row := tx2.QueryRowContext(ctx, "SELECT COUNT(*) FROM test")
-		if err := row.Scan(&v); err != nil {
+		if err = row.Scan(&v); err != nil {
 			dbt.Fatal(err)
 		}
 		// Because writer transaction wasn't commited yet, it should be available
@@ -3145,7 +3145,7 @@ func TestRawBytesAreNotModified(t *testing.T) {
 				var b int
 				var raw sql.RawBytes
 				for rows.Next() {
-					if err := rows.Scan(&b, &raw); err != nil {
+					if err = rows.Scan(&b, &raw); err != nil {
 						t.Fatal(err)
 					}
 

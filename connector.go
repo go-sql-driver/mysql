@@ -55,7 +55,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 
 	// Enable TCP Keepalives on TCP connections
 	if tc, ok := mc.netConn.(*net.TCPConn); ok {
-		if err := tc.SetKeepAlive(true); err != nil {
+		if err = tc.SetKeepAlive(true); err != nil {
 			// Don't send COM_QUIT before handshake.
 			mc.netConn.Close()
 			mc.netConn = nil
@@ -65,7 +65,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 
 	// Call startWatcher for context support (From Go 1.8)
 	mc.startWatcher()
-	if err := mc.watchCancel(ctx); err != nil {
+	if err = mc.watchCancel(ctx); err != nil {
 		mc.cleanup()
 		return nil, err
 	}
@@ -118,12 +118,13 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		mc.maxAllowedPacket = mc.cfg.MaxAllowedPacket
 	} else {
 		// Get max allowed packet size
-		maxap, err := mc.getSystemVar("max_allowed_packet")
+		var maxAP []byte
+		maxAP, err = mc.getSystemVar("max_allowed_packet")
 		if err != nil {
 			mc.Close()
 			return nil, err
 		}
-		mc.maxAllowedPacket = stringToInt(maxap) - 1
+		mc.maxAllowedPacket = stringToInt(maxAP) - 1
 	}
 	if mc.maxAllowedPacket < maxPacketSize {
 		mc.maxWriteSize = mc.maxAllowedPacket

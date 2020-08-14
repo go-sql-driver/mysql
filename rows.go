@@ -107,7 +107,7 @@ func (rows *mysqlRows) Close() (err error) {
 	if mc == nil {
 		return nil
 	}
-	if err := mc.error(); err != nil {
+	if err = mc.error(); err != nil {
 		return err
 	}
 

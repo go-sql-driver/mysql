@@ -316,7 +316,8 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 
 		plugin = newPlugin
 
-		authResp, err := mc.auth(authData, plugin)
+		var authResp []byte
+		authResp, err = mc.auth(authData, plugin)
 		if err != nil {
 			return err
 		}
@@ -361,7 +362,8 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 					pubKey := mc.cfg.pubKey
 					if pubKey == nil {
 						// request public key from server
-						data, err := mc.buf.takeSmallBuffer(4 + 1)
+						var data []byte
+						data, err = mc.buf.takeSmallBuffer(4 + 1)
 						if err != nil {
 							return err
 						}
@@ -411,7 +413,8 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 			return nil // auth successful
 		default:
 			block, _ := pem.Decode(authData)
-			pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+			var pub interface{}
+			pub, err = x509.ParsePKIXPublicKey(block.Bytes)
 			if err != nil {
 				return err
 			}

@@ -492,7 +492,8 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// Server public key
 		case "serverPubKey":
-			name, err := url.QueryUnescape(value)
+			var name string
+			name, err = url.QueryUnescape(value)
 			if err != nil {
 				return fmt.Errorf("invalid value for server pub key name: %v", err)
 			}
@@ -521,7 +522,8 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			} else if vl := strings.ToLower(value); vl == "skip-verify" || vl == "preferred" {
 				cfg.TLSConfig = vl
 			} else {
-				name, err := url.QueryUnescape(value)
+				var name string
+				name, err = url.QueryUnescape(value)
 				if err != nil {
 					return fmt.Errorf("invalid value for TLS config name: %v", err)
 				}

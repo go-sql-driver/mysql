@@ -124,7 +124,7 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 	} else {
 		rows.rs.done = true
 
-		switch err := rows.NextResultSet(); err {
+		switch err = rows.NextResultSet(); err {
 		case nil, io.EOF:
 			return rows, nil
 		default:

@@ -149,7 +149,7 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 	// send content packets
 	// if packetSize == 0, the Reader contains no data
 	if err == nil && packetSize > 0 {
-		data := make([]byte, 4+packetSize)
+		data = make([]byte, 4+packetSize)
 		var n int
 		for err == nil {
 			n, err = rdr.Read(data[4:])
