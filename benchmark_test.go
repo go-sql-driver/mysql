@@ -119,9 +119,10 @@ func BenchmarkExec(b *testing.B) {
 	remain := int64(b.N)
 	var wg sync.WaitGroup
 	wg.Add(concurrencyLevel)
-	defer wg.Wait()
-	b.StartTimer()
 
+	errChan := make(chan error, 1)
+
+	b.StartTimer()
 	for i := 0; i < concurrencyLevel; i++ {
 		go func() {
 			for {
@@ -131,11 +132,26 @@ func BenchmarkExec(b *testing.B) {
 				}
 
 				if _, err := stmt.Exec(); err != nil {
-					b.Fatal(err.Error())
+					// attempt to report error back via errChan without blocking.
+					// only the first goroutine attempting to report an error will be successful.
+					select {
+					case errChan <- err:
+					default:
+					}
+					return
 				}
 			}
 		}()
 	}
+	wg.Wait()
+
+	// check if an error was reported by a goroutine
+	select {
+	case err := <-errChan:
+		b.Fatal(err)
+	default:
+	}
+	close(errChan)
 }
 
 // data, but no db writes
