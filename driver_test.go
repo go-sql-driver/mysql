@@ -1267,6 +1267,7 @@ func TestLoadData(t *testing.T) {
 			if err != nil {
 				dbt.Fatal(err.Error())
 			}
+			defer rows.Close()
 
 			i := 0
 			values := [4]string{
@@ -2617,6 +2618,7 @@ func TestContextCancelQueryRow(t *testing.T) {
 		if err != nil {
 			dbt.Fatalf("%s", err.Error())
 		}
+		defer rows.Close()
 
 		// the first row will be succeed.
 		var v int
@@ -2662,6 +2664,7 @@ func TestContextCancelStmtExec(t *testing.T) {
 		if err != nil {
 			dbt.Fatalf("unexpected error: %v", err)
 		}
+		defer stmt.Close()
 
 		// Delay execution for just a bit until db.ExecContext has begun.
 		defer time.AfterFunc(250*time.Millisecond, cancel).Stop()
@@ -2697,6 +2700,7 @@ func TestContextCancelStmtQuery(t *testing.T) {
 		if err != nil {
 			dbt.Fatalf("unexpected error: %v", err)
 		}
+		defer stmt.Close()
 
 		// Delay execution for just a bit until db.ExecContext has begun.
 		defer time.AfterFunc(250*time.Millisecond, cancel).Stop()
