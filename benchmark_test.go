@@ -321,7 +321,7 @@ func BenchmarkExecContext(b *testing.B) {
 	for _, p := range []int{1, 2, 3, 4} {
 		p := p
 		b.Run(fmt.Sprintf("%d", p), func(b *testing.B) {
-			benchmarkQueryContext(b, db, p)
+			benchmarkExecContext(b, db, p)
 		})
 	}
 }
