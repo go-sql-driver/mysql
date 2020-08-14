@@ -132,7 +132,7 @@ func pwHash(password []byte) (result [2]uint32) {
 	result[0] &= 0x7FFFFFFF
 	result[1] &= 0x7FFFFFFF
 
-	return
+	return result
 }
 
 // Hash password using insecure pre 4.1 method

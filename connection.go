@@ -61,7 +61,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 				}
 			}
 			if err != nil {
-				return
+				return err
 			}
 
 		// Other system vars accumulated in a single SET command
@@ -82,8 +82,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 	if cmdSet.Len() > 0 {
 		return mc.exec(cmdSet.String())
 	}
-
-	return
+	return err
 }
 
 func (mc *mysqlConn) markBadConn(err error) error {

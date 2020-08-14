@@ -363,7 +363,7 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 	if err = cfg.normalize(); err != nil {
 		return nil, err
 	}
-	return
+	return cfg, nil
 }
 
 // parseDSNParams parses the DSN "query string"
@@ -551,7 +551,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		}
 	}
 
-	return
+	return err
 }
 
 func ensureHavePort(addr string) string {
