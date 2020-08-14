@@ -416,7 +416,9 @@ func TestParseDateTime(t *testing.T) {
 		time.UTC,
 		time.FixedZone("test", 8*60*60),
 	} {
+		loc := loc
 		for _, cc := range cases {
+			cc := cc
 			t.Run(cc.name+"-"+loc.String(), func(t *testing.T) {
 				var want time.Time
 				if cc.str != sDate0 && cc.str != sDateTime0 {
@@ -493,6 +495,7 @@ func TestParseDateTimeFail(t *testing.T) {
 	}
 
 	for _, cc := range cases {
+		cc := cc
 		t.Run(cc.name, func(t *testing.T) {
 			got, err := parseDateTime([]byte(cc.str), time.UTC)
 			if err == nil {

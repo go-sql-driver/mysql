@@ -276,6 +276,7 @@ func BenchmarkQueryContext(b *testing.B) {
 	)
 	defer db.Close()
 	for _, p := range []int{1, 2, 3, 4} {
+		p := p
 		b.Run(fmt.Sprintf("%d", p), func(b *testing.B) {
 			benchmarkQueryContext(b, db, p)
 		})
@@ -312,6 +313,7 @@ func BenchmarkExecContext(b *testing.B) {
 	)
 	defer db.Close()
 	for _, p := range []int{1, 2, 3, 4} {
+		p := p
 		b.Run(fmt.Sprintf("%d", p), func(b *testing.B) {
 			benchmarkQueryContext(b, db, p)
 		})
@@ -339,15 +341,16 @@ func BenchmarkQueryRawBytes(b *testing.B) {
 		}
 	}
 
-	for _, s := range sizes {
-		b.Run(fmt.Sprintf("size=%v", s), func(b *testing.B) {
+	for _, size := range sizes {
+		size := size
+		b.Run(fmt.Sprintf("size=%v", size), func(b *testing.B) {
 			db.SetMaxIdleConns(0)
 			db.SetMaxIdleConns(1)
 			b.ReportAllocs()
 			b.ResetTimer()
 
 			for j := 0; j < b.N; j++ {
-				rows, err := db.Query("SELECT LEFT(val, ?) as v FROM bench_rawbytes", s)
+				rows, err := db.Query("SELECT LEFT(val, ?) as v FROM bench_rawbytes", size)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -358,8 +361,8 @@ func BenchmarkQueryRawBytes(b *testing.B) {
 					if err != nil {
 						b.Fatal(err)
 					}
-					if len(buf) != s {
-						b.Fatalf("size mismatch: expected %v, got %v", s, len(buf))
+					if len(buf) != size {
+						b.Fatalf("size mismatch: expected %v, got %v", size, len(buf))
 					}
 					nrows++
 				}

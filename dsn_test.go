@@ -375,6 +375,7 @@ func TestNormalizeTLSConfig(t *testing.T) {
 	defer func() { DeregisterTLSConfig("test_tls_config") }()
 
 	for _, tc := range tt {
+		tc := tc
 		t.Run(tc.tlsConfig, func(t *testing.T) {
 			cfg := &Config{
 				Addr:      "myserver:3306",
