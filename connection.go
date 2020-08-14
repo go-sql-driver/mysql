@@ -38,11 +38,11 @@ type mysqlConn struct {
 
 	// for context support (Go 1.8+)
 	watching bool
+	closed   atomicBool  // set when conn is closed, before closech is closed
+	canceled atomicError // set non-nil if conn is canceled
 	watcher  chan<- context.Context
 	closech  chan struct{}
 	finished chan<- struct{}
-	canceled atomicError // set non-nil if conn is canceled
-	closed   atomicBool  // set when conn is closed, before closech is closed
 }
 
 // Handles parameters set in DSN after the connection is established
