@@ -240,11 +240,11 @@ func (mc *mysqlConn) sendEncryptedPassword(seed []byte, pub *rsa.PublicKey) erro
 
 func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 	switch plugin {
-	case "caching_sha2_password":
+	case authCachingSHA2:
 		authResp := scrambleSHA256Password(authData, mc.cfg.Passwd)
 		return authResp, nil
 
-	case "mysql_old_password":
+	case authOldPassword:
 		if !mc.cfg.AllowOldPasswords {
 			return nil, ErrOldPassword
 		}
@@ -254,7 +254,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		authResp := append(scrambleOldPassword(authData[:8], mc.cfg.Passwd), 0)
 		return authResp, nil
 
-	case "mysql_clear_password":
+	case authCleartextPassword:
 		if !mc.cfg.AllowCleartextPasswords {
 			return nil, ErrCleartextPassword
 		}
@@ -262,7 +262,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		// http://dev.mysql.com/doc/refman/5.7/en/pam-authentication-plugin.html
 		return append([]byte(mc.cfg.Passwd), 0), nil
 
-	case "mysql_native_password":
+	case authNativePassword:
 		if !mc.cfg.AllowNativePasswords {
 			return nil, ErrNativePassword
 		}
@@ -271,7 +271,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		authResp := scramblePassword(authData[:20], mc.cfg.Passwd)
 		return authResp, nil
 
-	case "sha256_password":
+	case authSHA256Password:
 		if mc.cfg.Passwd == "" {
 			return []byte{0}, nil
 		}
@@ -338,7 +338,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 	}
 
 	switch plugin {
-	case "caching_sha2_password":
+	case authCachingSHA2:
 		// https://insidemysql.com/preparing-your-community-connector-for-mysql-8-part-2-sha256/
 		switch len(authData) {
 		case 0:
@@ -405,7 +405,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 		default:
 			return ErrMalformPkt
 		}
-	case "sha256_password":
+	case authSHA256Password:
 		switch len(authData) {
 		case 0:
 			return nil // auth successful

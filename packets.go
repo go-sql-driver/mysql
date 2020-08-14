@@ -501,7 +501,7 @@ func (mc *mysqlConn) readAuthResult() (authData []byte, plugin string, err error
 	case iEOF:
 		if len(data) == 1 {
 			// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::OldAuthSwitchRequest
-			return nil, "mysql_old_password", nil
+			return nil, authOldPassword, nil
 		}
 		pluginEndIndex := bytes.IndexByte(data, 0x00)
 		if pluginEndIndex < 0 {

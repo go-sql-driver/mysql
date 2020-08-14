@@ -324,8 +324,8 @@ func TestRegression801(t *testing.T) {
 		t.Fatalf("got error: %v", err)
 	}
 
-	if pluginName != "mysql_native_password" {
-		t.Errorf("expected plugin name 'mysql_native_password', got '%s'", pluginName)
+	if pluginName != authNativePassword {
+		t.Errorf("expected plugin name '%s', got '%s'", authNativePassword, pluginName)
 	}
 
 	expectedAuthData := []byte{60, 70, 63, 58, 68, 104, 34, 97, 98, 120, 114,
