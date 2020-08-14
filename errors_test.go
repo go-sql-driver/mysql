@@ -36,7 +36,7 @@ func TestErrorsSetLogger(t *testing.T) {
 }
 
 func TestErrorsStrictIgnoreNotes(t *testing.T) {
-	runTests(t, dsn+"&sql_notes=false", func(dbt *DBTest) {
+	runTests(t, env.dsn+"&sql_notes=false", func(dbt *DBTest) {
 		dbt.mustExec("DROP TABLE IF EXISTS does_not_exist")
 	})
 }

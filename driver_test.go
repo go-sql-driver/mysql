@@ -37,7 +37,7 @@ var (
 	_ driver.Rows = &textRows{}
 )
 
-var (
+var env struct {
 	user      string
 	pass      string
 	prot      string
@@ -46,7 +46,7 @@ var (
 	dsn       string
 	netAddr   string
 	available bool
-)
+}
 
 var (
 	tDate      = time.Date(2012, 6, 14, 0, 0, 0, 0, time.UTC)
@@ -61,22 +61,22 @@ var (
 // See https://github.com/go-sql-driver/mysql/wiki/Testing
 func init() {
 	// get environment variables
-	env := func(key, defaultValue string) string {
+	getEnv := func(key, defaultValue string) string {
 		if value := os.Getenv(key); value != "" {
 			return value
 		}
 		return defaultValue
 	}
-	user = env("MYSQL_TEST_USER", "root")
-	pass = env("MYSQL_TEST_PASS", "")
-	prot = env("MYSQL_TEST_PROT", "tcp")
-	addr = env("MYSQL_TEST_ADDR", "localhost:3306")
-	dbname = env("MYSQL_TEST_DBNAME", "gotest")
-	netAddr = fmt.Sprintf("%s(%s)", prot, addr)
-	dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s", user, pass, netAddr, dbname)
-	c, err := net.Dial(prot, addr)
+	env.user = getEnv("MYSQL_TEST_USER", "root")
+	env.pass = getEnv("MYSQL_TEST_PASS", "")
+	env.prot = getEnv("MYSQL_TEST_PROT", "tcp")
+	env.addr = getEnv("MYSQL_TEST_ADDR", "localhost:3306")
+	env.dbname = getEnv("MYSQL_TEST_DBNAME", "gotest")
+	env.netAddr = fmt.Sprintf("%s(%s)", env.prot, env.addr)
+	env.dsn = fmt.Sprintf("%s:%s@%s/%s?timeout=30s", env.user, env.pass, env.netAddr, env.dbname)
+	c, err := net.Dial(env.prot, env.addr)
 	if err == nil {
-		available = true
+		env.available = true
 		c.Close()
 	}
 }
@@ -104,8 +104,8 @@ func (e netErrorMock) Error() string {
 }
 
 func runTestsWithMultiStatement(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
-	if !available {
-		t.Skipf("MySQL server not running on %s", netAddr)
+	if !env.available {
+		t.Skipf("MySQL server not running on %s", env.netAddr)
 	}
 
 	dsn += "&multiStatements=true"
@@ -126,8 +126,8 @@ func runTestsWithMultiStatement(t *testing.T, dsn string, tests ...func(dbt *DBT
 }
 
 func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
-	if !available {
-		t.Skipf("MySQL server not running on %s", netAddr)
+	if !env.available {
+		t.Skipf("MySQL server not running on %s", env.netAddr)
 	}
 
 	db, err := sql.Open("mysql", dsn)
@@ -210,7 +210,7 @@ func maybeSkip(t *testing.T, err error, skipErrno uint16) {
 }
 
 func TestEmptyQuery(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		// just a comment, no query
 		rows := dbt.mustQuery("--")
 		defer rows.Close()
@@ -225,7 +225,7 @@ func TestEmptyQuery(t *testing.T) {
 }
 
 func TestCRUD(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		// Create Table
 		dbt.mustExec("CREATE TABLE test (value BOOL)")
 
@@ -329,7 +329,7 @@ func TestCRUD(t *testing.T) {
 }
 
 func TestMultiQuery(t *testing.T) {
-	runTestsWithMultiStatement(t, dsn, func(dbt *DBTest) {
+	runTestsWithMultiStatement(t, env.dsn, func(dbt *DBTest) {
 		// Create Table
 		dbt.mustExec("CREATE TABLE `test` (`id` int(11) NOT NULL, `value` int(11) NOT NULL) ")
 
@@ -377,7 +377,7 @@ func TestMultiQuery(t *testing.T) {
 }
 
 func TestInt(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		types := [5]string{"TINYINT", "SMALLINT", "MEDIUMINT", "INT", "BIGINT"}
 		in := int64(42)
 		var out int64
@@ -432,7 +432,7 @@ func TestInt(t *testing.T) {
 }
 
 func TestFloat32(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		types := [2]string{"FLOAT", "DOUBLE"}
 		in := float32(42.23)
 		var out float32
@@ -459,7 +459,7 @@ func TestFloat32(t *testing.T) {
 }
 
 func TestFloat64(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		types := [2]string{"FLOAT", "DOUBLE"}
 		var expected float64 = 42.23
 		var out float64
@@ -486,7 +486,7 @@ func TestFloat64(t *testing.T) {
 }
 
 func TestFloat64Placeholder(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		types := [2]string{"FLOAT", "DOUBLE"}
 		var expected float64 = 42.23
 		var out float64
@@ -513,7 +513,7 @@ func TestFloat64Placeholder(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		types := [6]string{"CHAR(255)", "VARCHAR(255)", "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT"}
 		in := "κόσμε üöäßñóùéàâÿœ'îë Árvíztűrő いろはにほへとちりぬるを イロハニホヘト דג סקרן чащах  น่าฟังเอย"
 		var out string
@@ -565,7 +565,7 @@ func TestString(t *testing.T) {
 }
 
 func TestRawBytes(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		v1 := []byte("aaa")
 		v2 := []byte("bbb")
 		rows := dbt.mustQuery("SELECT ?, ?", v1, v2)
@@ -597,7 +597,7 @@ func TestRawBytes(t *testing.T) {
 }
 
 func TestRawMessage(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		v1 := json.RawMessage("{}")
 		v2 := json.RawMessage("[]")
 		rows := dbt.mustQuery("SELECT ?, ?", v1, v2)
@@ -631,7 +631,7 @@ func (tv testValuer) Value() (driver.Value, error) {
 }
 
 func TestValuer(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		in := testValuer{"a_value"}
 		var out string
 		var rows *sql.Rows
@@ -669,7 +669,7 @@ func (tv testValuerWithValidation) Value() (driver.Value, error) {
 }
 
 func TestValuerWithValidation(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		in := testValuerWithValidation{"a_value"}
 		var out string
 		var rows *sql.Rows
@@ -883,8 +883,8 @@ func TestDateTime(t *testing.T) {
 		}},
 	}
 	dsns := []string{
-		dsn + "&parseTime=true",
-		dsn + "&parseTime=false",
+		env.dsn + "&parseTime=true",
+		env.dsn + "&parseTime=false",
 	}
 	for _, testdsn := range dsns {
 		runTests(t, testdsn, func(dbt *DBTest) {
@@ -944,7 +944,7 @@ func TestTimestampMicros(t *testing.T) {
 	f0 := format[:19]
 	f1 := format[:21]
 	f6 := format[:26]
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		// check if microseconds are supported.
 		// Do not use timestamp(x) for that check - before 5.5.6, x would mean display width
 		// and not precision.
@@ -999,7 +999,7 @@ func TestTimestampMicros(t *testing.T) {
 }
 
 func TestNULL(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		nullStmt, err := dbt.db.Prepare("SELECT NULL")
 		if err != nil {
 			dbt.Fatal(err)
@@ -1163,7 +1163,7 @@ func TestUint64(t *testing.T) {
 		shigh = int64(uhigh)
 		stop  = ^shigh
 	)
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		stmt, err := dbt.db.Prepare(`SELECT ?, ?, ? ,?, ?, ?, ?, ?`)
 		if err != nil {
 			dbt.Fatal(err)
@@ -1196,7 +1196,7 @@ func TestUint64(t *testing.T) {
 }
 
 func TestLongData(t *testing.T) {
-	runTests(t, dsn+"&maxAllowedPacket=0", func(dbt *DBTest) {
+	runTests(t, env.dsn+"&maxAllowedPacket=0", func(dbt *DBTest) {
 		var maxAllowedPacketSize int
 		err := dbt.db.QueryRow("select @@max_allowed_packet").Scan(&maxAllowedPacketSize)
 		if err != nil {
@@ -1262,7 +1262,7 @@ func TestLongData(t *testing.T) {
 }
 
 func TestLoadData(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		verifyLoadDataResult := func() {
 			rows, err := dbt.db.Query("SELECT * FROM test")
 			if err != nil {
@@ -1363,7 +1363,7 @@ func TestLoadData(t *testing.T) {
 }
 
 func TestFoundRows(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (id INT NOT NULL ,data INT NOT NULL)")
 		dbt.mustExec("INSERT INTO test (id, data) VALUES (0, 0),(0, 0),(1, 0),(1, 0),(1, 1)")
 
@@ -1384,7 +1384,7 @@ func TestFoundRows(t *testing.T) {
 			dbt.Fatalf("Expected 2 affected rows, got %d", count)
 		}
 	})
-	runTests(t, dsn+"&clientFoundRows=true", func(dbt *DBTest) {
+	runTests(t, env.dsn+"&clientFoundRows=true", func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (id INT NOT NULL ,data INT NOT NULL)")
 		dbt.mustExec("INSERT INTO test (id, data) VALUES (0, 0),(0, 0),(1, 0),(1, 0),(1, 1)")
 
@@ -1442,24 +1442,24 @@ func TestTLS(t *testing.T) {
 		}
 	}
 
-	runTests(t, dsn+"&tls=preferred", tlsTestOpt)
-	runTests(t, dsn+"&tls=skip-verify", tlsTestReq)
+	runTests(t, env.dsn+"&tls=preferred", tlsTestOpt)
+	runTests(t, env.dsn+"&tls=skip-verify", tlsTestReq)
 
 	// Verify that registering / using a custom cfg works
 	RegisterTLSConfig("custom-skip-verify", &tls.Config{
 		InsecureSkipVerify: true,
 	})
-	runTests(t, dsn+"&tls=custom-skip-verify", tlsTestReq)
+	runTests(t, env.dsn+"&tls=custom-skip-verify", tlsTestReq)
 }
 
 func TestReuseClosedConnection(t *testing.T) {
 	// this test does not use sql.database, it uses the driver directly
-	if !available {
-		t.Skipf("MySQL server not running on %s", netAddr)
+	if !env.available {
+		t.Skipf("MySQL server not running on %s", env.netAddr)
 	}
 
 	md := &MySQLDriver{}
-	conn, err := md.Open(dsn)
+	conn, err := md.Open(env.dsn)
 	if err != nil {
 		t.Fatalf("error connecting: %s", err.Error())
 	}
@@ -1489,12 +1489,12 @@ func TestReuseClosedConnection(t *testing.T) {
 }
 
 func TestCharset(t *testing.T) {
-	if !available {
-		t.Skipf("MySQL server not running on %s", netAddr)
+	if !env.available {
+		t.Skipf("MySQL server not running on %s", env.netAddr)
 	}
 
 	mustSetCharset := func(charsetParam, expected string) {
-		runTests(t, dsn+"&"+charsetParam, func(dbt *DBTest) {
+		runTests(t, env.dsn+"&"+charsetParam, func(dbt *DBTest) {
 			rows := dbt.mustQuery("SELECT @@character_set_connection")
 			defer rows.Close()
 
@@ -1523,7 +1523,7 @@ func TestCharset(t *testing.T) {
 }
 
 func TestFailingCharset(t *testing.T) {
-	runTests(t, dsn+"&charset=none", func(dbt *DBTest) {
+	runTests(t, env.dsn+"&charset=none", func(dbt *DBTest) {
 		// run query to really establish connection...
 		_, err := dbt.db.Exec("SELECT 1")
 		if err == nil {
@@ -1534,8 +1534,8 @@ func TestFailingCharset(t *testing.T) {
 }
 
 func TestCollation(t *testing.T) {
-	if !available {
-		t.Skipf("MySQL server not running on %s", netAddr)
+	if !env.available {
+		t.Skipf("MySQL server not running on %s", env.netAddr)
 	}
 
 	defaultCollation := "utf8mb4_general_ci"
@@ -1551,10 +1551,10 @@ func TestCollation(t *testing.T) {
 	for _, collation := range testCollations {
 		var expected, tdsn string
 		if collation != "" {
-			tdsn = dsn + "&collation=" + collation
+			tdsn = env.dsn + "&collation=" + collation
 			expected = collation
 		} else {
-			tdsn = dsn
+			tdsn = env.dsn
 			expected = defaultCollation
 		}
 
@@ -1572,7 +1572,7 @@ func TestCollation(t *testing.T) {
 }
 
 func TestColumnsWithAlias(t *testing.T) {
-	runTests(t, dsn+"&columnsWithAlias=true", func(dbt *DBTest) {
+	runTests(t, env.dsn+"&columnsWithAlias=true", func(dbt *DBTest) {
 		rows := dbt.mustQuery("SELECT 1 AS A")
 		if err := rows.Err(); err != nil {
 			dbt.Fatal(err)
@@ -1602,7 +1602,7 @@ func TestColumnsWithAlias(t *testing.T) {
 }
 
 func TestRawBytesResultExceedsBuffer(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		// defaultBufSize from buffer.go
 		expected := strings.Repeat("abc", defaultBufSize)
 
@@ -1660,14 +1660,14 @@ func TestTimezoneConversion(t *testing.T) {
 	}
 
 	for _, tz := range zones {
-		runTests(t, dsn+"&parseTime=true&loc="+url.QueryEscape(tz), tzTest)
+		runTests(t, env.dsn+"&parseTime=true&loc="+url.QueryEscape(tz), tzTest)
 	}
 }
 
 // Special cases
 
 func TestRowsClose(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		rows, err := dbt.db.Query("SELECT 1")
 		if err != nil {
 			dbt.Fatal(err)
@@ -1692,7 +1692,7 @@ func TestRowsClose(t *testing.T) {
 // dangling statements
 // http://code.google.com/p/go/issues/detail?id=3865
 func TestCloseStmtBeforeRows(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		stmt, err := dbt.db.Prepare("SELECT 1")
 		if err != nil {
 			dbt.Fatal(err)
@@ -1733,7 +1733,7 @@ func TestCloseStmtBeforeRows(t *testing.T) {
 // It is valid to have multiple Rows for the same Stmt
 // http://code.google.com/p/go/issues/detail?id=3734
 func TestStmtMultiRows(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		stmt, err := dbt.db.Prepare("SELECT 1 UNION SELECT 0")
 		if err != nil {
 			dbt.Fatal(err)
@@ -1849,7 +1849,7 @@ func TestStmtMultiRows(t *testing.T) {
 // * parameters * 64 > max_allowed_packet (issue 734)
 func TestPreparedManyCols(t *testing.T) {
 	numParams := 65535
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		query := "SELECT ?" + strings.Repeat(",?", numParams-1)
 		stmt, err := dbt.db.Prepare(query)
 		if err != nil {
@@ -1889,7 +1889,7 @@ func TestConcurrent(t *testing.T) {
 		t.Skip("MYSQL_TEST_CONCURRENT env var not set")
 	}
 
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		var max int
 		err := dbt.db.QueryRow("SELECT @@max_connections").Scan(&max)
 		if err != nil {
@@ -1953,12 +1953,12 @@ func TestConcurrent(t *testing.T) {
 	})
 }
 
-func testDialError(t *testing.T, dialErr error, expectErr error) {
+func testDialError(t *testing.T, dialErr, expectErr error) {
 	RegisterDialContext("mydial", func(ctx context.Context, addr string) (net.Conn, error) {
 		return nil, dialErr
 	})
 
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@mydial(%s)/%s?timeout=30s", user, pass, addr, dbname))
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@mydial(%s)/%s?timeout=30s", env.user, env.pass, env.addr, env.dbname))
 	if err != nil {
 		t.Fatalf("error connecting: %s", err.Error())
 	}
@@ -1987,17 +1987,17 @@ func TestDialTemporaryNetErr(t *testing.T) {
 
 // Tests custom dial functions
 func TestCustomDial(t *testing.T) {
-	if !available {
-		t.Skipf("MySQL server not running on %s", netAddr)
+	if !env.available {
+		t.Skipf("MySQL server not running on %s", env.netAddr)
 	}
 
 	// our custom dial function which justs wraps net.Dial here
 	RegisterDialContext("mydial", func(ctx context.Context, addr string) (net.Conn, error) {
 		var d net.Dialer
-		return d.DialContext(ctx, prot, addr)
+		return d.DialContext(ctx, env.prot, env.addr)
 	})
 
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@mydial(%s)/%s?timeout=30s", user, pass, addr, dbname))
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@mydial(%s)/%s?timeout=30s", env.user, env.pass, env.addr, env.dbname))
 	if err != nil {
 		t.Fatalf("error connecting: %s", err.Error())
 	}
@@ -2029,8 +2029,8 @@ func TestSQLInjection(t *testing.T) {
 	}
 
 	dsns := []string{
-		dsn,
-		dsn + "&sql_mode='NO_BACKSLASH_ESCAPES'",
+		env.dsn,
+		env.dsn + "&sql_mode='NO_BACKSLASH_ESCAPES'",
 	}
 	for _, testdsn := range dsns {
 		runTests(t, testdsn, createTest("1 OR 1=1"))
@@ -2059,8 +2059,8 @@ func TestInsertRetrieveEscapedData(t *testing.T) {
 	}
 
 	dsns := []string{
-		dsn,
-		dsn + "&sql_mode='NO_BACKSLASH_ESCAPES'",
+		env.dsn,
+		env.dsn + "&sql_mode='NO_BACKSLASH_ESCAPES'",
 	}
 	for _, testdsn := range dsns {
 		runTests(t, testdsn, testData)
@@ -2068,7 +2068,7 @@ func TestInsertRetrieveEscapedData(t *testing.T) {
 }
 
 func TestUnixSocketAuthFail(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		// Save the current logger so we can restore it.
 		oldLogger := errLog
 
@@ -2082,10 +2082,10 @@ func TestUnixSocketAuthFail(t *testing.T) {
 
 		// Make a new DSN that uses the MySQL socket file and a bad password, which
 		// we can make by simply appending any character to the real password.
-		badPass := pass + "x"
+		badPass := env.pass + "x"
 		socket := ""
-		if prot == "unix" {
-			socket = addr
+		if env.prot == "unix" {
+			socket = env.addr
 		} else {
 			// Get socket file from MySQL.
 			err := dbt.db.QueryRow("SELECT @@socket").Scan(&socket)
@@ -2094,7 +2094,7 @@ func TestUnixSocketAuthFail(t *testing.T) {
 			}
 		}
 		t.Logf("socket: %s", socket)
-		badDSN := fmt.Sprintf("%s:%s@unix(%s)/%s?timeout=30s", user, badPass, socket, dbname)
+		badDSN := fmt.Sprintf("%s:%s@unix(%s)/%s?timeout=30s", env.user, badPass, socket, env.dbname)
 		db, err := sql.Open("mysql", badDSN)
 		if err != nil {
 			t.Fatalf("error connecting: %s", err.Error())
@@ -2116,7 +2116,7 @@ func TestUnixSocketAuthFail(t *testing.T) {
 
 // See Issue #422
 func TestInterruptBySignal(t *testing.T) {
-	runTestsWithMultiStatement(t, dsn, func(dbt *DBTest) {
+	runTestsWithMultiStatement(t, env.dsn, func(dbt *DBTest) {
 		dbt.mustExec(`
 			DROP PROCEDURE IF EXISTS test_signal;
 			CREATE PROCEDURE test_signal(ret INT)
@@ -2203,7 +2203,7 @@ func TestColumnsReusesSlice(t *testing.T) {
 }
 
 func TestRejectReadOnly(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		// Create Table
 		dbt.mustExec("CREATE TABLE test (value BOOL)")
 		// Set the session to read-only. We didn't set the `rejectReadOnly`
@@ -2222,7 +2222,7 @@ func TestRejectReadOnly(t *testing.T) {
 	})
 
 	// Enable the `rejectReadOnly` option.
-	runTests(t, dsn+"&rejectReadOnly=true", func(dbt *DBTest) {
+	runTests(t, env.dsn+"&rejectReadOnly=true", func(dbt *DBTest) {
 		// Create Table
 		dbt.mustExec("CREATE TABLE test (value BOOL)")
 		// Set the session to read only. Any writes after this should error on
@@ -2236,7 +2236,7 @@ func TestRejectReadOnly(t *testing.T) {
 }
 
 func TestPing(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		if err := dbt.db.Ping(); err != nil {
 			dbt.fail("Ping", "Ping", err)
 		}
@@ -2245,18 +2245,18 @@ func TestPing(t *testing.T) {
 
 // See Issue #799
 func TestEmptyPassword(t *testing.T) {
-	if !available {
-		t.Skipf("MySQL server not running on %s", netAddr)
+	if !env.available {
+		t.Skipf("MySQL server not running on %s", env.netAddr)
 	}
 
-	dsn := fmt.Sprintf("%s:%s@%s/%s?timeout=30s", user, "", netAddr, dbname)
+	dsn := fmt.Sprintf("%s:%s@%s/%s?timeout=30s", env.user, "", env.netAddr, env.dbname)
 	db, err := sql.Open("mysql", dsn)
 	if err == nil {
 		defer db.Close()
 		err = db.Ping()
 	}
 
-	if pass == "" {
+	if env.pass == "" {
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -2391,7 +2391,7 @@ func TestMultiResultSet(t *testing.T) {
 		}
 	}
 
-	runTestsWithMultiStatement(t, dsn, func(dbt *DBTest) {
+	runTestsWithMultiStatement(t, env.dsn, func(dbt *DBTest) {
 		rows := dbt.mustQuery(`DO 1;
 		SELECT 1 AS col1, 2 AS col2 UNION SELECT 3, 4;
 		DO 1;
@@ -2404,7 +2404,7 @@ func TestMultiResultSet(t *testing.T) {
 		checkRows("query: ", rows, dbt)
 	})
 
-	runTestsWithMultiStatement(t, dsn, func(dbt *DBTest) {
+	runTestsWithMultiStatement(t, env.dsn, func(dbt *DBTest) {
 		queries := []string{
 			`
 			DROP PROCEDURE IF EXISTS test_mrss;
@@ -2455,7 +2455,7 @@ func TestMultiResultSet(t *testing.T) {
 }
 
 func TestMultiResultSetNoSelect(t *testing.T) {
-	runTestsWithMultiStatement(t, dsn, func(dbt *DBTest) {
+	runTestsWithMultiStatement(t, env.dsn, func(dbt *DBTest) {
 		rows := dbt.mustQuery("DO 1; DO 2;")
 		defer rows.Close()
 
@@ -2476,7 +2476,7 @@ func TestMultiResultSetNoSelect(t *testing.T) {
 // tests if rows are set in a proper state if some results were ignored before
 // calling rows.NextResultSet.
 func TestSkipResults(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		rows := dbt.mustQuery("SELECT 1, 2")
 		defer rows.Close()
 
@@ -2495,7 +2495,7 @@ func TestSkipResults(t *testing.T) {
 }
 
 func TestPingContext(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		if err := dbt.db.PingContext(ctx); err != context.Canceled {
@@ -2505,7 +2505,7 @@ func TestPingContext(t *testing.T) {
 }
 
 func TestContextCancelExec(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -2551,7 +2551,7 @@ func TestContextCancelExec(t *testing.T) {
 }
 
 func TestContextCancelQuery(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -2609,7 +2609,7 @@ func TestContextCancelQuery(t *testing.T) {
 }
 
 func TestContextCancelQueryRow(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		dbt.mustExec("INSERT INTO test VALUES (1), (2), (3)")
 		ctx, cancel := context.WithCancel(context.Background())
@@ -2642,7 +2642,7 @@ func TestContextCancelQueryRow(t *testing.T) {
 }
 
 func TestContextCancelPrepare(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		rows, err := dbt.db.PrepareContext(ctx, "SELECT 1")
@@ -2656,7 +2656,7 @@ func TestContextCancelPrepare(t *testing.T) {
 }
 
 func TestContextCancelStmtExec(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 		stmt, err := dbt.db.PrepareContext(ctx, "INSERT INTO test VALUES (SLEEP(1))")
@@ -2691,7 +2691,7 @@ func TestContextCancelStmtExec(t *testing.T) {
 }
 
 func TestContextCancelStmtQuery(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 		stmt, err := dbt.db.PrepareContext(ctx, "INSERT INTO test VALUES (SLEEP(1))")
@@ -2733,7 +2733,7 @@ func TestContextCancelStmtQuery(t *testing.T) {
 }
 
 func TestContextCancelBegin(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 		conn, err := dbt.db.Conn(ctx)
@@ -2789,7 +2789,7 @@ func TestContextCancelBegin(t *testing.T) {
 }
 
 func TestContextBeginIsolationLevel(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -2841,7 +2841,7 @@ func TestContextBeginIsolationLevel(t *testing.T) {
 }
 
 func TestContextBeginReadOnly(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -2973,8 +2973,8 @@ func TestRowsColumnTypes(t *testing.T) {
 	values3 = values3[:len(values3)-2]
 
 	dsns := []string{
-		dsn + "&parseTime=true",
-		dsn + "&parseTime=false",
+		env.dsn + "&parseTime=true",
+		env.dsn + "&parseTime=false",
 	}
 	for _, testdsn := range dsns {
 		runTests(t, testdsn, func(dbt *DBTest) {
@@ -3103,7 +3103,7 @@ func TestRowsColumnTypes(t *testing.T) {
 }
 
 func TestValuerWithValueReceiverGivenNilValue(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (value VARCHAR(255))")
 		dbt.db.Exec("INSERT INTO test VALUES (?)", (*testValuer)(nil))
 		// This test will panic on the INSERT if ConvertValue() does not check for typed nil before calling Value()
@@ -3126,7 +3126,7 @@ func TestRawBytesAreNotModified(t *testing.T) {
 		strings.Repeat(strings.ToUpper(blob), blobSize/len(blob)),
 	}
 
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (id int, value BLOB) CHARACTER SET utf8")
 		for i := 0; i < insertRows; i++ {
 			dbt.mustExec("INSERT INTO test VALUES (?, ?)", i+1, sqlBlobs[i&1])
@@ -3173,8 +3173,8 @@ var _ driver.DriverContext = &MySQLDriver{}
 type dialCtxKey struct{}
 
 func TestConnectorObeysDialTimeouts(t *testing.T) {
-	if !available {
-		t.Skipf("MySQL server not running on %s", netAddr)
+	if !env.available {
+		t.Skipf("MySQL server not running on %s", env.netAddr)
 	}
 
 	RegisterDialContext("dialctxtest", func(ctx context.Context, addr string) (net.Conn, error) {
@@ -3182,10 +3182,10 @@ func TestConnectorObeysDialTimeouts(t *testing.T) {
 		if !ctx.Value(dialCtxKey{}).(bool) {
 			return nil, fmt.Errorf("test error: query context is not propagated to our dialer")
 		}
-		return d.DialContext(ctx, prot, addr)
+		return d.DialContext(ctx, env.prot, env.addr)
 	})
 
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@dialctxtest(%s)/%s?timeout=30s", user, pass, addr, dbname))
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@dialctxtest(%s)/%s?timeout=30s", env.user, env.pass, env.addr, env.dbname))
 	if err != nil {
 		t.Fatalf("error connecting: %s", err.Error())
 	}
@@ -3200,16 +3200,16 @@ func TestConnectorObeysDialTimeouts(t *testing.T) {
 }
 
 func configForTests(t *testing.T) *Config {
-	if !available {
-		t.Skipf("MySQL server not running on %s", netAddr)
+	if !env.available {
+		t.Skipf("MySQL server not running on %s", env.netAddr)
 	}
 
 	mycnf := NewConfig()
-	mycnf.User = user
-	mycnf.Passwd = pass
-	mycnf.Addr = addr
-	mycnf.Net = prot
-	mycnf.DBName = dbname
+	mycnf.User = env.user
+	mycnf.Passwd = env.pass
+	mycnf.Addr = env.addr
+	mycnf.Net = env.prot
+	mycnf.DBName = env.dbname
 	return mycnf
 }
 
@@ -3252,7 +3252,7 @@ func (cw *connectorHijack) Connect(ctx context.Context) (driver.Conn, error) {
 func TestConnectorTimeoutsDuringOpen(t *testing.T) {
 	RegisterDialContext("slowconn", func(ctx context.Context, addr string) (net.Conn, error) {
 		var d net.Dialer
-		conn, err := d.DialContext(ctx, prot, addr)
+		conn, err := d.DialContext(ctx, env.prot, env.addr)
 		if err != nil {
 			return nil, err
 		}

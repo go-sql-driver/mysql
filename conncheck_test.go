@@ -16,7 +16,7 @@ import (
 )
 
 func TestStaleConnectionChecks(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, env.dsn, func(dbt *DBTest) {
 		dbt.mustExec("SET @@SESSION.wait_timeout = 2")
 
 		if err := dbt.db.Ping(); err != nil {
