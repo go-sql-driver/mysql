@@ -1356,7 +1356,7 @@ func TestLoadData(t *testing.T) {
 		_, err = dbt.db.Exec("LOAD DATA LOCAL INFILE 'Reader::doesnotexist' INTO TABLE test")
 		if err == nil {
 			dbt.Fatal("load non-existent Reader didn't fail")
-		} else if err.Error() != "Reader 'doesnotexist' is not registered" {
+		} else if err.Error() != "unknown Reader 'doesnotexist'" {
 			dbt.Fatal(err.Error())
 		}
 	})
