@@ -141,7 +141,7 @@ func BenchmarkExec(b *testing.B) {
 // data, but no db writes
 var roundtripSample []byte
 
-func initRoundtripBenchmarks() ([]byte, int, int) {
+func initRoundtripBenchmarks() (sample []byte, min, max int) {
 	if roundtripSample == nil {
 		roundtripSample = []byte(strings.Repeat("0123456789abcdef", 1024*1024))
 	}

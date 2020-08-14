@@ -486,7 +486,7 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 *                              Result Packets                                 *
 ******************************************************************************/
 
-func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
+func (mc *mysqlConn) readAuthResult() (authData []byte, plugin string, err error) {
 	data, err := mc.readPacket()
 	if err != nil {
 		return nil, "", err

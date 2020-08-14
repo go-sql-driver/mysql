@@ -71,7 +71,7 @@ func (rows *mysqlRows) ColumnTypeNullable(i int) (nullable, ok bool) {
 	return rows.rs.columns[i].flags&flagNotNULL == 0, true
 }
 
-func (rows *mysqlRows) ColumnTypePrecisionScale(i int) (int64, int64, bool) {
+func (rows *mysqlRows) ColumnTypePrecisionScale(i int) (precision, scale int64, ok bool) {
 	column := rows.rs.columns[i]
 	decimals := int64(column.decimals)
 

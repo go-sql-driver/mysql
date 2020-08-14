@@ -533,10 +533,10 @@ func stringToInt(b []byte) int {
 	return val
 }
 
-// returns the string read as a bytes slice, wheter the value is NULL,
+// returns the string read as a bytes slice, whether the value is NULL,
 // the number of bytes read and an error, in case the string is longer than
 // the input slice
-func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
+func readLengthEncodedString(b []byte) (str []byte, isNull bool, n int, err error) {
 	// Get length
 	num, isNull, n := readLengthEncodedInteger(b)
 	if num < 1 {
@@ -554,7 +554,7 @@ func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
 
 // returns the number of bytes skipped and an error, in case the string is
 // longer than the input slice
-func skipLengthEncodedString(b []byte) (int, error) {
+func skipLengthEncodedString(b []byte) (n int, err error) {
 	// Get length
 	num, _, n := readLengthEncodedInteger(b)
 	if num < 1 {
@@ -571,7 +571,7 @@ func skipLengthEncodedString(b []byte) (int, error) {
 }
 
 // returns the number read, whether the value is NULL and the number of bytes read
-func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
+func readLengthEncodedInteger(b []byte) (value uint64, isNull bool, n int) {
 	// See issue #349
 	if len(b) == 0 {
 		return 0, true, 1
