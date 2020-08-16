@@ -28,4 +28,8 @@ import (
 //  }
 //
 // This NullTime implementation is not driver-specific
+//
+// Deprecated: NullTime doesn't honor the loc DSN parameter.
+// NullTime.Scan interprets a time as UTC, not the loc DSN parameter.
+// Use sql.NullTime instead.
 type NullTime sql.NullTime
