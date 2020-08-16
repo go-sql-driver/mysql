@@ -33,3 +33,8 @@ import (
 // NullTime.Scan interprets a time as UTC, not the loc DSN parameter.
 // Use sql.NullTime instead.
 type NullTime sql.NullTime
+
+// for internal use.
+// the mysql package uses sql.NullTime if it is available.
+// if not, the package uses mysql.NullTime.
+type nullTime = sql.NullTime // sql.NullTime is available
