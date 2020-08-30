@@ -12,6 +12,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"net"
+	"strings"
 )
 
 type connector struct {
@@ -86,6 +87,20 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 
 	if plugin == "" {
 		plugin = defaultAuthPlugin
+	}
+
+	// Set the optionalResultSetMetadata ahead to set the client capability flag.
+	if resultSetMetadata, ok := mc.cfg.Params["resultset_metadata"]; ok {
+		upperVal := strings.ToUpper(resultSetMetadata)
+		switch upperVal {
+		case resultSetMetadataSysVarNone:
+			mc.optionalResultSetMetadata = true
+			mc.resultSetMetadata = resultSetMetadataNone
+		case resultSetMetadataSysVarFull:
+			mc.optionalResultSetMetadata = true
+			mc.resultSetMetadata = resultSetMetadataFull
+		}
+		// To be consistent with other params, in case the param is passed wrongly still send to MySQL to let the server side rejects it.
 	}
 
 	// Send Client Authentication Packet

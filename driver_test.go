@@ -44,6 +44,7 @@ var (
 	prot      string
 	addr      string
 	dbname    string
+	vendor    string
 	dsn       string
 	netAddr   string
 	available bool
@@ -202,6 +203,7 @@ func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows)
 func maybeSkip(t *testing.T, err error, skipErrno uint16) {
 	mySQLErr, ok := err.(*MySQLError)
 	if !ok {
+		errLog.Print("non match")
 		return
 	}
 
@@ -1341,6 +1343,49 @@ func TestFoundRows(t *testing.T) {
 		}
 		if count != 3 {
 			dbt.Fatalf("Expected 3 matched rows, got %d", count)
+		}
+	})
+}
+
+func TestOptionalResultSetMetadata(t *testing.T) {
+	runTests(t, dsn+"&resultset_metadata=none", func(dbt *DBTest) {
+		_, err := dbt.db.Exec("CREATE TABLE test (id INT NOT NULL ,data INT NOT NULL)")
+		if err == ErrNoOptionalResultMetadataSet {
+			t.Skip("server does not support resultset metadata")
+		} else if err != nil {
+			dbt.Fatal(err)
+		}
+		dbt.mustExec("INSERT INTO test (id, data) VALUES (0, 0),(0, 0),(1, 0),(1, 0),(1, 1)")
+
+		row := dbt.db.QueryRow("SELECT id, data FROM test WHERE id = 1")
+		id, data := 0, 0
+		err = row.Scan(&id, &data)
+		if err != nil {
+			dbt.Fatal(err)
+		}
+
+		if id != 1 && data != 0 {
+			dbt.Fatal("invalid result")
+		}
+	})
+	runTests(t, dsn+"&resultset_metadata=full", func(dbt *DBTest) {
+		_, err := dbt.db.Exec("CREATE TABLE test (id INT NOT NULL ,data INT NOT NULL)")
+		if err == ErrNoOptionalResultMetadataSet {
+			t.Skip("server does not support resultset metadata")
+		} else if err != nil {
+			dbt.Fatal(err)
+		}
+		dbt.mustExec("INSERT INTO test (id, data) VALUES (0, 0),(0, 0),(1, 0),(1, 0),(1, 1)")
+
+		row := dbt.db.QueryRow("SELECT id, data FROM test WHERE id = 1")
+		id, data := 0, 0
+		err = row.Scan(&id, &data)
+		if err != nil {
+			dbt.Fatal(err)
+		}
+
+		if id != 1 && data != 0 {
+			dbt.Fatal("invalid result")
 		}
 	})
 }
