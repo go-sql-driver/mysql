@@ -238,12 +238,12 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 		pos += 1 + 2
 
 		// capability flags (upper 2 bytes) [2 bytes]
-		mc.flags += clientFlag(binary.LittleEndian.Uint16(data[pos:pos+2])) << 16
+		mc.flags |= clientFlag(binary.LittleEndian.Uint16(data[pos:pos+2])) << 16
 		pos += 2
 
 		// length of auth-plugin-data [1 byte]
 		// reserved (all [00]) [10 bytes]
-		pos += +1 + 10
+		pos += 1 + 10
 
 		// second part of the password cipher [mininum 13 bytes],
 		// where len=MAX(13, length of auth-plugin-data - 8)
@@ -614,7 +614,7 @@ func readStatus(b []byte) statusFlag {
 }
 
 // Ok Packet
-// http://dev.mysql.com/doc/internals/en/generic-response-packets.html#packet-OK_Packet
+// https://dev.mysql.com/doc/internals/en/packet-OK_Packet.html
 func (mc *mysqlConn) handleOkPacket(data []byte) error {
 	// 0x00 or 0xFE [1 byte]
 	n := 1
@@ -640,8 +640,12 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 
 // isEOFPacket will return true if the data is either a EOF-Packet or OK-Packet
 // acting as an EOF.
-func isEOFPacket(data []byte) bool {
-	return data[0] == iEOF && len(data) < 9
+func (mc *mysqlConn) isEOFPacket(data []byte) bool {
+	// Legacy EOF packet
+	if data[0] == iEOF && (len(data) == 5 || len(data) == 1) && mc.flags&clientDeprecateEOF == 0 {
+		return true
+	}
+	return data[0] == iEOF && len(data) < 9 && mc.flags&clientDeprecateEOF != 0
 }
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
@@ -649,13 +653,21 @@ func isEOFPacket(data []byte) bool {
 func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 	columns := make([]mysqlField, count)
 
-	for i := 0; i < count; i++ {
+	// If we set clientDeprecateEOF capability flag,
+	// the EOF will be no longer sent after all columns.
+	packets := count
+	if mc.flags&clientDeprecateEOF == 0 {
+		// Legacy way, read one more EOF packet.
+		packets += 1
+	}
+
+	for i := 0; i < packets; i++ {
 		data, err := mc.readPacket()
 		if err != nil {
 			return nil, err
 		}
 
-		if mc.flags&clientDeprecateEOF == 0 && isEOFPacket(data) {
+		if mc.isEOFPacket(data) {
 			if i == count {
 				return columns, nil
 			}
@@ -759,12 +771,13 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 	}
 
 	// EOF Packet
-	if isEOFPacket(data) {
+	if mc.isEOFPacket(data) {
 		if mc.flags&clientDeprecateEOF == 0 {
 			// server_status [2 bytes]
 			rows.mc.status = readStatus(data[3:])
 		} else {
 			if err := mc.handleOkPacket(data); err != nil {
+				rows.mc = nil
 				return err
 			}
 		}
@@ -830,36 +843,21 @@ func (mc *mysqlConn) readUntilEOF() error {
 		switch {
 		case data[0] == iERR:
 			return mc.handleErrorPacket(data)
-		case isEOFPacket(data):
+		case mc.isEOFPacket(data):
 			if mc.flags&clientDeprecateEOF == 0 {
 				mc.status = readStatus(data[3:])
-			} else {
-				return mc.handleOkPacket(data)
+				return nil
 			}
-			return nil
+			return mc.handleOkPacket(data)
 		}
 	}
 }
 
-func (mc *mysqlConn) readPackets(num int) error {
-
-	// we need to read EOF as well
-	if mc.flags&clientDeprecateEOF == 0 {
-		num++
-	}
-
+func (mc *mysqlConn) readExactPackets(num int) error {
 	for i := 0; i < num; i++ {
-		data, err := mc.readPacket()
+		_, err := mc.readPacket()
 		if err != nil {
 			return err
-		}
-
-		switch {
-		case data[0] == iERR:
-			return mc.handleErrorPacket(data)
-		case mc.flags&clientDeprecateEOF == 0 && isEOFPacket(data):
-			mc.status = readStatus(data[3:])
-			return nil
 		}
 	}
 	return nil
@@ -1223,11 +1221,12 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 
 	// packet indicator [1 byte]
 	if data[0] != iOK {
-		if isEOFPacket(data) {
+		if rows.mc.isEOFPacket(data) {
 			if rows.mc.flags&clientDeprecateEOF == 0 {
 				rows.mc.status = readStatus(data[3:])
 			} else {
 				if err := rows.mc.handleOkPacket(data); err != nil {
+					rows.mc = nil
 					return err
 				}
 			}
