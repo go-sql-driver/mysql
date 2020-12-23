@@ -30,7 +30,8 @@ jobs:
           MYSQL_USER: gotest
           MYSQL_PASSWORD: secret
           MYSQL_ALLOW_EMPTY_PASSWORD: yes
-        options: --innodb_log_file_size=256MB --innodb_buffer_pool_size=512MB --max_allowed_packet=16MB --local-infile=1
+        # How can we add these options?
+        #options: --innodb_log_file_size=256MB --innodb_buffer_pool_size=512MB --max_allowed_packet=16MB --local-infile=1
 
     steps:
       - uses: actions/setup-go@v2
