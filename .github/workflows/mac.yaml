@@ -34,8 +34,3 @@ jobs:
           go test -v -covermode=count -coverprofile=coverage.out
           go vet ./...
           gofmt -d -s .
-
-      - uses: shogo82148/actions-goveralls@v1
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-profile: coverage.out
