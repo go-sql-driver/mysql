@@ -9,16 +9,16 @@ jobs:
     strategy:
       matrix:
         go: [1.15, 1.14, 1.13, 1.12, 1.11, 1.10]
-        mysql: [mysql:8.0]
+        mysql: ["mysql:8.0"]
         include:
           - go: 1.15
-            mysql: mysql:5.7
+            mysql: "mysql:5.7"
           - go: 1.15
-            mysql: mysql:5.5
+            mysql: "mysql:5.5"
           - go: 1.15
-            mysql: mariadb:5.5
+            mysql: "mariadb:5.5"
           - go: 1.15
-            mysql: mariadb:10.1
+            mysql: "mariadb:10.1"
 
     services:
       mysql:
