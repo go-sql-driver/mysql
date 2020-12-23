@@ -1,4 +1,4 @@
-name: Build macOS Wheels
+name: Test on macOS
 on:
   push:
   pull_request:
