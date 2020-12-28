@@ -1,0 +1,36 @@
+name: Test on macOS
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Set up MySQL
+        run: |
+          brew install mysql
+          echo -e "[server]\ninnodb_log_file_size=256MB\ninnodb_buffer_pool_size=512MB\nmax_allowed_packet=16MB\nlocal_infile=1" >> /usr/local/etc/my.cnf
+          mysql.server start
+          mysql -uroot -e 'CREATE USER gotest IDENTIFIED BY "secret"'
+          mysql -uroot -e 'GRANT ALL ON *.* TO gotest'
+          mysql -uroot -e 'create database gotest;'
+
+      - name: Set up Go
+        run: |
+          go install golang.org/x/tools/cmd/cover
+
+      - name: Run tests
+        env:
+          MYSQL_TEST_USER: gotest
+          MYSQL_TEST_PASS: secret
+          MYSQL_TEST_ADDR: 127.0.0.1:3306
+          MYSQL_TEST_CONCURRENT: 1
+        run: |
+          go test -v -covermode=count -coverprofile=coverage.out
+          go vet ./...
+          gofmt -d -s .

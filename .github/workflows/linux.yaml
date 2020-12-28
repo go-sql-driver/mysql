@@ -1,0 +1,50 @@
+name: Test on Linux
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        go: [1.15, 1.14, 1.13, 1.12, 1.11, "1.10"]
+        mysql: ["mysql:8.0"]
+        include:
+          - go: 1.15
+            mysql: "mysql:5.7"
+          - go: 1.15
+            mysql: "mysql:5.5"
+          - go: 1.15
+            mysql: "mariadb:5.5"
+          - go: 1.15
+            mysql: "mariadb:10.1"
+
+    services:
+      mysql:
+        image: ${{ matrix.mysql }}
+        ports:
+          - 3306:3306
+        env:
+          MYSQL_DATABASE: gotest
+          MYSQL_USER: gotest
+          MYSQL_PASSWORD: secret
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+        # How can we add these options?
+        #options: --innodb_log_file_size=256MB --innodb_buffer_pool_size=512MB --max_allowed_packet=16MB --local-infile=1
+
+    steps:
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+      - uses: actions/checkout@v2
+      - name: Run test
+        env:
+          MYSQL_TEST_USER: gotest
+          MYSQL_TEST_PASS: secret
+          MYSQL_TEST_ADDR: 127.0.0.1:3307
+          MYSQL_TEST_CONCURRENT: 1
+        run: |
+          go test -v -covermode=count -coverprofile=coverage.out
+          go vet ./...
+          gofmt -d -s .
