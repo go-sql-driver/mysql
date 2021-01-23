@@ -249,7 +249,7 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 			int(data[3]),                              // day
 			0, 0, 0, 0,
 			loc,
-		), nil
+		).Format("2006-01-02"), nil
 	case 7:
 		return time.Date(
 			int(binary.LittleEndian.Uint16(data[:2])), // year
