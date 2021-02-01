@@ -1,0 +1,104 @@
+name: test
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+env:
+  MYSQL_TEST_USER: gotest
+  MYSQL_TEST_PASS: secret
+  MYSQL_TEST_ADDR: 127.0.0.1:3306
+  MYSQL_TEST_CONCURRENT: 1
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: list
+        id: set-matrix
+        run: |
+          from __future__ import print_function
+          import json
+          go = [
+              # Keep the most recent production release at the top
+              '1.15',
+              # Older production releases
+              '1.14',
+              '1.13',
+              '1.12',
+              '1.11',
+          ]
+          mysql = [
+              '8.0',
+              '5.7',
+              '5.6',
+              'mariadb-10.5',
+              'mariadb-10.4',
+              'mariadb-10.3',
+          ]
+
+          includes = []
+          # Go versions compatibility check
+          for v in go[1:]:
+                  includes.append({'os': 'ubuntu-latest', 'go': v, 'mysql': mysql[0]})
+
+          matrix = {
+              # OS vs MySQL versions
+              'os': [ 'ubuntu-latest', 'macos-latest', 'windows-latest' ],
+              'go': [ go[0] ],
+              'mysql': mysql,
+
+              'include': includes
+          }
+          output = json.dumps(matrix, separators=(',', ':'))
+          print('::set-output name=matrix::{0}'.format(output))
+        shell: python
+  test:
+    needs: list
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.list.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+      - uses: shogo82148/actions-setup-mysql@v1
+        with:
+          mysql-version: ${{ matrix.mysql }}
+          user: ${{ env.MYSQL_TEST_USER }}
+          password: ${{ env.MYSQL_TEST_PASS }}
+          my-cnf: |
+            innodb_log_file_size=256MB
+            innodb_buffer_pool_size=512MB
+            max_allowed_packet=16MB
+            ; TestConcurrent fails if max_connections is too large
+            max_connections=50
+            local_infile=1
+      - name: setup database
+        run: |
+          mysql --user 'root' --host '127.0.0.1' -e 'create database gotest;'
+
+      - name: test
+        run: |
+          go test -v '-covermode=count' '-coverprofile=coverage.out'
+
+      - name: Send coverage
+        uses: shogo82148/actions-goveralls@v1
+        with:
+          path-to-profile: coverage.out
+          flag-name: ${{ runner.os }}-Go-${{ matrix.go }}-DB-${{ matrix.mysql }}
+          parallel: true
+
+  # notifies that all test jobs are finished.
+  finish:
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: shogo82148/actions-goveralls@v1
+        with:
+          parallel-finished: true
