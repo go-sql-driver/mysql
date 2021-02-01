@@ -325,7 +325,13 @@ func appendDateTime(buf []byte, t time.Time) ([]byte, error) {
 	localBuf[26], localBuf[27], localBuf[28] =
 		digits01[nsec100], digits10[nsec1], digits01[nsec1]
 
-	return append(buf, localBuf[:]...), nil
+	// trim trailing zeros
+	n := len(localBuf)
+	for n > 0 && localBuf[n-1] == '0' {
+		n--
+	}
+
+	return append(buf, localBuf[:n]...), nil
 }
 
 // zeroDateTime is used in formatBinaryDateTime to avoid an allocation
