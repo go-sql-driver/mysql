@@ -299,40 +299,40 @@ func TestAppendDateTime(t *testing.T) {
 		str string
 	}{
 		{
-			t:   time.Date(2020, 05, 30, 0, 0, 0, 0, time.UTC),
-			str: "2020-05-30",
+			t:   time.Date(1234, 5, 6, 0, 0, 0, 0, time.UTC),
+			str: "1234-05-06",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 0, 0, 0, time.UTC),
-			str: "2020-05-30 22:00:00",
+			t:   time.Date(4567, 12, 31, 12, 0, 0, 0, time.UTC),
+			str: "4567-12-31 12:00:00",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 33, 0, 0, time.UTC),
-			str: "2020-05-30 22:33:00",
+			t:   time.Date(2020, 5, 30, 12, 34, 0, 0, time.UTC),
+			str: "2020-05-30 12:34:00",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 33, 44, 0, time.UTC),
-			str: "2020-05-30 22:33:44",
+			t:   time.Date(2020, 5, 30, 12, 34, 56, 0, time.UTC),
+			str: "2020-05-30 12:34:56",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000000, time.UTC),
-			str: "2020-05-30 22:33:44.550000",
+			t:   time.Date(2020, 5, 30, 22, 33, 44, 123000000, time.UTC),
+			str: "2020-05-30 22:33:44.123",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000499, time.UTC),
-			str: "2020-05-30 22:33:44.550000",
+			t:   time.Date(2020, 5, 30, 22, 33, 44, 123456000, time.UTC),
+			str: "2020-05-30 22:33:44.123456",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000500, time.UTC),
-			str: "2020-05-30 22:33:44.550001",
+			t:   time.Date(2020, 5, 30, 22, 33, 44, 123456789, time.UTC),
+			str: "2020-05-30 22:33:44.123456789",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 33, 44, 550000567, time.UTC),
-			str: "2020-05-30 22:33:44.550001",
+			t:   time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.UTC),
+			str: "9999-12-31 23:59:59.999999999",
 		},
 		{
-			t:   time.Date(2020, 05, 30, 22, 33, 44, 999999567, time.UTC),
-			str: "2020-05-30 22:33:45",
+			t:   time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC),
+			str: "0001-01-01",
 		},
 	}
 	for _, v := range tests {
@@ -340,7 +340,6 @@ func TestAppendDateTime(t *testing.T) {
 		buf, _ = appendDateTime(buf, v.t)
 		if str := string(buf); str != v.str {
 			t.Errorf("appendDateTime(%v), have: %s, want: %s", v.t, str, v.str)
-			return
 		}
 	}
 
