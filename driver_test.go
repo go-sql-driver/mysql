@@ -2978,6 +2978,50 @@ func TestRowsColumnTypes(t *testing.T) {
 	})
 }
 
+// EXPLAIN returns Nullable = false for column "Extra", but value is NULL. :(
+func TestNullableEXPLAIN(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		rows, err := dbt.db.Query("EXPLAIN SELECT * FROM mysql.user")
+		if err != nil {
+			t.Fatalf("Query: %v", err)
+		}
+
+		tt, err := rows.ColumnTypes()
+		if err != nil {
+			t.Fatalf("ColumnTypes: %v", err)
+		}
+		colExtra := len(tt) - 1
+		colInfo := tt[colExtra]
+		t.Logf("Column %d:", colExtra)
+		t.Logf("Name: %s", colInfo.Name())
+		t.Logf("iDatabaseTypeName: %s", colInfo.DatabaseTypeName())
+		nullable, ok := colInfo.Nullable()
+		t.Logf("Nullable: %v (ok: %v)", nullable, ok)
+		values := make([]interface{}, len(tt))
+		for i := range values {
+			nullable, ok := tt[i].Nullable()
+			if !ok {
+				nullable = true
+			}
+			if nullable {
+				values[i] = new(*string)
+			} else {
+				values[i] = new(string)
+			}
+		}
+
+		for rows.Next() {
+			err = rows.Scan(values...)
+			if err != nil {
+				t.Fatalf("failed to scan values in %v", err)
+			}
+		}
+		if err := rows.Close(); err != nil {
+			t.Errorf("error closing rows: %s", err)
+		}
+	})
+}
+
 func TestValuerWithValueReceiverGivenNilValue(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (value VARCHAR(255))")
