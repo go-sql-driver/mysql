@@ -19,12 +19,12 @@ jobs:
       - name: list
         id: set-matrix
         run: |
-          from __future__ import print_function
           import json
           go = [
               # Keep the most recent production release at the top
-              '1.15',
+              '1.16',
               # Older production releases
+              '1.15',
               '1.14',
               '1.13',
               '1.12',
