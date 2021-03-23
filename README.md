@@ -481,6 +481,8 @@ However, many want to scan MySQL `DATE` and `DATETIME` values into `time.Time` v
 
 **Caution:** As of Go 1.1, this makes `time.Time` the only variable type you can scan `DATE` and `DATETIME` values into. This breaks for example [`sql.RawBytes` support](https://github.com/go-sql-driver/mysql/wiki/Examples#rawbytes).
 
+Alternatively, you may use [`mysql.NullTime`](https://pkg.go.dev/github.com/go-sql-driver/mysql#NullTime) to scan the internal `[]byte` value and obtain a `time.Time` from it.
+`mysql.NullTime` also allows you to detect NULL values.
 
 ### Unicode support
 Since version 1.5 Go-MySQL-Driver automatically uses the collation ` utf8mb4_general_ci` by default.
