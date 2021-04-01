@@ -1,4 +1,4 @@
-## Version 1.6 (next release)
+## Version 1.6 (2021-04-01)
 
 Changes:
 
