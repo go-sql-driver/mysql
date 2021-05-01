@@ -343,7 +343,7 @@ func BenchmarkQueryRawBytes(b *testing.B) {
 	for _, s := range sizes {
 		b.Run(fmt.Sprintf("size=%v", s), func(b *testing.B) {
 			db.SetMaxIdleConns(0)
-			db.SetMaxIdleConns(1)
+			db.SetMaxOpenConns(1)
 			b.ReportAllocs()
 			b.ResetTimer()
 
