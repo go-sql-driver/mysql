@@ -175,7 +175,8 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	}
 
 	stmt := &mysqlStmt{
-		mc: mc,
+		mc:       mc,
+		queryStr: query,
 	}
 
 	// Read Result

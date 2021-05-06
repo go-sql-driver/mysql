@@ -11,6 +11,7 @@ package mysql
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -20,6 +21,7 @@ type mysqlStmt struct {
 	mc         *mysqlConn
 	id         uint32
 	paramCount int
+	queryStr   string
 }
 
 func (stmt *mysqlStmt) Close() error {
@@ -68,6 +70,13 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	// Read Result
 	resLen, err := mc.readResultSetHeaderPacket()
 	if err != nil {
+		var mysqlErr *MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1615 {
+			err = stmt.reprepare()
+			if err == nil {
+				return stmt.Exec(args)
+			}
+		}
 		return nil, err
 	}
 
@@ -113,6 +122,13 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 	// Read Result
 	resLen, err := mc.readResultSetHeaderPacket()
 	if err != nil {
+		var mysqlErr *MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1615 {
+			err = stmt.reprepare()
+			if err == nil {
+				return stmt.query(args)
+			}
+		}
 		return nil, err
 	}
 
@@ -133,6 +149,32 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 	}
 
 	return rows, err
+}
+
+func (stmt *mysqlStmt) reprepare() error {
+	errLog.Print("Re-Prepare statement")
+
+	// Send command
+	err := stmt.mc.writeCommandPacketStr(comStmtPrepare, stmt.queryStr)
+	if err != nil {
+		return err
+	}
+
+	// Read Result
+	columnCount, err := stmt.readPrepareResultPacket()
+	if err == nil {
+		if stmt.paramCount > 0 {
+			if err = stmt.mc.readUntilEOF(); err != nil {
+				return err
+			}
+		}
+
+		if columnCount > 0 {
+			err = stmt.mc.readUntilEOF()
+		}
+	}
+
+	return err
 }
 
 var jsonType = reflect.TypeOf(json.RawMessage{})
