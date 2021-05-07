@@ -55,6 +55,7 @@ type Config struct {
 	AllowCleartextPasswords bool // Allows the cleartext client side plugin
 	AllowNativePasswords    bool // Allows the native password authentication method
 	AllowOldPasswords       bool // Allows the old insecure password method
+	AutoReprepare           int  // Automatically reprepare statements when receiving error 1615
 	CheckConnLiveness       bool // Check connections for liveness before using them
 	ClientFoundRows         bool // Return number of matching rows instead of rows changed
 	ColumnsWithAlias        bool // Prepend table alias to column names
@@ -210,6 +211,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.AllowOldPasswords {
 		writeDSNParam(&buf, &hasParam, "allowOldPasswords", "true")
+	}
+
+	if cfg.AutoReprepare > 0 {
+		writeDSNParam(&buf, &hasParam, "autoReprepare", strconv.Itoa(cfg.AutoReprepare))
 	}
 
 	if !cfg.CheckConnLiveness {
@@ -405,6 +410,13 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			cfg.AllowOldPasswords, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
+			}
+
+		// Reprepare statement on error 1615
+		case "autoReprepare":
+			cfg.AutoReprepare, err = strconv.Atoi(value)
+			if err != nil {
+				return err
 			}
 
 		// Check connections for Liveness before using them

@@ -176,7 +176,9 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 
 	stmt := &mysqlStmt{
 		mc:       mc,
-		queryStr: query,
+	}
+	if stmt.mc.cfg.AutoReprepare > 0 {
+		stmt.queryStr = query
 	}
 
 	// Read Result
