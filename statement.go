@@ -154,8 +154,16 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 func (stmt *mysqlStmt) reprepare() error {
 	errLog.Print("Re-Prepare statement")
 
-	// Send command
-	err := stmt.mc.writeCommandPacketStr(comStmtPrepare, stmt.queryStr)
+	// Close
+	err := stmt.mc.writeCommandPacketUint32(comStmtClose, stmt.id)
+	if err != nil {
+		return err
+	}
+	stmt.id = 0
+	stmt.paramCount = 0
+
+	// Send prepare
+	err = stmt.mc.writeCommandPacketStr(comStmtPrepare, stmt.queryStr)
 	if err != nil {
 		return err
 	}
