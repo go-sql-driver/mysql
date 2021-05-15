@@ -11,7 +11,6 @@ package mysql
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -71,9 +70,8 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	// Read Result
 	resLen, err := mc.readResultSetHeaderPacket()
 	if err != nil {
-		var mysqlErr *MySQLError
-		if stmt.reprepared < stmt.mc.cfg.AutoReprepare &&
-			errors.As(err, &mysqlErr) && mysqlErr.Number == 1615 {
+		if mysqlErr, ok := err.(*MySQLError); ok && stmt.reprepared < stmt.mc.cfg.AutoReprepare &&
+			mysqlErr.Number == 1615 {
 			err = stmt.reprepare()
 			if err == nil {
 				return stmt.Exec(args)
@@ -125,9 +123,8 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 	// Read Result
 	resLen, err := mc.readResultSetHeaderPacket()
 	if err != nil {
-		var mysqlErr *MySQLError
-		if stmt.reprepared < stmt.mc.cfg.AutoReprepare &&
-			errors.As(err, &mysqlErr) && mysqlErr.Number == 1615 {
+		if mysqlErr, ok := err.(*MySQLError); ok && stmt.reprepared < stmt.mc.cfg.AutoReprepare &&
+			mysqlErr.Number == 1615 {
 			err = stmt.reprepare()
 			if err == nil {
 				return stmt.query(args)
