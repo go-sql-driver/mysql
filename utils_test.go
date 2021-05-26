@@ -228,7 +228,9 @@ func TestAtomicBool(t *testing.T) {
 		t.Fatal("Expected value to be false")
 	}
 
-	ab._noCopy.Lock() // we've "tested" it ¯\_(ツ)_/¯
+	// we've "tested" them ¯\_(ツ)_/¯
+	ab._noCopy.Lock()
+	defer ab._noCopy.Unlock()
 }
 
 func TestAtomicError(t *testing.T) {
