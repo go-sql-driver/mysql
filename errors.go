@@ -60,7 +60,7 @@ type MySQLError struct {
 	Message string
 }
 
-func (me *MySQLError) Error() string {
+func (me MySQLError) Error() string {
 	return fmt.Sprintf("Error %d: %s", me.Number, me.Message)
 }
 

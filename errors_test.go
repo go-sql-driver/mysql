@@ -11,6 +11,7 @@ package mysql
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"log"
 	"testing"
 )
@@ -57,5 +58,13 @@ func TestMySQLErrIs(t *testing.T) {
 	nonMysqlErr := errors.New("not a mysql error")
 	if errors.Is(infraErr, nonMysqlErr) {
 		t.Fatalf("expected errors to be different: %+v %+v", infraErr, nonMysqlErr)
+	}
+}
+
+func TestMySQLErrWrapped(t *testing.T) {
+	deadlockErr := MySQLError{1213, "deadlock found when trying to get lock"}
+	err := fmt.Errorf("deadlock found %w", deadlockErr)
+	if !errors.As(err, &MySQLError{}) {
+		t.Fatalf("expected error to be MySQLError")
 	}
 }
