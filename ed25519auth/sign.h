@@ -6,7 +6,7 @@
 void sign(
   unsigned char sm[64],
   const unsigned char m[32],
-  const unsigned char *pw,unsigned long long pwlen
+  const unsigned char *pw, size_t pwlen
 );
 
 #endif
