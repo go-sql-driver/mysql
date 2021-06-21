@@ -2530,6 +2530,9 @@ func TestContextCancelQueryRow(t *testing.T) {
 		if err := rows.Err(); err != context.Canceled {
 			dbt.Errorf("expected context.Canceled, got %v", err)
 		}
+		if err := rows.Close(); err != nil {
+			dbt.Errorf("expected no error, got %v", err)
+		}
 	})
 }
 
