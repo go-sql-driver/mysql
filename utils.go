@@ -199,7 +199,7 @@ func parseByteYear(b []byte) (int, error) {
 			return 0, err
 		}
 		year += v * n
-		n = n / 10
+		n /= 10
 	}
 	return year, nil
 }
