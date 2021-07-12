@@ -1450,11 +1450,11 @@ func TestCharset(t *testing.T) {
 	mustSetCharset("charset=ascii", "ascii")
 
 	// when the first charset is invalid, use the second
-	mustSetCharset("charset=none,utf8", "utf8")
+	mustSetCharset("charset=none,utf8mb4", "utf8mb4")
 
 	// when the first charset is valid, use it
 	mustSetCharset("charset=ascii,utf8", "ascii")
-	mustSetCharset("charset=utf8,ascii", "utf8")
+	mustSetCharset("charset=utf8mb4,ascii", "utf8mb4")
 }
 
 func TestFailingCharset(t *testing.T) {
