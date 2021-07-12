@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"bytes"
 	"crypto/tls"
 	"database/sql"
 	"database/sql/driver"
@@ -107,10 +108,9 @@ func readBool(input string) (value bool, valid bool) {
 ******************************************************************************/
 
 func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
-	const base = "0000-00-00 00:00:00.000000"
 	switch len(b) {
 	case 10, 19, 21, 22, 23, 24, 25, 26: // up to "YYYY-MM-DD HH:MM:SS.MMMMMM"
-		if string(b) == base[:len(b)] {
+		if bytes.Equal(b, zeroDateTime[:len(b)]) {
 			return time.Time{}, nil
 		}
 
@@ -146,7 +146,8 @@ func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 		if day <= 0 {
 			day = 1
 		}
-		if len(b) == 10 {
+
+		if len(b) == 10 { // "YYYY-MM-DD"
 			return time.Date(year, month, day, 0, 0, 0, 0, loc), nil
 		}
 
@@ -158,6 +159,7 @@ func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 		if err != nil {
 			return time.Time{}, err
 		}
+
 		if b[13] != ':' {
 			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[13])
 		}
@@ -166,6 +168,7 @@ func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 		if err != nil {
 			return time.Time{}, err
 		}
+
 		if b[16] != ':' {
 			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[16])
 		}
@@ -174,17 +177,21 @@ func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 		if err != nil {
 			return time.Time{}, err
 		}
-		if len(b) == 19 {
+
+		if len(b) == 19 { // "YYYY-MM-DD HH:MM:SS"
 			return time.Date(year, month, day, hour, min, sec, 0, loc), nil
 		}
 
 		if b[19] != '.' {
 			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[19])
 		}
+
 		nsec, err := parseByteNanoSec(b[20:])
 		if err != nil {
 			return time.Time{}, err
 		}
+
+		// "YYYY-MM-DD HH:MM:SS.MMMMMM"
 		return time.Date(year, month, day, hour, min, sec, nsec, loc), nil
 	default:
 		return time.Time{}, fmt.Errorf("invalid time bytes: %s", b)
@@ -201,6 +208,7 @@ func parseByteYear(b []byte) (int, error) {
 		year += v * n
 		n /= 10
 	}
+	// year in [0, 9999]
 	return year, nil
 }
 
@@ -213,6 +221,7 @@ func parseByte2Digits(b1, b2 byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	// integer in [0, 99]
 	return d1*10 + d2, nil
 }
 
