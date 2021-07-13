@@ -315,6 +315,9 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 			0,
 			dl.GSS_C_NO_CHANNEL_BINDINGS,
 			input_buf)
+		if token == nil {
+			return nil, err
+		}
 
 		return token.Bytes(), err
 
