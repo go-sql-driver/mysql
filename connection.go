@@ -177,6 +177,9 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	stmt := &mysqlStmt{
 		mc: mc,
 	}
+	if stmt.mc.cfg.AutoReprepare > 0 {
+		stmt.queryStr = query
+	}
 
 	// Read Result
 	columnCount, err := stmt.readPrepareResultPacket()

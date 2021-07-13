@@ -175,6 +175,14 @@ Default:        false
 ```
 `allowOldPasswords=true` allows the usage of the insecure old password method. This should be avoided, but is necessary in some cases. See also [the old_passwords wiki page](https://github.com/go-sql-driver/mysql/wiki/old_passwords).
 
+##### `autoReprepare`
+
+```
+Type:           decimal number
+Default:        0
+```
+When `autoReprepare` is greater than zero, the driver will re-prepare statements when error 1615 is received from the database. Some known bugs of MySQL and MariaDB spuriously invalidate prepared statements, resulting in this error being sent. This parameter is meant to workaround these bugs. More precisely, the value of `autoReprepare` indicates how many successive errors 1615 are handled before the execution of the statement fails; hence, it should not be greater than one.
+
 ##### `charset`
 
 ```

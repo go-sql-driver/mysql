@@ -20,6 +20,8 @@ type mysqlStmt struct {
 	mc         *mysqlConn
 	id         uint32
 	paramCount int
+	queryStr   string
+	reprepared int // How many times the statement has been reprepared since last execution.
 }
 
 func (stmt *mysqlStmt) Close() error {
@@ -68,8 +70,16 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	// Read Result
 	resLen, err := mc.readResultSetHeaderPacket()
 	if err != nil {
+		if mysqlErr, ok := err.(*MySQLError); ok && stmt.reprepared < stmt.mc.cfg.AutoReprepare &&
+			mysqlErr.Number == 1615 {
+			err = stmt.reprepare()
+			if err == nil {
+				return stmt.Exec(args)
+			}
+		}
 		return nil, err
 	}
+	stmt.reprepared = 0
 
 	if resLen > 0 {
 		// Columns
@@ -113,8 +123,16 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 	// Read Result
 	resLen, err := mc.readResultSetHeaderPacket()
 	if err != nil {
+		if mysqlErr, ok := err.(*MySQLError); ok && stmt.reprepared < stmt.mc.cfg.AutoReprepare &&
+			mysqlErr.Number == 1615 {
+			err = stmt.reprepare()
+			if err == nil {
+				return stmt.query(args)
+			}
+		}
 		return nil, err
 	}
+	stmt.reprepared = 0
 
 	rows := new(binaryRows)
 
@@ -133,6 +151,40 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 	}
 
 	return rows, err
+}
+
+func (stmt *mysqlStmt) reprepare() error {
+	stmt.reprepared += 1
+
+	// Close
+	err := stmt.mc.writeCommandPacketUint32(comStmtClose, stmt.id)
+	if err != nil {
+		return err
+	}
+	stmt.id = 0
+	stmt.paramCount = 0
+
+	// Send prepare
+	err = stmt.mc.writeCommandPacketStr(comStmtPrepare, stmt.queryStr)
+	if err != nil {
+		return err
+	}
+
+	// Read Result
+	columnCount, err := stmt.readPrepareResultPacket()
+	if err == nil {
+		if stmt.paramCount > 0 {
+			if err = stmt.mc.readUntilEOF(); err != nil {
+				return err
+			}
+		}
+
+		if columnCount > 0 {
+			err = stmt.mc.readUntilEOF()
+		}
+	}
+
+	return err
 }
 
 var jsonType = reflect.TypeOf(json.RawMessage{})
