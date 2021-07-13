@@ -129,6 +129,24 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		mc.maxWriteSize = mc.maxAllowedPacket
 	}
 
+	// Additional handling for result set optional metadata
+	if mc.cfg.ResultSetMetadata != "" {
+		err = mc.exec("SET resultset_metadata=" + mc.cfg.ResultSetMetadata)
+		if err != nil {
+			mc.Close()
+			return nil, err
+		}
+		switch mc.cfg.ResultSetMetadata {
+		case resultSetMetadataSysVarNone:
+			mc.resultSetMetadata = resultSetMetadataNone
+		case resultSetMetadataSysVarFull:
+			mc.resultSetMetadata = resultSetMetadataFull
+		default:
+			mc.Close()
+			return nil, ErrOptionalResultSetPkt
+		}
+	}
+
 	// Handle DSN Params
 	err = mc.handleParams()
 	if err != nil {

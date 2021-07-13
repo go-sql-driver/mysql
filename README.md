@@ -288,6 +288,17 @@ Allow multiple statements in one query. While this allows batch queries, it also
 
 When `multiStatements` is used, `?` parameters must only be used in the first statement.
 
+##### `resultSetMetadata`
+
+```
+Type:           string
+Valid Values:   "full", "none"
+Default:        empty
+```
+
+Allow resultset metadata being optional. 
+By making resultset metadata transfer being optional, can potentially improve queries performance.
+
 ##### `parseTime`
 
 ```

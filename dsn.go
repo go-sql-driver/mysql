@@ -34,22 +34,23 @@ var (
 // If a new Config is created instead of being parsed from a DSN string,
 // the NewConfig function should be used, which sets default values.
 type Config struct {
-	User             string            // Username
-	Passwd           string            // Password (requires User)
-	Net              string            // Network type
-	Addr             string            // Network address (requires Net)
-	DBName           string            // Database name
-	Params           map[string]string // Connection parameters
-	Collation        string            // Connection collation
-	Loc              *time.Location    // Location for time.Time values
-	MaxAllowedPacket int               // Max packet size allowed
-	ServerPubKey     string            // Server public key name
-	pubKey           *rsa.PublicKey    // Server public key
-	TLSConfig        string            // TLS configuration name
-	tls              *tls.Config       // TLS configuration
-	Timeout          time.Duration     // Dial timeout
-	ReadTimeout      time.Duration     // I/O read timeout
-	WriteTimeout     time.Duration     // I/O write timeout
+	User              string            // Username
+	Passwd            string            // Password (requires User)
+	Net               string            // Network type
+	Addr              string            // Network address (requires Net)
+	DBName            string            // Database name
+	Params            map[string]string // Connection parameters
+	Collation         string            // Connection collation
+	Loc               *time.Location    // Location for time.Time values
+	MaxAllowedPacket  int               // Max packet size allowed
+	ServerPubKey      string            // Server public key name
+	pubKey            *rsa.PublicKey    // Server public key
+	TLSConfig         string            // TLS configuration name
+	tls               *tls.Config       // TLS configuration
+	Timeout           time.Duration     // Dial timeout
+	ReadTimeout       time.Duration     // I/O read timeout
+	WriteTimeout      time.Duration     // I/O write timeout
+	ResultSetMetadata string            // Allow optional resultset metadata
 
 	AllowAllFiles           bool // Allow all files to be used with LOAD DATA LOCAL INFILE
 	AllowCleartextPasswords bool // Allows the cleartext client side plugin
@@ -238,6 +239,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.MultiStatements {
 		writeDSNParam(&buf, &hasParam, "multiStatements", "true")
+	}
+
+	if cfg.ResultSetMetadata != "" {
+		writeDSNParam(&buf, &hasParam, "resultSetMetadata", strings.ToLower(cfg.ResultSetMetadata))
 	}
 
 	if cfg.ParseTime {
@@ -463,6 +468,18 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}
+
+		// allow resultset metadata being optional
+		case "resultSetMetadata":
+			// Pre-check resultSetMetadata.
+			// Although so far there's only two modes FULL and NONE, in the future it may be extended.
+			// Because if any potential extensions introduced will force us do the read path change,
+			// failed earlier when parsing DSN.
+			upperVal := strings.ToUpper(value)
+			if upperVal != resultSetMetadataSysVarFull && upperVal != resultSetMetadataSysVarNone {
+				return errors.New("invalid resultset metadata, allow FULL and NONE only")
+			}
+			cfg.ResultSetMetadata = upperVal
 
 		// time.Time parsing
 		case "parseTime":

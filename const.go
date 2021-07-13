@@ -56,6 +56,7 @@ const (
 	clientCanHandleExpiredPasswords
 	clientSessionTrack
 	clientDeprecateEOF
+	clientOptionalResultSetMetadata
 )
 
 const (
@@ -171,4 +172,17 @@ const (
 	cachingSha2PasswordRequestPublicKey          = 2
 	cachingSha2PasswordFastAuthSuccess           = 3
 	cachingSha2PasswordPerformFullAuthentication = 4
+)
+
+const (
+	// One-byte metadata flag
+	// https://dev.mysql.com/worklog/task/?id=8134
+	resultSetMetadataNone uint8 = iota
+	resultSetMetadataFull
+)
+
+const (
+	// ResultSet Metadata system var
+	resultSetMetadataSysVarNone = "NONE"
+	resultSetMetadataSysVarFull = "FULL"
 )
