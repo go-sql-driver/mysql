@@ -276,6 +276,80 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 	return nil, fmt.Errorf("invalid DATETIME packet length %d", num)
 }
 
+func appendTime(buf []byte, td time.Duration) ([]byte, error) {
+	if td == 0 {
+		return append(buf, "00:00:00"...), nil
+	}
+
+	// See: https://dev.mysql.com/doc/refman/8.0/en/time.html
+	tBuf := make([]byte, 0, len("-838:59:59.000000"))
+
+	// Time could be negative
+	if td < 0 {
+		td *= -1
+		tBuf = append(tBuf, '-')
+	}
+
+	var ns time.Duration
+
+	hour := int64(td / time.Hour)
+	ns = td % time.Hour
+
+	min := int64(ns / time.Minute)
+	ns = ns % time.Minute
+
+	sec := int64(ns / time.Second)
+	ns = ns % time.Second
+
+	msec := int64(ns / 1000)
+
+	// nsec := int64(ns)
+
+	// hour
+	if hour >= 0 && hour < 839 {
+		if hour < 10 {
+			tBuf = append(tBuf, '0')
+		}
+		tBuf = strconv.AppendInt(tBuf, hour, 10)
+	} else {
+		return buf, errors.New("hour is not in the range [-838, 838]")
+	}
+	tBuf = append(tBuf, ':')
+
+	// minute
+	if min >= 0 && min < 10 {
+		tBuf = append(tBuf, '0')
+	}
+	tBuf = strconv.AppendInt(tBuf, min, 10)
+	tBuf = append(tBuf, ':')
+
+	// second
+	if sec >= 0 && sec < 10 {
+		tBuf = append(tBuf, '0')
+	}
+	tBuf = strconv.AppendInt(tBuf, sec, 10)
+
+	// microsecond
+	if msec > 0 {
+		tBuf = append(tBuf, '.')
+		switch {
+		case msec < 10:
+			tBuf = append(tBuf, "00000"...)
+		case msec >= 10 && msec < 100:
+			tBuf = append(tBuf, "0000"...)
+		case msec >= 100 && msec < 1000:
+			tBuf = append(tBuf, "000"...)
+		case msec >= 1000 && msec < 10000:
+			tBuf = append(tBuf, "00"...)
+		case msec >= 1000 && msec < 10000:
+			tBuf = append(tBuf, "0"...)
+		}
+		tBuf = strconv.AppendInt(tBuf, msec, 10)
+	}
+
+	return append(buf, tBuf...), nil
+}
+
 func appendDateTime(buf []byte, t time.Time) ([]byte, error) {
 	year, month, day := t.Date()
 	hour, min, sec := t.Clock()

@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
+	"errors"
 	"testing"
 	"time"
 )
@@ -295,6 +296,132 @@ func TestIsolationLevelMapping(t *testing.T) {
 	}
 }
 
+func TestAppendTime(t *testing.T) {
+	tests := []struct {
+		td  time.Duration
+		str string
+	}{
+		// hour
+		{
+			td:  1 * time.Hour,
+			str: "01:00:00",
+		},
+		{
+			td:  10 * time.Hour,
+			str: "10:00:00",
+		},
+		{
+			td:  11 * time.Hour,
+			str: "11:00:00",
+		},
+		{
+			td:  23 * time.Hour,
+			str: "23:00:00",
+		},
+		// minute
+		{
+			td:  1 * time.Minute,
+			str: "00:01:00",
+		},
+		{
+			td:  10 * time.Minute,
+			str: "00:10:00",
+		},
+		{
+			td:  59 * time.Minute,
+			str: "00:59:00",
+		},
+		// second
+		{
+			td:  1 * time.Second,
+			str: "00:00:01",
+		},
+		{
+			td:  10 * time.Second,
+			str: "00:00:10",
+		},
+		{
+			td:  59 * time.Second,
+			str: "00:00:59",
+		},
+		{
+			td:  60 * time.Second,
+			str: "00:01:00",
+		},
+		// hour + minute + second
+		{
+			td:  1*time.Hour + 2*time.Minute + 3*time.Second,
+			str: "01:02:03",
+		},
+		{
+			td:  23*time.Hour + 59*time.Minute + 59*time.Second,
+			str: "23:59:59",
+		},
+		// microsecond
+		{
+			td:  1 * time.Microsecond,
+			str: "00:00:00.000001",
+		},
+		{
+			td:  10 * time.Microsecond,
+			str: "00:00:00.000010",
+		},
+		{
+			td:  100 * time.Microsecond,
+			str: "00:00:00.000100",
+		},
+		{
+			td:  10 * 100000 * time.Microsecond,
+			str: "00:00:01",
+		},
+		{
+			td:  1*time.Second + 1*time.Microsecond,
+			str: "00:00:01.000001",
+		},
+		// > 23:59:59.999999
+		{
+			td:  24 * time.Hour,
+			str: "24:00:00",
+		},
+		{
+			td:  100*time.Hour + 20*time.Minute + 30*time.Second + 123456*time.Microsecond,
+			str: "100:20:30.123456",
+		},
+		// upper bound / lower bound
+		{
+			td:  838*time.Hour + 59*time.Minute + 59*time.Second,
+			str: "838:59:59",
+		},
+		{
+			td:  -1 * (838*time.Hour + 59*time.Minute + 59*time.Second),
+			str: "-838:59:59",
+		},
+	}
+	for _, v := range tests {
+		buf := make([]byte, 0, 32)
+		buf, _ = appendTime(buf, v.td)
+		if str := string(buf); str != v.str {
+			t.Errorf("appendTime(%v), have: %s, want: %s", v.td, str, v.str)
+		}
+	}
+
+	// hour out of range [-838, 838]
+	failedCases := []time.Duration{
+		839 * time.Hour,
+		-839 * time.Hour,
+		1000 * time.Hour,
+		-1000 * time.Hour,
+	}
+	outOfRangeErr := errors.New("hour is not in the range [-838, 838]")
+
+	for _, v := range failedCases {
+		buf := make([]byte, 0, 32)
+		newBuf, err := appendTime(buf, v)
+		if !bytes.Equal(buf, newBuf) || err == nil {
+			t.Errorf("appendTime(%v), have: %v, want: %v", v, err, outOfRangeErr)
+		}
+	}
+}
 func TestAppendDateTime(t *testing.T) {
 	tests := []struct {
 		t   time.Time
