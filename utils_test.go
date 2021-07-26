@@ -295,7 +295,7 @@ func TestIsolationLevelMapping(t *testing.T) {
 	}
 }
 
-func TestAppendDateTime(t *testing.T) {
+func TestAppendTime(t *testing.T) {
 	tests := []struct {
 		t   time.Time
 		str string
@@ -333,13 +333,19 @@ func TestAppendDateTime(t *testing.T) {
 			str: "9999-12-31 23:59:59.999999999",
 		},
 		{
+			// zero date
 			t:   time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC),
-			str: "0001-01-01",
+			str: "0000-00-00",
+		},
+		{
+			// only time
+			t:   time.Date(0, 1, 1, 8, 30, 0, 0, time.UTC),
+			str: "08:30:00",
 		},
 	}
 	for _, v := range tests {
 		buf := make([]byte, 0, 32)
-		buf, _ = appendDateTime(buf, v.t)
+		buf, _ = appendTime(buf, v.t)
 		if str := string(buf); str != v.str {
 			t.Errorf("appendDateTime(%v), have: %s, want: %s", v.t, str, v.str)
 		}
@@ -347,9 +353,9 @@ func TestAppendDateTime(t *testing.T) {
 
 	// year out of range
 	{
-		v := time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC)
+		v := time.Date(-1, 1, 1, 0, 0, 0, 0, time.UTC)
 		buf := make([]byte, 0, 32)
-		_, err := appendDateTime(buf, v)
+		_, err := appendTime(buf, v)
 		if err == nil {
 			t.Error("want an error")
 			return
@@ -358,7 +364,7 @@ func TestAppendDateTime(t *testing.T) {
 	{
 		v := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
 		buf := make([]byte, 0, 32)
-		_, err := appendDateTime(buf, v)
+		_, err := appendTime(buf, v)
 		if err == nil {
 			t.Error("want an error")
 			return

@@ -276,12 +276,29 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 	return nil, fmt.Errorf("invalid DATETIME packet length %d", num)
 }
 
+// appendTime serializes a time.Time t and appends it to buf.
+func appendTime(buf []byte, t time.Time) ([]byte, error) {
+	// this is the layout string for the "time of day" format of the MySQL TIME type
+	// see https://dev.mysql.com/doc/refman/8.0/en/time.html
+	const mysqlTimeLayout = "15:04:05"
+
+	switch {
+	case t.IsZero():
+		return append(buf, "0000-00-00"...), nil
+	case t.Year() == 0 && t.Month() == 1 && t.Day() == 1:
+		return t.AppendFormat(buf, mysqlTimeLayout), nil
+	default:
+		return appendDateTime(buf, t)
+	}
+}
+
+// appendDateTime is a special case of appendTime.
 func appendDateTime(buf []byte, t time.Time) ([]byte, error) {
 	year, month, day := t.Date()
 	hour, min, sec := t.Clock()
 	nsec := t.Nanosecond()
 
-	if year < 1 || year > 9999 {
+	if year < 0 || year > 9999 {
 		return buf, errors.New("year is not in the range [1, 9999]: " + strconv.Itoa(year)) // use errors.New instead of fmt.Errorf to avoid year escape to heap
 	}
 	year100 := year / 100
