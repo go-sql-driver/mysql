@@ -338,6 +338,11 @@ func TestAppendTime(t *testing.T) {
 			str: "0000-00-00",
 		},
 		{
+			// valid date with year 0
+			t:   time.Date(0, 2, 2, 12, 34, 56, 0, time.UTC),
+			str: "0000-02-02 12:34:56",
+		},
+		{
 			// only time
 			t:   time.Date(0, 1, 1, 8, 30, 0, 0, time.UTC),
 			str: "08:30:00",
