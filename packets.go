@@ -285,6 +285,7 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string) error {
 	// Adjust client flags based on server support
 	clientFlags := clientProtocol41 |
+		clientSecureConn |
 		clientLongPassword |
 		clientTransactions |
 		clientLocalFiles |
@@ -303,10 +304,6 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 
 	if mc.cfg.MultiStatements {
 		clientFlags |= clientMultiStatements
-	}
-
-	if !insecureAuth {
-		clientFlags |= clientSecureConn
 	}
 
 	// encode length of the auth plugin data
