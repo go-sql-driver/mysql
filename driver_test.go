@@ -14,6 +14,7 @@ import (
 	"crypto/tls"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -23,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -83,6 +85,23 @@ func init() {
 type DBTest struct {
 	*testing.T
 	db *sql.DB
+}
+
+type netErrorMock struct {
+	temporary bool
+	timeout   bool
+}
+
+func (e netErrorMock) Temporary() bool {
+	return e.temporary
+}
+
+func (e netErrorMock) Timeout() bool {
+	return e.timeout
+}
+
+func (e netErrorMock) Error() string {
+	return fmt.Sprintf("mock net error. Temporary: %v, Timeout %v", e.temporary, e.timeout)
 }
 
 func runTestsWithMultiStatement(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
@@ -195,6 +214,7 @@ func TestEmptyQuery(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		// just a comment, no query
 		rows := dbt.mustQuery("--")
+		defer rows.Close()
 		// will hang before #255
 		if rows.Next() {
 			dbt.Errorf("next on rows must be false")
@@ -213,6 +233,7 @@ func TestCRUD(t *testing.T) {
 		if rows.Next() {
 			dbt.Error("unexpected data in empty table")
 		}
+		rows.Close()
 
 		// Create Data
 		res := dbt.mustExec("INSERT INTO test VALUES (1)")
@@ -246,6 +267,7 @@ func TestCRUD(t *testing.T) {
 		} else {
 			dbt.Error("no data")
 		}
+		rows.Close()
 
 		// Update
 		res = dbt.mustExec("UPDATE test SET value = ? WHERE value = ?", false, true)
@@ -271,6 +293,7 @@ func TestCRUD(t *testing.T) {
 		} else {
 			dbt.Error("no data")
 		}
+		rows.Close()
 
 		// Delete
 		res = dbt.mustExec("DELETE FROM test WHERE value = ?", false)
@@ -334,6 +357,7 @@ func TestMultiQuery(t *testing.T) {
 		} else {
 			dbt.Error("no data")
 		}
+		rows.Close()
 
 	})
 }
@@ -360,6 +384,7 @@ func TestInt(t *testing.T) {
 			} else {
 				dbt.Errorf("%s: no data", v)
 			}
+			rows.Close()
 
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
@@ -379,6 +404,7 @@ func TestInt(t *testing.T) {
 			} else {
 				dbt.Errorf("%s ZEROFILL: no data", v)
 			}
+			rows.Close()
 
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
@@ -403,6 +429,7 @@ func TestFloat32(t *testing.T) {
 			} else {
 				dbt.Errorf("%s: no data", v)
 			}
+			rows.Close()
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
 	})
@@ -426,6 +453,7 @@ func TestFloat64(t *testing.T) {
 			} else {
 				dbt.Errorf("%s: no data", v)
 			}
+			rows.Close()
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
 	})
@@ -449,6 +477,7 @@ func TestFloat64Placeholder(t *testing.T) {
 			} else {
 				dbt.Errorf("%s: no data", v)
 			}
+			rows.Close()
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
 	})
@@ -475,6 +504,7 @@ func TestString(t *testing.T) {
 			} else {
 				dbt.Errorf("%s: no data", v)
 			}
+			rows.Close()
 
 			dbt.mustExec("DROP TABLE IF EXISTS test")
 		}
@@ -507,6 +537,7 @@ func TestRawBytes(t *testing.T) {
 		v1 := []byte("aaa")
 		v2 := []byte("bbb")
 		rows := dbt.mustQuery("SELECT ?, ?", v1, v2)
+		defer rows.Close()
 		if rows.Next() {
 			var o1, o2 sql.RawBytes
 			if err := rows.Scan(&o1, &o2); err != nil {
@@ -521,6 +552,29 @@ func TestRawBytes(t *testing.T) {
 			// https://github.com/go-sql-driver/mysql/issues/765
 			// Appending to RawBytes shouldn't overwrite next RawBytes.
 			o1 = append(o1, "xyzzy"...)
+			if !bytes.Equal(v2, o2) {
+				dbt.Errorf("expected %v, got %v", v2, o2)
+			}
+		} else {
+			dbt.Errorf("no data")
+		}
+	})
+}
+
+func TestRawMessage(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		v1 := json.RawMessage("{}")
+		v2 := json.RawMessage("[]")
+		rows := dbt.mustQuery("SELECT ?, ?", v1, v2)
+		defer rows.Close()
+		if rows.Next() {
+			var o1, o2 json.RawMessage
+			if err := rows.Scan(&o1, &o2); err != nil {
+				dbt.Errorf("Got error: %v", err)
+			}
+			if !bytes.Equal(v1, o1) {
+				dbt.Errorf("expected %v, got %v", v1, o1)
+			}
 			if !bytes.Equal(v2, o2) {
 				dbt.Errorf("expected %v, got %v", v2, o2)
 			}
@@ -555,6 +609,7 @@ func TestValuer(t *testing.T) {
 		} else {
 			dbt.Errorf("Valuer: no data")
 		}
+		rows.Close()
 
 		dbt.mustExec("DROP TABLE IF EXISTS test")
 	})
@@ -867,6 +922,7 @@ func TestTimestampMicros(t *testing.T) {
 		dbt.mustExec("INSERT INTO test SET value0=?, value1=?, value6=?", f0, f1, f6)
 		var res0, res1, res6 string
 		rows := dbt.mustQuery("SELECT * FROM test")
+		defer rows.Close()
 		if !rows.Next() {
 			dbt.Errorf("test contained no selectable values")
 		}
@@ -1025,6 +1081,7 @@ func TestNULL(t *testing.T) {
 
 		var out interface{}
 		rows := dbt.mustQuery("SELECT * FROM test")
+		defer rows.Close()
 		if rows.Next() {
 			rows.Scan(&out)
 			if out != nil {
@@ -1104,6 +1161,7 @@ func TestLongData(t *testing.T) {
 		inS := in[:maxAllowedPacketSize-nonDataQueryLen]
 		dbt.mustExec("INSERT INTO test VALUES('" + inS + "')")
 		rows = dbt.mustQuery("SELECT value FROM test")
+		defer rows.Close()
 		if rows.Next() {
 			rows.Scan(&out)
 			if inS != out {
@@ -1122,6 +1180,7 @@ func TestLongData(t *testing.T) {
 		// Long binary data
 		dbt.mustExec("INSERT INTO test VALUES(?)", in)
 		rows = dbt.mustQuery("SELECT value FROM test WHERE 1=?", 1)
+		defer rows.Close()
 		if rows.Next() {
 			rows.Scan(&out)
 			if in != out {
@@ -1287,7 +1346,7 @@ func TestFoundRows(t *testing.T) {
 }
 
 func TestTLS(t *testing.T) {
-	tlsTest := func(dbt *DBTest) {
+	tlsTestReq := func(dbt *DBTest) {
 		if err := dbt.db.Ping(); err != nil {
 			if err == ErrNoTLS {
 				dbt.Skip("server does not support TLS")
@@ -1297,6 +1356,7 @@ func TestTLS(t *testing.T) {
 		}
 
 		rows := dbt.mustQuery("SHOW STATUS LIKE 'Ssl_cipher'")
+		defer rows.Close()
 
 		var variable, value *sql.RawBytes
 		for rows.Next() {
@@ -1304,19 +1364,27 @@ func TestTLS(t *testing.T) {
 				dbt.Fatal(err.Error())
 			}
 
-			if value == nil {
-				dbt.Fatal("no Cipher")
+			if (*value == nil) || (len(*value) == 0) {
+				dbt.Fatalf("no Cipher")
+			} else {
+				dbt.Logf("Cipher: %s", *value)
 			}
 		}
 	}
+	tlsTestOpt := func(dbt *DBTest) {
+		if err := dbt.db.Ping(); err != nil {
+			dbt.Fatalf("error on Ping: %s", err.Error())
+		}
+	}
 
-	runTests(t, dsn+"&tls=skip-verify", tlsTest)
+	runTests(t, dsn+"&tls=preferred", tlsTestOpt)
+	runTests(t, dsn+"&tls=skip-verify", tlsTestReq)
 
 	// Verify that registering / using a custom cfg works
 	RegisterTLSConfig("custom-skip-verify", &tls.Config{
 		InsecureSkipVerify: true,
 	})
-	runTests(t, dsn+"&tls=custom-skip-verify", tlsTest)
+	runTests(t, dsn+"&tls=custom-skip-verify", tlsTestReq)
 }
 
 func TestReuseClosedConnection(t *testing.T) {
@@ -1382,11 +1450,11 @@ func TestCharset(t *testing.T) {
 	mustSetCharset("charset=ascii", "ascii")
 
 	// when the first charset is invalid, use the second
-	mustSetCharset("charset=none,utf8", "utf8")
+	mustSetCharset("charset=none,utf8mb4", "utf8mb4")
 
 	// when the first charset is valid, use it
-	mustSetCharset("charset=ascii,utf8", "ascii")
-	mustSetCharset("charset=utf8,ascii", "utf8")
+	mustSetCharset("charset=ascii,utf8mb4", "ascii")
+	mustSetCharset("charset=utf8mb4,ascii", "utf8mb4")
 }
 
 func TestFailingCharset(t *testing.T) {
@@ -1405,7 +1473,7 @@ func TestCollation(t *testing.T) {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	defaultCollation := "utf8_general_ci"
+	defaultCollation := "utf8mb4_general_ci"
 	testCollations := []string{
 		"",               // do not set
 		defaultCollation, // driver default
@@ -1449,9 +1517,9 @@ func TestColumnsWithAlias(t *testing.T) {
 		if cols[0] != "A" {
 			t.Fatalf("expected column name \"A\", got \"%s\"", cols[0])
 		}
-		rows.Close()
 
 		rows = dbt.mustQuery("SELECT * FROM (SELECT 1 AS one) AS A")
+		defer rows.Close()
 		cols, _ = rows.Columns()
 		if len(cols) != 1 {
 			t.Fatalf("expected 1 column, got %d", len(cols))
@@ -1495,6 +1563,7 @@ func TestTimezoneConversion(t *testing.T) {
 
 		// Retrieve time from DB
 		rows := dbt.mustQuery("SELECT ts FROM test")
+		defer rows.Close()
 		if !rows.Next() {
 			dbt.Fatal("did not get any rows out")
 		}
@@ -1738,6 +1807,14 @@ func TestConcurrent(t *testing.T) {
 	}
 
 	runTests(t, dsn, func(dbt *DBTest) {
+		var version string
+		if err := dbt.db.QueryRow("SELECT @@version").Scan(&version); err != nil {
+			dbt.Fatalf("%s", err.Error())
+		}
+		if strings.Contains(strings.ToLower(version), "mariadb") {
+			t.Skip(`TODO: "fix commands out of sync. Did you run multiple statements at once?" on MariaDB`)
+		}
+
 		var max int
 		err := dbt.db.QueryRow("SELECT @@max_connections").Scan(&max)
 		if err != nil {
@@ -1801,6 +1878,38 @@ func TestConcurrent(t *testing.T) {
 	})
 }
 
+func testDialError(t *testing.T, dialErr error, expectErr error) {
+	RegisterDialContext("mydial", func(ctx context.Context, addr string) (net.Conn, error) {
+		return nil, dialErr
+	})
+
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@mydial(%s)/%s?timeout=30s", user, pass, addr, dbname))
+	if err != nil {
+		t.Fatalf("error connecting: %s", err.Error())
+	}
+	defer db.Close()
+
+	_, err = db.Exec("DO 1")
+	if err != expectErr {
+		t.Fatalf("was expecting %s. Got: %s", dialErr, err)
+	}
+}
+
+func TestDialUnknownError(t *testing.T) {
+	testErr := fmt.Errorf("test")
+	testDialError(t, testErr, testErr)
+}
+
+func TestDialNonRetryableNetErr(t *testing.T) {
+	testErr := netErrorMock{}
+	testDialError(t, testErr, testErr)
+}
+
+func TestDialTemporaryNetErr(t *testing.T) {
+	testErr := netErrorMock{temporary: true}
+	testDialError(t, testErr, testErr)
+}
+
 // Tests custom dial functions
 func TestCustomDial(t *testing.T) {
 	if !available {
@@ -1808,8 +1917,9 @@ func TestCustomDial(t *testing.T) {
 	}
 
 	// our custom dial function which justs wraps net.Dial here
-	RegisterDial("mydial", func(addr string) (net.Conn, error) {
-		return net.Dial(prot, addr)
+	RegisterDialContext("mydial", func(ctx context.Context, addr string) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, prot, addr)
 	})
 
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@mydial(%s)/%s?timeout=30s", user, pass, addr, dbname))
@@ -1960,6 +2070,7 @@ func TestInterruptBySignal(t *testing.T) {
 				dbt.Errorf("expected val to be 42")
 			}
 		}
+		rows.Close()
 
 		// binary protocol
 		rows, err = dbt.db.Query("CALL test_signal(?)", 42)
@@ -1973,6 +2084,7 @@ func TestInterruptBySignal(t *testing.T) {
 				dbt.Errorf("expected val to be 42")
 			}
 		}
+		rows.Close()
 	})
 }
 
@@ -2552,10 +2664,19 @@ func TestContextCancelStmtQuery(t *testing.T) {
 }
 
 func TestContextCancelBegin(t *testing.T) {
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		t.Skip(`FIXME: it sometime fails with "expected driver.ErrBadConn, got sql: connection is already closed" on windows and macOS`)
+	}
+
 	runTests(t, dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
-		tx, err := dbt.db.BeginTx(ctx, nil)
+		conn, err := dbt.db.Conn(ctx)
+		if err != nil {
+			dbt.Fatal(err)
+		}
+		defer conn.Close()
+		tx, err := conn.BeginTx(ctx, nil)
 		if err != nil {
 			dbt.Fatal(err)
 		}
@@ -2585,7 +2706,17 @@ func TestContextCancelBegin(t *testing.T) {
 			dbt.Errorf("expected sql.ErrTxDone or context.Canceled, got %v", err)
 		}
 
-		// Context is canceled, so cannot begin a transaction.
+		// The connection is now in an inoperable state - so performing other
+		// operations should fail with ErrBadConn
+		// Important to exercise isolation level too - it runs SET TRANSACTION ISOLATION
+		// LEVEL XXX first, which needs to return ErrBadConn if the connection's context
+		// is cancelled
+		_, err = conn.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+		if err != driver.ErrBadConn {
+			dbt.Errorf("expected driver.ErrBadConn, got %v", err)
+		}
+
+		// cannot begin a transaction (on a different conn) with a canceled context
 		if _, err := dbt.db.BeginTx(ctx, nil); err != context.Canceled {
 			dbt.Errorf("expected context.Canceled, got %v", err)
 		}
@@ -2690,13 +2821,13 @@ func TestRowsColumnTypes(t *testing.T) {
 	nfNULL := sql.NullFloat64{Float64: 0.0, Valid: false}
 	nf0 := sql.NullFloat64{Float64: 0.0, Valid: true}
 	nf1337 := sql.NullFloat64{Float64: 13.37, Valid: true}
-	nt0 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 0, time.UTC), Valid: true}
-	nt1 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 100000000, time.UTC), Valid: true}
-	nt2 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 110000000, time.UTC), Valid: true}
-	nt6 := NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 111111000, time.UTC), Valid: true}
-	nd1 := NullTime{Time: time.Date(2006, 01, 02, 0, 0, 0, 0, time.UTC), Valid: true}
-	nd2 := NullTime{Time: time.Date(2006, 03, 04, 0, 0, 0, 0, time.UTC), Valid: true}
-	ndNULL := NullTime{Time: time.Time{}, Valid: false}
+	nt0 := sql.NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 0, time.UTC), Valid: true}
+	nt1 := sql.NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 100000000, time.UTC), Valid: true}
+	nt2 := sql.NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 110000000, time.UTC), Valid: true}
+	nt6 := sql.NullTime{Time: time.Date(2006, 01, 02, 15, 04, 05, 111111000, time.UTC), Valid: true}
+	nd1 := sql.NullTime{Time: time.Date(2006, 01, 02, 0, 0, 0, 0, time.UTC), Valid: true}
+	nd2 := sql.NullTime{Time: time.Date(2006, 03, 04, 0, 0, 0, 0, time.UTC), Valid: true}
+	ndNULL := sql.NullTime{Time: time.Time{}, Valid: false}
 	rbNULL := sql.RawBytes(nil)
 	rb0 := sql.RawBytes("0")
 	rb42 := sql.RawBytes("42")
@@ -2727,10 +2858,10 @@ func TestRowsColumnTypes(t *testing.T) {
 		{"mediumintnull", "MEDIUMINT", "MEDIUMINT", scanTypeNullInt, true, 0, 0, [3]string{"0", "42", "NULL"}, [3]interface{}{ni0, ni42, niNULL}},
 		{"bigint", "BIGINT NOT NULL", "BIGINT", scanTypeInt64, false, 0, 0, [3]string{"0", "65535", "-42"}, [3]interface{}{int64(0), int64(65535), int64(-42)}},
 		{"bigintnull", "BIGINT", "BIGINT", scanTypeNullInt, true, 0, 0, [3]string{"NULL", "1", "42"}, [3]interface{}{niNULL, ni1, ni42}},
-		{"tinyuint", "TINYINT UNSIGNED NOT NULL", "TINYINT", scanTypeUint8, false, 0, 0, [3]string{"0", "255", "42"}, [3]interface{}{uint8(0), uint8(255), uint8(42)}},
-		{"smalluint", "SMALLINT UNSIGNED NOT NULL", "SMALLINT", scanTypeUint16, false, 0, 0, [3]string{"0", "65535", "42"}, [3]interface{}{uint16(0), uint16(65535), uint16(42)}},
-		{"biguint", "BIGINT UNSIGNED NOT NULL", "BIGINT", scanTypeUint64, false, 0, 0, [3]string{"0", "65535", "42"}, [3]interface{}{uint64(0), uint64(65535), uint64(42)}},
-		{"uint13", "INT(13) UNSIGNED NOT NULL", "INT", scanTypeUint32, false, 0, 0, [3]string{"0", "1337", "42"}, [3]interface{}{uint32(0), uint32(1337), uint32(42)}},
+		{"tinyuint", "TINYINT UNSIGNED NOT NULL", "UNSIGNED TINYINT", scanTypeUint8, false, 0, 0, [3]string{"0", "255", "42"}, [3]interface{}{uint8(0), uint8(255), uint8(42)}},
+		{"smalluint", "SMALLINT UNSIGNED NOT NULL", "UNSIGNED SMALLINT", scanTypeUint16, false, 0, 0, [3]string{"0", "65535", "42"}, [3]interface{}{uint16(0), uint16(65535), uint16(42)}},
+		{"biguint", "BIGINT UNSIGNED NOT NULL", "UNSIGNED BIGINT", scanTypeUint64, false, 0, 0, [3]string{"0", "65535", "42"}, [3]interface{}{uint64(0), uint64(65535), uint64(42)}},
+		{"uint13", "INT(13) UNSIGNED NOT NULL", "UNSIGNED INT", scanTypeUint32, false, 0, 0, [3]string{"0", "1337", "42"}, [3]interface{}{uint32(0), uint32(1337), uint32(42)}},
 		{"float", "FLOAT NOT NULL", "FLOAT", scanTypeFloat32, false, math.MaxInt64, math.MaxInt64, [3]string{"0", "42", "13.37"}, [3]interface{}{float32(0), float32(42), float32(13.37)}},
 		{"floatnull", "FLOAT", "FLOAT", scanTypeNullFloat, true, math.MaxInt64, math.MaxInt64, [3]string{"0", "NULL", "13.37"}, [3]interface{}{nf0, nfNULL, nf1337}},
 		{"float74null", "FLOAT(7,4)", "FLOAT", scanTypeNullFloat, true, math.MaxInt64, 4, [3]string{"0", "NULL", "13.37"}, [3]interface{}{nf0, nfNULL, nf1337}},
@@ -2776,131 +2907,125 @@ func TestRowsColumnTypes(t *testing.T) {
 	values2 = values2[:len(values2)-2]
 	values3 = values3[:len(values3)-2]
 
-	dsns := []string{
-		dsn + "&parseTime=true",
-		dsn + "&parseTime=false",
-	}
-	for _, testdsn := range dsns {
-		runTests(t, testdsn, func(dbt *DBTest) {
-			dbt.mustExec("CREATE TABLE test (" + schema + ")")
-			dbt.mustExec("INSERT INTO test VALUES (" + values1 + "), (" + values2 + "), (" + values3 + ")")
+	runTests(t, dsn+"&parseTime=true", func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (" + schema + ")")
+		dbt.mustExec("INSERT INTO test VALUES (" + values1 + "), (" + values2 + "), (" + values3 + ")")
 
-			rows, err := dbt.db.Query("SELECT * FROM test")
-			if err != nil {
-				t.Fatalf("Query: %v", err)
+		rows, err := dbt.db.Query("SELECT * FROM test")
+		if err != nil {
+			t.Fatalf("Query: %v", err)
+		}
+
+		tt, err := rows.ColumnTypes()
+		if err != nil {
+			t.Fatalf("ColumnTypes: %v", err)
+		}
+
+		if len(tt) != len(columns) {
+			t.Fatalf("unexpected number of columns: expected %d, got %d", len(columns), len(tt))
+		}
+
+		types := make([]reflect.Type, len(tt))
+		for i, tp := range tt {
+			column := columns[i]
+
+			// Name
+			name := tp.Name()
+			if name != column.name {
+				t.Errorf("column name mismatch %s != %s", name, column.name)
+				continue
 			}
 
-			tt, err := rows.ColumnTypes()
-			if err != nil {
-				t.Fatalf("ColumnTypes: %v", err)
+			// DatabaseTypeName
+			databaseTypeName := tp.DatabaseTypeName()
+			if databaseTypeName != column.databaseTypeName {
+				t.Errorf("databasetypename name mismatch for column %q: %s != %s", name, databaseTypeName, column.databaseTypeName)
+				continue
 			}
 
-			if len(tt) != len(columns) {
-				t.Fatalf("unexpected number of columns: expected %d, got %d", len(columns), len(tt))
+			// ScanType
+			scanType := tp.ScanType()
+			if scanType != column.scanType {
+				if scanType == nil {
+					t.Errorf("scantype is null for column %q", name)
+				} else {
+					t.Errorf("scantype mismatch for column %q: %s != %s", name, scanType.Name(), column.scanType.Name())
+				}
+				continue
+			}
+			types[i] = scanType
+
+			// Nullable
+			nullable, ok := tp.Nullable()
+			if !ok {
+				t.Errorf("nullable not ok %q", name)
+				continue
+			}
+			if nullable != column.nullable {
+				t.Errorf("nullable mismatch for column %q: %t != %t", name, nullable, column.nullable)
 			}
 
-			types := make([]reflect.Type, len(tt))
-			for i, tp := range tt {
-				column := columns[i]
+			// Length
+			// length, ok := tp.Length()
+			// if length != column.length {
+			// 	if !ok {
+			// 		t.Errorf("length not ok for column %q", name)
+			// 	} else {
+			// 		t.Errorf("length mismatch for column %q: %d != %d", name, length, column.length)
+			// 	}
+			// 	continue
+			// }
 
-				// Name
-				name := tp.Name()
-				if name != column.name {
-					t.Errorf("column name mismatch %s != %s", name, column.name)
-					continue
-				}
-
-				// DatabaseTypeName
-				databaseTypeName := tp.DatabaseTypeName()
-				if databaseTypeName != column.databaseTypeName {
-					t.Errorf("databasetypename name mismatch for column %q: %s != %s", name, databaseTypeName, column.databaseTypeName)
-					continue
-				}
-
-				// ScanType
-				scanType := tp.ScanType()
-				if scanType != column.scanType {
-					if scanType == nil {
-						t.Errorf("scantype is null for column %q", name)
-					} else {
-						t.Errorf("scantype mismatch for column %q: %s != %s", name, scanType.Name(), column.scanType.Name())
-					}
-					continue
-				}
-				types[i] = scanType
-
-				// Nullable
-				nullable, ok := tp.Nullable()
+			// Precision and Scale
+			precision, scale, ok := tp.DecimalSize()
+			if precision != column.precision {
 				if !ok {
-					t.Errorf("nullable not ok %q", name)
-					continue
+					t.Errorf("precision not ok for column %q", name)
+				} else {
+					t.Errorf("precision mismatch for column %q: %d != %d", name, precision, column.precision)
 				}
-				if nullable != column.nullable {
-					t.Errorf("nullable mismatch for column %q: %t != %t", name, nullable, column.nullable)
+				continue
+			}
+			if scale != column.scale {
+				if !ok {
+					t.Errorf("scale not ok for column %q", name)
+				} else {
+					t.Errorf("scale mismatch for column %q: %d != %d", name, scale, column.scale)
 				}
+				continue
+			}
+		}
 
-				// Length
-				// length, ok := tp.Length()
-				// if length != column.length {
-				// 	if !ok {
-				// 		t.Errorf("length not ok for column %q", name)
-				// 	} else {
-				// 		t.Errorf("length mismatch for column %q: %d != %d", name, length, column.length)
-				// 	}
-				// 	continue
-				// }
-
-				// Precision and Scale
-				precision, scale, ok := tp.DecimalSize()
-				if precision != column.precision {
-					if !ok {
-						t.Errorf("precision not ok for column %q", name)
+		values := make([]interface{}, len(tt))
+		for i := range values {
+			values[i] = reflect.New(types[i]).Interface()
+		}
+		i := 0
+		for rows.Next() {
+			err = rows.Scan(values...)
+			if err != nil {
+				t.Fatalf("failed to scan values in %v", err)
+			}
+			for j := range values {
+				value := reflect.ValueOf(values[j]).Elem().Interface()
+				if !reflect.DeepEqual(value, columns[j].valuesOut[i]) {
+					if columns[j].scanType == scanTypeRawBytes {
+						t.Errorf("row %d, column %d: %v != %v", i, j, string(value.(sql.RawBytes)), string(columns[j].valuesOut[i].(sql.RawBytes)))
 					} else {
-						t.Errorf("precision mismatch for column %q: %d != %d", name, precision, column.precision)
+						t.Errorf("row %d, column %d: %v != %v", i, j, value, columns[j].valuesOut[i])
 					}
-					continue
-				}
-				if scale != column.scale {
-					if !ok {
-						t.Errorf("scale not ok for column %q", name)
-					} else {
-						t.Errorf("scale mismatch for column %q: %d != %d", name, scale, column.scale)
-					}
-					continue
 				}
 			}
+			i++
+		}
+		if i != 3 {
+			t.Errorf("expected 3 rows, got %d", i)
+		}
 
-			values := make([]interface{}, len(tt))
-			for i := range values {
-				values[i] = reflect.New(types[i]).Interface()
-			}
-			i := 0
-			for rows.Next() {
-				err = rows.Scan(values...)
-				if err != nil {
-					t.Fatalf("failed to scan values in %v", err)
-				}
-				for j := range values {
-					value := reflect.ValueOf(values[j]).Elem().Interface()
-					if !reflect.DeepEqual(value, columns[j].valuesOut[i]) {
-						if columns[j].scanType == scanTypeRawBytes {
-							t.Errorf("row %d, column %d: %v != %v", i, j, string(value.(sql.RawBytes)), string(columns[j].valuesOut[i].(sql.RawBytes)))
-						} else {
-							t.Errorf("row %d, column %d: %v != %v", i, j, value, columns[j].valuesOut[i])
-						}
-					}
-				}
-				i++
-			}
-			if i != 3 {
-				t.Errorf("expected 3 rows, got %d", i)
-			}
-
-			if err := rows.Close(); err != nil {
-				t.Errorf("error closing rows: %s", err)
-			}
-		})
-	}
+		if err := rows.Close(); err != nil {
+			t.Errorf("error closing rows: %s", err)
+		}
+	})
 }
 
 func TestValuerWithValueReceiverGivenNilValue(t *testing.T) {
@@ -2909,4 +3034,228 @@ func TestValuerWithValueReceiverGivenNilValue(t *testing.T) {
 		dbt.db.Exec("INSERT INTO test VALUES (?)", (*testValuer)(nil))
 		// This test will panic on the INSERT if ConvertValue() does not check for typed nil before calling Value()
 	})
+}
+
+// TestRawBytesAreNotModified checks for a race condition that arises when a query context
+// is canceled while a user is calling rows.Scan. This is a more stringent test than the one
+// proposed in https://github.com/golang/go/issues/23519. Here we're explicitly using
+// `sql.RawBytes` to check the contents of our internal buffers are not modified after an implicit
+// call to `Rows.Close`, so Context cancellation should **not** invalidate the backing buffers.
+func TestRawBytesAreNotModified(t *testing.T) {
+	const blob = "abcdefghijklmnop"
+	const contextRaceIterations = 20
+	const blobSize = defaultBufSize * 3 / 4 // Second row overwrites first row.
+	const insertRows = 4
+
+	var sqlBlobs = [2]string{
+		strings.Repeat(blob, blobSize/len(blob)),
+		strings.Repeat(strings.ToUpper(blob), blobSize/len(blob)),
+	}
+
+	runTests(t, dsn, func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (id int, value BLOB) CHARACTER SET utf8")
+		for i := 0; i < insertRows; i++ {
+			dbt.mustExec("INSERT INTO test VALUES (?, ?)", i+1, sqlBlobs[i&1])
+		}
+
+		for i := 0; i < contextRaceIterations; i++ {
+			func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+
+				rows, err := dbt.db.QueryContext(ctx, `SELECT id, value FROM test`)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				var b int
+				var raw sql.RawBytes
+				for rows.Next() {
+					if err := rows.Scan(&b, &raw); err != nil {
+						t.Fatal(err)
+					}
+
+					before := string(raw)
+					// Ensure cancelling the query does not corrupt the contents of `raw`
+					cancel()
+					time.Sleep(time.Microsecond * 100)
+					after := string(raw)
+
+					if before != after {
+						t.Fatalf("the backing storage for sql.RawBytes has been modified (i=%v)", i)
+					}
+				}
+				rows.Close()
+			}()
+		}
+	})
+}
+
+var _ driver.DriverContext = &MySQLDriver{}
+
+type dialCtxKey struct{}
+
+func TestConnectorObeysDialTimeouts(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	RegisterDialContext("dialctxtest", func(ctx context.Context, addr string) (net.Conn, error) {
+		var d net.Dialer
+		if !ctx.Value(dialCtxKey{}).(bool) {
+			return nil, fmt.Errorf("test error: query context is not propagated to our dialer")
+		}
+		return d.DialContext(ctx, prot, addr)
+	})
+
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@dialctxtest(%s)/%s?timeout=30s", user, pass, addr, dbname))
+	if err != nil {
+		t.Fatalf("error connecting: %s", err.Error())
+	}
+	defer db.Close()
+
+	ctx := context.WithValue(context.Background(), dialCtxKey{}, true)
+
+	_, err = db.ExecContext(ctx, "DO 1")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func configForTests(t *testing.T) *Config {
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	mycnf := NewConfig()
+	mycnf.User = user
+	mycnf.Passwd = pass
+	mycnf.Addr = addr
+	mycnf.Net = prot
+	mycnf.DBName = dbname
+	return mycnf
+}
+
+func TestNewConnector(t *testing.T) {
+	mycnf := configForTests(t)
+	conn, err := NewConnector(mycnf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	db := sql.OpenDB(conn)
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type slowConnection struct {
+	net.Conn
+	slowdown time.Duration
+}
+
+func (sc *slowConnection) Read(b []byte) (int, error) {
+	time.Sleep(sc.slowdown)
+	return sc.Conn.Read(b)
+}
+
+type connectorHijack struct {
+	driver.Connector
+	connErr error
+}
+
+func (cw *connectorHijack) Connect(ctx context.Context) (driver.Conn, error) {
+	var conn driver.Conn
+	conn, cw.connErr = cw.Connector.Connect(ctx)
+	return conn, cw.connErr
+}
+
+func TestConnectorTimeoutsDuringOpen(t *testing.T) {
+	RegisterDialContext("slowconn", func(ctx context.Context, addr string) (net.Conn, error) {
+		var d net.Dialer
+		conn, err := d.DialContext(ctx, prot, addr)
+		if err != nil {
+			return nil, err
+		}
+		return &slowConnection{Conn: conn, slowdown: 100 * time.Millisecond}, nil
+	})
+
+	mycnf := configForTests(t)
+	mycnf.Net = "slowconn"
+
+	conn, err := NewConnector(mycnf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hijack := &connectorHijack{Connector: conn}
+
+	db := sql.OpenDB(hijack)
+	defer db.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	_, err = db.ExecContext(ctx, "DO 1")
+	if err != context.DeadlineExceeded {
+		t.Fatalf("ExecContext should have timed out")
+	}
+	if hijack.connErr != context.DeadlineExceeded {
+		t.Fatalf("(*Connector).Connect should have timed out")
+	}
+}
+
+// A connection which can only be closed.
+type dummyConnection struct {
+	net.Conn
+	closed bool
+}
+
+func (d *dummyConnection) Close() error {
+	d.closed = true
+	return nil
+}
+
+func TestConnectorTimeoutsWatchCancel(t *testing.T) {
+	var (
+		cancel  func()           // Used to cancel the context just after connecting.
+		created *dummyConnection // The created connection.
+	)
+
+	RegisterDialContext("TestConnectorTimeoutsWatchCancel", func(ctx context.Context, addr string) (net.Conn, error) {
+		// Canceling at this time triggers the watchCancel error branch in Connect().
+		cancel()
+		created = &dummyConnection{}
+		return created, nil
+	})
+
+	mycnf := NewConfig()
+	mycnf.User = "root"
+	mycnf.Addr = "foo"
+	mycnf.Net = "TestConnectorTimeoutsWatchCancel"
+
+	conn, err := NewConnector(mycnf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	db := sql.OpenDB(conn)
+	defer db.Close()
+
+	var ctx context.Context
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+
+	if _, err := db.Conn(ctx); err != context.Canceled {
+		t.Errorf("got %v, want context.Canceled", err)
+	}
+
+	if created == nil {
+		t.Fatal("no connection created")
+	}
+	if !created.closed {
+		t.Errorf("connection not closed")
+	}
 }

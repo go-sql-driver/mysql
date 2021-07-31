@@ -13,7 +13,6 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"testing"
@@ -86,11 +85,11 @@ func TestAuthFastCachingSHA256PasswordCached(t *testing.T) {
 	plugin := "caching_sha2_password"
 
 	// Send Client Authentication Packet
-	authResp, addNUL, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,11 +130,11 @@ func TestAuthFastCachingSHA256PasswordEmpty(t *testing.T) {
 	plugin := "caching_sha2_password"
 
 	// Send Client Authentication Packet
-	authResp, addNUL, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,11 +172,11 @@ func TestAuthFastCachingSHA256PasswordFullRSA(t *testing.T) {
 	plugin := "caching_sha2_password"
 
 	// Send Client Authentication Packet
-	authResp, addNUL, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,11 +228,11 @@ func TestAuthFastCachingSHA256PasswordFullRSAWithKey(t *testing.T) {
 	plugin := "caching_sha2_password"
 
 	// Send Client Authentication Packet
-	authResp, addNUL, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,11 +280,11 @@ func TestAuthFastCachingSHA256PasswordFullSecure(t *testing.T) {
 	plugin := "caching_sha2_password"
 
 	// Send Client Authentication Packet
-	authResp, addNUL, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,7 +336,7 @@ func TestAuthFastCleartextPasswordNotAllowed(t *testing.T) {
 	plugin := "mysql_clear_password"
 
 	// Send Client Authentication Packet
-	_, _, err := mc.auth(authData, plugin)
+	_, err := mc.auth(authData, plugin)
 	if err != ErrCleartextPassword {
 		t.Errorf("expected ErrCleartextPassword, got %v", err)
 	}
@@ -354,26 +353,23 @@ func TestAuthFastCleartextPassword(t *testing.T) {
 	plugin := "mysql_clear_password"
 
 	// Send Client Authentication Packet
-	authResp, addNUL, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// check written auth response
-	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User)
+	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1
 	authRespEnd := authRespStart + 1 + len(authResp)
+	writtenAuthRespLen := conn.written[authRespStart]
 	writtenAuthResp := conn.written[authRespStart+1 : authRespEnd]
-	expectedAuthResp := []byte("secret")
-	if !bytes.Equal(writtenAuthResp, expectedAuthResp) {
-		t.Fatalf("unexpected written auth response:\n%s\nExpected:\n%s\n",
-			hex.Dump(writtenAuthResp), hex.Dump(expectedAuthResp))
-	}
-	if conn.written[authRespEnd] != 0 {
-		t.Fatalf("Expected null-terminated")
+	expectedAuthResp := []byte{115, 101, 99, 114, 101, 116, 0}
+	if writtenAuthRespLen != 7 || !bytes.Equal(writtenAuthResp, expectedAuthResp) {
+		t.Fatalf("unexpected written auth response (%d bytes): %v", writtenAuthRespLen, writtenAuthResp)
 	}
 	conn.written = nil
 
@@ -400,11 +396,11 @@ func TestAuthFastCleartextPasswordEmpty(t *testing.T) {
 	plugin := "mysql_clear_password"
 
 	// Send Client Authentication Packet
-	authResp, addNUL, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,9 +410,9 @@ func TestAuthFastCleartextPasswordEmpty(t *testing.T) {
 	authRespEnd := authRespStart + 1 + len(authResp)
 	writtenAuthRespLen := conn.written[authRespStart]
 	writtenAuthResp := conn.written[authRespStart+1 : authRespEnd]
-	if writtenAuthRespLen != 0 {
-		t.Fatalf("unexpected written auth response (%d bytes): %v",
-			writtenAuthRespLen, writtenAuthResp)
+	expectedAuthResp := []byte{0}
+	if writtenAuthRespLen != 1 || !bytes.Equal(writtenAuthResp, expectedAuthResp) {
+		t.Fatalf("unexpected written auth response (%d bytes): %v", writtenAuthRespLen, writtenAuthResp)
 	}
 	conn.written = nil
 
@@ -443,7 +439,7 @@ func TestAuthFastNativePasswordNotAllowed(t *testing.T) {
 	plugin := "mysql_native_password"
 
 	// Send Client Authentication Packet
-	_, _, err := mc.auth(authData, plugin)
+	_, err := mc.auth(authData, plugin)
 	if err != ErrNativePassword {
 		t.Errorf("expected ErrNativePassword, got %v", err)
 	}
@@ -459,11 +455,11 @@ func TestAuthFastNativePassword(t *testing.T) {
 	plugin := "mysql_native_password"
 
 	// Send Client Authentication Packet
-	authResp, addNUL, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -502,11 +498,11 @@ func TestAuthFastNativePasswordEmpty(t *testing.T) {
 	plugin := "mysql_native_password"
 
 	// Send Client Authentication Packet
-	authResp, addNUL, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -544,11 +540,11 @@ func TestAuthFastSHA256PasswordEmpty(t *testing.T) {
 	plugin := "sha256_password"
 
 	// Send Client Authentication Packet
-	authResp, addNUL, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -558,7 +554,8 @@ func TestAuthFastSHA256PasswordEmpty(t *testing.T) {
 	authRespEnd := authRespStart + 1 + len(authResp)
 	writtenAuthRespLen := conn.written[authRespStart]
 	writtenAuthResp := conn.written[authRespStart+1 : authRespEnd]
-	if writtenAuthRespLen != 0 {
+	expectedAuthResp := []byte{0}
+	if writtenAuthRespLen != 1 || !bytes.Equal(writtenAuthResp, expectedAuthResp) {
 		t.Fatalf("unexpected written auth response (%d bytes): %v", writtenAuthRespLen, writtenAuthResp)
 	}
 	conn.written = nil
@@ -591,11 +588,11 @@ func TestAuthFastSHA256PasswordRSA(t *testing.T) {
 	plugin := "sha256_password"
 
 	// Send Client Authentication Packet
-	authResp, addNUL, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -640,11 +637,11 @@ func TestAuthFastSHA256PasswordRSAWithKey(t *testing.T) {
 	plugin := "sha256_password"
 
 	// Send Client Authentication Packet
-	authResp, addNUL, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -673,7 +670,7 @@ func TestAuthFastSHA256PasswordSecure(t *testing.T) {
 	plugin := "sha256_password"
 
 	// send Client Authentication Packet
-	authResp, addNUL, err := mc.auth(authData, plugin)
+	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -681,24 +678,20 @@ func TestAuthFastSHA256PasswordSecure(t *testing.T) {
 	// unset TLS config to prevent the actual establishment of a TLS wrapper
 	mc.cfg.tls = nil
 
-	err = mc.writeHandshakeResponsePacket(authResp, addNUL, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// check written auth response
-	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User)
+	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1
 	authRespEnd := authRespStart + 1 + len(authResp)
+	writtenAuthRespLen := conn.written[authRespStart]
 	writtenAuthResp := conn.written[authRespStart+1 : authRespEnd]
-	expectedAuthResp := []byte("secret")
-	if !bytes.Equal(writtenAuthResp, expectedAuthResp) {
-		t.Fatalf("unexpected written auth response:\n%s\nExpected:\n%s\n",
-			hex.Dump(writtenAuthResp), hex.Dump(expectedAuthResp))
+	expectedAuthResp := []byte{115, 101, 99, 114, 101, 116, 0}
+	if writtenAuthRespLen != 7 || !bytes.Equal(writtenAuthResp, expectedAuthResp) {
+		t.Fatalf("unexpected written auth response (%d bytes): %v", writtenAuthRespLen, writtenAuthResp)
 	}
-	if conn.written[authRespEnd] != 0 {
-		t.Fatalf("Expected null-terminated")
-	}
-
 	conn.written = nil
 
 	// auth response (OK)
@@ -772,7 +765,7 @@ func TestAuthSwitchCachingSHA256PasswordEmpty(t *testing.T) {
 		t.Errorf("got error: %v", err)
 	}
 
-	expectedReply := []byte{1, 0, 0, 3, 0}
+	expectedReply := []byte{0, 0, 0, 3}
 	if !bytes.Equal(conn.written, expectedReply) {
 		t.Errorf("got unexpected data: %v", conn.written)
 	}
@@ -1072,6 +1065,22 @@ func TestAuthSwitchOldPasswordNotAllowed(t *testing.T) {
 	}
 }
 
+// Same to TestAuthSwitchOldPasswordNotAllowed, but use OldAuthSwitch request.
+func TestOldAuthSwitchNotAllowed(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+
+	// OldAuthSwitch request
+	conn.data = []byte{1, 0, 0, 2, 0xfe}
+	conn.maxReads = 1
+	authData := []byte{95, 84, 103, 43, 61, 49, 123, 61, 91, 50, 40, 113, 35,
+		84, 96, 101, 92, 123, 121, 107}
+	plugin := "mysql_native_password"
+	err := mc.handleAuthResult(authData, plugin)
+	if err != ErrOldPassword {
+		t.Errorf("expected ErrOldPassword, got %v", err)
+	}
+}
+
 func TestAuthSwitchOldPassword(t *testing.T) {
 	conn, mc := newRWMockConn(2)
 	mc.cfg.AllowOldPasswords = true
@@ -1100,6 +1109,32 @@ func TestAuthSwitchOldPassword(t *testing.T) {
 	}
 }
 
+// Same to TestAuthSwitchOldPassword, but use OldAuthSwitch request.
+func TestOldAuthSwitch(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.AllowOldPasswords = true
+	mc.cfg.Passwd = "secret"
+
+	// OldAuthSwitch request
+	conn.data = []byte{1, 0, 0, 2, 0xfe}
+
+	// auth response
+	conn.queuedReplies = [][]byte{{8, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 0}}
+	conn.maxReads = 2
+
+	authData := []byte{95, 84, 103, 43, 61, 49, 123, 61, 91, 50, 40, 113, 35,
+		84, 96, 101, 92, 123, 121, 107}
+	plugin := "mysql_native_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReply := []byte{9, 0, 0, 3, 86, 83, 83, 79, 74, 78, 65, 66, 0}
+	if !bytes.Equal(conn.written, expectedReply) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
 func TestAuthSwitchOldPasswordEmpty(t *testing.T) {
 	conn, mc := newRWMockConn(2)
 	mc.cfg.AllowOldPasswords = true
@@ -1122,7 +1157,34 @@ func TestAuthSwitchOldPasswordEmpty(t *testing.T) {
 		t.Errorf("got error: %v", err)
 	}
 
-	expectedReply := []byte{1, 0, 0, 3, 0}
+	expectedReply := []byte{0, 0, 0, 3}
+	if !bytes.Equal(conn.written, expectedReply) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
+// Same to TestAuthSwitchOldPasswordEmpty, but use OldAuthSwitch request.
+func TestOldAuthSwitchPasswordEmpty(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.AllowOldPasswords = true
+	mc.cfg.Passwd = ""
+
+	// OldAuthSwitch request.
+	conn.data = []byte{1, 0, 0, 2, 0xfe}
+
+	// auth response
+	conn.queuedReplies = [][]byte{{8, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 0}}
+	conn.maxReads = 2
+
+	authData := []byte{95, 84, 103, 43, 61, 49, 123, 61, 91, 50, 40, 113, 35,
+		84, 96, 101, 92, 123, 121, 107}
+	plugin := "mysql_native_password"
+
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReply := []byte{0, 0, 0, 3}
 	if !bytes.Equal(conn.written, expectedReply) {
 		t.Errorf("got unexpected data: %v", conn.written)
 	}

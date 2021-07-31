@@ -15,6 +15,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"sync"
 )
 
@@ -136,10 +137,6 @@ func pwHash(password []byte) (result [2]uint32) {
 
 // Hash password using insecure pre 4.1 method
 func scrambleOldPassword(scramble []byte, password string) []byte {
-	if len(password) == 0 {
-		return nil
-	}
-
 	scramble = scramble[:8]
 
 	hashPw := pwHash([]byte(password))
@@ -234,64 +231,67 @@ func (mc *mysqlConn) sendEncryptedPassword(seed []byte, pub *rsa.PublicKey) erro
 	if err != nil {
 		return err
 	}
-	return mc.writeAuthSwitchPacket(enc, false)
+	return mc.writeAuthSwitchPacket(enc)
 }
 
-func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, bool, error) {
+func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 	switch plugin {
 	case "caching_sha2_password":
 		authResp := scrambleSHA256Password(authData, mc.cfg.Passwd)
-		return authResp, (authResp == nil), nil
+		return authResp, nil
 
 	case "mysql_old_password":
 		if !mc.cfg.AllowOldPasswords {
-			return nil, false, ErrOldPassword
+			return nil, ErrOldPassword
+		}
+		if len(mc.cfg.Passwd) == 0 {
+			return nil, nil
 		}
 		// Note: there are edge cases where this should work but doesn't;
 		// this is currently "wontfix":
 		// https://github.com/go-sql-driver/mysql/issues/184
-		authResp := scrambleOldPassword(authData[:8], mc.cfg.Passwd)
-		return authResp, true, nil
+		authResp := append(scrambleOldPassword(authData[:8], mc.cfg.Passwd), 0)
+		return authResp, nil
 
 	case "mysql_clear_password":
 		if !mc.cfg.AllowCleartextPasswords {
-			return nil, false, ErrCleartextPassword
+			return nil, ErrCleartextPassword
 		}
 		// http://dev.mysql.com/doc/refman/5.7/en/cleartext-authentication-plugin.html
 		// http://dev.mysql.com/doc/refman/5.7/en/pam-authentication-plugin.html
-		return []byte(mc.cfg.Passwd), true, nil
+		return append([]byte(mc.cfg.Passwd), 0), nil
 
 	case "mysql_native_password":
 		if !mc.cfg.AllowNativePasswords {
-			return nil, false, ErrNativePassword
+			return nil, ErrNativePassword
 		}
 		// https://dev.mysql.com/doc/internals/en/secure-password-authentication.html
 		// Native password authentication only need and will need 20-byte challenge.
 		authResp := scramblePassword(authData[:20], mc.cfg.Passwd)
-		return authResp, false, nil
+		return authResp, nil
 
 	case "sha256_password":
 		if len(mc.cfg.Passwd) == 0 {
-			return nil, true, nil
+			return []byte{0}, nil
 		}
 		if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
 			// write cleartext auth packet
-			return []byte(mc.cfg.Passwd), true, nil
+			return append([]byte(mc.cfg.Passwd), 0), nil
 		}
 
 		pubKey := mc.cfg.pubKey
 		if pubKey == nil {
 			// request public key from server
-			return []byte{1}, false, nil
+			return []byte{1}, nil
 		}
 
 		// encrypted password
 		enc, err := encryptPassword(mc.cfg.Passwd, authData, pubKey)
-		return enc, false, err
+		return enc, err
 
 	default:
 		errLog.Print("unknown auth plugin:", plugin)
-		return nil, false, ErrUnknownPlugin
+		return nil, ErrUnknownPlugin
 	}
 }
 
@@ -315,11 +315,11 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 
 		plugin = newPlugin
 
-		authResp, addNUL, err := mc.auth(authData, plugin)
+		authResp, err := mc.auth(authData, plugin)
 		if err != nil {
 			return err
 		}
-		if err = mc.writeAuthSwitchPacket(authResp, addNUL); err != nil {
+		if err = mc.writeAuthSwitchPacket(authResp); err != nil {
 			return err
 		}
 
@@ -352,7 +352,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 			case cachingSha2PasswordPerformFullAuthentication:
 				if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
 					// write cleartext auth packet
-					err = mc.writeAuthSwitchPacket([]byte(mc.cfg.Passwd), true)
+					err = mc.writeAuthSwitchPacket(append([]byte(mc.cfg.Passwd), 0))
 					if err != nil {
 						return err
 					}
@@ -360,17 +360,22 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 					pubKey := mc.cfg.pubKey
 					if pubKey == nil {
 						// request public key from server
-						data := mc.buf.takeSmallBuffer(4 + 1)
+						data, err := mc.buf.takeSmallBuffer(4 + 1)
+						if err != nil {
+							return err
+						}
 						data[4] = cachingSha2PasswordRequestPublicKey
 						mc.writePacket(data)
 
 						// parse public key
-						data, err := mc.readPacket()
-						if err != nil {
+						if data, err = mc.readPacket(); err != nil {
 							return err
 						}
 
-						block, _ := pem.Decode(data[1:])
+						block, rest := pem.Decode(data[1:])
+						if block == nil {
+							return fmt.Errorf("No Pem data found, data: %s", rest)
+						}
 						pkix, err := x509.ParsePKIXPublicKey(block.Bytes)
 						if err != nil {
 							return err
