@@ -2212,7 +2212,7 @@ func TestConnectAttrs(t *testing.T) {
 		t.Skip("no performance_schema variable in mysql")
 	}
 
-	rows, err = dbt.db.Query("select attr_value from performance_schema.session_connect_attrs where processlist_id=CONNECTION_ID() and attr_name='program_name'")
+	rows, err = dbt.db.Query("SELECT attr_value FROM performance_schema.session_connect_attrs WHERE processlist_id=CONNECTION_ID() AND attr_name='program_name'")
 	if err != nil {
 		dbt.Skipf("server probably does not support performance_schema.session_connect_attrs: %s", err)
 	}
@@ -2227,7 +2227,7 @@ func TestConnectAttrs(t *testing.T) {
 		dbt.Error("no data for program_name")
 	}
 
-	rows = dbt.mustQuery("select attr_value from performance_schema.session_connect_attrs where processlist_id=CONNECTION_ID() and attr_name='foo'")
+	rows = dbt.mustQuery("SELECT attr_value FROM performance_schema.session_connect_attrs WHERE processlist_id=CONNECTION_ID() AND attr_name='foo'")
 	if rows.Next() {
 		var str string
 		rows.Scan(&str)
