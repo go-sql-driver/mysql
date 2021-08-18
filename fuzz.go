@@ -6,6 +6,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
 
+//go:build gofuzz
 // +build gofuzz
 
 package mysql
@@ -15,7 +16,7 @@ import (
 )
 
 func Fuzz(data []byte) int {
-	db, err := sql.Open("mysql", string(data))
+	db, err := sql.Open(DriverName, string(data))
 	if err != nil {
 		return 0
 	}

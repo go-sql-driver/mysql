@@ -62,12 +62,12 @@ import (
 	"database/sql"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 )
 
 // ...
 
-db, err := sql.Open("mysql", "user:password@/dbname")
+db, err := sql.Open(mysql.DriverName, "user:password@/dbname")
 if err != nil {
 	panic(err)
 }
