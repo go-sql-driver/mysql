@@ -9,14 +9,25 @@
 package mysql
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/pem"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"os"
+	"strings"
 	"sync"
+
+	"github.com/jcmturner/gokrb5/v8/client"
+	"github.com/jcmturner/gokrb5/v8/config"
+	"github.com/jcmturner/gokrb5/v8/keytab"
+	"github.com/openshift/gssapi"
 )
 
 // server pub keys registry
@@ -234,7 +245,39 @@ func (mc *mysqlConn) sendEncryptedPassword(seed []byte, pub *rsa.PublicKey) erro
 	return mc.writeAuthSwitchPacket(enc)
 }
 
+// Parse KRB5 authentication data.
+//
+// Get the SPN and REALM from the authentication data packet.
+//
+// Format:
+//		SPN string length two bytes <B1> <B2> +
+//		SPN string +
+//		UPN realm string length two bytes <B1> <B2> +
+//		UPN realm string
+//
+//Returns:
+//		'spn' and 'realm'
+func krb5ParseAuthData(authData []byte) (string, string) {
+	buf := bytes.NewBuffer(authData[:2])
+	spnLen := int16(0)
+	binary.Read(buf, binary.LittleEndian, &spnLen)
+	packet := authData[2:]
+	spn := string(packet[:spnLen])
+	// next realm
+	packet = packet[spnLen:]
+	buf = bytes.NewBuffer(packet[:2])
+	realmLen := int16(0)
+	binary.Read(buf, binary.LittleEndian, &realmLen)
+	packet = packet[2:]
+	realm := string(packet[:realmLen])
+	// remove realm from SPN
+	spn = strings.TrimSuffix(spn, "@"+realm)
+	return spn, realm
+}
+
 func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
+	l := log.New(os.Stderr, "GOKRB5 Client: ", log.LstdFlags)
+	l.Printf("auth plugin: %s", plugin)
 	switch plugin {
 	case "caching_sha2_password":
 		authResp := scrambleSHA256Password(authData, mc.cfg.Passwd)
@@ -288,6 +331,105 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		// encrypted password
 		enc, err := encryptPassword(mc.cfg.Passwd, authData, pubKey)
 		return enc, err
+
+	case "authentication_kerberos_client":
+		krb5ConfigFilename := os.Getenv("KRB5_CONFIG")
+		// try common location for config
+		if krb5ConfigFilename == "" {
+			krb5ConfigFilename = "/etc/krb5.conf"
+		}
+		krb5Config, err := ioutil.ReadFile(krb5ConfigFilename)
+		if err != nil {
+			log.Fatalf("could not read krb5.conf (%s): %v", krb5ConfigFilename, err)
+		}
+		log.Printf("%v", authData)
+		// decode the SPN from authData
+		spn, realm := krb5ParseAuthData(authData)
+		log.Printf("SPN: %s", spn)
+		log.Printf("Realm: %s", realm)
+		conf, err := config.NewFromString(string(krb5Config))
+		if err != nil {
+			log.Fatalf("could not load krb5.conf: %v", err)
+		}
+
+		// load keytab from file
+		keytabFilename := os.Getenv("KRB5_CLIENT_KTNAME")
+		if keytabFilename == "" {
+			// try default
+			keytabFilename = conf.LibDefaults.DefaultClientKeytabName
+		}
+		log.Printf("Using keytab %s", keytabFilename)
+
+		krb5keytabContent, err := ioutil.ReadFile(keytabFilename)
+		if err != nil {
+			log.Fatalf("could not load client keytab from KRB5_CLIENT_KTNAME env (%s): %v", keytabFilename, err)
+		}
+
+		kt := keytab.New()
+		err = kt.Unmarshal(krb5keytabContent)
+		if err != nil {
+			log.Fatalf("could not load client keytab: %v", err)
+		}
+
+		log.Printf("krb5 user: %s", mc.cfg.User)
+		log.Printf("krb5 default realm: %s", conf.LibDefaults.DefaultRealm)
+		log.Printf("krb5 kdc: %v", conf.Realms[0].KDC)
+
+		// Create the client with the keytab
+		cl := client.NewWithKeytab(mc.cfg.User, conf.LibDefaults.DefaultRealm, kt, conf, client.Logger(l), client.DisablePAFXFAST(true), client.AssumePreAuthentication(false))
+		// Log in the client
+		err = cl.Login()
+		if err != nil {
+			log.Fatalf("could not login client: %v", err)
+		}
+		log.Println("ok...")
+
+		_, _, err = cl.GetServiceTicket(spn)
+		if err != nil {
+			log.Printf("failed to get service ticket: %v\n", err)
+		}
+		log.Println("ok got service ticket...")
+
+		dl, err := gssapi.Load(nil)
+		if err != nil {
+			return nil, err
+		}
+
+		buf_name, err := dl.MakeBufferBytes([]byte(spn))
+		if err != nil {
+			return nil, err
+		}
+		name, err := buf_name.Name(dl.GSS_KRB5_NT_PRINCIPAL_NAME)
+		input_buf, _ := dl.MakeBuffer(0)
+		if err != nil {
+			return nil, err
+		}
+		cname, _ := name.Canonicalize(dl.GSS_MECH_KRB5)
+		//
+		// TODO: need to implement mutual authentication to ensure both sides agree?
+		//reqFlags := gssapi.GSS_C_DELEG_FLAG + gssapi.GSS_C_MUTUAL_FLAG
+		//
+		// allow delegation
+		//
+		reqFlags := gssapi.GSS_C_DELEG_FLAG
+
+		//reqFlags = 0
+		_, _, token, _, _, err := dl.InitSecContext(
+			dl.GSS_C_NO_CREDENTIAL,
+			nil,
+			cname,
+			dl.GSS_C_NO_OID,
+			reqFlags,
+			0,
+			dl.GSS_C_NO_CHANNEL_BINDINGS,
+			input_buf)
+
+		if token == nil {
+			return nil, err
+		}
+		log.Println("gssapi security context created")
+
+		return token.Bytes(), err
 
 	default:
 		errLog.Print("unknown auth plugin:", plugin)
