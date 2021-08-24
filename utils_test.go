@@ -453,11 +453,9 @@ func TestInvalidDateTime(t *testing.T) {
 		},
 	}
 
-	loc := time.UTC
-
 	for _, cc := range cases {
-		t.Run(cc.name+"-"+loc.String(), func(t *testing.T) {
-			got, err := parseDateTime([]byte(cc.str), loc)
+		t.Run(cc.name, func(t *testing.T) {
+			got, err := parseDateTime([]byte(cc.str), time.UTC)
 			if err != nil {
 				t.Fatal(err)
 			}
