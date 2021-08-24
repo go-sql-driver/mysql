@@ -118,10 +118,6 @@ func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 		if err != nil {
 			return time.Time{}, err
 		}
-		if year <= 0 {
-			year = 1
-		}
-
 		if b[4] != '-' {
 			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[4])
 		}
