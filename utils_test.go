@@ -388,6 +388,10 @@ func TestParseDateTime(t *testing.T) {
 			str:  sDateTime0,
 		},
 		{
+			name: "parse datetime without day",
+			str:  "0000-00-00 21:30:45",
+		},
+		{
 			name: "parse datetime nanosec 1-digit",
 			str:  "2020-05-25 23:22:01.1",
 		},
