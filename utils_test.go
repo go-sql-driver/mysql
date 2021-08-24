@@ -388,10 +388,6 @@ func TestParseDateTime(t *testing.T) {
 			str:  sDateTime0,
 		},
 		{
-			name: "parse datetime without day",
-			str:  "0000-00-00 21:30:45",
-		},
-		{
 			name: "parse datetime nanosec 1-digit",
 			str:  "2020-05-25 23:22:01.1",
 		},
@@ -441,6 +437,35 @@ func TestParseDateTime(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestInvalidDateTime(t *testing.T) {
+	cases := []struct {
+		name string
+		str  string
+		want time.Time
+	}{
+		{
+			name: "parse datetime without day",
+			str:  "0000-00-00 21:30:45",
+			want: time.Date(0, 0, 0, 21, 30, 45, 0, time.UTC),
+		},
+	}
+
+	loc := time.UTC
+
+	for _, cc := range cases {
+		t.Run(cc.name+"-"+loc.String(), func(t *testing.T) {
+			got, err := parseDateTime([]byte(cc.str), loc)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !cc.want.Equal(got) {
+				t.Fatalf("want: %v, but got %v", cc.want, got)
+			}
+		})
 	}
 }
 
