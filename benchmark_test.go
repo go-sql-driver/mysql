@@ -127,7 +127,8 @@ func BenchmarkExec(b *testing.B) {
 				}
 
 				if _, err := stmt.Exec(); err != nil {
-					b.Fatal(err.Error())
+					b.Logf("stmt.Exec failed: %v", err)
+					b.Fail()
 				}
 			}
 		}()

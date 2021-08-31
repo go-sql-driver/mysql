@@ -63,3 +63,10 @@ type MySQLError struct {
 func (me *MySQLError) Error() string {
 	return fmt.Sprintf("Error %d: %s", me.Number, me.Message)
 }
+
+func (me *MySQLError) Is(err error) bool {
+	if merr, ok := err.(*MySQLError); ok {
+		return merr.Number == me.Number
+	}
+	return false
+}
