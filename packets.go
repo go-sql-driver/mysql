@@ -535,6 +535,10 @@ func (mc *mysqlConn) readResultOK() error {
 // Result Set Header Packet
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-ProtocolText::Resultset
 func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
+	// handleOkPacket replaces both values; other cases leave the values unchanged.
+	mc.affectedRows = append(mc.affectedRows, 0)
+	mc.insertIDs = append(mc.insertIDs, 0)
+
 	data, err := mc.readPacket()
 	if err == nil {
 		switch data[0] {
@@ -611,14 +615,24 @@ func readStatus(b []byte) statusFlag {
 // http://dev.mysql.com/doc/internals/en/generic-response-packets.html#packet-OK_Packet
 func (mc *mysqlConn) handleOkPacket(data []byte) error {
 	var n, m int
+	var affectedRows, insertID uint64
 
 	// 0x00 [1 byte]
 
 	// Affected rows [Length Coded Binary]
-	mc.affectedRows, _, n = readLengthEncodedInteger(data[1:])
+	affectedRows, _, n = readLengthEncodedInteger(data[1:])
 
 	// Insert id [Length Coded Binary]
-	mc.insertId, _, m = readLengthEncodedInteger(data[1+n:])
+	insertId, _, m = readLengthEncodedInteger(data[1+n:])
+
+	// Update for the current statement result (only used by
+	// readResultSetHeaderPacket).
+	if len(mc.affectedRows) > 0 {
+		mc.affectedRows[len(mc.affectedRows)-1] = int64(affectedRows)
+	}
+	if len(mc.insertIDs) > 0 {
+		mc.insertIDs[len(mc.insertIDs)-1] = int64(insertID)
+	}
 
 	// server_status [2 bytes]
 	mc.status = readStatus(data[1+n+m : 1+n+m+2])
@@ -1149,6 +1163,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	return mc.writePacket(data)
 }
 
+// For each remaining resultset in the stream, discards its rows and updates
+// mc.affectedRows and mc.insertIDs.
 func (mc *mysqlConn) discardResults() error {
 	for mc.status&statusMoreResultsExists != 0 {
 		resLen, err := mc.readResultSetHeaderPacket()

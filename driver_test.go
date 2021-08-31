@@ -2379,6 +2379,42 @@ func TestMultiResultSetNoSelect(t *testing.T) {
 	})
 }
 
+func TestExecMultipleResults(t *testing.T) {
+	ctx := context.Background()
+	runTestsWithMultiStatement(t, dsn, func(dbt *DBTest) {
+		dbt.mustExec(`
+		CREATE TABLE test (
+			id INT NOT NULL AUTO_INCREMENT,
+			value VARCHAR(255),
+			PRIMARY KEY (id)
+		)`)
+		conn, err := dbt.db.Conn(ctx)
+		if err != nil {
+			t.Fatalf("failed to connect: %v", err)
+		}
+		conn.Raw(func(conn interface{}) error {
+			ex := conn.(driver.Execer)
+			res, err := ex.Exec(`
+			INSERT INTO test (value) VALUES ('a'), ('b');
+			INSERT INTO test (value) VALUES ('c'), ('d'), ('e');
+			`, nil)
+			if err != nil {
+				t.Fatalf("insert statements failed: %v", err)
+			}
+			mres := res.(Result)
+			if got, want := mres.AllRowsAffected(), []int64{2, 3}; !reflect.DeepEqual(got, want) {
+				t.Errorf("bad AllRowsAffected: got %v, want=%v", got, want)
+			}
+			// For INSERTs containing multiple rows, LAST_INSERT_ID() returns the
+			// first inserted ID, not the last.
+			if got, want := mres.AllLastInsertIds(), []int64{1, 3}; !reflect.DeepEqual(got, want) {
+				t.Errorf("bad AllLastInsertIds: got %v, want %v", got, want)
+			}
+			return nil
+		})
+	})
+}
+
 // tests if rows are set in a proper state if some results were ignored before
 // calling rows.NextResultSet.
 func TestSkipResults(t *testing.T) {

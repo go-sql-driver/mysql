@@ -24,8 +24,8 @@ type mysqlConn struct {
 	buf              buffer
 	netConn          net.Conn
 	rawConn          net.Conn // underlying connection when netConn is TLS connection.
-	affectedRows     uint64
-	insertId         uint64
+	affectedRows     []int64
+	insertIDs        []int64
 	cfg              *Config
 	maxAllowedPacket int
 	maxWriteSize     int
@@ -310,14 +310,14 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		}
 		query = prepared
 	}
-	mc.affectedRows = 0
-	mc.insertId = 0
+	mc.affectedRows = nil
+	mc.insertId = nil
 
 	err := mc.exec(query)
 	if err == nil {
 		return &mysqlResult{
-			affectedRows: int64(mc.affectedRows),
-			insertId:     int64(mc.insertId),
+			affectedRows: mc.affectedRows,
+			insertIDs:    mc.insertIDs,
 		}, err
 	}
 	return nil, mc.markBadConn(err)

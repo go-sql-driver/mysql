@@ -62,8 +62,8 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 
 	mc := stmt.mc
 
-	mc.affectedRows = 0
-	mc.insertId = 0
+	mc.affectedRows = nil
+	mc.insertId = nil
 
 	// Read Result
 	resLen, err := mc.readResultSetHeaderPacket()
@@ -88,8 +88,8 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	}
 
 	return &mysqlResult{
-		affectedRows: int64(mc.affectedRows),
-		insertId:     int64(mc.insertId),
+		affectedRows: mc.affectedRows,
+		insertIDs:    mc.insertIDs,
 	}, nil
 }
 
