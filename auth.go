@@ -28,6 +28,7 @@ import (
 
 	"github.com/jcmturner/gokrb5/v8/client"
 	"github.com/jcmturner/gokrb5/v8/config"
+	"github.com/jcmturner/gokrb5/v8/credentials"
 	"github.com/jcmturner/gokrb5/v8/keytab"
 	"github.com/openshift/gssapi"
 )
@@ -362,29 +363,47 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		}
 		log.Printf("Using keytab %s", keytabFilename)
 
+		var cl *client.Client
+
 		krb5keytabContent, err := ioutil.ReadFile(keytabFilename)
-		if err != nil {
-			log.Fatalf("could not load client keytab from KRB5_CLIENT_KTNAME env (%s): %v", keytabFilename, err)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, err
 		}
 
-		kt := keytab.New()
-		err = kt.Unmarshal(krb5keytabContent)
-		if err != nil {
-			log.Fatalf("could not load client keytab: %v", err)
+		if os.IsNotExist(err) {
+			ccacheFileDest, ok := os.LookupEnv("KRB5CCNAME")
+			if !ok {
+				// KRB5CCNAME is not set, return the error from loading the Keytab.
+				return nil, err
+			}
+
+			ccache, err := credentials.LoadCCache(ccacheFileDest)
+			if err != nil {
+				return nil, err
+			}
+
+			cl, err = client.NewFromCCache(ccache, conf, client.Logger(l), client.DisablePAFXFAST(true), client.AssumePreAuthentication(false))
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			log.Printf("krb5 user: %s", mc.cfg.User)
+			log.Printf("krb5 default realm: %s", conf.LibDefaults.DefaultRealm)
+			log.Printf("krb5 kdc: %v", conf.Realms[0].KDC)
+
+			kt := keytab.New()
+			err = kt.Unmarshal(krb5keytabContent)
+			if err != nil {
+				return nil, err
+			}
+			cl = client.NewWithKeytab(mc.cfg.User, conf.LibDefaults.DefaultRealm, kt, conf, client.Logger(l), client.DisablePAFXFAST(true), client.AssumePreAuthentication(false))
 		}
 
-		log.Printf("krb5 user: %s", mc.cfg.User)
-		log.Printf("krb5 default realm: %s", conf.LibDefaults.DefaultRealm)
-		log.Printf("krb5 kdc: %v", conf.Realms[0].KDC)
-
-		// Create the client with the keytab
-		cl := client.NewWithKeytab(mc.cfg.User, conf.LibDefaults.DefaultRealm, kt, conf, client.Logger(l), client.DisablePAFXFAST(true), client.AssumePreAuthentication(false))
 		// Log in the client
 		err = cl.Login()
 		if err != nil {
 			log.Fatalf("could not login client: %v", err)
 		}
-		log.Println("ok...")
 
 		_, _, err = cl.GetServiceTicket(spn)
 		if err != nil {
