@@ -1,4 +1,4 @@
-module github.com/go-sql-driver/mysql
+module github.com/grafana/mysql
 
 go 1.13
 
