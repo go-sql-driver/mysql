@@ -426,7 +426,6 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		// Collation
 		case "collation":
 			cfg.Collation = value
-			break
 
 		case "columnsWithAlias":
 			var isBool bool
