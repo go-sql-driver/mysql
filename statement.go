@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"context"
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
@@ -31,7 +32,7 @@ func (stmt *mysqlStmt) Close() error {
 		return driver.ErrBadConn
 	}
 
-	err := stmt.mc.writeCommandPacketUint32(comStmtClose, stmt.id)
+	err := stmt.mc.writeCommandPacketUint32(context.Background(), comStmtClose, stmt.id)
 	stmt.mc = nil
 	return err
 }
@@ -50,12 +51,16 @@ func (stmt *mysqlStmt) CheckNamedValue(nv *driver.NamedValue) (err error) {
 }
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
+	return stmt.exec(context.Background(), args)
+}
+
+func (stmt *mysqlStmt) exec(ctx context.Context, args []driver.Value) (driver.Result, error) {
 	if stmt.mc.closed.IsSet() {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	// Send command
-	err := stmt.writeExecutePacket(args)
+	err := stmt.writeExecutePacket(ctx, args)
 	if err != nil {
 		return nil, stmt.mc.markBadConn(err)
 	}
@@ -66,24 +71,24 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	mc.insertId = 0
 
 	// Read Result
-	resLen, err := mc.readResultSetHeaderPacket()
+	resLen, err := mc.readResultSetHeaderPacket(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	if resLen > 0 {
 		// Columns
-		if err = mc.readUntilEOF(); err != nil {
+		if err = mc.readUntilEOF(ctx); err != nil {
 			return nil, err
 		}
 
 		// Rows
-		if err := mc.readUntilEOF(); err != nil {
+		if err := mc.readUntilEOF(ctx); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := mc.discardResults(); err != nil {
+	if err := mc.discardResults(ctx); err != nil {
 		return nil, err
 	}
 
@@ -94,16 +99,16 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 }
 
 func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
-	return stmt.query(args)
+	return stmt.query(context.Background(), args)
 }
 
-func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
+func (stmt *mysqlStmt) query(ctx context.Context, args []driver.Value) (*binaryRows, error) {
 	if stmt.mc.closed.IsSet() {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	// Send command
-	err := stmt.writeExecutePacket(args)
+	err := stmt.writeExecutePacket(ctx, args)
 	if err != nil {
 		return nil, stmt.mc.markBadConn(err)
 	}
@@ -111,7 +116,7 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 	mc := stmt.mc
 
 	// Read Result
-	resLen, err := mc.readResultSetHeaderPacket()
+	resLen, err := mc.readResultSetHeaderPacket(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +125,8 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 
 	if resLen > 0 {
 		rows.mc = mc
-		rows.rs.columns, err = mc.readColumns(resLen)
+		rows.ctx = ctx
+		rows.rs.columns, err = mc.readColumns(ctx, resLen)
 	} else {
 		rows.rs.done = true
 

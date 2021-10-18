@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -226,12 +227,12 @@ func encryptPassword(password string, seed []byte, pub *rsa.PublicKey) ([]byte, 
 	return rsa.EncryptOAEP(sha1, rand.Reader, pub, plain, nil)
 }
 
-func (mc *mysqlConn) sendEncryptedPassword(seed []byte, pub *rsa.PublicKey) error {
+func (mc *mysqlConn) sendEncryptedPassword(ctx context.Context, seed []byte, pub *rsa.PublicKey) error {
 	enc, err := encryptPassword(mc.cfg.Passwd, seed, pub)
 	if err != nil {
 		return err
 	}
-	return mc.writeAuthSwitchPacket(enc)
+	return mc.writeAuthSwitchPacket(ctx, enc)
 }
 
 func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
@@ -297,9 +298,9 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 	}
 }
 
-func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
+func (mc *mysqlConn) handleAuthResult(ctx context.Context, oldAuthData []byte, plugin string) error {
 	// Read Result Packet
-	authData, newPlugin, err := mc.readAuthResult()
+	authData, newPlugin, err := mc.readAuthResult(ctx)
 	if err != nil {
 		return err
 	}
@@ -321,12 +322,12 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 		if err != nil {
 			return err
 		}
-		if err = mc.writeAuthSwitchPacket(authResp); err != nil {
+		if err = mc.writeAuthSwitchPacket(ctx, authResp); err != nil {
 			return err
 		}
 
 		// Read Result Packet
-		authData, newPlugin, err = mc.readAuthResult()
+		authData, newPlugin, err = mc.readAuthResult(ctx)
 		if err != nil {
 			return err
 		}
@@ -347,14 +348,14 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 		case 1:
 			switch authData[0] {
 			case cachingSha2PasswordFastAuthSuccess:
-				if err = mc.readResultOK(); err == nil {
+				if err = mc.readResultOK(ctx); err == nil {
 					return nil // auth successful
 				}
 
 			case cachingSha2PasswordPerformFullAuthentication:
 				if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
 					// write cleartext auth packet
-					err = mc.writeAuthSwitchPacket(append([]byte(mc.cfg.Passwd), 0))
+					err = mc.writeAuthSwitchPacket(ctx, append([]byte(mc.cfg.Passwd), 0))
 					if err != nil {
 						return err
 					}
@@ -367,10 +368,10 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 							return err
 						}
 						data[4] = cachingSha2PasswordRequestPublicKey
-						mc.writePacket(data)
+						mc.writePacket(ctx, data)
 
 						// parse public key
-						if data, err = mc.readPacket(); err != nil {
+						if data, err = mc.readPacket(ctx); err != nil {
 							return err
 						}
 
@@ -386,12 +387,12 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 					}
 
 					// send encrypted password
-					err = mc.sendEncryptedPassword(oldAuthData, pubKey)
+					err = mc.sendEncryptedPassword(ctx, oldAuthData, pubKey)
 					if err != nil {
 						return err
 					}
 				}
-				return mc.readResultOK()
+				return mc.readResultOK(ctx)
 
 			default:
 				return ErrMalformPkt
@@ -412,11 +413,11 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 			}
 
 			// send encrypted password
-			err = mc.sendEncryptedPassword(oldAuthData, pub.(*rsa.PublicKey))
+			err = mc.sendEncryptedPassword(ctx, oldAuthData, pub.(*rsa.PublicKey))
 			if err != nil {
 				return err
 			}
-			return mc.readResultOK()
+			return mc.readResultOK(ctx)
 		}
 
 	default:

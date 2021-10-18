@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"net"
 	"testing"
@@ -108,6 +109,7 @@ func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
 }
 
 func TestReadPacketSingleByte(t *testing.T) {
+	ctx := context.Background()
 	conn := new(mockConn)
 	mc := &mysqlConn{
 		buf: newBuffer(conn),
@@ -115,7 +117,7 @@ func TestReadPacketSingleByte(t *testing.T) {
 
 	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
 	conn.maxReads = 1
-	packet, err := mc.readPacket()
+	packet, err := mc.readPacket(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,6 +130,7 @@ func TestReadPacketSingleByte(t *testing.T) {
 }
 
 func TestReadPacketWrongSequenceID(t *testing.T) {
+	ctx := context.Background()
 	conn := new(mockConn)
 	mc := &mysqlConn{
 		buf: newBuffer(conn),
@@ -137,7 +140,7 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
 	conn.maxReads = 1
 	mc.sequence = 1
-	_, err := mc.readPacket()
+	_, err := mc.readPacket(ctx)
 	if err != ErrPktSync {
 		t.Errorf("expected ErrPktSync, got %v", err)
 	}
@@ -149,13 +152,14 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 
 	// too high sequence id
 	conn.data = []byte{0x01, 0x00, 0x00, 0x42, 0xff}
-	_, err = mc.readPacket()
+	_, err = mc.readPacket(ctx)
 	if err != ErrPktSyncMul {
 		t.Errorf("expected ErrPktSyncMul, got %v", err)
 	}
 }
 
 func TestReadPacketSplit(t *testing.T) {
+	ctx := context.Background()
 	conn := new(mockConn)
 	mc := &mysqlConn{
 		buf: newBuffer(conn),
@@ -185,7 +189,7 @@ func TestReadPacketSplit(t *testing.T) {
 
 	conn.data = data
 	conn.maxReads = 3
-	packet, err := mc.readPacket()
+	packet, err := mc.readPacket(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +223,7 @@ func TestReadPacketSplit(t *testing.T) {
 	conn.reads = 0
 	conn.maxReads = 5
 	mc.sequence = 0
-	packet, err = mc.readPacket()
+	packet, err = mc.readPacket(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +249,7 @@ func TestReadPacketSplit(t *testing.T) {
 	conn.reads = 0
 	conn.maxReads = 4
 	mc.sequence = 0
-	packet, err = mc.readPacket()
+	packet, err = mc.readPacket(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,6 +265,7 @@ func TestReadPacketSplit(t *testing.T) {
 }
 
 func TestReadPacketFail(t *testing.T) {
+	ctx := context.Background()
 	conn := new(mockConn)
 	mc := &mysqlConn{
 		buf:     newBuffer(conn),
@@ -270,7 +275,7 @@ func TestReadPacketFail(t *testing.T) {
 	// illegal empty (stand-alone) packet
 	conn.data = []byte{0x00, 0x00, 0x00, 0x00}
 	conn.maxReads = 1
-	_, err := mc.readPacket()
+	_, err := mc.readPacket(ctx)
 	if err != ErrInvalidConn {
 		t.Errorf("expected ErrInvalidConn, got %v", err)
 	}
@@ -282,7 +287,7 @@ func TestReadPacketFail(t *testing.T) {
 
 	// fail to read header
 	conn.closed = true
-	_, err = mc.readPacket()
+	_, err = mc.readPacket(ctx)
 	if err != ErrInvalidConn {
 		t.Errorf("expected ErrInvalidConn, got %v", err)
 	}
@@ -295,7 +300,7 @@ func TestReadPacketFail(t *testing.T) {
 
 	// fail to read body
 	conn.maxReads = 1
-	_, err = mc.readPacket()
+	_, err = mc.readPacket(ctx)
 	if err != ErrInvalidConn {
 		t.Errorf("expected ErrInvalidConn, got %v", err)
 	}
@@ -304,6 +309,7 @@ func TestReadPacketFail(t *testing.T) {
 // https://github.com/go-sql-driver/mysql/pull/801
 // not-NUL terminated plugin_name in init packet
 func TestRegression801(t *testing.T) {
+	ctx := context.Background()
 	conn := new(mockConn)
 	mc := &mysqlConn{
 		buf:      newBuffer(conn),
@@ -319,7 +325,7 @@ func TestRegression801(t *testing.T) {
 		112, 97, 115, 115, 119, 111, 114, 100}
 	conn.maxReads = 1
 
-	authData, pluginName, err := mc.readHandshakePacket()
+	authData, pluginName, err := mc.readHandshakePacket(ctx)
 	if err != nil {
 		t.Fatalf("got error: %v", err)
 	}

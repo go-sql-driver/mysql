@@ -8,24 +8,29 @@
 
 package mysql
 
+import "context"
+
 type mysqlTx struct {
-	mc *mysqlConn
+	ctx context.Context
+	mc  *mysqlConn
 }
 
 func (tx *mysqlTx) Commit() (err error) {
+	ctx := tx.ctx
 	if tx.mc == nil || tx.mc.closed.IsSet() {
 		return ErrInvalidConn
 	}
-	err = tx.mc.exec("COMMIT")
+	err = tx.mc.exec(ctx, "COMMIT")
 	tx.mc = nil
 	return
 }
 
 func (tx *mysqlTx) Rollback() (err error) {
+	ctx := tx.ctx
 	if tx.mc == nil || tx.mc.closed.IsSet() {
 		return ErrInvalidConn
 	}
-	err = tx.mc.exec("ROLLBACK")
+	err = tx.mc.exec(ctx, "ROLLBACK")
 	tx.mc = nil
 	return
 }

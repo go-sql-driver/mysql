@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"context"
 	"database/sql/driver"
 	"io"
 	"math"
@@ -22,6 +23,7 @@ type resultSet struct {
 }
 
 type mysqlRows struct {
+	ctx    context.Context
 	mc     *mysqlConn
 	rs     resultSet
 	finish func()
@@ -98,6 +100,8 @@ func (rows *mysqlRows) ColumnTypeScanType(i int) reflect.Type {
 }
 
 func (rows *mysqlRows) Close() (err error) {
+	ctx := rows.ctx
+
 	if f := rows.finish; f != nil {
 		f()
 		rows.finish = nil
@@ -120,10 +124,10 @@ func (rows *mysqlRows) Close() (err error) {
 
 	// Remove unread packets from stream
 	if !rows.rs.done {
-		err = mc.readUntilEOF()
+		err = mc.readUntilEOF(ctx)
 	}
 	if err == nil {
-		if err = mc.discardResults(); err != nil {
+		if err = mc.discardResults(ctx); err != nil {
 			return err
 		}
 	}
@@ -140,6 +144,7 @@ func (rows *mysqlRows) HasNextResultSet() (b bool) {
 }
 
 func (rows *mysqlRows) nextResultSet() (int, error) {
+	ctx := rows.ctx
 	if rows.mc == nil {
 		return 0, io.EOF
 	}
@@ -149,7 +154,7 @@ func (rows *mysqlRows) nextResultSet() (int, error) {
 
 	// Remove unread packets from stream
 	if !rows.rs.done {
-		if err := rows.mc.readUntilEOF(); err != nil {
+		if err := rows.mc.readUntilEOF(ctx); err != nil {
 			return 0, err
 		}
 		rows.rs.done = true
@@ -160,7 +165,7 @@ func (rows *mysqlRows) nextResultSet() (int, error) {
 		return 0, io.EOF
 	}
 	rows.rs = resultSet{}
-	return rows.mc.readResultSetHeaderPacket()
+	return rows.mc.readResultSetHeaderPacket(ctx)
 }
 
 func (rows *mysqlRows) nextNotEmptyResultSet() (int, error) {
@@ -179,45 +184,49 @@ func (rows *mysqlRows) nextNotEmptyResultSet() (int, error) {
 }
 
 func (rows *binaryRows) NextResultSet() error {
+	ctx := rows.ctx
 	resLen, err := rows.nextNotEmptyResultSet()
 	if err != nil {
 		return err
 	}
 
-	rows.rs.columns, err = rows.mc.readColumns(resLen)
+	rows.rs.columns, err = rows.mc.readColumns(ctx, resLen)
 	return err
 }
 
 func (rows *binaryRows) Next(dest []driver.Value) error {
+	ctx := rows.ctx
 	if mc := rows.mc; mc != nil {
 		if err := mc.error(); err != nil {
 			return err
 		}
 
 		// Fetch next row from stream
-		return rows.readRow(dest)
+		return rows.readRow(ctx, dest)
 	}
 	return io.EOF
 }
 
 func (rows *textRows) NextResultSet() (err error) {
+	ctx := rows.ctx
 	resLen, err := rows.nextNotEmptyResultSet()
 	if err != nil {
 		return err
 	}
 
-	rows.rs.columns, err = rows.mc.readColumns(resLen)
+	rows.rs.columns, err = rows.mc.readColumns(ctx, resLen)
 	return err
 }
 
 func (rows *textRows) Next(dest []driver.Value) error {
+	ctx := rows.ctx
 	if mc := rows.mc; mc != nil {
 		if err := mc.error(); err != nil {
 			return err
 		}
 
 		// Fetch next row from stream
-		return rows.readRow(dest)
+		return rows.readRow(ctx, dest)
 	}
 	return io.EOF
 }

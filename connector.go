@@ -78,7 +78,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	mc.writeTimeout = mc.cfg.WriteTimeout
 
 	// Reading Handshake Initialization Packet
-	authData, plugin, err := mc.readHandshakePacket()
+	authData, plugin, err := mc.readHandshakePacket(ctx)
 	if err != nil {
 		mc.cleanup()
 		return nil, err
@@ -100,13 +100,13 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 			return nil, err
 		}
 	}
-	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
+	if err = mc.writeHandshakeResponsePacket(ctx, authResp, plugin); err != nil {
 		mc.cleanup()
 		return nil, err
 	}
 
 	// Handle response to auth packet, switch methods if possible
-	if err = mc.handleAuthResult(authData, plugin); err != nil {
+	if err = mc.handleAuthResult(ctx, authData, plugin); err != nil {
 		// Authentication failed and MySQL has already closed the connection
 		// (https://dev.mysql.com/doc/internals/en/authentication-fails.html).
 		// Do not send COM_QUIT, just cleanup and return the error.
@@ -118,7 +118,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		mc.maxAllowedPacket = mc.cfg.MaxAllowedPacket
 	} else {
 		// Get max allowed packet size
-		maxap, err := mc.getSystemVar("max_allowed_packet")
+		maxap, err := mc.getSystemVar(ctx, "max_allowed_packet")
 		if err != nil {
 			mc.Close()
 			return nil, err
@@ -130,7 +130,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	// Handle DSN Params
-	err = mc.handleParams()
+	err = mc.handleParams(ctx)
 	if err != nil {
 		mc.Close()
 		return nil, err

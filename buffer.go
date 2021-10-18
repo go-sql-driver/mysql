@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"context"
 	"io"
 	"net"
 	"time"
@@ -51,7 +52,7 @@ func (b *buffer) flip() {
 }
 
 // fill reads into the buffer until at least _need_ bytes are in it
-func (b *buffer) fill(need int) error {
+func (b *buffer) fill(ctx context.Context, need int) error {
 	n := b.length
 	// fill data into its double-buffering target: if we've called
 	// flip on this buffer, we'll be copying to the background buffer,
@@ -80,11 +81,17 @@ func (b *buffer) fill(need int) error {
 	b.buf = dest
 	b.idx = 0
 
+	done := ctx.Done()
+	if err := b.nc.SetReadDeadline(minimumDeadline(ctx, b.timeout)); err != nil {
+		return err
+	}
+
 	for {
-		if b.timeout > 0 {
-			if err := b.nc.SetReadDeadline(time.Now().Add(b.timeout)); err != nil {
-				return err
-			}
+		select {
+		case <-done:
+			return ctx.Err()
+		default:
+			break
 		}
 
 		nn, err := b.nc.Read(b.buf[n:])
@@ -113,10 +120,10 @@ func (b *buffer) fill(need int) error {
 
 // returns next N bytes from buffer.
 // The returned slice is only guaranteed to be valid until the next read
-func (b *buffer) readNext(need int) ([]byte, error) {
+func (b *buffer) readNext(ctx context.Context, need int) ([]byte, error) {
 	if b.length < need {
 		// refill
-		if err := b.fill(need); err != nil {
+		if err := b.fill(ctx, need); err != nil {
 			return nil, err
 		}
 	}
