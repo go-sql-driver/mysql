@@ -74,10 +74,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &connector{
-		cfg: cfg,
-	}
-	return c.Connect(context.Background())
+	return Open(cfg)
 }
 
 func init() {
@@ -104,4 +101,17 @@ func (d MySQLDriver) OpenConnector(dsn string) (driver.Connector, error) {
 	return &connector{
 		cfg: cfg,
 	}, nil
+}
+
+// Open new Connection directly with the driver using a Config.
+func Open(cfg *Config) (driver.Conn, error) {
+	return OpenWithContext(context.Background(), cfg)
+}
+
+// OpenWithContext opens a new Connection directly with the driver using a Config.
+func OpenWithContext(ctx context.Context, cfg *Config) (driver.Conn, error) {
+	c := &connector{
+		cfg: cfg,
+	}
+	return c.Connect(ctx)
 }
