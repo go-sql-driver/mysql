@@ -1265,10 +1265,27 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 			continue
 
 		// Length coded Binary Strings
-		case fieldTypeDecimal, fieldTypeNewDecimal, fieldTypeVarChar,
+		case fieldTypeVarChar, fieldTypeVarString:
+			var isNull bool
+			var n int
+			s, isNull, n, err := readLengthEncodedString(data[pos:])
+			pos += n
+			if err == nil {
+				if !isNull {
+					dest[i] = string(s)
+					continue
+				} else {
+					dest[i] = nil
+					continue
+				}
+			}
+			return err
+
+		// Length coded Binary Strings
+		case fieldTypeDecimal, fieldTypeNewDecimal,
 			fieldTypeBit, fieldTypeEnum, fieldTypeSet, fieldTypeTinyBLOB,
 			fieldTypeMediumBLOB, fieldTypeLongBLOB, fieldTypeBLOB,
-			fieldTypeVarString, fieldTypeString, fieldTypeGeometry, fieldTypeJSON:
+			fieldTypeString, fieldTypeGeometry, fieldTypeJSON:
 			var isNull bool
 			var n int
 			dest[i], isNull, n, err = readLengthEncodedString(data[pos:])

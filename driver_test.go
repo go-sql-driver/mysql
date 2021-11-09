@@ -565,17 +565,25 @@ func TestRawMessage(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		v1 := json.RawMessage("{}")
 		v2 := json.RawMessage("[]")
-		rows := dbt.mustQuery("SELECT ?, ?", v1, v2)
+		rows := dbt.mustQuery("SELECT json_object('data',?), json_object('data',?)", v1, v2)
 		defer rows.Close()
 		if rows.Next() {
 			var o1, o2 json.RawMessage
 			if err := rows.Scan(&o1, &o2); err != nil {
 				dbt.Errorf("Got error: %v", err)
 			}
-			if !bytes.Equal(v1, o1) {
+			ob1, err := o1.MarshalJSON()
+			if err != nil {
+				dbt.Errorf("failed to marshal: %v", o1)
+			}
+			ob2, err := o2.MarshalJSON()
+			if err != nil {
+				dbt.Errorf("failed to marshal: %v", o2)
+			}
+			if !bytes.Equal([]byte("{\"data\": \"{}\"}"), ob1) {
 				dbt.Errorf("expected %v, got %v", v1, o1)
 			}
-			if !bytes.Equal(v2, o2) {
+			if !bytes.Equal([]byte("{\"data\": \"[]\"}"), ob2) {
 				dbt.Errorf("expected %v, got %v", v2, o2)
 			}
 		} else {
@@ -2782,6 +2790,9 @@ func TestRowsColumnTypes(t *testing.T) {
 	rb0 := sql.RawBytes("0")
 	rb42 := sql.RawBytes("42")
 	rbTest := sql.RawBytes("Test")
+	s0 := sql.NullString{String: "0", Valid: true}
+	s42 := sql.NullString{String: "42", Valid: true}
+	sTest := sql.NullString{String: "Test", Valid: true}
 	rb0pad4 := sql.RawBytes("0\x00\x00\x00") // BINARY right-pads values with 0x00
 	rbx0 := sql.RawBytes("\x00")
 	rbx42 := sql.RawBytes("\x42")
@@ -2824,7 +2835,8 @@ func TestRowsColumnTypes(t *testing.T) {
 		{"decimal3", "DECIMAL(5,0) NOT NULL", "DECIMAL", scanTypeRawBytes, false, 5, 0, [3]string{"0", "13.37", "-12345.123456"}, [3]interface{}{rb0, sql.RawBytes("13"), sql.RawBytes("-12345")}},
 		{"decimal3null", "DECIMAL(5,0)", "DECIMAL", scanTypeRawBytes, true, 5, 0, [3]string{"0", "NULL", "-12345.123456"}, [3]interface{}{rb0, rbNULL, sql.RawBytes("-12345")}},
 		{"char25null", "CHAR(25)", "CHAR", scanTypeRawBytes, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]interface{}{rb0, rbNULL, rbTest}},
-		{"varchar42", "VARCHAR(42) NOT NULL", "VARCHAR", scanTypeRawBytes, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{rb0, rbTest, rb42}},
+		{"varchar42", "VARCHAR(42) NOT NULL", "VARCHAR", scanTypeString, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{"0", "Test", "42"}},
+		{"varchar42null", "VARCHAR(42)", "VARCHAR", scanTypeNullString, true, 0, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{s0, sTest, s42}},
 		{"binary4null", "BINARY(4)", "BINARY", scanTypeRawBytes, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]interface{}{rb0pad4, rbNULL, rbTest}},
 		{"varbinary42", "VARBINARY(42) NOT NULL", "VARBINARY", scanTypeRawBytes, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{rb0, rbTest, rb42}},
 		{"tinyblobnull", "TINYBLOB", "BLOB", scanTypeRawBytes, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]interface{}{rb0, rbNULL, rbTest}},
