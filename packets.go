@@ -325,7 +325,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	if mc.flags&clientConnectAttrs != 0 {
 		clientFlags |= clientConnectAttrs
 		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte("_client_name"))
-		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte("go-mysql-driver"))
+		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte("github.com/go-sql-driver/mysql"))
 
 		for k, v := range mc.cfg.ConnectAttrs {
 			if k == "_client_name" {
