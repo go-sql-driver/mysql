@@ -328,10 +328,6 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte("github.com/go-sql-driver/mysql"))
 
 		for k, v := range mc.cfg.ConnectAttrs {
-			if k == "_client_name" {
-				// do not allow overwriting reserved values
-				continue
-			}
 			connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte(k))
 			connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte(v))
 		}
