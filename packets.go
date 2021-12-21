@@ -18,6 +18,9 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
+	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -325,8 +328,20 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	connectAttrsBuf := make([]byte, 0, 100)
 	if mc.flags&clientConnectAttrs != 0 {
 		clientFlags |= clientConnectAttrs
+
+		// Set default connection attributes
+		// See https://dev.mysql.com/doc/refman/8.0/en/performance-schema-connection-attribute-tables.html#performance-schema-connection-attributes-available
 		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte("_client_name"))
 		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte("github.com/go-sql-driver/mysql"))
+
+		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte("_os"))
+		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte(runtime.GOOS))
+
+		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte("_platform"))
+		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte(runtime.GOARCH))
+
+		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte("_pid"))
+		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte(strconv.Itoa(os.Getpid())))
 
 		for k, v := range mc.cfg.ConnectAttrs {
 			if strings.HasPrefix(k, "_") {
