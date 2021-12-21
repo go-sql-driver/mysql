@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 	"time"
 )
 
@@ -328,6 +329,10 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte("github.com/go-sql-driver/mysql"))
 
 		for k, v := range mc.cfg.ConnectAttrs {
+			if strings.HasPrefix(k, "_") {
+				return errors.New("connection attributes cannot start with '_'. They are reserved for internal usage")
+			}
+
 			connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte(k))
 			connectAttrsBuf = appendLengthEncodedString(connectAttrsBuf, []byte(v))
 		}
