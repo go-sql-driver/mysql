@@ -314,7 +314,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	var authRespLEIBuf [9]byte
 	authRespLen := len(authResp)
 	authRespLEI := appendLengthEncodedInteger(authRespLEIBuf[:0], uint64(authRespLen))
-	if len(authRespLEI) > 1 && clientFlags&clientSecureConn != 0 {
+	if len(authRespLEI) > 1 {
 		// if the length can not be written in 1 byte, it must be written as a
 		// length encoded integer
 		clientFlags |= clientPluginAuthLenEncClientData
