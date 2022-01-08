@@ -1479,7 +1479,7 @@ func TestCollation(t *testing.T) {
 		defaultCollation, // driver default
 		"latin1_general_ci",
 		"binary",
-		"utf8_unicode_ci",
+		"utf8mb4_unicode_ci",
 		"cp1257_bin",
 	}
 
