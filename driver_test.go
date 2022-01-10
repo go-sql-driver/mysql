@@ -2211,6 +2211,7 @@ func TestConnectAttrs(t *testing.T) {
 	} else {
 		t.Skip("no performance_schema variable in mysql")
 	}
+	rows.Close()
 
 	rows, err = dbt.db.Query("SELECT attr_value FROM performance_schema.session_connect_attrs WHERE processlist_id=CONNECTION_ID() AND attr_name='program_name'")
 	if err != nil {
@@ -2226,6 +2227,7 @@ func TestConnectAttrs(t *testing.T) {
 	} else {
 		dbt.Error("no data for program_name")
 	}
+	rows.Close()
 
 	rows = dbt.mustQuery("SELECT attr_value FROM performance_schema.session_connect_attrs WHERE processlist_id=CONNECTION_ID() AND attr_name='foo'")
 	if rows.Next() {
@@ -2237,6 +2239,7 @@ func TestConnectAttrs(t *testing.T) {
 	} else {
 		dbt.Error("no data for custom attribute")
 	}
+	rows.Close()
 }
 
 // static interface implementation checks of mysqlConn
