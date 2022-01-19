@@ -367,13 +367,20 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 							return err
 						}
 						data[4] = cachingSha2PasswordRequestPublicKey
-						mc.writePacket(data)
+						err = mc.writePacket(data)
+						if err != nil {
+							return err
+						}
 
-						// parse public key
 						if data, err = mc.readPacket(); err != nil {
 							return err
 						}
 
+						if data[0] != iAuthMoreData {
+							return fmt.Errorf("unexpect resp from server for caching_sha2_password perform full authentication")
+						}
+
+						// parse public key
 						block, rest := pem.Decode(data[1:])
 						if block == nil {
 							return fmt.Errorf("No Pem data found, data: %s", rest)
@@ -406,6 +413,10 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 			return nil // auth successful
 		default:
 			block, _ := pem.Decode(authData)
+			if block == nil {
+				return fmt.Errorf("no Pem data found, data: %s", authData)
+			}
+
 			pub, err := x509.ParsePKIXPublicKey(block.Bytes)
 			if err != nil {
 				return err
