@@ -339,8 +339,8 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 			}
 
 			// dbname[?param1=value1&...&paramN=valueN]
-			// Find the first '?' in dsn[i+1:]
-			for j = i + 1; j < len(dsn); j++ {
+			// Find the last '?' in dsn[i+1:]
+			for j = len(dsn) - 1; j > i; j-- {
 				if dsn[j] == '?' {
 					if err = parseDSNParams(cfg, dsn[j+1:]); err != nil {
 						return
