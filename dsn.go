@@ -348,7 +348,12 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 					break
 				}
 			}
-			cfg.DBName = dsn[i+1 : j]
+
+			if j > i {
+				cfg.DBName = dsn[i+1 : j]
+			} else {
+				cfg.DBName = dsn[i+1:]
+			}
 
 			break
 		}
