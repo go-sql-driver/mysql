@@ -403,6 +403,17 @@ func TestNormalizeTLSConfig(t *testing.T) {
 	}
 }
 
+func TestDNSLocalTime(t *testing.T) {
+	dsn := "User:password@tcp(localhost:5555)/dbname?localTime=true"
+	cfg, err := ParseDSN(dsn)
+
+	if err != nil {
+		t.Error(err.Error())
+	} else if !cfg.LocalTime {
+		t.Errorf("expected localTime enabled")
+	}
+}
+
 func BenchmarkParseDSN(b *testing.B) {
 	b.ReportAllocs()
 

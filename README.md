@@ -268,6 +268,18 @@ Note that this sets the location for time.Time values but does not change MySQL'
 
 Please keep in mind, that param values must be [url.QueryEscape](https://golang.org/pkg/net/url/#QueryEscape)'ed. Alternatively you can manually replace the `/` with `%2F`. For example `US/Pacific` would be `loc=US%2FPacific`.
 
+##### `localTime`
+
+```
+Type:           bool
+Valid Values:   true, false
+Default:        false
+```
+Don't alter the location for time.Time values.
+
+Note that this ignores the `loc` setting.
+
+
 ##### `maxAllowedPacket`
 ```
 Type:          decimal number

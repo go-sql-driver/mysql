@@ -42,6 +42,7 @@ type Config struct {
 	Params           map[string]string // Connection parameters
 	Collation        string            // Connection collation
 	Loc              *time.Location    // Location for time.Time values
+	LocalTime        bool              // Don't alter the location for time.Time values
 	MaxAllowedPacket int               // Max packet size allowed
 	ServerPubKey     string            // Server public key name
 	pubKey           *rsa.PublicKey    // Server public key
@@ -454,6 +455,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			cfg.Loc, err = time.LoadLocation(value)
 			if err != nil {
 				return
+			}
+
+		// LocalTime
+		case "localTime":
+			var isBool bool
+			cfg.LocalTime, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
 			}
 
 		// multiple statements in one query
