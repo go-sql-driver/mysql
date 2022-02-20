@@ -347,7 +347,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 		case 1:
 			switch authData[0] {
 			case cachingSha2PasswordFastAuthSuccess:
-				if err = mc.readResultOK(); err == nil {
+				if err = mc.resultUnchanged().readResultOK(); err == nil {
 					return nil // auth successful
 				}
 
@@ -398,7 +398,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 						return err
 					}
 				}
-				return mc.readResultOK()
+				return mc.resultUnchanged().readResultOK()
 
 			default:
 				return ErrMalformPkt
@@ -427,7 +427,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 			if err != nil {
 				return err
 			}
-			return mc.readResultOK()
+			return mc.resultUnchanged().readResultOK()
 		}
 
 	default:

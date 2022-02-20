@@ -61,12 +61,10 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	}
 
 	mc := stmt.mc
-
-	mc.affectedRows = 0
-	mc.insertId = 0
+	handleOk := stmt.mc.clearResult()
 
 	// Read Result
-	resLen, err := mc.readResultSetHeaderPacket()
+	resLen, err := handleOk.readResultSetHeaderPacket()
 	if err != nil {
 		return nil, err
 	}
@@ -83,14 +81,12 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 		}
 	}
 
-	if err := mc.discardResults(); err != nil {
+	if err := handleOk.discardResults(); err != nil {
 		return nil, err
 	}
 
-	return &mysqlResult{
-		affectedRows: int64(mc.affectedRows),
-		insertId:     int64(mc.insertId),
-	}, nil
+	copied := mc.result
+	return &copied, nil
 }
 
 func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
@@ -111,7 +107,8 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 	mc := stmt.mc
 
 	// Read Result
-	resLen, err := mc.readResultSetHeaderPacket()
+	handleOk := stmt.mc.clearResult()
+	resLen, err := handleOk.readResultSetHeaderPacket()
 	if err != nil {
 		return nil, err
 	}
