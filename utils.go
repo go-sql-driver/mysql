@@ -542,7 +542,7 @@ func stringToInt(b []byte) int {
 	return val
 }
 
-// returns the string read as a bytes slice, wheter the value is NULL,
+// returns the string read as a bytes slice, whether the value is NULL,
 // the number of bytes read and an error, in case the string is longer than
 // the input slice
 func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
