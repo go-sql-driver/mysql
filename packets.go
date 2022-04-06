@@ -571,9 +571,19 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 	// Error Number [16 bit uint]
 	errno := binary.LittleEndian.Uint16(data[1:3])
 
+	pos := 3
+
+	// SQL State [optional: # + 5bytes string]
+	var sqlstate string
+	if data[3] == 0x23 {
+		sqlstate = string(data[4 : 4+5])
+		pos = 9
+	}
+
 	// 1792: ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
 	// 1290: ER_OPTION_PREVENTS_STATEMENT (returned by Aurora during failover)
-	if (errno == 1792 || errno == 1290) && mc.cfg.RejectReadOnly {
+	// SQLSTATE 45000: user-defined exception
+	if (errno == 1792 || errno == 1290) && sqlstate != "45000" && mc.cfg.RejectReadOnly {
 		// Oops; we are connected to a read-only connection, and won't be able
 		// to issue any write statements. Since RejectReadOnly is configured,
 		// we throw away this connection hoping this one would have write
@@ -585,14 +595,6 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 		// connection and initiates a new one for next statement next time.
 		mc.Close()
 		return driver.ErrBadConn
-	}
-
-	pos := 3
-
-	// SQL State [optional: # + 5bytes string]
-	if data[3] == 0x23 {
-		//sqlstate := string(data[4 : 4+5])
-		pos = 9
 	}
 
 	// Error Message [string]
