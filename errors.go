@@ -56,11 +56,16 @@ func SetLogger(logger Logger) error {
 
 // MySQLError is an error type which represents a single MySQL error
 type MySQLError struct {
-	Number  uint16
-	Message string
+	Number   uint16
+	SQLState [5]byte
+	Message  string
 }
 
 func (me *MySQLError) Error() string {
+	if me.SQLState != [5]byte{} {
+		return fmt.Sprintf("Error %d (%s): %s", me.Number, string(me.SQLState[:]), me.Message)
+	}
+
 	return fmt.Sprintf("Error %d: %s", me.Number, me.Message)
 }
 
