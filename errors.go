@@ -63,7 +63,7 @@ type MySQLError struct {
 
 func (me *MySQLError) Error() string {
 	if me.SQLState != [5]byte{} {
-		return fmt.Sprintf("Error %d (%s): %s", me.Number, string(me.SQLState[:]), me.Message)
+		return fmt.Sprintf("Error %d (%s): %s", me.Number, me.SQLState, me.Message)
 	}
 
 	return fmt.Sprintf("Error %d: %s", me.Number, me.Message)
