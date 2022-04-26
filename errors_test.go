@@ -43,13 +43,13 @@ func TestErrorsStrictIgnoreNotes(t *testing.T) {
 }
 
 func TestMySQLErrIs(t *testing.T) {
-	infraErr := &MySQLError{1234, "the server is on fire"}
-	otherInfraErr := &MySQLError{1234, "the datacenter is flooded"}
+	infraErr := &MySQLError{Number: 1234, Message: "the server is on fire"}
+	otherInfraErr := &MySQLError{Number: 1234, Message: "the datacenter is flooded"}
 	if !errors.Is(infraErr, otherInfraErr) {
 		t.Errorf("expected errors to be the same: %+v %+v", infraErr, otherInfraErr)
 	}
 
-	differentCodeErr := &MySQLError{5678, "the server is on fire"}
+	differentCodeErr := &MySQLError{Number: 5678, Message: "the server is on fire"}
 	if errors.Is(infraErr, differentCodeErr) {
 		t.Fatalf("expected errors to be different: %+v %+v", infraErr, differentCodeErr)
 	}

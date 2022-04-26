@@ -593,19 +593,20 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 		return driver.ErrBadConn
 	}
 
+	me := &MySQLError{Number: errno}
+
 	pos := 3
 
 	// SQL State [optional: # + 5bytes string]
 	if data[3] == 0x23 {
-		//sqlstate := string(data[4 : 4+5])
+		copy(me.SQLState[:], data[4:4+5])
 		pos = 9
 	}
 
 	// Error Message [string]
-	return &MySQLError{
-		Number:  errno,
-		Message: string(data[pos:]),
-	}
+	me.Message = string(data[pos:])
+
+	return me
 }
 
 func readStatus(b []byte) statusFlag {
