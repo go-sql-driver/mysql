@@ -243,7 +243,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 			}
 		case time.Time:
 			if v.IsZero() {
-				buf = append(buf, "'0000-00-00'"...)
+				buf = append(buf, "'0000-00-00 00:00:00'"...)
 			} else {
 				buf = append(buf, '\'')
 				buf, err = appendDateTime(buf, v.In(mc.cfg.Loc))
