@@ -41,7 +41,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
 
 ## Requirements
   * Go 1.13 or higher. We aim to support the 3 latest versions of Go.
-  * MySQL (4.1+), MariaDB, Percona Server, Google CloudSQL or Sphinx (2.2.3+)
+  * MySQL (4.1+), MariaDB, Percona Server, Google CloudSQL, Sphinx (2.2.3+) or [TiDB](https://github.com/pingcap/tidb).
 
 ---------------------------------------
 
