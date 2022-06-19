@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"strconv"
@@ -619,7 +620,11 @@ func (mc *mysqlConn) startWatcher() {
 
 			select {
 			case <-ctx.Done():
-				mc.cancel(ctx.Err())
+				err := ctx.Err()
+				if err == nil {
+					err = errors.New("unexpected error")
+				}
+				mc.cancel(err)
 			case <-finished:
 			case <-mc.closech:
 				return
