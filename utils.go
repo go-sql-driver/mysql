@@ -199,7 +199,7 @@ func parseByteYear(b []byte) (int, error) {
 			return 0, err
 		}
 		year += v * n
-		n = n / 10
+		n /= 10
 	}
 	return year, nil
 }
@@ -542,7 +542,7 @@ func stringToInt(b []byte) int {
 	return val
 }
 
-// returns the string read as a bytes slice, wheter the value is NULL,
+// returns the string read as a bytes slice, whether the value is NULL,
 // the number of bytes read and an error, in case the string is longer than
 // the input slice
 func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
@@ -652,32 +652,32 @@ func escapeBytesBackslash(buf, v []byte) []byte {
 	for _, c := range v {
 		switch c {
 		case '\x00':
-			buf[pos] = '\\'
 			buf[pos+1] = '0'
+			buf[pos] = '\\'
 			pos += 2
 		case '\n':
-			buf[pos] = '\\'
 			buf[pos+1] = 'n'
+			buf[pos] = '\\'
 			pos += 2
 		case '\r':
-			buf[pos] = '\\'
 			buf[pos+1] = 'r'
+			buf[pos] = '\\'
 			pos += 2
 		case '\x1a':
-			buf[pos] = '\\'
 			buf[pos+1] = 'Z'
+			buf[pos] = '\\'
 			pos += 2
 		case '\'':
-			buf[pos] = '\\'
 			buf[pos+1] = '\''
+			buf[pos] = '\\'
 			pos += 2
 		case '"':
-			buf[pos] = '\\'
 			buf[pos+1] = '"'
+			buf[pos] = '\\'
 			pos += 2
 		case '\\':
-			buf[pos] = '\\'
 			buf[pos+1] = '\\'
+			buf[pos] = '\\'
 			pos += 2
 		default:
 			buf[pos] = c
@@ -697,32 +697,32 @@ func escapeStringBackslash(buf []byte, v string) []byte {
 		c := v[i]
 		switch c {
 		case '\x00':
-			buf[pos] = '\\'
 			buf[pos+1] = '0'
+			buf[pos] = '\\'
 			pos += 2
 		case '\n':
-			buf[pos] = '\\'
 			buf[pos+1] = 'n'
+			buf[pos] = '\\'
 			pos += 2
 		case '\r':
-			buf[pos] = '\\'
 			buf[pos+1] = 'r'
+			buf[pos] = '\\'
 			pos += 2
 		case '\x1a':
-			buf[pos] = '\\'
 			buf[pos+1] = 'Z'
+			buf[pos] = '\\'
 			pos += 2
 		case '\'':
-			buf[pos] = '\\'
 			buf[pos+1] = '\''
+			buf[pos] = '\\'
 			pos += 2
 		case '"':
-			buf[pos] = '\\'
 			buf[pos+1] = '"'
+			buf[pos] = '\\'
 			pos += 2
 		case '\\':
-			buf[pos] = '\\'
 			buf[pos+1] = '\\'
+			buf[pos] = '\\'
 			pos += 2
 		default:
 			buf[pos] = c
@@ -744,8 +744,8 @@ func escapeBytesQuotes(buf, v []byte) []byte {
 
 	for _, c := range v {
 		if c == '\'' {
-			buf[pos] = '\''
 			buf[pos+1] = '\''
+			buf[pos] = '\''
 			pos += 2
 		} else {
 			buf[pos] = c
@@ -764,8 +764,8 @@ func escapeStringQuotes(buf []byte, v string) []byte {
 	for i := 0; i < len(v); i++ {
 		c := v[i]
 		if c == '\'' {
-			buf[pos] = '\''
 			buf[pos+1] = '\''
+			buf[pos] = '\''
 			pos += 2
 		} else {
 			buf[pos] = c
@@ -789,6 +789,12 @@ type noCopy struct{}
 
 // Lock is a no-op used by -copylocks checker from `go vet`.
 func (*noCopy) Lock() {}
+
+// Unlock is a no-op used by -copylocks checker from `go vet`.
+// noCopy should implement sync.Locker from Go 1.11
+// https://github.com/golang/go/commit/c2eba53e7f80df21d51285879d51ab81bcfbf6bc
+// https://github.com/golang/go/issues/26165
+func (*noCopy) Unlock() {}
 
 // atomicBool is a wrapper around uint32 for usage as a boolean value with
 // atomic access.

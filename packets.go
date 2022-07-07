@@ -110,14 +110,13 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			conn = mc.rawConn
 		}
 		var err error
-		// If this connection has a ReadTimeout which we've been setting on
-		// reads, reset it to its default value before we attempt a non-blocking
-		// read, otherwise the scheduler will just time us out before we can read
-		if mc.cfg.ReadTimeout != 0 {
-			err = conn.SetReadDeadline(time.Time{})
-		}
-		if err == nil && mc.cfg.CheckConnLiveness {
-			err = connCheck(conn)
+		if mc.cfg.CheckConnLiveness {
+			if mc.cfg.ReadTimeout != 0 {
+				err = conn.SetReadDeadline(time.Now().Add(mc.cfg.ReadTimeout))
+			}
+			if err == nil {
+				err = connCheck(conn)
+			}
 		}
 		if err != nil {
 			errLog.Print("closing bad idle connection: ", err)
@@ -588,19 +587,20 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 		return driver.ErrBadConn
 	}
 
+	me := &MySQLError{Number: errno}
+
 	pos := 3
 
 	// SQL State [optional: # + 5bytes string]
 	if data[3] == 0x23 {
-		//sqlstate := string(data[4 : 4+5])
+		copy(me.SQLState[:], data[4:4+5])
 		pos = 9
 	}
 
 	// Error Message [string]
-	return &MySQLError{
-		Number:  errno,
-		Message: string(data[pos:]),
-	}
+	me.Message = string(data[pos:])
+
+	return me
 }
 
 func readStatus(b []byte) statusFlag {
@@ -761,40 +761,40 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 	}
 
 	// RowSet Packet
-	var n int
-	var isNull bool
-	pos := 0
+	var (
+		n      int
+		isNull bool
+		pos    int = 0
+	)
 
 	for i := range dest {
 		// Read bytes and convert to string
 		dest[i], isNull, n, err = readLengthEncodedString(data[pos:])
 		pos += n
-		if err == nil {
-			if !isNull {
-				if !mc.parseTime {
-					continue
-				} else {
-					switch rows.rs.columns[i].fieldType {
-					case fieldTypeTimestamp, fieldTypeDateTime,
-						fieldTypeDate, fieldTypeNewDate:
-						dest[i], err = parseDateTime(
-							dest[i].([]byte),
-							mc.cfg.Loc,
-						)
-						if err == nil {
-							continue
-						}
-					default:
-						continue
-					}
-				}
 
-			} else {
-				dest[i] = nil
-				continue
+		if err != nil {
+			return err
+		}
+
+		if isNull {
+			dest[i] = nil
+			continue
+		}
+
+		if !mc.parseTime {
+			continue
+		}
+
+		// Parse time field
+		switch rows.rs.columns[i].fieldType {
+		case fieldTypeTimestamp,
+			fieldTypeDateTime,
+			fieldTypeDate,
+			fieldTypeNewDate:
+			if dest[i], err = parseDateTime(dest[i].([]byte), mc.cfg.Loc); err != nil {
+				return err
 			}
 		}
-		return err // err != nil
 	}
 
 	return nil
