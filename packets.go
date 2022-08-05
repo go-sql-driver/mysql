@@ -728,12 +728,12 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 
 		// Decimals [uint8]
 		columns[i].decimals = data[pos]
-		// pos++
+		//pos++
 
 		// Default value [len coded binary]
-		// if pos < len(data) {
+		//if pos < len(data) {
 		//	defaultVal, _, err = bytesToLengthCodedBinary(data[pos:])
-		// }
+		//}
 	}
 }
 
