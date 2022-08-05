@@ -35,11 +35,15 @@ type mockConn struct {
 	writes        int
 	maxReads      int
 	maxWrites     int
+	deadline      time.Time
 }
 
 func (m *mockConn) Read(b []byte) (n int, err error) {
 	if m.closed {
 		return 0, errConnClosed
+	}
+	if m.deadline.After(time.Now()) {
+		return 0, netErrorMock{timeout: true}
 	}
 
 	m.reads++
@@ -85,6 +89,7 @@ func (m *mockConn) SetDeadline(t time.Time) error {
 	return nil
 }
 func (m *mockConn) SetReadDeadline(t time.Time) error {
+	m.deadline = t
 	return nil
 }
 func (m *mockConn) SetWriteDeadline(t time.Time) error {
@@ -298,6 +303,24 @@ func TestReadPacketFail(t *testing.T) {
 	_, err = mc.readPacket()
 	if err != ErrInvalidConn {
 		t.Errorf("expected ErrInvalidConn, got %v", err)
+	}
+}
+
+func TestReadPacketTimeout(t *testing.T) {
+	conn := new(mockConn)
+	mc := &mysqlConn{
+		buf:     newBuffer(conn),
+		closech: make(chan struct{}),
+	}
+
+	// always timeout
+	mc.buf.timeout = 1
+
+	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
+	conn.maxReads = 1
+	_, err := mc.readPacket()
+	if err != ErrNetReadTimeout {
+		t.Errorf("expected ErrNetReadTimeout, got %v", err)
 	}
 }
 

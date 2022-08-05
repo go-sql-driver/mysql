@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -871,4 +872,11 @@ func mapIsolationLevel(level driver.IsolationLevel) (string, error) {
 	default:
 		return "", fmt.Errorf("mysql: unsupported isolation level: %v", level)
 	}
+}
+
+func isNetTimeoutErr(err error) bool {
+	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		return true
+	}
+	return false
 }
