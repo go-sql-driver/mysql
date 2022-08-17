@@ -22,8 +22,9 @@ jobs:
           import json
           go = [
               # Keep the most recent production release at the top
-              '1.18',
+              '1.19',
               # Older production releases
+              '1.18',
               '1.17',
               '1.16',
               '1.15',
