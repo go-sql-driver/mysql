@@ -28,12 +28,11 @@ var (
 // Alternatively you can allow the use of all local files with
 // the DSN parameter 'allowAllFiles=true'
 //
-//  filePath := "/home/gopher/data.csv"
-//  mysql.RegisterLocalFile(filePath)
-//  err := db.Exec("LOAD DATA LOCAL INFILE '" + filePath + "' INTO TABLE foo")
-//  if err != nil {
-//  ...
-//
+//	filePath := "/home/gopher/data.csv"
+//	mysql.RegisterLocalFile(filePath)
+//	err := db.Exec("LOAD DATA LOCAL INFILE '" + filePath + "' INTO TABLE foo")
+//	if err != nil {
+//	...
 func RegisterLocalFile(filePath string) {
 	fileRegisterLock.Lock()
 	// lazy map init
@@ -58,15 +57,14 @@ func DeregisterLocalFile(filePath string) {
 // If the handler returns a io.ReadCloser Close() is called when the
 // request is finished.
 //
-//  mysql.RegisterReaderHandler("data", func() io.Reader {
-//  	var csvReader io.Reader // Some Reader that returns CSV data
-//  	... // Open Reader here
-//  	return csvReader
-//  })
-//  err := db.Exec("LOAD DATA LOCAL INFILE 'Reader::data' INTO TABLE foo")
-//  if err != nil {
-//  ...
-//
+//	mysql.RegisterReaderHandler("data", func() io.Reader {
+//		var csvReader io.Reader // Some Reader that returns CSV data
+//		... // Open Reader here
+//		return csvReader
+//	})
+//	err := db.Exec("LOAD DATA LOCAL INFILE 'Reader::data' INTO TABLE foo")
+//	if err != nil {
+//	...
 func RegisterReaderHandler(name string, handler func() io.Reader) {
 	readerRegisterLock.Lock()
 	// lazy map init

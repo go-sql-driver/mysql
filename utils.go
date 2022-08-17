@@ -35,26 +35,25 @@ var (
 // Note: The provided tls.Config is exclusively owned by the driver after
 // registering it.
 //
-//  rootCertPool := x509.NewCertPool()
-//  pem, err := ioutil.ReadFile("/path/ca-cert.pem")
-//  if err != nil {
-//      log.Fatal(err)
-//  }
-//  if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
-//      log.Fatal("Failed to append PEM.")
-//  }
-//  clientCert := make([]tls.Certificate, 0, 1)
-//  certs, err := tls.LoadX509KeyPair("/path/client-cert.pem", "/path/client-key.pem")
-//  if err != nil {
-//      log.Fatal(err)
-//  }
-//  clientCert = append(clientCert, certs)
-//  mysql.RegisterTLSConfig("custom", &tls.Config{
-//      RootCAs: rootCertPool,
-//      Certificates: clientCert,
-//  })
-//  db, err := sql.Open("mysql", "user@tcp(localhost:3306)/test?tls=custom")
-//
+//	rootCertPool := x509.NewCertPool()
+//	pem, err := ioutil.ReadFile("/path/ca-cert.pem")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
+//	    log.Fatal("Failed to append PEM.")
+//	}
+//	clientCert := make([]tls.Certificate, 0, 1)
+//	certs, err := tls.LoadX509KeyPair("/path/client-cert.pem", "/path/client-key.pem")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	clientCert = append(clientCert, certs)
+//	mysql.RegisterTLSConfig("custom", &tls.Config{
+//	    RootCAs: rootCertPool,
+//	    Certificates: clientCert,
+//	})
+//	db, err := sql.Open("mysql", "user@tcp(localhost:3306)/test?tls=custom")
 func RegisterTLSConfig(key string, config *tls.Config) error {
 	if _, isBool := readBool(key); isBool || strings.ToLower(key) == "skip-verify" || strings.ToLower(key) == "preferred" {
 		return fmt.Errorf("key '%s' is reserved", key)
