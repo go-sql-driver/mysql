@@ -46,10 +46,10 @@ func TestAtomicBool(t *testing.T) {
 		t.Fatal("Expected value to be false")
 	}
 	if ab.Swap(false) {
-		t.Fatal("Expected TrySet(false) to fail")
+		t.Fatal("Expected the old value to be false")
 	}
-	if !ab.Swap(true) {
-		t.Fatal("Expected TrySet(true) to succeed")
+	if ab.Swap(true) {
+		t.Fatal("Expected the old value to be false")
 	}
 	if !ab.Load() {
 		t.Fatal("Expected value to be true")
@@ -59,11 +59,11 @@ func TestAtomicBool(t *testing.T) {
 	if !ab.Load() {
 		t.Fatal("Expected value to be true")
 	}
-	if ab.Swap(true) {
-		t.Fatal("Expected TrySet(true) to fail")
+	if !ab.Swap(true) {
+		t.Fatal("Expected the old value to be true")
 	}
 	if !ab.Swap(false) {
-		t.Fatal("Expected TrySet(false) to succeed")
+		t.Fatal("Expected the old value to be true")
 	}
 	if ab.Load() {
 		t.Fatal("Expected value to be false")

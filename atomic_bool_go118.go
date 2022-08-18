@@ -38,10 +38,10 @@ func (ab *atomicBool) Store(value bool) {
 	}
 }
 
-// Swap sets the value of the bool and returns whether the value changed
+// Swap sets the value of the bool and returns the old value.
 func (ab *atomicBool) Swap(value bool) bool {
 	if value {
-		return atomic.SwapUint32(&ab.value, 1) == 0
+		return atomic.SwapUint32(&ab.value, 1) > 0
 	}
 	return atomic.SwapUint32(&ab.value, 0) > 0
 }
