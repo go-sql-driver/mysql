@@ -173,66 +173,6 @@ func TestEscapeQuotes(t *testing.T) {
 	expect("foo\"bar", "foo\"bar")     // not affected
 }
 
-func TestAtomicBool(t *testing.T) {
-	var ab atomicBool
-	if ab.IsSet() {
-		t.Fatal("Expected value to be false")
-	}
-
-	ab.Set(true)
-	if ab.value != 1 {
-		t.Fatal("Set(true) did not set value to 1")
-	}
-	if !ab.IsSet() {
-		t.Fatal("Expected value to be true")
-	}
-
-	ab.Set(true)
-	if !ab.IsSet() {
-		t.Fatal("Expected value to be true")
-	}
-
-	ab.Set(false)
-	if ab.value != 0 {
-		t.Fatal("Set(false) did not set value to 0")
-	}
-	if ab.IsSet() {
-		t.Fatal("Expected value to be false")
-	}
-
-	ab.Set(false)
-	if ab.IsSet() {
-		t.Fatal("Expected value to be false")
-	}
-	if ab.TrySet(false) {
-		t.Fatal("Expected TrySet(false) to fail")
-	}
-	if !ab.TrySet(true) {
-		t.Fatal("Expected TrySet(true) to succeed")
-	}
-	if !ab.IsSet() {
-		t.Fatal("Expected value to be true")
-	}
-
-	ab.Set(true)
-	if !ab.IsSet() {
-		t.Fatal("Expected value to be true")
-	}
-	if ab.TrySet(true) {
-		t.Fatal("Expected TrySet(true) to fail")
-	}
-	if !ab.TrySet(false) {
-		t.Fatal("Expected TrySet(false) to succeed")
-	}
-	if ab.IsSet() {
-		t.Fatal("Expected value to be false")
-	}
-
-	// we've "tested" them ¯\_(ツ)_/¯
-	ab._noCopy.Lock()
-	defer ab._noCopy.Unlock()
-}
-
 func TestAtomicError(t *testing.T) {
 	var ae atomicError
 	if ae.Value() != nil {

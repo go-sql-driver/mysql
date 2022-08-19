@@ -35,26 +35,25 @@ var (
 // Note: The provided tls.Config is exclusively owned by the driver after
 // registering it.
 //
-//  rootCertPool := x509.NewCertPool()
-//  pem, err := ioutil.ReadFile("/path/ca-cert.pem")
-//  if err != nil {
-//      log.Fatal(err)
-//  }
-//  if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
-//      log.Fatal("Failed to append PEM.")
-//  }
-//  clientCert := make([]tls.Certificate, 0, 1)
-//  certs, err := tls.LoadX509KeyPair("/path/client-cert.pem", "/path/client-key.pem")
-//  if err != nil {
-//      log.Fatal(err)
-//  }
-//  clientCert = append(clientCert, certs)
-//  mysql.RegisterTLSConfig("custom", &tls.Config{
-//      RootCAs: rootCertPool,
-//      Certificates: clientCert,
-//  })
-//  db, err := sql.Open("mysql", "user@tcp(localhost:3306)/test?tls=custom")
-//
+//	rootCertPool := x509.NewCertPool()
+//	pem, err := ioutil.ReadFile("/path/ca-cert.pem")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
+//	    log.Fatal("Failed to append PEM.")
+//	}
+//	clientCert := make([]tls.Certificate, 0, 1)
+//	certs, err := tls.LoadX509KeyPair("/path/client-cert.pem", "/path/client-key.pem")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	clientCert = append(clientCert, certs)
+//	mysql.RegisterTLSConfig("custom", &tls.Config{
+//	    RootCAs: rootCertPool,
+//	    Certificates: clientCert,
+//	})
+//	db, err := sql.Open("mysql", "user@tcp(localhost:3306)/test?tls=custom")
 func RegisterTLSConfig(key string, config *tls.Config) error {
 	if _, isBool := readBool(key); isBool || strings.ToLower(key) == "skip-verify" || strings.ToLower(key) == "preferred" {
 		return fmt.Errorf("key '%s' is reserved", key)
@@ -796,39 +795,10 @@ func (*noCopy) Lock() {}
 // https://github.com/golang/go/issues/26165
 func (*noCopy) Unlock() {}
 
-// atomicBool is a wrapper around uint32 for usage as a boolean value with
-// atomic access.
-type atomicBool struct {
-	_noCopy noCopy
-	value   uint32
-}
-
-// IsSet returns whether the current boolean value is true
-func (ab *atomicBool) IsSet() bool {
-	return atomic.LoadUint32(&ab.value) > 0
-}
-
-// Set sets the value of the bool regardless of the previous value
-func (ab *atomicBool) Set(value bool) {
-	if value {
-		atomic.StoreUint32(&ab.value, 1)
-	} else {
-		atomic.StoreUint32(&ab.value, 0)
-	}
-}
-
-// TrySet sets the value of the bool and returns whether the value changed
-func (ab *atomicBool) TrySet(value bool) bool {
-	if value {
-		return atomic.SwapUint32(&ab.value, 1) == 0
-	}
-	return atomic.SwapUint32(&ab.value, 0) > 0
-}
-
 // atomicError is a wrapper for atomically accessed error values
 type atomicError struct {
-	_noCopy noCopy
-	value   atomic.Value
+	_     noCopy
+	value atomic.Value
 }
 
 // Set sets the error value regardless of the previous value.
