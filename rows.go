@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"database/sql/driver"
+	"fmt"
 	"io"
 	"math"
 	"reflect"
@@ -217,7 +218,18 @@ func (rows *textRows) Next(dest []driver.Value) error {
 		}
 
 		// Fetch next row from stream
-		return rows.readRow(dest)
+		err := rows.readRow(dest)
+		fmt.Printf("++>: %p\n", rows)
+		fmt.Println("++>: ", err)
+		fmt.Println()
+		if err != nil {
+			for _, d := range dest {
+				fmt.Println("++>: ", d)
+			}
+			fmt.Println()
+		}
+
+		return err
 	}
 	return io.EOF
 }

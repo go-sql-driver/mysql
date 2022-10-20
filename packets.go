@@ -737,11 +737,13 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 	mc := rows.mc
 
 	if rows.rs.done {
+		fmt.Println("++>: ", "it is done!")
 		return io.EOF
 	}
 
 	data, err := mc.readPacket()
 	if err != nil {
+		fmt.Println("++>: ", err)
 		return err
 	}
 
@@ -753,11 +755,14 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 		if !rows.HasNextResultSet() {
 			rows.mc = nil
 		}
+		fmt.Println("++>: ", "statusFlag is done")
 		return io.EOF
 	}
 	if data[0] == iERR {
 		rows.mc = nil
-		return mc.handleErrorPacket(data)
+		err = mc.handleErrorPacket(data)
+		fmt.Println("++>: ", "handle error packet", err)
+		return err
 	}
 
 	// RowSet Packet
@@ -793,6 +798,9 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 				dest[i] = nil
 				continue
 			}
+		}
+		if err != nil {
+			fmt.Println("++>: ", "convert data", err)
 		}
 		return err // err != nil
 	}
