@@ -22,18 +22,20 @@ jobs:
           import json
           go = [
               # Keep the most recent production release at the top
-              '1.16',
+              '1.19',
               # Older production releases
+              '1.18',
+              '1.17',
+              '1.16',
               '1.15',
               '1.14',
               '1.13',
-              '1.12',
-              '1.11',
           ]
           mysql = [
               '8.0',
               '5.7',
               '5.6',
+              'mariadb-10.6',
               'mariadb-10.5',
               'mariadb-10.4',
               'mariadb-10.3',

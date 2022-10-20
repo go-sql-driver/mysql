@@ -23,7 +23,7 @@ type mysqlStmt struct {
 }
 
 func (stmt *mysqlStmt) Close() error {
-	if stmt.mc == nil || stmt.mc.closed.IsSet() {
+	if stmt.mc == nil || stmt.mc.closed.Load() {
 		// driver.Stmt.Close can be called more than once, thus this function
 		// has to be idempotent.
 		// See also Issue #450 and golang/go#16019.
@@ -50,7 +50,7 @@ func (stmt *mysqlStmt) CheckNamedValue(nv *driver.NamedValue) (err error) {
 }
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
-	if stmt.mc.closed.IsSet() {
+	if stmt.mc.closed.Load() {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
@@ -98,7 +98,7 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 }
 
 func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
-	if stmt.mc.closed.IsSet() {
+	if stmt.mc.closed.Load() {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
@@ -157,7 +157,7 @@ func (c converter) ConvertValue(v interface{}) (driver.Value, error) {
 		if driver.IsValue(sv) {
 			return sv, nil
 		}
-		// A value returend from the Valuer interface can be "a type handled by
+		// A value returned from the Valuer interface can be "a type handled by
 		// a database driver's NamedValueChecker interface" so we should accept
 		// uint64 here as well.
 		if u, ok := sv.(uint64); ok {

@@ -41,6 +41,9 @@ func (mf *mysqlField) typeDatabaseName() string {
 	case fieldTypeJSON:
 		return "JSON"
 	case fieldTypeLong:
+		if mf.flags&flagUnsigned != 0 {
+			return "UNSIGNED INT"
+		}
 		return "INT"
 	case fieldTypeLongBLOB:
 		if mf.charSet != collations[binaryCollation] {
@@ -48,6 +51,9 @@ func (mf *mysqlField) typeDatabaseName() string {
 		}
 		return "LONGBLOB"
 	case fieldTypeLongLong:
+		if mf.flags&flagUnsigned != 0 {
+			return "UNSIGNED BIGINT"
+		}
 		return "BIGINT"
 	case fieldTypeMediumBLOB:
 		if mf.charSet != collations[binaryCollation] {
@@ -63,6 +69,9 @@ func (mf *mysqlField) typeDatabaseName() string {
 	case fieldTypeSet:
 		return "SET"
 	case fieldTypeShort:
+		if mf.flags&flagUnsigned != 0 {
+			return "UNSIGNED SMALLINT"
+		}
 		return "SMALLINT"
 	case fieldTypeString:
 		if mf.charSet == collations[binaryCollation] {
@@ -74,6 +83,9 @@ func (mf *mysqlField) typeDatabaseName() string {
 	case fieldTypeTimestamp:
 		return "TIMESTAMP"
 	case fieldTypeTiny:
+		if mf.flags&flagUnsigned != 0 {
+			return "UNSIGNED TINYINT"
+		}
 		return "TINYINT"
 	case fieldTypeTinyBLOB:
 		if mf.charSet != collations[binaryCollation] {
@@ -106,7 +118,7 @@ var (
 	scanTypeInt64     = reflect.TypeOf(int64(0))
 	scanTypeNullFloat = reflect.TypeOf(sql.NullFloat64{})
 	scanTypeNullInt   = reflect.TypeOf(sql.NullInt64{})
-	scanTypeNullTime  = reflect.TypeOf(nullTime{})
+	scanTypeNullTime  = reflect.TypeOf(sql.NullTime{})
 	scanTypeUint8     = reflect.TypeOf(uint8(0))
 	scanTypeUint16    = reflect.TypeOf(uint16(0))
 	scanTypeUint32    = reflect.TypeOf(uint32(0))
