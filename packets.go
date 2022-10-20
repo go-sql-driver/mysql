@@ -735,7 +735,10 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-ProtocolText::ResultsetRow
 func (rows *textRows) readRow(dest []driver.Value) error {
 	mc := rows.mc
-
+	var head string
+	if mc.netConn != nil {
+		head = fmt.Sprintf("++>: netconn LocalAddr %s", mc.netConn.LocalAddr())
+	}
 	if rows.rs.done {
 		fmt.Println("++>: ", "it is done!")
 		return io.EOF
