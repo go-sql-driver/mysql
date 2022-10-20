@@ -219,12 +219,16 @@ func (rows *textRows) Next(dest []driver.Value) error {
 
 		// Fetch next row from stream
 		err := rows.readRow(dest)
-		fmt.Printf("++>: %p\n", rows)
-		fmt.Println("++>: ", err)
+		var head string
+		if rows.mc.netConn != nil {
+			head = fmt.Sprintf("++>: netconn LocalAddr %s", mc.netConn.LocalAddr())
+		}
+		fmt.Printf("++>: %s %p\n", head, rows)
+		fmt.Println("++>: ", head, err)
 		fmt.Println()
 		if err != nil {
 			for _, d := range dest {
-				fmt.Println("++>: ", d)
+				fmt.Println("++>: ", head, d)
 			}
 			fmt.Println()
 		}
