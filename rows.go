@@ -229,7 +229,7 @@ func (rows *textRows) Next(dest []driver.Value) error {
 		fmt.Println()
 		if err != nil {
 			for _, d := range dest {
-				fmt.Println("++>: ", d)
+				fmt.Println("++>: ", head, d)
 			}
 			fmt.Println()
 		}

@@ -512,6 +512,7 @@ func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driv
 		fmt.Println("++>: rawconn RemoteAddr", mc.rawConn.RemoteAddr())
 		fmt.Println("++>: rawconn LocalAddr", mc.rawConn.LocalAddr())
 	}
+
 	rows, err := mc.query(query, dargs)
 	if err != nil {
 		mc.finish()

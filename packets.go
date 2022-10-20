@@ -740,13 +740,13 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 		head = fmt.Sprintf("++>: netconn LocalAddr %s", mc.netConn.LocalAddr())
 	}
 	if rows.rs.done {
-		fmt.Println("++>: ", "it is done!")
+		fmt.Println("++>: ", head, "it is done!")
 		return io.EOF
 	}
 
 	data, err := mc.readPacket()
 	if err != nil {
-		fmt.Println("++>: ", err)
+		fmt.Println("++>: ", head, err)
 		return err
 	}
 
@@ -758,13 +758,13 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 		if !rows.HasNextResultSet() {
 			rows.mc = nil
 		}
-		fmt.Println("++>: ", "statusFlag is done")
+		fmt.Println("++>: ", head, "statusFlag is done")
 		return io.EOF
 	}
 	if data[0] == iERR {
 		rows.mc = nil
 		err = mc.handleErrorPacket(data)
-		fmt.Println("++>: ", "handle error packet", err)
+		fmt.Println("++>: ", head, "handle error packet", err)
 		return err
 	}
 
@@ -804,7 +804,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 			}
 		}
 		if err != nil {
-			fmt.Println("++>: ", "convert data", err)
+			fmt.Println("++>: ", head, "convert data", err)
 		}
 		return err // err != nil
 	}
