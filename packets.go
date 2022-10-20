@@ -736,7 +736,7 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 func (rows *textRows) readRow(dest []driver.Value) error {
 	mc := rows.mc
 	var head string
-	if rows.mc.netConn != nil {
+	if mc.netConn != nil {
 		head = fmt.Sprintf("++>: netconn LocalAddr %s", mc.netConn.LocalAddr())
 	}
 	if rows.rs.done {

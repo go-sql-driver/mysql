@@ -219,8 +219,9 @@ func (rows *textRows) Next(dest []driver.Value) error {
 
 		// Fetch next row from stream
 		err := rows.readRow(dest)
+
 		var head string
-		if rows.mc.netConn != nil {
+		if mc.netConn != nil {
 			head = fmt.Sprintf("++>: netconn LocalAddr %s", mc.netConn.LocalAddr())
 		}
 		fmt.Printf("++>: %s %p\n", head, rows)
