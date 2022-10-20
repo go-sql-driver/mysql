@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -502,6 +503,15 @@ func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driv
 		return nil, err
 	}
 
+	if mc.netConn != nil {
+		fmt.Println("++>: netconn RemoteAddr", mc.netConn.RemoteAddr())
+		fmt.Println("++>: netconn LocalAddr", mc.netConn.LocalAddr())
+	}
+
+	if mc.rawConn != nil {
+		fmt.Println("++>: rawconn RemoteAddr", mc.rawConn.RemoteAddr())
+		fmt.Println("++>: rawconn LocalAddr", mc.rawConn.LocalAddr())
+	}
 	rows, err := mc.query(query, dargs)
 	if err != nil {
 		mc.finish()
