@@ -781,6 +781,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 		pos += n
 
 		if err != nil {
+			fmt.Println("++>: ", head, "read length encoded string", err)
 			return err
 		}
 
@@ -800,6 +801,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 			fieldTypeDate,
 			fieldTypeNewDate:
 			if dest[i], err = parseDateTime(dest[i].([]byte), mc.cfg.Loc); err != nil {
+				fmt.Println("++>: ", head, "parse datetime", err)
 				return err
 			}
 		}
