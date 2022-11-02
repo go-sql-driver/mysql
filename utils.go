@@ -117,7 +117,7 @@ func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 		if err != nil {
 			return time.Time{}, err
 		}
-		if year <= 0 {
+		if year < 0 {
 			year = 1
 		}
 

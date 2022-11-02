@@ -351,6 +351,10 @@ func TestParseDateTime(t *testing.T) {
 			name: "parse datetime nanosec 6-digits",
 			str:  "2020-05-25 23:22:01.159491",
 		},
+		{
+			name: "parse datetime with zero year",
+			str:  "0000-05-25 23:22:01",
+		},
 	}
 
 	for _, loc := range []*time.Location{
