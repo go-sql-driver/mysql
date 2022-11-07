@@ -57,7 +57,7 @@ jobs:
           }
           output = json.dumps(matrix, separators=(',', ':'))
           with open(os.environ["GITHUB_OUTPUT"], 'a', encoding="utf-8") as f:
-              f.write('matrix={0}'.format(output))
+              f.write('matrix={0}\n'.format(output))
         shell: python
   test:
     needs: list
