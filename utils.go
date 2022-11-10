@@ -117,10 +117,6 @@ func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 		if err != nil {
 			return time.Time{}, err
 		}
-		if year <= 0 {
-			year = 1
-		}
-
 		if b[4] != '-' {
 			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[4])
 		}
@@ -128,9 +124,6 @@ func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 		m, err := parseByte2Digits(b[5], b[6])
 		if err != nil {
 			return time.Time{}, err
-		}
-		if m <= 0 {
-			m = 1
 		}
 		month := time.Month(m)
 
@@ -141,9 +134,6 @@ func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 		day, err := parseByte2Digits(b[8], b[9])
 		if err != nil {
 			return time.Time{}, err
-		}
-		if day <= 0 {
-			day = 1
 		}
 		if len(b) == 10 {
 			return time.Date(year, month, day, 0, 0, 0, 0, loc), nil

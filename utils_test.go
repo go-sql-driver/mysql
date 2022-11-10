@@ -380,6 +380,33 @@ func TestParseDateTime(t *testing.T) {
 	}
 }
 
+func TestInvalidDateTime(t *testing.T) {
+	cases := []struct {
+		name string
+		str  string
+		want time.Time
+	}{
+		{
+			name: "parse datetime without day",
+			str:  "0000-00-00 21:30:45",
+			want: time.Date(0, 0, 0, 21, 30, 45, 0, time.UTC),
+		},
+	}
+
+	for _, cc := range cases {
+		t.Run(cc.name, func(t *testing.T) {
+			got, err := parseDateTime([]byte(cc.str), time.UTC)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !cc.want.Equal(got) {
+				t.Fatalf("want: %v, but got %v", cc.want, got)
+			}
+		})
+	}
+}
+
 func TestParseDateTimeFail(t *testing.T) {
 	cases := []struct {
 		name    string
