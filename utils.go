@@ -25,8 +25,9 @@ import (
 
 // Registry for custom tls.Configs
 var (
-	tlsConfigLock     sync.RWMutex
-	tlsConfigRegistry map[string]*tls.Config
+	tlsConfigLock      sync.RWMutex
+	tlsConfigRegistry  map[string]*tls.Config
+	tlsConfigPreferred map[string]struct{}
 )
 
 // RegisterTLSConfig registers a custom tls.Config to be used with sql.Open.
@@ -55,6 +56,17 @@ var (
 //	})
 //	db, err := sql.Open("mysql", "user@tcp(localhost:3306)/test?tls=custom")
 func RegisterTLSConfig(key string, config *tls.Config) error {
+	return registerTLSConfig(key, config, false)
+}
+
+// RegisterPreferredTLSConfig is like a RegisterTLSConfig, but when the MySQL
+// server does not support TLS the driver will try to connect without TLS.
+// It can be used as a customized "preferred" TLS configuration in the DSN.
+func RegisterPreferredTLSConfig(key string, config *tls.Config) error {
+	return registerTLSConfig(key, config, true)
+}
+
+func registerTLSConfig(key string, config *tls.Config, preferred bool) error {
 	if _, isBool := readBool(key); isBool || strings.ToLower(key) == "skip-verify" || strings.ToLower(key) == "preferred" {
 		return fmt.Errorf("key '%s' is reserved", key)
 	}
@@ -63,8 +75,16 @@ func RegisterTLSConfig(key string, config *tls.Config) error {
 	if tlsConfigRegistry == nil {
 		tlsConfigRegistry = make(map[string]*tls.Config)
 	}
-
 	tlsConfigRegistry[key] = config
+
+	if preferred {
+		if tlsConfigPreferred == nil {
+			tlsConfigPreferred = make(map[string]struct{})
+		}
+		tlsConfigPreferred[key] = struct{}{}
+	} else {
+		delete(tlsConfigPreferred, key)
+	}
 	tlsConfigLock.Unlock()
 	return nil
 }
@@ -75,14 +95,18 @@ func DeregisterTLSConfig(key string) {
 	if tlsConfigRegistry != nil {
 		delete(tlsConfigRegistry, key)
 	}
+	if tlsConfigPreferred != nil {
+		delete(tlsConfigPreferred, key)
+	}
 	tlsConfigLock.Unlock()
 }
 
-func getTLSConfigClone(key string) (config *tls.Config) {
+func getTLSConfigCloneAndPreferred(key string) (config *tls.Config, preferred bool) {
 	tlsConfigLock.RLock()
 	if v, ok := tlsConfigRegistry[key]; ok {
 		config = v.Clone()
 	}
+	_, preferred = tlsConfigPreferred[key]
 	tlsConfigLock.RUnlock()
 	return
 }

@@ -47,6 +47,7 @@ type Config struct {
 	pubKey           *rsa.PublicKey    // Server public key
 	TLSConfig        string            // TLS configuration name
 	tls              *tls.Config       // TLS configuration
+	tlsIsPreferred   bool              // TLS is preferred, not a must
 	Timeout          time.Duration     // Dial timeout
 	ReadTimeout      time.Duration     // I/O read timeout
 	WriteTimeout     time.Duration     // I/O write timeout
@@ -124,10 +125,13 @@ func (cfg *Config) normalize() error {
 		// don't set anything
 	case "true":
 		cfg.tls = &tls.Config{}
-	case "skip-verify", "preferred":
+	case "skip-verify":
 		cfg.tls = &tls.Config{InsecureSkipVerify: true}
+	case "preferred":
+		cfg.tls = &tls.Config{InsecureSkipVerify: true}
+		cfg.tlsIsPreferred = true
 	default:
-		cfg.tls = getTLSConfigClone(cfg.TLSConfig)
+		cfg.tls, cfg.tlsIsPreferred = getTLSConfigCloneAndPreferred(cfg.TLSConfig)
 		if cfg.tls == nil {
 			return errors.New("invalid value / unknown config name: " + cfg.TLSConfig)
 		}
