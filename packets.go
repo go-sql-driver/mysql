@@ -234,10 +234,18 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 	if len(data) > pos {
 		// character set [1 byte]
 		// status flags [2 bytes]
+		pos += 1 + 2
 		// capability flags (upper 2 bytes) [2 bytes]
+		upperFlags := clientFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
+		mc.flags |= upperFlags << 16
+		pos += 2
+		if mc.flags&clientOptionalResultSetMetadata == 0 && mc.optionalResultSetMetadata {
+			return nil, "", ErrNoOptionalResultMetadataSet
+		}
+
 		// length of auth-plugin-data [1 byte]
 		// reserved (all [00]) [10 bytes]
-		pos += 1 + 2 + 2 + 1 + 10
+		pos += 1 + 10
 
 		// second part of the password cipher [mininum 13 bytes],
 		// where len=MAX(13, length of auth-plugin-data - 8)
@@ -298,6 +306,10 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 
 	if mc.cfg.MultiStatements {
 		clientFlags |= clientMultiStatements
+	}
+
+	if mc.optionalResultSetMetadata {
+		clientFlags |= clientOptionalResultSetMetadata
 	}
 
 	// encode length of the auth plugin data
@@ -551,6 +563,17 @@ func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
 		// column count
 		num, _, n := readLengthEncodedInteger(data)
 		if n-len(data) == 0 {
+			return int(num), nil
+		}
+
+		// Sniff one extra byte for resultset metadata if we set capability
+		// CLIENT_OPTIONAL_RESULTSET_METADTA
+		// https://dev.mysql.com/worklog/task/?id=8134
+		if len(data) == 2 && mc.flags&clientOptionalResultSetMetadata != 0 {
+			// ResultSet metadata flag check
+			if mc.resultSetMetadata != data[1] {
+				return 0, ErrOptionalResultSetMetadataPkt
+			}
 			return int(num), nil
 		}
 

@@ -21,20 +21,22 @@ import (
 )
 
 type mysqlConn struct {
-	buf              buffer
-	netConn          net.Conn
-	rawConn          net.Conn // underlying connection when netConn is TLS connection.
-	affectedRows     uint64
-	insertId         uint64
-	cfg              *Config
-	maxAllowedPacket int
-	maxWriteSize     int
-	writeTimeout     time.Duration
-	flags            clientFlag
-	status           statusFlag
-	sequence         uint8
-	parseTime        bool
-	reset            bool // set when the Go SQL package calls ResetSession
+	buf               buffer
+	netConn           net.Conn
+	rawConn           net.Conn // underlying connection when netConn is TLS connection.
+	affectedRows      uint64
+	insertId          uint64
+	cfg               *Config
+	maxAllowedPacket  int
+	maxWriteSize      int
+	writeTimeout      time.Duration
+	flags             clientFlag
+	status            statusFlag
+	sequence          uint8
+	parseTime         bool
+	reset             bool // set when the Go SQL package calls ResetSession
+	optionalResultSetMetadata bool
+	resultSetMetadata uint8
 
 	// for context support (Go 1.8+)
 	watching bool
@@ -392,12 +394,31 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 				}
 			}
 
+			if mc.optionalResultSetMetadata && mc.resultSetMetadata == resultSetMetadataNone {
+				return mc.readIgnoreColumns(rows, resLen)
+			}
+
 			// Columns
 			rows.rs.columns, err = mc.readColumns(resLen)
 			return rows, err
 		}
 	}
 	return nil, mc.markBadConn(err)
+}
+
+func (mc *mysqlConn) readIgnoreColumns(rows *textRows, resLen int) (*textRows, error) {
+	data, err := mc.readPacket()
+	if err != nil {
+		errLog.Print(err)
+		return nil, err
+	}
+	// Expected an EOF packet
+	if data[0] == iEOF && (len(data) == 5 || len(data) == 1) {
+		// Set empty columnNames, we will first read these columnNames via rows.Columns().
+		rows.rs.columnNames = make([]string, resLen)
+		return rows, nil
+	}
+	return nil, ErrOptionalResultSetMetadataPkt
 }
 
 // Gets the value of the given MySQL System Variable
