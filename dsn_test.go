@@ -221,66 +221,6 @@ func TestDSNWithCustomTLS(t *testing.T) {
 	}
 }
 
-func TestRegisterPreferredTLSConfig(t *testing.T) {
-	tlsMust := "tls-must"
-	tlsPreferred := "tls-preferred"
-	tlsCfg := tls.Config{ServerName: tlsMust}
-	tlsCfg2 := tls.Config{ServerName: tlsPreferred}
-
-	err := RegisterTLSConfig(tlsMust, &tlsCfg)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	defer DeregisterTLSConfig(tlsMust)
-	err = RegisterPreferredTLSConfig(tlsPreferred, &tlsCfg2)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	defer DeregisterTLSConfig(tlsPreferred)
-
-	checkCfgAndPreferred := func(key, expectedName string, expectedPreferred bool) {
-		cfg, preferred := getTLSConfigCloneAndPreferred(key)
-		if cfg.ServerName != expectedName {
-			t.Errorf("did not get the correct TLS ServerName (%s): %s.", expectedName, cfg.ServerName)
-		}
-		if expectedPreferred && !preferred {
-			t.Errorf("this should not be a preferred TLS config: %s", key)
-		}
-		if !expectedPreferred && preferred {
-			t.Errorf("this should be a preferred TLS config: %s", key)
-		}
-	}
-
-	checkCfgAndPreferred(tlsMust, tlsMust, false)
-	checkCfgAndPreferred(tlsPreferred, tlsPreferred, true)
-
-	// test RegisterTLSConfig overwrites existing config and preferred
-	tlsAnother := "tls-another"
-	tlsCfg3 := tls.Config{ServerName: tlsAnother}
-	// register the name tlsPreferred in non-preferred mode!
-	err = RegisterTLSConfig(tlsPreferred, &tlsCfg3)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	checkCfgAndPreferred(tlsPreferred, tlsAnother, false)
-
-	// overwrite it back to preferred
-	err = RegisterPreferredTLSConfig(tlsPreferred, &tlsCfg3)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	checkCfgAndPreferred(tlsPreferred, tlsAnother, true)
-
-	DeregisterTLSConfig(tlsPreferred)
-	cfg, preferred := getTLSConfigCloneAndPreferred(tlsPreferred)
-	if cfg != nil {
-		t.Error("found TLS config after deregister")
-	}
-	if preferred {
-		t.Error("preferred should be false after deregister")
-	}
-}
-
 func TestDSNTLSConfig(t *testing.T) {
 	expectedServerName := "example.com"
 	dsn := "tcp(example.com:1234)/?tls=true"
