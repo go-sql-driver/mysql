@@ -46,13 +46,14 @@ type Config struct {
 	ServerPubKey     string            // Server public key name
 	pubKey           *rsa.PublicKey    // Server public key
 	TLSConfig        string            // TLS configuration name
-	tls              *tls.Config       // TLS configuration
+	TLS              *tls.Config       // TLS configuration, its priority is higher than TLSConfig
 	Timeout          time.Duration     // Dial timeout
 	ReadTimeout      time.Duration     // I/O read timeout
 	WriteTimeout     time.Duration     // I/O write timeout
 
 	AllowAllFiles           bool // Allow all files to be used with LOAD DATA LOCAL INFILE
 	AllowCleartextPasswords bool // Allows the cleartext client side plugin
+	AllowFallbackToNoTLS    bool // Allows fallback to unencrypted connection if server does not support TLS
 	AllowNativePasswords    bool // Allows the native password authentication method
 	AllowOldPasswords       bool // Allows the old insecure password method
 	CheckConnLiveness       bool // Check connections for liveness before using them
@@ -77,8 +78,8 @@ func NewConfig() *Config {
 
 func (cfg *Config) Clone() *Config {
 	cp := *cfg
-	if cp.tls != nil {
-		cp.tls = cfg.tls.Clone()
+	if cp.TLS != nil {
+		cp.TLS = cfg.TLS.Clone()
 	}
 	if len(cp.Params) > 0 {
 		cp.Params = make(map[string]string, len(cfg.Params))
@@ -119,24 +120,29 @@ func (cfg *Config) normalize() error {
 		cfg.Addr = ensureHavePort(cfg.Addr)
 	}
 
-	switch cfg.TLSConfig {
-	case "false", "":
-		// don't set anything
-	case "true":
-		cfg.tls = &tls.Config{}
-	case "skip-verify", "preferred":
-		cfg.tls = &tls.Config{InsecureSkipVerify: true}
-	default:
-		cfg.tls = getTLSConfigClone(cfg.TLSConfig)
-		if cfg.tls == nil {
-			return errors.New("invalid value / unknown config name: " + cfg.TLSConfig)
+	if cfg.TLS == nil {
+		switch cfg.TLSConfig {
+		case "false", "":
+			// don't set anything
+		case "true":
+			cfg.TLS = &tls.Config{}
+		case "skip-verify":
+			cfg.TLS = &tls.Config{InsecureSkipVerify: true}
+		case "preferred":
+			cfg.TLS = &tls.Config{InsecureSkipVerify: true}
+			cfg.AllowFallbackToNoTLS = true
+		default:
+			cfg.TLS = getTLSConfigClone(cfg.TLSConfig)
+			if cfg.TLS == nil {
+				return errors.New("invalid value / unknown config name: " + cfg.TLSConfig)
+			}
 		}
 	}
 
-	if cfg.tls != nil && cfg.tls.ServerName == "" && !cfg.tls.InsecureSkipVerify {
+	if cfg.TLS != nil && cfg.TLS.ServerName == "" && !cfg.TLS.InsecureSkipVerify {
 		host, _, err := net.SplitHostPort(cfg.Addr)
 		if err == nil {
-			cfg.tls.ServerName = host
+			cfg.TLS.ServerName = host
 		}
 	}
 
@@ -202,6 +208,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.AllowCleartextPasswords {
 		writeDSNParam(&buf, &hasParam, "allowCleartextPasswords", "true")
+	}
+
+	if cfg.AllowFallbackToNoTLS {
+		writeDSNParam(&buf, &hasParam, "allowFallbackToNoTLS", "true")
 	}
 
 	if !cfg.AllowNativePasswords {
@@ -387,6 +397,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		case "allowCleartextPasswords":
 			var isBool bool
 			cfg.AllowCleartextPasswords, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+
+		// Allow fallback to unencrypted connection if server does not support TLS
+		case "allowFallbackToNoTLS":
+			var isBool bool
+			cfg.AllowFallbackToNoTLS, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}
