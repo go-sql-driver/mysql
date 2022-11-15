@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"testing"
 )
-
+//public key for testing
 var testPubKey = []byte("-----BEGIN PUBLIC KEY-----\n" +
 	"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAol0Z8G8U+25Btxk/g/fm\n" +
 	"UAW/wEKjQCTjkibDE4B+qkuWeiumg6miIRhtilU6m9BFmLQSy1ltYQuu4k17A4tQ\n" +
