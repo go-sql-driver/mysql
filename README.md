@@ -166,7 +166,7 @@ Valid Values:   true, false
 Default:        false
 ```
 
-`allowFallbackToNoTLS=true` acts like a `--ssl-mode=mode=PREFERRED` MySQL client as described in [Command Options for Connecting to the Server](https://dev.mysql.com/doc/refman/5.7/en/connection-options.html#option_general_ssl-mode)
+`allowFallbackToNoTLS=true` acts like a `--ssl-mode=PREFERRED` MySQL client as described in [Command Options for Connecting to the Server](https://dev.mysql.com/doc/refman/5.7/en/connection-options.html#option_general_ssl-mode)
 
 ##### `allowNativePasswords`
 
