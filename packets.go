@@ -223,7 +223,7 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 		return nil, "", ErrOldProtocol
 	}
 	if mc.flags&clientSSL == 0 && mc.cfg.TLS != nil {
-		if mc.cfg.AllowFallbackToNoTLS {
+		if mc.cfg.AllowFallbackToPlaintext {
 			mc.cfg.TLS = nil
 		} else {
 			return nil, "", ErrNoTLS

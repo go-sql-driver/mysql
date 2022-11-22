@@ -51,18 +51,18 @@ type Config struct {
 	ReadTimeout      time.Duration     // I/O read timeout
 	WriteTimeout     time.Duration     // I/O write timeout
 
-	AllowAllFiles           bool // Allow all files to be used with LOAD DATA LOCAL INFILE
-	AllowCleartextPasswords bool // Allows the cleartext client side plugin
-	AllowFallbackToNoTLS    bool // Allows fallback to unencrypted connection if server does not support TLS
-	AllowNativePasswords    bool // Allows the native password authentication method
-	AllowOldPasswords       bool // Allows the old insecure password method
-	CheckConnLiveness       bool // Check connections for liveness before using them
-	ClientFoundRows         bool // Return number of matching rows instead of rows changed
-	ColumnsWithAlias        bool // Prepend table alias to column names
-	InterpolateParams       bool // Interpolate placeholders into query string
-	MultiStatements         bool // Allow multiple statements in one query
-	ParseTime               bool // Parse time values to time.Time
-	RejectReadOnly          bool // Reject read-only connections
+	AllowAllFiles            bool // Allow all files to be used with LOAD DATA LOCAL INFILE
+	AllowCleartextPasswords  bool // Allows the cleartext client side plugin
+	AllowFallbackToPlaintext bool // Allows fallback to unencrypted connection if server does not support TLS
+	AllowNativePasswords     bool // Allows the native password authentication method
+	AllowOldPasswords        bool // Allows the old insecure password method
+	CheckConnLiveness        bool // Check connections for liveness before using them
+	ClientFoundRows          bool // Return number of matching rows instead of rows changed
+	ColumnsWithAlias         bool // Prepend table alias to column names
+	InterpolateParams        bool // Interpolate placeholders into query string
+	MultiStatements          bool // Allow multiple statements in one query
+	ParseTime                bool // Parse time values to time.Time
+	RejectReadOnly           bool // Reject read-only connections
 }
 
 // NewConfig creates a new Config and sets default values.
@@ -130,7 +130,7 @@ func (cfg *Config) normalize() error {
 			cfg.TLS = &tls.Config{InsecureSkipVerify: true}
 		case "preferred":
 			cfg.TLS = &tls.Config{InsecureSkipVerify: true}
-			cfg.AllowFallbackToNoTLS = true
+			cfg.AllowFallbackToPlaintext = true
 		default:
 			cfg.TLS = getTLSConfigClone(cfg.TLSConfig)
 			if cfg.TLS == nil {
@@ -210,8 +210,8 @@ func (cfg *Config) FormatDSN() string {
 		writeDSNParam(&buf, &hasParam, "allowCleartextPasswords", "true")
 	}
 
-	if cfg.AllowFallbackToNoTLS {
-		writeDSNParam(&buf, &hasParam, "allowFallbackToNoTLS", "true")
+	if cfg.AllowFallbackToPlaintext {
+		writeDSNParam(&buf, &hasParam, "allowFallbackToPlaintext", "true")
 	}
 
 	if !cfg.AllowNativePasswords {
@@ -402,9 +402,9 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			}
 
 		// Allow fallback to unencrypted connection if server does not support TLS
-		case "allowFallbackToNoTLS":
+		case "allowFallbackToPlaintext":
 			var isBool bool
-			cfg.AllowFallbackToNoTLS, isBool = readBool(value)
+			cfg.AllowFallbackToPlaintext, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}
