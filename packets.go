@@ -222,9 +222,9 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 	if mc.flags&clientProtocol41 == 0 {
 		return nil, "", ErrOldProtocol
 	}
-	if mc.flags&clientSSL == 0 && mc.cfg.tls != nil {
-		if mc.cfg.TLSConfig == "preferred" {
-			mc.cfg.tls = nil
+	if mc.flags&clientSSL == 0 && mc.cfg.TLS != nil {
+		if mc.cfg.AllowFallbackToPlaintext {
+			mc.cfg.TLS = nil
 		} else {
 			return nil, "", ErrNoTLS
 		}
@@ -292,7 +292,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	}
 
 	// To enable TLS / SSL
-	if mc.cfg.tls != nil {
+	if mc.cfg.TLS != nil {
 		clientFlags |= clientSSL
 	}
 
@@ -356,14 +356,14 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 
 	// SSL Connection Request Packet
 	// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::SSLRequest
-	if mc.cfg.tls != nil {
+	if mc.cfg.TLS != nil {
 		// Send TLS / SSL request packet
 		if err := mc.writePacket(data[:(4+4+1+23)+4]); err != nil {
 			return err
 		}
 
 		// Switch to TLS
-		tlsConn := tls.Client(mc.netConn, mc.cfg.tls)
+		tlsConn := tls.Client(mc.netConn, mc.cfg.TLS)
 		if err := tlsConn.Handshake(); err != nil {
 			return err
 		}

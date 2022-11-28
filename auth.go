@@ -275,7 +275,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		}
 		// unlike caching_sha2_password, sha256_password does not accept
 		// cleartext password on unix transport.
-		if mc.cfg.tls != nil {
+		if mc.cfg.TLS != nil {
 			// write cleartext auth packet
 			return append([]byte(mc.cfg.Passwd), 0), nil
 		}
@@ -351,7 +351,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 				}
 
 			case cachingSha2PasswordPerformFullAuthentication:
-				if mc.cfg.tls != nil || mc.cfg.Net == "unix" {
+				if mc.cfg.TLS != nil || mc.cfg.Net == "unix" {
 					// write cleartext auth packet
 					err = mc.writeAuthSwitchPacket(append([]byte(mc.cfg.Passwd), 0))
 					if err != nil {
