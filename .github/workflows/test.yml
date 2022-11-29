@@ -70,6 +70,7 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: ${{ matrix.go }}
+          cache: true
       - uses: shogo82148/actions-setup-mysql@v1
         with:
           mysql-version: ${{ matrix.mysql }}
