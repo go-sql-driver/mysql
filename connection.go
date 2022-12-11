@@ -180,16 +180,16 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 
 	// Read Result
 	columnCount, err := stmt.readPrepareResultPacket()
-	if err == nil {
-		if stmt.paramCount > 0 {
-			if err = mc.readUntilEOF(); err != nil {
-				return nil, err
-			}
-		}
+	if err != nil {
+		return stmt, err
+	}
 
-		if columnCount > 0 {
-			err = mc.readUntilEOF()
-		}
+	if err := mc.readPackets(stmt.paramCount); err != nil {
+		return nil, err
+	}
+
+	if err := mc.readPackets(int(columnCount)); err != nil {
+		return nil, err
 	}
 
 	return stmt, err
@@ -415,11 +415,8 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 		rows.mc = mc
 		rows.rs.columns = []mysqlField{{fieldType: fieldTypeVarChar}}
 
-		if resLen > 0 {
-			// Columns
-			if err := mc.readUntilEOF(); err != nil {
-				return nil, err
-			}
+		if err := mc.readPackets(resLen); err != nil {
+			return nil, err
 		}
 
 		dest := make([]driver.Value, resLen)
