@@ -136,6 +136,14 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 
+	for _, stmt := range c.cfg.InitStatements {
+		err = mc.exec(stmt)
+		if err != nil {
+			mc.Close()
+			return nil, err
+		}
+	}
+
 	return mc, nil
 }
 
