@@ -492,6 +492,24 @@ However, many want to scan MySQL `DATE` and `DATETIME` values into `time.Time` v
 
 **Caution:** As of Go 1.1, this makes `time.Time` the only variable type you can scan `DATE` and `DATETIME` values into. This breaks for example [`sql.RawBytes` support](https://github.com/go-sql-driver/mysql/wiki/Examples#rawbytes).
 
+### Default/Initial Statements
+At times, there may be a need to define a set of statements that should get executed for every connection.
+
+You can set these on the `*mysql.Config` object.
+
+```go
+config, err := mysql.ParseDSN("connection string")
+if err != nil {
+  // handle error.
+}
+config.InitStatements = append(config.InitStatements, "SET aurora_replica_read_consistency=SESSION")
+connector, err := mysql.NewConnector(config)
+if err != nil {
+  // handle error.
+}
+db := sql.OpenDB(connector)
+```
+
 
 ### Unicode support
 Since version 1.5 Go-MySQL-Driver automatically uses the collation ` utf8mb4_general_ci` by default.
