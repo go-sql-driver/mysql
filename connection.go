@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -37,12 +38,13 @@ type mysqlConn struct {
 	reset            bool // set when the Go SQL package calls ResetSession
 
 	// for context support (Go 1.8+)
-	watching bool
-	watcher  chan<- context.Context
-	closech  chan struct{}
-	finished chan<- struct{}
-	canceled atomicError // set non-nil if conn is canceled
-	closed   atomicBool  // set when conn is closed, before closech is closed
+	watching     bool
+	watcher      chan<- context.Context
+	closech      chan struct{}
+	finished     chan<- struct{}
+	canceled     atomicError // set non-nil if conn is canceled
+	closed       atomicBool  // set when conn is closed, before closech is closed
+	connectionId []byte
 }
 
 // Handles parameters set in DSN after the connection is established
@@ -430,10 +432,23 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 	return nil, err
 }
 
+const cancelConnectionStartTimeout = time.Second
+
 // finish is called when the query has canceled.
 func (mc *mysqlConn) cancel(err error) {
 	mc.canceled.Set(err)
 	mc.cleanup()
+	cancelContext, _ := context.WithTimeout(context.Background(), cancelConnectionStartTimeout)
+	connector := connector{mc.cfg}
+	cancelConn, err := connector.Connect(cancelContext)
+	if err != nil {
+		errLog.Print(err)
+		return
+	}
+	defer cancelConn.Close()
+	if err := cancelConn.(*mysqlConn).exec(fmt.Sprintf("KILL CONNECTION %s", mc.connectionId)); err != nil {
+		errLog.Print(err)
+	}
 }
 
 // finish is called when the query has succeeded.

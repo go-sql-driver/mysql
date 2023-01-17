@@ -136,6 +136,19 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 
+	res, err := mc.Query("SELECT CONNECTION_ID()", nil)
+	if err != nil {
+		mc.Close()
+		return nil, err
+	}
+	var values = make([]driver.Value, 1)
+	if err := res.Next(values); err != nil {
+		mc.Close()
+		return nil, err
+	}
+	res.Close()
+	mc.connectionId = values[0].([]byte)
+
 	return mc, nil
 }
 

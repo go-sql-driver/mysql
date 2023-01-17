@@ -3209,3 +3209,33 @@ func TestConnectorTimeoutsWatchCancel(t *testing.T) {
 		t.Errorf("connection not closed")
 	}
 }
+
+func TestContextCancelRunningQuery(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		ctx := context.Background()
+		conn, err := dbt.db.Conn(ctx)
+		if err != nil {
+			dbt.Errorf("could not get connection, got %v", err)
+		}
+		row := conn.QueryRowContext(ctx, "SELECT CONNECTION_ID()")
+		var connId string
+		if err := row.Scan(&connId); err != nil {
+			dbt.Errorf("could not get connection ID, got %v", err)
+		}
+		cancelCtx, _ := context.WithTimeout(ctx, time.Second)
+		if _, err := conn.ExecContext(cancelCtx, "SELECT SLEEP(60)"); err != context.DeadlineExceeded {
+			dbt.Errorf("expected context.DeadlineExceeded, got %v", err)
+		}
+		time.Sleep(time.Millisecond * 300) // Give the old connection a little time to clean up after itself
+		ids, err := dbt.db.QueryContext(ctx, "SELECT Id FROM INFORMATION_SCHEMA.PROCESSLIST")
+		for ids.Next() {
+			var id string
+			if err := ids.Scan(&id); err != nil {
+				dbt.Errorf("could not scan connection ID, got %v", err)
+			}
+			if id == connId {
+				dbt.Errorf("expected connection %s to be canceled, but it's still alive", connId)
+			}
+		}
+	})
+}
