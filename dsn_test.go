@@ -48,6 +48,12 @@ var testDSNs = []struct {
 	"user:p@ss(word)@tcp([de:ad:be:ef::ca:fe]:80)/dbname?loc=Local",
 	&Config{User: "user", Passwd: "p@ss(word)", Net: "tcp", Addr: "[de:ad:be:ef::ca:fe]:80", DBName: "dbname", Collation: "utf8mb4_general_ci", Loc: time.Local, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
+	"foo%3Abar%40%28baz%29@/dbname",
+	&Config{User: "foo:bar@(baz)", Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+}, {
+	"foo%3Abar%40%28baz%29:abc@/dbname",
+	&Config{User: "foo:bar@(baz)", Passwd: "abc", Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+}, {
 	"/dbname",
 	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
@@ -300,6 +306,17 @@ func TestDSNUnsafeCollation(t *testing.T) {
 	_, err = ParseDSN("/dbname?collation=utf8mb4_general_ci&interpolateParams=true")
 	if err != nil {
 		t.Errorf("expected %v, got %v", nil, err)
+	}
+}
+
+func TestEscapedUser(t *testing.T) {
+	expected := "foo%3Abar%40%28baz%29@/"
+	cfg := NewConfig()
+	cfg.User = "foo:bar@(baz)"
+	actual := cfg.FormatDSN()
+
+	if actual != expected {
+		t.Errorf("user was not escaped: want: %#v, got %#v", expected, actual)
 	}
 }
 
