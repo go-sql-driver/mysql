@@ -183,24 +183,24 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 
 // Handshake Initialization Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::Handshake
-func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err error) {
+func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, connectionId uint32, err error) {
 	data, err = mc.readPacket()
 	if err != nil {
 		// for init we can rewrite this to ErrBadConn for sql.Driver to retry, since
 		// in connection initialization we don't risk retrying non-idempotent actions.
 		if err == ErrInvalidConn {
-			return nil, "", driver.ErrBadConn
+			return nil, "", 0, driver.ErrBadConn
 		}
 		return
 	}
 
 	if data[0] == iERR {
-		return nil, "", mc.handleErrorPacket(data)
+		return nil, "", 0, mc.handleErrorPacket(data)
 	}
 
 	// protocol version [1 byte]
 	if data[0] < minProtocolVersion {
-		return nil, "", fmt.Errorf(
+		return nil, "", 0, fmt.Errorf(
 			"unsupported protocol version %d. Version %d or higher is required",
 			data[0],
 			minProtocolVersion,
@@ -208,8 +208,11 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 	}
 
 	// server version [null terminated string]
+	pos := 1 + bytes.IndexByte(data[1:], 0x00) + 1
+
 	// connection id [4 bytes]
-	pos := 1 + bytes.IndexByte(data[1:], 0x00) + 1 + 4
+	connectionId = binary.LittleEndian.Uint32(data[pos:])
+	pos += 4
 
 	// first part of the password cipher [8 bytes]
 	authData := data[pos : pos+8]
@@ -220,13 +223,13 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 	// capability flags (lower 2 bytes) [2 bytes]
 	mc.flags = clientFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
 	if mc.flags&clientProtocol41 == 0 {
-		return nil, "", ErrOldProtocol
+		return nil, "", 0, ErrOldProtocol
 	}
 	if mc.flags&clientSSL == 0 && mc.cfg.TLS != nil {
 		if mc.cfg.AllowFallbackToPlaintext {
 			mc.cfg.TLS = nil
 		} else {
-			return nil, "", ErrNoTLS
+			return nil, "", 0, ErrNoTLS
 		}
 	}
 	pos += 2
@@ -265,13 +268,13 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 		// make a memory safe copy of the cipher slice
 		var b [20]byte
 		copy(b[:], authData)
-		return b[:], plugin, nil
+		return b[:], plugin, connectionId, nil
 	}
 
 	// make a memory safe copy of the cipher slice
 	var b [8]byte
 	copy(b[:], authData)
-	return b[:], plugin, nil
+	return b[:], plugin, connectionId, nil
 }
 
 // Client Authentication Packet
