@@ -63,6 +63,7 @@ type Config struct {
 	MultiStatements          bool // Allow multiple statements in one query
 	ParseTime                bool // Parse time values to time.Time
 	RejectReadOnly           bool // Reject read-only connections
+	KillCanceledQueries      bool // Send a KILL CONNECTION command to the server when a running query is canceled
 }
 
 // NewConfig creates a new Config and sets default values.
@@ -260,6 +261,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.RejectReadOnly {
 		writeDSNParam(&buf, &hasParam, "rejectReadOnly", "true")
+	}
+
+	if cfg.KillCanceledQueries {
+		writeDSNParam(&buf, &hasParam, "killCanceledQueries", "true")
 	}
 
 	if len(cfg.ServerPubKey) > 0 {
@@ -501,6 +506,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		case "rejectReadOnly":
 			var isBool bool
 			cfg.RejectReadOnly, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+
+		// Kill canceled queries
+		case "killCanceledQueries":
+			var isBool bool
+			cfg.KillCanceledQueries, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}

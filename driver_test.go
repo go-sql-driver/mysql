@@ -3211,7 +3211,7 @@ func TestConnectorTimeoutsWatchCancel(t *testing.T) {
 }
 
 func TestContextCancelRunningQuery(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTests(t, dsn+"&killCanceledQueries=true", func(dbt *DBTest) {
 		ctx := context.Background()
 		conn, err := dbt.db.Conn(ctx)
 		if err != nil {
@@ -3226,7 +3226,6 @@ func TestContextCancelRunningQuery(t *testing.T) {
 		if _, err := conn.ExecContext(cancelCtx, "SELECT SLEEP(60)"); err != context.DeadlineExceeded {
 			dbt.Errorf("expected context.DeadlineExceeded, got %v", err)
 		}
-		time.Sleep(time.Millisecond * 300) // Give the old connection a little time to clean up after itself
 		ids, err := dbt.db.QueryContext(ctx, "SELECT Id FROM INFORMATION_SCHEMA.PROCESSLIST")
 		for ids.Next() {
 			var id string

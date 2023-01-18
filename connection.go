@@ -432,13 +432,20 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 	return nil, err
 }
 
-const cancelConnectionStartTimeout = time.Second
-
 // cancel is called when the query has canceled.
 func (mc *mysqlConn) cancel(err error) {
 	mc.canceled.Set(err)
-	defer mc.cleanup()
-	if mc.connectionId == nil { // Handshake hasn't been performed yet
+	if mc.cfg.KillCanceledQueries {
+		mc.killConnection()
+	}
+	mc.cleanup()
+}
+
+const cancelConnectionStartTimeout = time.Second
+
+// killConnection opens a second connection and executes a KILL CONNECTION statement for this connection's ID on it.
+func (mc *mysqlConn) killConnection() {
+	if mc.connectionId == nil { // Handshake hasn't been performed yet, so we don't have a connection ID
 		return
 	}
 	cancelContext, _ := context.WithTimeout(context.Background(), cancelConnectionStartTimeout)
