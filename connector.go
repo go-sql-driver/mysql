@@ -12,10 +12,15 @@ import (
 	"context"
 	"database/sql/driver"
 	"net"
+	"runtime"
+	"sync"
+	"time"
 )
 
 type connector struct {
 	cfg *Config // immutable private copy.
+
+	internalConnections sync.Pool
 }
 
 // Connect implements driver.Connector interface.
@@ -29,6 +34,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		maxWriteSize:     maxPacketSize - 1,
 		closech:          make(chan struct{}),
 		cfg:              c.cfg,
+		connector:        c,
 	}
 	mc.parseTime = mc.cfg.ParseTime
 
@@ -145,4 +151,39 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 // Driver returns &MySQLDriver{}.
 func (c *connector) Driver() driver.Driver {
 	return &MySQLDriver{}
+}
+
+const internalConnectionStartTimeout = time.Second
+
+func (c *connector) getInternalConnection() (*mysqlConn, error) {
+	startContext, cancel := context.WithTimeout(context.Background(), internalConnectionStartTimeout)
+	defer cancel()
+	var connection *mysqlConn
+	for connection == nil {
+		var hasCachedConn bool
+		connection, hasCachedConn = c.internalConnections.Get().(*mysqlConn)
+		if !hasCachedConn {
+			driverConnection, err := c.Connect(startContext)
+			if err != nil {
+				return nil, err
+			}
+			connection = driverConnection.(*mysqlConn)
+			runtime.SetFinalizer(connection, func(c *mysqlConn) {
+				c.Close()
+			})
+		} else {
+			// Verify that connection is still alive
+			if err := connection.Ping(startContext); err == driver.ErrBadConn {
+				connection = nil
+			} else if err != nil {
+				return nil, err
+			}
+		}
+	}
+	return connection, nil
+
+}
+
+func (c *connector) releaseInternalConnection(conn *mysqlConn) {
+	c.internalConnections.Put(conn)
 }

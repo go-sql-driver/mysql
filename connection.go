@@ -45,6 +45,8 @@ type mysqlConn struct {
 	canceled     atomicError // set non-nil if conn is canceled
 	closed       atomicBool  // set when conn is closed, before closech is closed
 	connectionId *uint32
+
+	connector *connector
 }
 
 // Handles parameters set in DSN after the connection is established
@@ -441,22 +443,18 @@ func (mc *mysqlConn) cancel(err error) {
 	mc.cleanup()
 }
 
-const cancelConnectionStartTimeout = time.Second
-
 // killConnection opens a second connection and executes a KILL CONNECTION statement for this connection's ID on it.
 func (mc *mysqlConn) killConnection() {
 	if mc.connectionId == nil { // Handshake hasn't been performed yet, so we don't have a connection ID
 		return
 	}
-	cancelContext, _ := context.WithTimeout(context.Background(), cancelConnectionStartTimeout)
-	connector := connector{mc.cfg}
-	cancelConn, err := connector.Connect(cancelContext)
+	cancelConn, err := mc.connector.getInternalConnection()
 	if err != nil {
 		errLog.Print(err)
 		return
 	}
-	defer cancelConn.Close()
-	if err := cancelConn.(*mysqlConn).exec(fmt.Sprintf("KILL CONNECTION %d", *mc.connectionId)); err != nil {
+	defer mc.connector.releaseInternalConnection(cancelConn)
+	if err := cancelConn.exec(fmt.Sprintf("KILL CONNECTION %d", *mc.connectionId)); err != nil {
 		errLog.Print(err)
 	}
 }
