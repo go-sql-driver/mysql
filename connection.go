@@ -44,7 +44,7 @@ type mysqlConn struct {
 	finished     chan<- struct{}
 	canceled     atomicError // set non-nil if conn is canceled
 	closed       atomicBool  // set when conn is closed, before closech is closed
-	connectionId *uint32
+	connectionId int64
 
 	connector *connector
 }
@@ -445,7 +445,7 @@ func (mc *mysqlConn) cancel(err error) {
 
 // killConnection opens a second connection and executes a KILL CONNECTION statement for this connection's ID on it.
 func (mc *mysqlConn) killConnection() {
-	if mc.connectionId == nil { // Handshake hasn't been performed yet, so we don't have a connection ID
+	if mc.connectionId == -1 { // Handshake hasn't been performed yet, so we don't have a connection ID
 		return
 	}
 	cancelConn, err := mc.connector.getInternalConnection()
@@ -454,7 +454,7 @@ func (mc *mysqlConn) killConnection() {
 		return
 	}
 	defer mc.connector.releaseInternalConnection(cancelConn)
-	if err := cancelConn.exec(fmt.Sprintf("KILL CONNECTION %d", *mc.connectionId)); err != nil {
+	if err := cancelConn.exec(fmt.Sprintf("KILL CONNECTION %d", mc.connectionId)); err != nil {
 		errLog.Print(err)
 	}
 }

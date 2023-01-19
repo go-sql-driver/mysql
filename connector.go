@@ -35,6 +35,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		closech:          make(chan struct{}),
 		cfg:              c.cfg,
 		connector:        c,
+		connectionId:     -1,
 	}
 	mc.parseTime = mc.cfg.ParseTime
 
@@ -142,7 +143,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 
-	mc.connectionId = &connectionId
+	mc.connectionId = int64(connectionId)
 
 	return mc, nil
 }
