@@ -196,7 +196,7 @@ func (cfg *Config) FormatDSN() string {
 
 	// /dbname
 	buf.WriteByte('/')
-	buf.WriteString(cfg.DBName)
+	buf.WriteString(url.QueryEscape(cfg.DBName))
 
 	// [?param1=value1&...&paramN=valueN]
 	hasParam := false
@@ -358,7 +358,9 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 					break
 				}
 			}
-			cfg.DBName = dsn[i+1 : j]
+			if cfg.DBName, err = url.QueryUnescape(dsn[i+1 : j]); err != nil {
+				return nil, fmt.Errorf("invalid DSN: failed to unescape database name: %v", err)
+			}
 
 			break
 		}
