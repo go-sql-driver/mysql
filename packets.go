@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -329,6 +331,8 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrOSValue)
 	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPlatform)
 	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPlatformValue)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPid)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, strconv.Itoa(os.Getpid()))
 
 	// user-defined connection attributes
 	for _, connAttr := range strings.Split(mc.cfg.ConnectionAttributes, ",") {
