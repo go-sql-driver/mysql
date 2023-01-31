@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 	"time"
 )
 
@@ -285,6 +286,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		clientLocalFiles |
 		clientPluginAuth |
 		clientMultiResults |
+		clientConnectAttrs |
 		mc.flags&clientLongFlag
 
 	if mc.cfg.ClientFoundRows {
@@ -317,6 +319,30 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		clientFlags |= clientConnectWithDB
 		pktLen += n + 1
 	}
+
+	connAttrsBuf := make([]byte, 0, 100)
+
+	// default connection attributes
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrClientName)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrClientNameValue)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrOS)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrOSValue)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPlatform)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPlatformValue)
+
+	// user-defined connection attributes
+	for _, connAttr := range strings.Split(mc.cfg.ConnectionAttributes, ",") {
+		attr := strings.Split(connAttr, ":")
+		if len(attr) != 2 {
+			continue
+		}
+		for _, v := range attr {
+			connAttrsBuf = appendLengthEncodedString(connAttrsBuf, v)
+		}
+	}
+
+	// 1 byte to store length of all key-values
+	pktLen += len(connAttrsBuf) + 1
 
 	// Calculate packet length and get buffer with that size
 	data, err := mc.buf.takeSmallBuffer(pktLen + 4)
@@ -393,6 +419,11 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	pos += copy(data[pos:], plugin)
 	data[pos] = 0x00
 	pos++
+
+	// Connection Attributes
+	data[pos] = byte(len(connAttrsBuf))
+	pos++
+	pos += copy(data[pos:], connAttrsBuf)
 
 	// Send Auth packet
 	return mc.writePacket(data[:pos])

@@ -3209,3 +3209,50 @@ func TestConnectorTimeoutsWatchCancel(t *testing.T) {
 		t.Errorf("connection not closed")
 	}
 }
+
+func TestConnectionAttributes(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	attr1 := "attr1"
+	value1 := "value1"
+	attr2 := "foo"
+	value2 := "boo"
+	dsn += fmt.Sprintf("&connectionAttributes=%s:%s,%s:%s", attr1, value1, attr2, value2)
+
+	var db *sql.DB
+	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
+		db, err = sql.Open("mysql", dsn)
+		if err != nil {
+			t.Fatalf("error connecting: %s", err.Error())
+		}
+		defer db.Close()
+	}
+
+	dbt := &DBTest{t, db}
+
+	var attrValue string
+	queryString := "SELECT ATTR_VALUE FROM performance_schema.session_account_connect_attrs WHERE PROCESSLIST_ID = CONNECTION_ID() and ATTR_NAME = ?"
+	rows := dbt.mustQuery(queryString, connAttrClientName)
+	if rows.Next() {
+		rows.Scan(&attrValue)
+		if attrValue != connAttrClientNameValue {
+			dbt.Errorf("expected %q, got %q", connAttrClientNameValue, attrValue)
+		}
+	} else {
+		dbt.Errorf("no data")
+	}
+	rows.Close()
+
+	rows = dbt.mustQuery(queryString, attr2)
+	if rows.Next() {
+		rows.Scan(&attrValue)
+		if attrValue != value2 {
+			dbt.Errorf("expected %q, got %q", value2, attrValue)
+		}
+	} else {
+		dbt.Errorf("no data")
+	}
+	rows.Close()
+}
