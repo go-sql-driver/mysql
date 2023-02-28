@@ -3232,14 +3232,6 @@ func TestConnectionAttributes(t *testing.T) {
 
 	dbt := &DBTest{t, db}
 
-	var version string
-	if err := dbt.db.QueryRow("SELECT @@version").Scan(&version); err != nil {
-		dbt.Fatalf("%s", err.Error())
-	}
-	if strings.Contains(strings.ToLower(version), "mariadb") {
-		t.Skip(`TODO: Support adding connection attributes in MariaDB`)
-	}
-
 	var attrValue string
 	queryString := "SELECT ATTR_VALUE FROM performance_schema.session_account_connect_attrs WHERE PROCESSLIST_ID = CONNECTION_ID() and ATTR_NAME = ?"
 	rows := dbt.mustQuery(queryString, connAttrClientName)
