@@ -23,8 +23,9 @@ jobs:
           import os
           go = [
               # Keep the most recent production release at the top
-              '1.19',
+              '1.20',
               # Older production releases
+              '1.19',
               '1.18',
               '1.17',
               '1.16',
@@ -36,6 +37,7 @@ jobs:
               '8.0',
               '5.7',
               '5.6',
+              'mariadb-10.11',
               'mariadb-10.6',
               'mariadb-10.5',
               'mariadb-10.4',
