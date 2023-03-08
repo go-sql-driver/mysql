@@ -71,10 +71,10 @@ func (mc *mysqlConn) handleParams() (err error) {
 				cmdSet.Grow(4 + len(param) + 1 + len(val) + 30*(len(mc.cfg.Params)-1))
 				cmdSet.WriteString("SET ")
 			} else {
-				cmdSet.WriteByte(',')
+				cmdSet.WriteString(", ")
 			}
 			cmdSet.WriteString(param)
-			cmdSet.WriteByte('=')
+			cmdSet.WriteString(" = ")
 			cmdSet.WriteString(val)
 		}
 	}
