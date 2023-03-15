@@ -51,6 +51,9 @@ var testDSNs = []struct {
 	"/dbname",
 	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
+	"/dbname%2Fwithslash",
+	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname/withslash", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+}, {
 	"@/",
 	&Config{Net: "tcp", Addr: "127.0.0.1:3306", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
@@ -76,30 +79,32 @@ var testDSNs = []struct {
 
 func TestDSNParser(t *testing.T) {
 	for i, tst := range testDSNs {
-		cfg, err := ParseDSN(tst.in)
-		if err != nil {
-			t.Error(err.Error())
-		}
+		t.Run(tst.in, func(t *testing.T) {
+			cfg, err := ParseDSN(tst.in)
+			if err != nil {
+				t.Error(err.Error())
+				return
+			}
 
-		// pointer not static
-		cfg.TLS = nil
+			// pointer not static
+			cfg.TLS = nil
 
-		if !reflect.DeepEqual(cfg, tst.out) {
-			t.Errorf("%d. ParseDSN(%q) mismatch:\ngot  %+v\nwant %+v", i, tst.in, cfg, tst.out)
-		}
+			if !reflect.DeepEqual(cfg, tst.out) {
+				t.Errorf("%d. ParseDSN(%q) mismatch:\ngot  %+v\nwant %+v", i, tst.in, cfg, tst.out)
+			}
+		})
 	}
 }
 
 func TestDSNParserInvalid(t *testing.T) {
 	var invalidDSNs = []string{
-		"@net(addr/",                            // no closing brace
-		"@tcp(/",                                // no closing brace
-		"tcp(/",                                 // no closing brace
-		"(/",                                    // no closing brace
-		"net(addr)//",                           // unescaped
-		"User:pass@tcp(1.2.3.4:3306)",           // no trailing slash
-		"net()/",                                // unknown default addr
-		"user:pass@tcp(127.0.0.1:3306)/db/name", // invalid dbname
+		"@net(addr/",                  // no closing brace
+		"@tcp(/",                      // no closing brace
+		"tcp(/",                       // no closing brace
+		"(/",                          // no closing brace
+		"net(addr)//",                 // unescaped
+		"User:pass@tcp(1.2.3.4:3306)", // no trailing slash
+		"net()/",                      // unknown default addr
 		"user:password@/dbname?allowFallbackToPlaintext=PREFERRED", // wrong bool flag
 		//"/dbname?arg=/some/unescaped/path",
 	}
@@ -113,27 +118,29 @@ func TestDSNParserInvalid(t *testing.T) {
 
 func TestDSNReformat(t *testing.T) {
 	for i, tst := range testDSNs {
-		dsn1 := tst.in
-		cfg1, err := ParseDSN(dsn1)
-		if err != nil {
-			t.Error(err.Error())
-			continue
-		}
-		cfg1.TLS = nil // pointer not static
-		res1 := fmt.Sprintf("%+v", cfg1)
+		t.Run(tst.in, func(t *testing.T) {
+			dsn1 := tst.in
+			cfg1, err := ParseDSN(dsn1)
+			if err != nil {
+				t.Error(err.Error())
+				return
+			}
+			cfg1.TLS = nil // pointer not static
+			res1 := fmt.Sprintf("%+v", cfg1)
 
-		dsn2 := cfg1.FormatDSN()
-		cfg2, err := ParseDSN(dsn2)
-		if err != nil {
-			t.Error(err.Error())
-			continue
-		}
-		cfg2.TLS = nil // pointer not static
-		res2 := fmt.Sprintf("%+v", cfg2)
+			dsn2 := cfg1.FormatDSN()
+			cfg2, err := ParseDSN(dsn2)
+			if err != nil {
+				t.Error(err.Error())
+				return
+			}
+			cfg2.TLS = nil // pointer not static
+			res2 := fmt.Sprintf("%+v", cfg2)
 
-		if res1 != res2 {
-			t.Errorf("%d. %q does not match %q", i, res2, res1)
-		}
+			if res1 != res2 {
+				t.Errorf("%d. %q does not match %q", i, res2, res1)
+			}
+		})
 	}
 }
 
