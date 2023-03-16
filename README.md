@@ -114,6 +114,11 @@ This has the same effect as an empty DSN string:
 
 ```
 
+If your database name includes a slash, use the [URL encoding](https://en.wikipedia.org/wiki/Percent-encoding) `%2F`:
+```
+/dbname%2Fwithslash
+```
+
 Alternatively, [Config.FormatDSN](https://godoc.org/github.com/go-sql-driver/mysql#Config.FormatDSN) can be used to create a DSN string by filling a struct.
 
 #### Password
