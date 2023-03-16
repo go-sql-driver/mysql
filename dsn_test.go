@@ -98,13 +98,14 @@ func TestDSNParser(t *testing.T) {
 
 func TestDSNParserInvalid(t *testing.T) {
 	var invalidDSNs = []string{
-		"@net(addr/",                  // no closing brace
-		"@tcp(/",                      // no closing brace
-		"tcp(/",                       // no closing brace
-		"(/",                          // no closing brace
-		"net(addr)//",                 // unescaped
-		"User:pass@tcp(1.2.3.4:3306)", // no trailing slash
-		"net()/",                      // unknown default addr
+		"@net(addr/",                            // no closing brace
+		"@tcp(/",                                // no closing brace
+		"tcp(/",                                 // no closing brace
+		"(/",                                    // no closing brace
+		"net(addr)//",                           // unescaped
+		"User:pass@tcp(1.2.3.4:3306)",           // no trailing slash
+		"net()/",                                // unknown default addr
+		"user:pass@tcp(127.0.0.1:3306)/db/name", // invalid dbname
 		"user:password@/dbname?allowFallbackToPlaintext=PREFERRED", // wrong bool flag
 		//"/dbname?arg=/some/unescaped/path",
 	}
