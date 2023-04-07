@@ -179,6 +179,7 @@ func TestPingErrInvalidConn(t *testing.T) {
 		buf:              newBuffer(nc),
 		maxAllowedPacket: defaultMaxAllowedPacket,
 		closech:          make(chan struct{}),
+		cfg:              NewConfig(),
 	}
 
 	err := ms.Ping(context.Background())
