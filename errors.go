@@ -27,7 +27,7 @@ var (
 	ErrOldProtocol       = errors.New("MySQL server does not support required protocol 41+")
 	ErrPktSync           = errors.New("commands out of sync. You can't run this command now")
 	ErrPktSyncMul        = errors.New("commands out of sync. Did you run multiple statements at once?")
-	ErrPktTooLarge       = errors.New("packet for query is too large. Try adjusting the 'max_allowed_packet' variable on the server")
+	ErrPktTooLarge       = errors.New("packet for query is too large. Try adjusting the `Config.MaxAllowedPacket`")
 	ErrBusyBuffer        = errors.New("busy buffer")
 
 	// errBadConnNoWrite is used for connection errors where nothing was sent to the database yet.
