@@ -282,7 +282,7 @@ Please keep in mind, that param values must be [url.QueryEscape](https://golang.
 ##### `maxAllowedPacket`
 ```
 Type:          decimal number
-Default:       4194304
+Default:       64*1024*1024
 ```
 
 Max packet size allowed in bytes. The default value is 4 MiB and should be adjusted to match the server settings. `maxAllowedPacket=0` can be used to automatically fetch the `max_allowed_packet` variable from server *on every connection*.
