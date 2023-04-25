@@ -27,11 +27,6 @@ jobs:
               # Older production releases
               '1.19',
               '1.18',
-              '1.17',
-              '1.16',
-              '1.15',
-              '1.14',
-              '1.13',
           ]
           mysql = [
               '8.0',
@@ -47,7 +42,7 @@ jobs:
           includes = []
           # Go versions compatibility check
           for v in go[1:]:
-                  includes.append({'os': 'ubuntu-latest', 'go': v, 'mysql': mysql[0]})
+              includes.append({'os': 'ubuntu-latest', 'go': v, 'mysql': mysql[0]})
 
           matrix = {
               # OS vs MySQL versions
@@ -69,10 +64,10 @@ jobs:
       matrix: ${{ fromJSON(needs.list.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go }}
-      - uses: shogo82148/actions-setup-mysql@v1.15.0
+      - uses: shogo82148/actions-setup-mysql@v1.16.0
         with:
           mysql-version: ${{ matrix.mysql }}
           user: ${{ env.MYSQL_TEST_USER }}
