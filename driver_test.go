@@ -2703,7 +2703,7 @@ func TestContextBeginIsolationLevel(t *testing.T) {
 		if err := row.Scan(&v); err != nil {
 			dbt.Fatal(err)
 		}
-		// Because writer transaction wasn't commited yet, it should be available
+		// Because writer transaction wasn't committed yet, it should be available
 		if v != 0 {
 			dbt.Errorf("expected val to be 0, got %d", v)
 		}
@@ -2717,7 +2717,7 @@ func TestContextBeginIsolationLevel(t *testing.T) {
 		if err := row.Scan(&v); err != nil {
 			dbt.Fatal(err)
 		}
-		// Data written by writer transaction is already commited, it should be selectable
+		// Data written by writer transaction is already committed, it should be selectable
 		if v != 1 {
 			dbt.Errorf("expected val to be 1, got %d", v)
 		}
