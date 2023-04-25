@@ -68,7 +68,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 		default:
 			if cmdSet.Len() == 0 {
 				// Heuristic: 29 chars for each other key=value to reduce reallocations
-				cmdSet.Grow(4 + len(param) + 1 + len(val) + 30*(len(mc.cfg.Params)-1))
+				cmdSet.Grow(4 + len(param) + 3 + len(val) + 30*(len(mc.cfg.Params)-1))
 				cmdSet.WriteString("SET ")
 			} else {
 				cmdSet.WriteString(", ")
