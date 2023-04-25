@@ -1,3 +1,16 @@
+## Version 1.7.1 (2023-04-25)
+
+Changes:
+
+  - bump actions/checkout@v3 and actions/setup-go@v3 (#1375)
+  - Add go1.20 and mariadb10.11 to the testing matrix (#1403)
+  - Increase default maxAllowedPacket size. (#1411)
+
+Bugfixes:
+
+  - Use SET syntax as specified in the MySQL documentation (#1402)
+
+
 ## Version 1.7 (2022-11-29)
 
 Changes:
