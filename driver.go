@@ -55,6 +55,17 @@ func RegisterDialContext(net string, dial DialContextFunc) {
 	dials[net] = dial
 }
 
+// UnregisterDialContext unregisters a custom dial function to free ressources.
+func UnregisterDialContext(net string) {
+	dialsLock.Lock()
+	defer dialsLock.Unlock()
+	if dials != nil {
+		if _, ok := dials[net]; ok {
+			delete(dials, net)
+		}
+	}
+}
+
 // RegisterDial registers a custom dial function. It can then be used by the
 // network address mynet(addr), where mynet is the registered new network.
 // addr is passed as a parameter to the dial function.
