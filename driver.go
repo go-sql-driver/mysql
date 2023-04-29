@@ -55,8 +55,8 @@ func RegisterDialContext(net string, dial DialContextFunc) {
 	dials[net] = dial
 }
 
-// UnregisterDialContext unregisters a custom dial function to free ressources.
-func UnregisterDialContext(net string) {
+// DeregisterDialContext removes the custom dial function registered with the given net.
+func DeregisterDialContext(net string) {
 	dialsLock.Lock()
 	defer dialsLock.Unlock()
 	if dials != nil {
