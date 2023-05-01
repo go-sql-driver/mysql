@@ -123,7 +123,8 @@ var (
 	scanTypeUint16    = reflect.TypeOf(uint16(0))
 	scanTypeUint32    = reflect.TypeOf(uint32(0))
 	scanTypeUint64    = reflect.TypeOf(uint64(0))
-	scanTypeRawBytes  = reflect.TypeOf(sql.RawBytes{})
+	scanTypeString    = reflect.TypeOf("")
+	scanTypeBytes     = reflect.TypeOf([]byte{})
 	scanTypeUnknown   = reflect.TypeOf(new(interface{}))
 )
 
@@ -188,11 +189,17 @@ func (mf *mysqlField) scanType() reflect.Type {
 		return scanTypeNullFloat
 
 	case fieldTypeDecimal, fieldTypeNewDecimal, fieldTypeVarChar,
-		fieldTypeBit, fieldTypeEnum, fieldTypeSet, fieldTypeTinyBLOB,
-		fieldTypeMediumBLOB, fieldTypeLongBLOB, fieldTypeBLOB,
-		fieldTypeVarString, fieldTypeString, fieldTypeGeometry, fieldTypeJSON,
+		fieldTypeBit, fieldTypeEnum, fieldTypeSet, fieldTypeJSON,
 		fieldTypeTime:
-		return scanTypeRawBytes
+		return scanTypeString
+
+	case fieldTypeTinyBLOB, fieldTypeMediumBLOB, fieldTypeLongBLOB, fieldTypeBLOB,
+		fieldTypeVarString, fieldTypeString, fieldTypeGeometry:
+		if mf.charSet == 63 /* binary */ {
+			return scanTypeBytes
+		} else {
+			return scanTypeString
+		}
 
 	case fieldTypeDate, fieldTypeNewDate,
 		fieldTypeTimestamp, fieldTypeDateTime:
