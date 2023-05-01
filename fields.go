@@ -189,12 +189,11 @@ func (mf *mysqlField) scanType() reflect.Type {
 		return scanTypeNullFloat
 
 	case fieldTypeDecimal, fieldTypeNewDecimal, fieldTypeVarChar,
-		fieldTypeBit, fieldTypeEnum, fieldTypeSet, fieldTypeJSON,
-		fieldTypeTime:
+		fieldTypeEnum, fieldTypeSet, fieldTypeJSON, fieldTypeTime:
 		return scanTypeString
 
-	case fieldTypeTinyBLOB, fieldTypeMediumBLOB, fieldTypeLongBLOB, fieldTypeBLOB,
-		fieldTypeVarString, fieldTypeString, fieldTypeGeometry:
+	case fieldTypeBit, fieldTypeTinyBLOB, fieldTypeMediumBLOB, fieldTypeLongBLOB,
+		fieldTypeBLOB, fieldTypeVarString, fieldTypeString, fieldTypeGeometry:
 		if mf.charSet == 63 /* binary */ {
 			return scanTypeBytes
 		} else {
