@@ -92,7 +92,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		// try the default auth plugin, if using the requested plugin failed
-		errLog.Print("could not use requested auth plugin '"+plugin+"': ", err.Error())
+		c.cfg.Logger.Print("could not use requested auth plugin '"+plugin+"': ", err.Error())
 		plugin = defaultAuthPlugin
 		authResp, err = mc.auth(authData, plugin)
 		if err != nil {
