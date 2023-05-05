@@ -40,8 +40,8 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
   * Optional placeholder interpolation
 
 ## Requirements
-  * Go 1.13 or higher. We aim to support the 3 latest versions of Go.
-  * MySQL (4.1+), MariaDB, Percona Server, Google CloudSQL or Sphinx (2.2.3+)
+  * Go 1.18 or higher. We aim to support the 3 latest versions of Go.
+  * MySQL (5.6+), MariaDB, Percona Server, Google CloudSQL or Sphinx (2.2.3+)
 
 ---------------------------------------
 
@@ -282,10 +282,10 @@ Please keep in mind, that param values must be [url.QueryEscape](https://golang.
 ##### `maxAllowedPacket`
 ```
 Type:          decimal number
-Default:       4194304
+Default:       64*1024*1024
 ```
 
-Max packet size allowed in bytes. The default value is 4 MiB and should be adjusted to match the server settings. `maxAllowedPacket=0` can be used to automatically fetch the `max_allowed_packet` variable from server *on every connection*.
+Max packet size allowed in bytes. The default value is 64 MiB and should be adjusted to match the server settings. `maxAllowedPacket=0` can be used to automatically fetch the `max_allowed_packet` variable from server *on every connection*.
 
 ##### `multiStatements`
 
