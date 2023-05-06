@@ -2945,7 +2945,10 @@ func TestRowsColumnTypes(t *testing.T) {
 				continue
 			}
 		}
-
+		// Avoid panic caused by nil scantype.
+		if t.Failed() {
+			return
+		}
 		values := make([]interface{}, len(tt))
 		for i := range values {
 			values[i] = reflect.New(types[i]).Interface()
