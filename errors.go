@@ -37,20 +37,26 @@ var (
 	errBadConnNoWrite = errors.New("bad connection")
 )
 
-var errLog = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
+var defaultLogger = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
 
 // Logger is used to log critical error messages.
 type Logger interface {
 	Print(v ...interface{})
 }
 
-// SetLogger is used to set the logger for critical errors.
+// NopLogger is a nop implementation of the Logger interface.
+type NopLogger struct{}
+
+// Print implements Logger interface.
+func (nl *NopLogger) Print(_ ...interface{}) {}
+
+// SetLogger is used to set the default logger for critical errors.
 // The initial logger is os.Stderr.
 func SetLogger(logger Logger) error {
 	if logger == nil {
 		return errors.New("logger is nil")
 	}
-	errLog = logger
+	defaultLogger = logger
 	return nil
 }
 
