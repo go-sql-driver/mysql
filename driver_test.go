@@ -2945,7 +2945,7 @@ func TestRowsColumnTypes(t *testing.T) {
 				continue
 			}
 		}
-		//Avoid：values is nil
+		// Avoid panic caused by nil scantype.
 		if t.Failed() {
 			return
 		}
