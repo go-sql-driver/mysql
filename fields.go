@@ -110,21 +110,23 @@ func (mf *mysqlField) typeDatabaseName() string {
 }
 
 var (
-	scanTypeFloat32   = reflect.TypeOf(float32(0))
-	scanTypeFloat64   = reflect.TypeOf(float64(0))
-	scanTypeInt8      = reflect.TypeOf(int8(0))
-	scanTypeInt16     = reflect.TypeOf(int16(0))
-	scanTypeInt32     = reflect.TypeOf(int32(0))
-	scanTypeInt64     = reflect.TypeOf(int64(0))
-	scanTypeNullFloat = reflect.TypeOf(sql.NullFloat64{})
-	scanTypeNullInt   = reflect.TypeOf(sql.NullInt64{})
-	scanTypeNullTime  = reflect.TypeOf(sql.NullTime{})
-	scanTypeUint8     = reflect.TypeOf(uint8(0))
-	scanTypeUint16    = reflect.TypeOf(uint16(0))
-	scanTypeUint32    = reflect.TypeOf(uint32(0))
-	scanTypeUint64    = reflect.TypeOf(uint64(0))
-	scanTypeRawBytes  = reflect.TypeOf(sql.RawBytes{})
-	scanTypeUnknown   = reflect.TypeOf(new(interface{}))
+	scanTypeFloat32    = reflect.TypeOf(float32(0))
+	scanTypeFloat64    = reflect.TypeOf(float64(0))
+	scanTypeInt8       = reflect.TypeOf(int8(0))
+	scanTypeInt16      = reflect.TypeOf(int16(0))
+	scanTypeInt32      = reflect.TypeOf(int32(0))
+	scanTypeInt64      = reflect.TypeOf(int64(0))
+	scanTypeNullFloat  = reflect.TypeOf(sql.NullFloat64{})
+	scanTypeNullInt    = reflect.TypeOf(sql.NullInt64{})
+	scanTypeNullTime   = reflect.TypeOf(sql.NullTime{})
+	scanTypeUint8      = reflect.TypeOf(uint8(0))
+	scanTypeUint16     = reflect.TypeOf(uint16(0))
+	scanTypeUint32     = reflect.TypeOf(uint32(0))
+	scanTypeUint64     = reflect.TypeOf(uint64(0))
+	scanTypeString     = reflect.TypeOf("")
+	scanTypeNullString = reflect.TypeOf(sql.NullString{})
+	scanTypeBytes      = reflect.TypeOf([]byte{})
+	scanTypeUnknown    = reflect.TypeOf(new(interface{}))
 )
 
 type mysqlField struct {
@@ -187,12 +189,18 @@ func (mf *mysqlField) scanType() reflect.Type {
 		}
 		return scanTypeNullFloat
 
+	case fieldTypeBit, fieldTypeTinyBLOB, fieldTypeMediumBLOB, fieldTypeLongBLOB,
+		fieldTypeBLOB, fieldTypeVarString, fieldTypeString, fieldTypeGeometry:
+		if mf.charSet == 63 /* binary */ {
+			return scanTypeBytes
+		}
+		fallthrough
 	case fieldTypeDecimal, fieldTypeNewDecimal, fieldTypeVarChar,
-		fieldTypeBit, fieldTypeEnum, fieldTypeSet, fieldTypeTinyBLOB,
-		fieldTypeMediumBLOB, fieldTypeLongBLOB, fieldTypeBLOB,
-		fieldTypeVarString, fieldTypeString, fieldTypeGeometry, fieldTypeJSON,
-		fieldTypeTime:
-		return scanTypeRawBytes
+		fieldTypeEnum, fieldTypeSet, fieldTypeJSON, fieldTypeTime:
+		if mf.flags&flagNotNULL != 0 {
+			return scanTypeString
+		}
+		return scanTypeNullString
 
 	case fieldTypeDate, fieldTypeNewDate,
 		fieldTypeTimestamp, fieldTypeDateTime:
