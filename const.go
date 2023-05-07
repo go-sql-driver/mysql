@@ -20,7 +20,7 @@ const (
 	// Connection attributes
 	// See https://dev.mysql.com/doc/refman/8.0/en/performance-schema-connection-attribute-tables.html#performance-schema-connection-attributes-available
 	connAttrClientName      = "_client_name"
-	connAttrClientNameValue = "GO-MySQL-Driver"
+	connAttrClientNameValue = "Go-MySQL-Driver"
 	connAttrOS              = "_os"
 	connAttrOSValue         = runtime.GOOS
 	connAttrPlatform        = "_platform"
