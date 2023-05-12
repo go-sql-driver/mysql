@@ -37,6 +37,9 @@ func (mf *mysqlField) typeDatabaseName() string {
 	case fieldTypeGeometry:
 		return "GEOMETRY"
 	case fieldTypeInt24:
+		if mf.flags&flagUnsigned != 0 {
+			return "UNSIGNED MEDIUMINT"
+		}
 		return "MEDIUMINT"
 	case fieldTypeJSON:
 		return "JSON"
