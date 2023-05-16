@@ -295,7 +295,7 @@ Valid Values:   true, false
 Default:        false
 ```
 
-Allow multiple statements in one query. While this allows batch queries, it also greatly increases the risk of SQL injections. Only the result of the first query is returned, all other results are silently discarded.
+Allow multiple statements in one query. While this allows batch queries. Only the result of the first query is returned, all other results are silently discarded.
 
 When `multiStatements` is used, `?` parameters must only be used in the first statement.
 
