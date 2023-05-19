@@ -182,7 +182,15 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	columnCount, err := stmt.readPrepareResultPacket()
 	if err == nil {
 		if stmt.paramCount > 0 {
-			if err = mc.readUntilEOF(); err != nil {
+			// FIXME - seems like a bug in MySQL (or it's intended).
+			// There's no EOF return after parameters.
+			// However, this behavior isn't consistent to Maria DB.
+			if mc.flags&clientDeprecateEOF == 0 {
+				if err = mc.readUntilEOF(); err != nil {
+					return nil, err
+				}
+			}
+			if err = mc.readExactPackets(stmt.paramCount); err != nil {
 				return nil, err
 			}
 		}

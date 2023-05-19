@@ -215,7 +215,6 @@ func (rows *textRows) Next(dest []driver.Value) error {
 		if err := mc.error(); err != nil {
 			return err
 		}
-
 		// Fetch next row from stream
 		return rows.readRow(dest)
 	}
