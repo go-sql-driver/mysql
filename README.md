@@ -114,7 +114,8 @@ This has the same effect as an empty DSN string:
 
 ```
 
-If your database name includes a slash, use the [URL encoding](https://en.wikipedia.org/wiki/Percent-encoding) `%2F`:
+`dbname` is escaped by [PathEscape()]()https://pkg.go.dev/net/url#PathEscape) since v1.8.0. If your database name is `dbname/withslash`, it becomes:
+
 ```
 /dbname%2Fwithslash
 ```
