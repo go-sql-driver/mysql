@@ -295,9 +295,9 @@ Valid Values:   true, false
 Default:        false
 ```
 
-Allow multiple statements in one query. While this allows batch queries, it also greatly increases the risk of SQL injections. Only the result of the first query is returned, all other results are silently discarded.
+Allow multiple statements in one query. This can be used to bach multiple queries. Use [Rows.NextResultSet()](https://pkg.go.dev/database/sql#Rows.NextResultSet) to get result of the second and subsequent queries.
 
-When `multiStatements` is used, `?` parameters must only be used in the first statement.
+When `multiStatements` is used, `?` parameters must only be used in the first statement. [interpolateParams](#interpolateparams) can be used to avoid this limitation unless prepared statement is used explicitly.
 
 ##### `parseTime`
 
