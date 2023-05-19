@@ -27,7 +27,7 @@ var (
 	ErrOldProtocol       = errors.New("MySQL server does not support required protocol 41+")
 	ErrPktSync           = errors.New("commands out of sync. You can't run this command now")
 	ErrPktSyncMul        = errors.New("commands out of sync. Did you run multiple statements at once?")
-	ErrPktTooLarge       = errors.New("packet for query is too large. Try adjusting the 'max_allowed_packet' variable on the server")
+	ErrPktTooLarge       = errors.New("packet for query is too large. Try adjusting the `Config.MaxAllowedPacket`")
 	ErrBusyBuffer        = errors.New("busy buffer")
 
 	// errBadConnNoWrite is used for connection errors where nothing was sent to the database yet.
@@ -37,20 +37,26 @@ var (
 	errBadConnNoWrite = errors.New("bad connection")
 )
 
-var errLog = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
+var defaultLogger = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
 
 // Logger is used to log critical error messages.
 type Logger interface {
 	Print(v ...interface{})
 }
 
-// SetLogger is used to set the logger for critical errors.
+// NopLogger is a nop implementation of the Logger interface.
+type NopLogger struct{}
+
+// Print implements Logger interface.
+func (nl *NopLogger) Print(_ ...interface{}) {}
+
+// SetLogger is used to set the default logger for critical errors.
 // The initial logger is os.Stderr.
 func SetLogger(logger Logger) error {
 	if logger == nil {
 		return errors.New("logger is nil")
 	}
-	errLog = logger
+	defaultLogger = logger
 	return nil
 }
 

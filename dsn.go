@@ -50,6 +50,7 @@ type Config struct {
 	Timeout          time.Duration     // Dial timeout
 	ReadTimeout      time.Duration     // I/O read timeout
 	WriteTimeout     time.Duration     // I/O write timeout
+	Logger           Logger            // Logger
 
 	AllowAllFiles            bool // Allow all files to be used with LOAD DATA LOCAL INFILE
 	AllowCleartextPasswords  bool // Allows the cleartext client side plugin
@@ -71,6 +72,7 @@ func NewConfig() *Config {
 		Collation:            defaultCollation,
 		Loc:                  time.UTC,
 		MaxAllowedPacket:     defaultMaxAllowedPacket,
+		Logger:               defaultLogger,
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
 	}
@@ -151,6 +153,10 @@ func (cfg *Config) normalize() error {
 		if cfg.pubKey == nil {
 			return errors.New("invalid value / unknown server pub key name: " + cfg.ServerPubKey)
 		}
+	}
+
+	if cfg.Logger == nil {
+		cfg.Logger = defaultLogger
 	}
 
 	return nil

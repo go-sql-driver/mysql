@@ -265,6 +265,7 @@ func TestReadPacketFail(t *testing.T) {
 	mc := &mysqlConn{
 		buf:     newBuffer(conn),
 		closech: make(chan struct{}),
+		cfg:     NewConfig(),
 	}
 
 	// illegal empty (stand-alone) packet
