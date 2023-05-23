@@ -27,6 +27,7 @@ type mysqlConn struct {
 	affectedRows     uint64
 	insertId         uint64
 	cfg              *Config
+	connector        *connector
 	maxAllowedPacket int
 	maxWriteSize     int
 	writeTimeout     time.Duration

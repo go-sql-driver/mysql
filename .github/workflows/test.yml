@@ -79,6 +79,7 @@ jobs:
             ; TestConcurrent fails if max_connections is too large
             max_connections=50
             local_infile=1
+            performance_schema=on
       - name: setup database
         run: |
           mysql --user 'root' --host '127.0.0.1' -e 'create database gotest;'

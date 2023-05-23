@@ -393,6 +393,15 @@ Default:        0
 
 I/O write timeout. The value must be a decimal number with a unit suffix (*"ms"*, *"s"*, *"m"*, *"h"*), such as *"30s"*, *"0.5m"* or *"1m30s"*.
 
+##### `connectionAttributes`
+
+```
+Type:           comma-delimited string of user-defined "key:value" pairs
+Valid Values:   (<name1>:<value1>,<name2>:<value2>,...)
+Default:        none
+```
+
+[Connection attributes](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-connection-attribute-tables.html) are key-value pairs that application programs can pass to the server at connect time.
 
 ##### System Variables
 

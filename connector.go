@@ -11,11 +11,54 @@ package mysql
 import (
 	"context"
 	"database/sql/driver"
+	"fmt"
 	"net"
+	"os"
+	"strconv"
+	"strings"
 )
 
 type connector struct {
-	cfg *Config // immutable private copy.
+	cfg               *Config // immutable private copy.
+	encodedAttributes string  // Encoded connection attributes.
+}
+
+func encodeConnectionAttributes(textAttributes string) string {
+	connAttrsBuf := make([]byte, 0, 251)
+
+	// default connection attributes
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrClientName)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrClientNameValue)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrOS)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrOSValue)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPlatform)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPlatformValue)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPid)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, strconv.Itoa(os.Getpid()))
+
+	// user-defined connection attributes
+	for _, connAttr := range strings.Split(textAttributes, ",") {
+		attr := strings.SplitN(connAttr, ":", 2)
+		if len(attr) != 2 {
+			continue
+		}
+		for _, v := range attr {
+			connAttrsBuf = appendLengthEncodedString(connAttrsBuf, v)
+		}
+	}
+
+	return string(connAttrsBuf)
+}
+
+func newConnector(cfg *Config) (*connector, error) {
+	encodedAttributes := encodeConnectionAttributes(cfg.ConnectionAttributes)
+	if len(encodedAttributes) > 250 {
+		return nil, fmt.Errorf("connection attributes are longer than 250 bytes: %dbytes (%q)", len(encodedAttributes), cfg.ConnectionAttributes)
+	}
+	return &connector{
+		cfg:               cfg,
+		encodedAttributes: encodedAttributes,
+	}, nil
 }
 
 // Connect implements driver.Connector interface.
@@ -29,6 +72,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		maxWriteSize:     maxPacketSize - 1,
 		closech:          make(chan struct{}),
 		cfg:              c.cfg,
+		connector:        c,
 	}
 	mc.parseTime = mc.cfg.ParseTime
 
