@@ -70,7 +70,6 @@ type Config struct {
 // NewConfig creates a new Config and sets default values.
 func NewConfig() *Config {
 	return &Config{
-		Collation:            defaultCollation,
 		Loc:                  time.UTC,
 		MaxAllowedPacket:     defaultMaxAllowedPacket,
 		Logger:               defaultLogger,
@@ -100,7 +99,7 @@ func (cfg *Config) Clone() *Config {
 }
 
 func (cfg *Config) normalize() error {
-	if cfg.InterpolateParams && unsafeCollations[cfg.Collation] {
+	if cfg.InterpolateParams && cfg.Collation != "" && unsafeCollations[cfg.Collation] {
 		return errInvalidDSNUnsafeCollation
 	}
 
@@ -237,7 +236,7 @@ func (cfg *Config) FormatDSN() string {
 		writeDSNParam(&buf, &hasParam, "clientFoundRows", "true")
 	}
 
-	if col := cfg.Collation; col != defaultCollation && len(col) > 0 {
+	if col := cfg.Collation; col != "" {
 		writeDSNParam(&buf, &hasParam, "collation", col)
 	}
 

@@ -14,7 +14,6 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -346,14 +345,18 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	data[10] = 0x00
 	data[11] = 0x00
 
-	// Charset [1 byte]
+	// Collation ID [1 byte]
+	cname := mc.cfg.Collation
+	if cname == "" {
+		cname = defaultCollation
+	}
 	var found bool
-	data[12], found = collations[mc.cfg.Collation]
+	data[12], found = collations[cname]
 	if !found {
 		// Note possibility for false negatives:
 		// could be triggered  although the collation is valid if the
 		// collations map does not contain entries the server supports.
-		return errors.New("unknown collation")
+		return fmt.Errorf("unknown collation: %q", cname)
 	}
 
 	// Filler [23 bytes] (all 0x00)
