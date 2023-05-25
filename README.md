@@ -202,8 +202,7 @@ Default:        none
 
 Sets the charset used for client-server interaction (`"SET NAMES <value>"`). If multiple charsets are set (separated by a comma), the following charset is used if setting the charset failes. This enables for example support for `utf8mb4` ([introduced in MySQL 5.5.3](http://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)) with fallback to `utf8` for older servers (`charset=utf8mb4,utf8`).
 
-Usage of the `charset` parameter is discouraged because it issues additional queries to the server.
-Unless you need the fallback behavior, please use `collation` instead.
+See also [Unicode Support](#unicode-support).
 
 ##### `checkConnLiveness`
 
@@ -232,6 +231,7 @@ The default collation (`utf8mb4_general_ci`) is supported from MySQL 5.5.  You s
 
 Collations for charset "ucs2", "utf16", "utf16le", and "utf32" can not be used ([ref](https://dev.mysql.com/doc/refman/5.7/en/charset-connection.html#charset-connection-impermissible-client-charset)).
 
+See also [Unicode Support](#unicode-support).
 
 ##### `clientFoundRows`
 
@@ -511,9 +511,11 @@ However, many want to scan MySQL `DATE` and `DATETIME` values into `time.Time` v
 ### Unicode support
 Since version 1.5 Go-MySQL-Driver automatically uses the collation ` utf8mb4_general_ci` by default.
 
-Other collations / charsets can be set using the [`collation`](#collation) DSN parameter.
+Other charsets / collations can be set using the [`charset`](#charset) or [`collation`](#collation) DSN parameter.
 
-Version 1.0 of the driver recommended adding `&charset=utf8` (alias for `SET NAMES utf8`) to the DSN to enable proper UTF-8 support. This is not necessary anymore. The [`collation`](#collation) parameter should be preferred to set another collation / charset than the default.
+- When only the `charset` is specified, the `SET NAMES <charset>` query is sent and the server's default collation is used.
+- When both the `charset` and `collation` are specified, the `SET NAMES <charset> COLLATE <collation>` query is sent.
+- When only the `collation` is specified, the collation is specified in the protocol handshake and the `SET NAMES` query is not sent. This can save one roundtrip, but note that the server may ignore the specified collation silently and use the server's default charset/collation instead.
 
 See http://dev.mysql.com/doc/refman/8.0/en/charset-unicode.html for more details on MySQL's Unicode support.
 
