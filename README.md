@@ -114,6 +114,12 @@ This has the same effect as an empty DSN string:
 
 ```
 
+`dbname` is escaped by [PathEscape()]()https://pkg.go.dev/net/url#PathEscape) since v1.8.0. If your database name is `dbname/withslash`, it becomes:
+
+```
+/dbname%2Fwithslash
+```
+
 Alternatively, [Config.FormatDSN](https://godoc.org/github.com/go-sql-driver/mysql#Config.FormatDSN) can be used to create a DSN string by filling a struct.
 
 #### Password

@@ -203,7 +203,7 @@ func (cfg *Config) FormatDSN() string {
 
 	// /dbname
 	buf.WriteByte('/')
-	buf.WriteString(cfg.DBName)
+	buf.WriteString(url.PathEscape(cfg.DBName))
 
 	// [?param1=value1&...&paramN=valueN]
 	hasParam := false
@@ -365,7 +365,11 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 					break
 				}
 			}
-			cfg.DBName = dsn[i+1 : j]
+
+			dbname := dsn[i+1 : j]
+			if cfg.DBName, err = url.PathUnescape(dbname); err != nil {
+				return nil, fmt.Errorf("invalid dbname %q: %w", dbname, err)
+			}
 
 			break
 		}
