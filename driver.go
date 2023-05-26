@@ -60,9 +60,7 @@ func DeregisterDialContext(net string) {
 	dialsLock.Lock()
 	defer dialsLock.Unlock()
 	if dials != nil {
-		if _, ok := dials[net]; ok {
-			delete(dials, net)
-		}
+		delete(dials, net)
 	}
 }
 
