@@ -36,7 +36,7 @@ var (
 // registering it.
 //
 //	rootCertPool := x509.NewCertPool()
-//	pem, err := ioutil.ReadFile("/path/ca-cert.pem")
+//	pem, err := os.ReadFile("/path/ca-cert.pem")
 //	if err != nil {
 //	    log.Fatal(err)
 //	}

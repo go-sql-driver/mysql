@@ -33,7 +33,7 @@ var (
 // Note: The provided rsa.PublicKey instance is exclusively owned by the driver
 // after registering it and may not be modified.
 //
-//	data, err := ioutil.ReadFile("mykey.pem")
+//	data, err := os.ReadFile("mykey.pem")
 //	if err != nil {
 //		log.Fatal(err)
 //	}
