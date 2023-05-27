@@ -18,7 +18,7 @@ func (mf *mysqlField) typeDatabaseName() string {
 	case fieldTypeBit:
 		return "BIT"
 	case fieldTypeBLOB:
-		if mf.charSet != collations[binaryCollation] {
+		if mf.charSet != binaryCollationID {
 			return "TEXT"
 		}
 		return "BLOB"
@@ -49,7 +49,7 @@ func (mf *mysqlField) typeDatabaseName() string {
 		}
 		return "INT"
 	case fieldTypeLongBLOB:
-		if mf.charSet != collations[binaryCollation] {
+		if mf.charSet != binaryCollationID {
 			return "LONGTEXT"
 		}
 		return "LONGBLOB"
@@ -59,7 +59,7 @@ func (mf *mysqlField) typeDatabaseName() string {
 		}
 		return "BIGINT"
 	case fieldTypeMediumBLOB:
-		if mf.charSet != collations[binaryCollation] {
+		if mf.charSet != binaryCollationID {
 			return "MEDIUMTEXT"
 		}
 		return "MEDIUMBLOB"
@@ -77,7 +77,7 @@ func (mf *mysqlField) typeDatabaseName() string {
 		}
 		return "SMALLINT"
 	case fieldTypeString:
-		if mf.charSet == collations[binaryCollation] {
+		if mf.charSet == binaryCollationID {
 			return "BINARY"
 		}
 		return "CHAR"
@@ -91,17 +91,17 @@ func (mf *mysqlField) typeDatabaseName() string {
 		}
 		return "TINYINT"
 	case fieldTypeTinyBLOB:
-		if mf.charSet != collations[binaryCollation] {
+		if mf.charSet != binaryCollationID {
 			return "TINYTEXT"
 		}
 		return "TINYBLOB"
 	case fieldTypeVarChar:
-		if mf.charSet == collations[binaryCollation] {
+		if mf.charSet == binaryCollationID {
 			return "VARBINARY"
 		}
 		return "VARCHAR"
 	case fieldTypeVarString:
-		if mf.charSet == collations[binaryCollation] {
+		if mf.charSet == binaryCollationID {
 			return "VARBINARY"
 		}
 		return "VARCHAR"
@@ -194,7 +194,7 @@ func (mf *mysqlField) scanType() reflect.Type {
 
 	case fieldTypeBit, fieldTypeTinyBLOB, fieldTypeMediumBLOB, fieldTypeLongBLOB,
 		fieldTypeBLOB, fieldTypeVarString, fieldTypeString, fieldTypeGeometry:
-		if mf.charSet == 63 /* binary */ {
+		if mf.charSet == binaryCollationID {
 			return scanTypeBytes
 		}
 		fallthrough
