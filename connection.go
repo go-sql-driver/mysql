@@ -49,14 +49,19 @@ type mysqlConn struct {
 // Handles parameters set in DSN after the connection is established
 func (mc *mysqlConn) handleParams() (err error) {
 	var cmdSet strings.Builder
+
 	for param, val := range mc.cfg.Params {
 		switch param {
 		// Charset: character_set_connection, character_set_client, character_set_results
 		case "charset":
 			charsets := strings.Split(val, ",")
-			for i := range charsets {
+			for _, cs := range charsets {
 				// ignore errors here - a charset may not exist
-				err = mc.exec("SET NAMES " + charsets[i])
+				if mc.cfg.Collation != "" {
+					err = mc.exec("SET NAMES " + cs + " COLLATE " + mc.cfg.Collation)
+				} else {
+					err = mc.exec("SET NAMES " + cs)
+				}
 				if err == nil {
 					break
 				}
