@@ -314,7 +314,7 @@ func BenchmarkExecContext(b *testing.B) {
 	defer db.Close()
 	for _, p := range []int{1, 2, 3, 4} {
 		b.Run(fmt.Sprintf("%d", p), func(b *testing.B) {
-			benchmarkQueryContext(b, db, p)
+			benchmarkExecContext(b, db, p)
 		})
 	}
 }
@@ -371,4 +371,60 @@ func BenchmarkQueryRawBytes(b *testing.B) {
 			}
 		})
 	}
+}
+
+// BenchmarkReceiveMassiveRows measures performance of receiving large number of rows.
+func BenchmarkReceiveMassiveRows(b *testing.B) {
+	// Setup -- prepare 10000 rows.
+	db := initDB(b,
+		"DROP TABLE IF EXISTS foo",
+		"CREATE TABLE foo (id INT PRIMARY KEY, val TEXT)")
+	defer db.Close()
+
+	sval := strings.Repeat("x", 50)
+	stmt, err := db.Prepare(`INSERT INTO foo (id, val) VALUES (?, ?)` + strings.Repeat(",(?,?)", 99))
+	if err != nil {
+		b.Errorf("failed to prepare query: %v", err)
+		return
+	}
+	for i := 0; i < 10000; i += 100 {
+		args := make([]any, 200)
+		for j := 0; j < 100; j++ {
+			args[j*2] = i + j
+			args[j*2+1] = sval
+		}
+		_, err := stmt.Exec(args...)
+		if err != nil {
+			b.Error(err)
+			return
+		}
+	}
+	stmt.Close()
+
+	// Use b.Run() to skip expensive setup.
+	b.Run("query", func(b *testing.B) {
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			rows, err := db.Query(`SELECT id, val FROM foo`)
+			if err != nil {
+				b.Errorf("failed to select: %v", err)
+				return
+			}
+			for rows.Next() {
+				var i int
+				var s sql.RawBytes
+				err = rows.Scan(&i, &s)
+				if err != nil {
+					b.Errorf("failed to scan: %v", err)
+					_ = rows.Close()
+					return
+				}
+			}
+			if err = rows.Err(); err != nil {
+				b.Errorf("failed to read rows: %v", err)
+			}
+			_ = rows.Close()
+		}
+	})
 }

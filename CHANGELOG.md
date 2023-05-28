@@ -1,3 +1,37 @@
+## Version 1.7.1 (2023-04-25)
+
+Changes:
+
+  - bump actions/checkout@v3 and actions/setup-go@v3 (#1375)
+  - Add go1.20 and mariadb10.11 to the testing matrix (#1403)
+  - Increase default maxAllowedPacket size. (#1411)
+
+Bugfixes:
+
+  - Use SET syntax as specified in the MySQL documentation (#1402)
+
+
+## Version 1.7 (2022-11-29)
+
+Changes:
+
+  - Drop support of Go 1.12 (#1211)
+  - Refactoring `(*textRows).readRow` in a more clear way (#1230)
+  - util: Reduce boundary check in escape functions. (#1316)
+  - enhancement for mysqlConn handleAuthResult (#1250)
+
+New Features:
+
+  - support Is comparison on MySQLError (#1210)
+  - return unsigned in database type name when necessary (#1238)
+  - Add API to express like a --ssl-mode=PREFERRED MySQL client (#1370)
+  - Add SQLState to MySQLError (#1321)
+
+Bugfixes:
+
+  -  Fix parsing 0 year. (#1257)
+
+
 ## Version 1.6 (2021-04-01)
 
 Changes:

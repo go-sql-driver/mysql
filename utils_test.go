@@ -173,66 +173,6 @@ func TestEscapeQuotes(t *testing.T) {
 	expect("foo\"bar", "foo\"bar")     // not affected
 }
 
-func TestAtomicBool(t *testing.T) {
-	var ab atomicBool
-	if ab.IsSet() {
-		t.Fatal("Expected value to be false")
-	}
-
-	ab.Set(true)
-	if ab.value != 1 {
-		t.Fatal("Set(true) did not set value to 1")
-	}
-	if !ab.IsSet() {
-		t.Fatal("Expected value to be true")
-	}
-
-	ab.Set(true)
-	if !ab.IsSet() {
-		t.Fatal("Expected value to be true")
-	}
-
-	ab.Set(false)
-	if ab.value != 0 {
-		t.Fatal("Set(false) did not set value to 0")
-	}
-	if ab.IsSet() {
-		t.Fatal("Expected value to be false")
-	}
-
-	ab.Set(false)
-	if ab.IsSet() {
-		t.Fatal("Expected value to be false")
-	}
-	if ab.TrySet(false) {
-		t.Fatal("Expected TrySet(false) to fail")
-	}
-	if !ab.TrySet(true) {
-		t.Fatal("Expected TrySet(true) to succeed")
-	}
-	if !ab.IsSet() {
-		t.Fatal("Expected value to be true")
-	}
-
-	ab.Set(true)
-	if !ab.IsSet() {
-		t.Fatal("Expected value to be true")
-	}
-	if ab.TrySet(true) {
-		t.Fatal("Expected TrySet(true) to fail")
-	}
-	if !ab.TrySet(false) {
-		t.Fatal("Expected TrySet(false) to succeed")
-	}
-	if ab.IsSet() {
-		t.Fatal("Expected value to be false")
-	}
-
-	// we've "tested" them ¯\_(ツ)_/¯
-	ab._noCopy.Lock()
-	defer ab._noCopy.Unlock()
-}
-
 func TestAtomicError(t *testing.T) {
 	var ae atomicError
 	if ae.Value() != nil {
@@ -437,6 +377,33 @@ func TestParseDateTime(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestInvalidDateTime(t *testing.T) {
+	cases := []struct {
+		name string
+		str  string
+		want time.Time
+	}{
+		{
+			name: "parse datetime without day",
+			str:  "0000-00-00 21:30:45",
+			want: time.Date(0, 0, 0, 21, 30, 45, 0, time.UTC),
+		},
+	}
+
+	for _, cc := range cases {
+		t.Run(cc.name, func(t *testing.T) {
+			got, err := parseDateTime([]byte(cc.str), time.UTC)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !cc.want.Equal(got) {
+				t.Fatalf("want: %v, but got %v", cc.want, got)
+			}
+		})
 	}
 }
 

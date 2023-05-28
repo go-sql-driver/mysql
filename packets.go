@@ -14,7 +14,6 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -34,7 +33,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
 			}
-			errLog.Print(err)
+			mc.cfg.Logger.Print(err)
 			mc.Close()
 			return nil, ErrInvalidConn
 		}
@@ -56,7 +55,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		if pktLen == 0 {
 			// there was no previous packet
 			if prevData == nil {
-				errLog.Print(ErrMalformPkt)
+				mc.cfg.Logger.Print(ErrMalformPkt)
 				mc.Close()
 				return nil, ErrInvalidConn
 			}
@@ -70,7 +69,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
 			}
-			errLog.Print(err)
+			mc.cfg.Logger.Print(err)
 			mc.Close()
 			return nil, ErrInvalidConn
 		}
@@ -119,7 +118,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			}
 		}
 		if err != nil {
-			errLog.Print("closing bad idle connection: ", err)
+			mc.cfg.Logger.Print("closing bad idle connection: ", err)
 			mc.Close()
 			return driver.ErrBadConn
 		}
@@ -161,7 +160,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		// Handle error
 		if err == nil { // n != len(data)
 			mc.cleanup()
-			errLog.Print(ErrMalformPkt)
+			mc.cfg.Logger.Print(ErrMalformPkt)
 		} else {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return cerr
@@ -171,7 +170,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 				return errBadConnNoWrite
 			}
 			mc.cleanup()
-			errLog.Print(err)
+			mc.cfg.Logger.Print(err)
 		}
 		return ErrInvalidConn
 	}
@@ -222,9 +221,9 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 	if mc.flags&clientProtocol41 == 0 {
 		return nil, "", ErrOldProtocol
 	}
-	if mc.flags&clientSSL == 0 && mc.cfg.tls != nil {
-		if mc.cfg.TLSConfig == "preferred" {
-			mc.cfg.tls = nil
+	if mc.flags&clientSSL == 0 && mc.cfg.TLS != nil {
+		if mc.cfg.AllowFallbackToPlaintext {
+			mc.cfg.TLS = nil
 		} else {
 			return nil, "", ErrNoTLS
 		}
@@ -285,6 +284,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		clientLocalFiles |
 		clientPluginAuth |
 		clientMultiResults |
+		clientConnectAttrs |
 		mc.flags&clientLongFlag
 
 	if mc.cfg.ClientFoundRows {
@@ -292,7 +292,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	}
 
 	// To enable TLS / SSL
-	if mc.cfg.tls != nil {
+	if mc.cfg.TLS != nil {
 		clientFlags |= clientSSL
 	}
 
@@ -318,11 +318,18 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		pktLen += n + 1
 	}
 
+	// 1 byte to store length of all key-values
+	// NOTE: Actually, this is length encoded integer.
+	// But we support only len(connAttrBuf) < 251 for now because takeSmallBuffer
+	// doesn't support buffer size more than 4096 bytes.
+	// TODO(methane): Rewrite buffer management.
+	pktLen += 1 + len(mc.connector.encodedAttributes)
+
 	// Calculate packet length and get buffer with that size
 	data, err := mc.buf.takeSmallBuffer(pktLen + 4)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		errLog.Print(err)
+		mc.cfg.Logger.Print(err)
 		return errBadConnNoWrite
 	}
 
@@ -338,14 +345,18 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	data[10] = 0x00
 	data[11] = 0x00
 
-	// Charset [1 byte]
+	// Collation ID [1 byte]
+	cname := mc.cfg.Collation
+	if cname == "" {
+		cname = defaultCollation
+	}
 	var found bool
-	data[12], found = collations[mc.cfg.Collation]
+	data[12], found = collations[cname]
 	if !found {
 		// Note possibility for false negatives:
 		// could be triggered  although the collation is valid if the
 		// collations map does not contain entries the server supports.
-		return errors.New("unknown collation")
+		return fmt.Errorf("unknown collation: %q", cname)
 	}
 
 	// Filler [23 bytes] (all 0x00)
@@ -356,14 +367,14 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 
 	// SSL Connection Request Packet
 	// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::SSLRequest
-	if mc.cfg.tls != nil {
+	if mc.cfg.TLS != nil {
 		// Send TLS / SSL request packet
 		if err := mc.writePacket(data[:(4+4+1+23)+4]); err != nil {
 			return err
 		}
 
 		// Switch to TLS
-		tlsConn := tls.Client(mc.netConn, mc.cfg.tls)
+		tlsConn := tls.Client(mc.netConn, mc.cfg.TLS)
 		if err := tlsConn.Handshake(); err != nil {
 			return err
 		}
@@ -394,6 +405,11 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	data[pos] = 0x00
 	pos++
 
+	// Connection Attributes
+	data[pos] = byte(len(mc.connector.encodedAttributes))
+	pos++
+	pos += copy(data[pos:], []byte(mc.connector.encodedAttributes))
+
 	// Send Auth packet
 	return mc.writePacket(data[:pos])
 }
@@ -404,7 +420,7 @@ func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
 	data, err := mc.buf.takeSmallBuffer(pktLen)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		errLog.Print(err)
+		mc.cfg.Logger.Print(err)
 		return errBadConnNoWrite
 	}
 
@@ -424,7 +440,7 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	data, err := mc.buf.takeSmallBuffer(4 + 1)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		errLog.Print(err)
+		mc.cfg.Logger.Print(err)
 		return errBadConnNoWrite
 	}
 
@@ -443,7 +459,7 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	data, err := mc.buf.takeBuffer(pktLen + 4)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		errLog.Print(err)
+		mc.cfg.Logger.Print(err)
 		return errBadConnNoWrite
 	}
 
@@ -464,7 +480,7 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	data, err := mc.buf.takeSmallBuffer(4 + 1 + 4)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		errLog.Print(err)
+		mc.cfg.Logger.Print(err)
 		return errBadConnNoWrite
 	}
 
@@ -987,7 +1003,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	}
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		errLog.Print(err)
+		mc.cfg.Logger.Print(err)
 		return errBadConnNoWrite
 	}
 
@@ -1186,7 +1202,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		if valuesCap != cap(paramValues) {
 			data = append(data[:pos], paramValues...)
 			if err = mc.buf.store(data); err != nil {
-				errLog.Print(err)
+				mc.cfg.Logger.Print(err)
 				return errBadConnNoWrite
 			}
 		}

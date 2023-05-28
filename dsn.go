@@ -34,42 +34,45 @@ var (
 // If a new Config is created instead of being parsed from a DSN string,
 // the NewConfig function should be used, which sets default values.
 type Config struct {
-	User             string            // Username
-	Passwd           string            // Password (requires User)
-	Net              string            // Network type
-	Addr             string            // Network address (requires Net)
-	DBName           string            // Database name
-	Params           map[string]string // Connection parameters
-	Collation        string            // Connection collation
-	Loc              *time.Location    // Location for time.Time values
-	MaxAllowedPacket int               // Max packet size allowed
-	ServerPubKey     string            // Server public key name
-	pubKey           *rsa.PublicKey    // Server public key
-	TLSConfig        string            // TLS configuration name
-	tls              *tls.Config       // TLS configuration
-	Timeout          time.Duration     // Dial timeout
-	ReadTimeout      time.Duration     // I/O read timeout
-	WriteTimeout     time.Duration     // I/O write timeout
+	User                 string            // Username
+	Passwd               string            // Password (requires User)
+	Net                  string            // Network type
+	Addr                 string            // Network address (requires Net)
+	DBName               string            // Database name
+	Params               map[string]string // Connection parameters
+	ConnectionAttributes string            // Connection Attributes, comma-delimited string of user-defined "key:value" pairs
+	Collation            string            // Connection collation
+	Loc                  *time.Location    // Location for time.Time values
+	MaxAllowedPacket     int               // Max packet size allowed
+	ServerPubKey         string            // Server public key name
+	pubKey               *rsa.PublicKey    // Server public key
+	TLSConfig            string            // TLS configuration name
+	TLS                  *tls.Config       // TLS configuration, its priority is higher than TLSConfig
+	Timeout              time.Duration     // Dial timeout
+	ReadTimeout          time.Duration     // I/O read timeout
+	WriteTimeout         time.Duration     // I/O write timeout
+	Logger               Logger            // Logger
 
-	AllowAllFiles           bool // Allow all files to be used with LOAD DATA LOCAL INFILE
-	AllowCleartextPasswords bool // Allows the cleartext client side plugin
-	AllowNativePasswords    bool // Allows the native password authentication method
-	AllowOldPasswords       bool // Allows the old insecure password method
-	CheckConnLiveness       bool // Check connections for liveness before using them
-	ClientFoundRows         bool // Return number of matching rows instead of rows changed
-	ColumnsWithAlias        bool // Prepend table alias to column names
-	InterpolateParams       bool // Interpolate placeholders into query string
-	MultiStatements         bool // Allow multiple statements in one query
-	ParseTime               bool // Parse time values to time.Time
-	RejectReadOnly          bool // Reject read-only connections
+	AllowAllFiles            bool // Allow all files to be used with LOAD DATA LOCAL INFILE
+	AllowCleartextPasswords  bool // Allows the cleartext client side plugin
+	AllowFallbackToPlaintext bool // Allows fallback to unencrypted connection if server does not support TLS
+	AllowNativePasswords     bool // Allows the native password authentication method
+	AllowOldPasswords        bool // Allows the old insecure password method
+	CheckConnLiveness        bool // Check connections for liveness before using them
+	ClientFoundRows          bool // Return number of matching rows instead of rows changed
+	ColumnsWithAlias         bool // Prepend table alias to column names
+	InterpolateParams        bool // Interpolate placeholders into query string
+	MultiStatements          bool // Allow multiple statements in one query
+	ParseTime                bool // Parse time values to time.Time
+	RejectReadOnly           bool // Reject read-only connections
 }
 
 // NewConfig creates a new Config and sets default values.
 func NewConfig() *Config {
 	return &Config{
-		Collation:            defaultCollation,
 		Loc:                  time.UTC,
 		MaxAllowedPacket:     defaultMaxAllowedPacket,
+		Logger:               defaultLogger,
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
 	}
@@ -77,8 +80,8 @@ func NewConfig() *Config {
 
 func (cfg *Config) Clone() *Config {
 	cp := *cfg
-	if cp.tls != nil {
-		cp.tls = cfg.tls.Clone()
+	if cp.TLS != nil {
+		cp.TLS = cfg.TLS.Clone()
 	}
 	if len(cp.Params) > 0 {
 		cp.Params = make(map[string]string, len(cfg.Params))
@@ -96,7 +99,7 @@ func (cfg *Config) Clone() *Config {
 }
 
 func (cfg *Config) normalize() error {
-	if cfg.InterpolateParams && unsafeCollations[cfg.Collation] {
+	if cfg.InterpolateParams && cfg.Collation != "" && unsafeCollations[cfg.Collation] {
 		return errInvalidDSNUnsafeCollation
 	}
 
@@ -119,24 +122,29 @@ func (cfg *Config) normalize() error {
 		cfg.Addr = ensureHavePort(cfg.Addr)
 	}
 
-	switch cfg.TLSConfig {
-	case "false", "":
-		// don't set anything
-	case "true":
-		cfg.tls = &tls.Config{}
-	case "skip-verify", "preferred":
-		cfg.tls = &tls.Config{InsecureSkipVerify: true}
-	default:
-		cfg.tls = getTLSConfigClone(cfg.TLSConfig)
-		if cfg.tls == nil {
-			return errors.New("invalid value / unknown config name: " + cfg.TLSConfig)
+	if cfg.TLS == nil {
+		switch cfg.TLSConfig {
+		case "false", "":
+			// don't set anything
+		case "true":
+			cfg.TLS = &tls.Config{}
+		case "skip-verify":
+			cfg.TLS = &tls.Config{InsecureSkipVerify: true}
+		case "preferred":
+			cfg.TLS = &tls.Config{InsecureSkipVerify: true}
+			cfg.AllowFallbackToPlaintext = true
+		default:
+			cfg.TLS = getTLSConfigClone(cfg.TLSConfig)
+			if cfg.TLS == nil {
+				return errors.New("invalid value / unknown config name: " + cfg.TLSConfig)
+			}
 		}
 	}
 
-	if cfg.tls != nil && cfg.tls.ServerName == "" && !cfg.tls.InsecureSkipVerify {
+	if cfg.TLS != nil && cfg.TLS.ServerName == "" && !cfg.TLS.InsecureSkipVerify {
 		host, _, err := net.SplitHostPort(cfg.Addr)
 		if err == nil {
-			cfg.tls.ServerName = host
+			cfg.TLS.ServerName = host
 		}
 	}
 
@@ -145,6 +153,10 @@ func (cfg *Config) normalize() error {
 		if cfg.pubKey == nil {
 			return errors.New("invalid value / unknown server pub key name: " + cfg.ServerPubKey)
 		}
+	}
+
+	if cfg.Logger == nil {
+		cfg.Logger = defaultLogger
 	}
 
 	return nil
@@ -190,7 +202,7 @@ func (cfg *Config) FormatDSN() string {
 
 	// /dbname
 	buf.WriteByte('/')
-	buf.WriteString(cfg.DBName)
+	buf.WriteString(url.PathEscape(cfg.DBName))
 
 	// [?param1=value1&...&paramN=valueN]
 	hasParam := false
@@ -202,6 +214,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.AllowCleartextPasswords {
 		writeDSNParam(&buf, &hasParam, "allowCleartextPasswords", "true")
+	}
+
+	if cfg.AllowFallbackToPlaintext {
+		writeDSNParam(&buf, &hasParam, "allowFallbackToPlaintext", "true")
 	}
 
 	if !cfg.AllowNativePasswords {
@@ -220,7 +236,7 @@ func (cfg *Config) FormatDSN() string {
 		writeDSNParam(&buf, &hasParam, "clientFoundRows", "true")
 	}
 
-	if col := cfg.Collation; col != defaultCollation && len(col) > 0 {
+	if col := cfg.Collation; col != "" {
 		writeDSNParam(&buf, &hasParam, "collation", col)
 	}
 
@@ -348,7 +364,11 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 					break
 				}
 			}
-			cfg.DBName = dsn[i+1 : j]
+
+			dbname := dsn[i+1 : j]
+			if cfg.DBName, err = url.PathUnescape(dbname); err != nil {
+				return nil, fmt.Errorf("invalid dbname %q: %w", dbname, err)
+			}
 
 			break
 		}
@@ -387,6 +407,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		case "allowCleartextPasswords":
 			var isBool bool
 			cfg.AllowCleartextPasswords, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+
+		// Allow fallback to unencrypted connection if server does not support TLS
+		case "allowFallbackToPlaintext":
+			var isBool bool
+			cfg.AllowFallbackToPlaintext, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}
@@ -536,6 +564,11 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			if err != nil {
 				return
 			}
+
+		// Connection attributes
+		case "connectionAttributes":
+			cfg.ConnectionAttributes = value
+
 		default:
 			// lazy init
 			if cfg.Params == nil {

@@ -8,10 +8,10 @@
 //
 // The driver should be used via the database/sql package:
 //
-//  import "database/sql"
-//  import _ "github.com/go-sql-driver/mysql"
+//	import "database/sql"
+//	import _ "github.com/go-sql-driver/mysql"
 //
-//  db, err := sql.Open("mysql", "user:password@/dbname")
+//	db, err := sql.Open("mysql", "user:password@/dbname")
 //
 // See https://github.com/go-sql-driver/mysql#usage for details
 package mysql
@@ -55,6 +55,15 @@ func RegisterDialContext(net string, dial DialContextFunc) {
 	dials[net] = dial
 }
 
+// DeregisterDialContext removes the custom dial function registered with the given net.
+func DeregisterDialContext(net string) {
+	dialsLock.Lock()
+	defer dialsLock.Unlock()
+	if dials != nil {
+		delete(dials, net)
+	}
+}
+
 // RegisterDial registers a custom dial function. It can then be used by the
 // network address mynet(addr), where mynet is the registered new network.
 // addr is passed as a parameter to the dial function.
@@ -74,8 +83,9 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &connector{
-		cfg: cfg,
+	c, err := newConnector(cfg)
+	if err != nil {
+		return nil, err
 	}
 	return c.Connect(context.Background())
 }
@@ -92,7 +102,7 @@ func NewConnector(cfg *Config) (driver.Connector, error) {
 	if err := cfg.normalize(); err != nil {
 		return nil, err
 	}
-	return &connector{cfg: cfg}, nil
+	return newConnector(cfg)
 }
 
 // OpenConnector implements driver.DriverContext.
@@ -101,7 +111,5 @@ func (d MySQLDriver) OpenConnector(dsn string) (driver.Connector, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &connector{
-		cfg: cfg,
-	}, nil
+	return newConnector(cfg)
 }

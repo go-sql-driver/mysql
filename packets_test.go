@@ -96,9 +96,14 @@ var _ net.Conn = new(mockConn)
 
 func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
 	conn := new(mockConn)
+	connector, err := newConnector(NewConfig())
+	if err != nil {
+		panic(err)
+	}
 	mc := &mysqlConn{
 		buf:              newBuffer(conn),
-		cfg:              NewConfig(),
+		cfg:              connector.cfg,
+		connector:        connector,
 		netConn:          conn,
 		closech:          make(chan struct{}),
 		maxAllowedPacket: defaultMaxAllowedPacket,
@@ -265,6 +270,7 @@ func TestReadPacketFail(t *testing.T) {
 	mc := &mysqlConn{
 		buf:     newBuffer(conn),
 		closech: make(chan struct{}),
+		cfg:     NewConfig(),
 	}
 
 	// illegal empty (stand-alone) packet

@@ -26,6 +26,7 @@ type mysqlConn struct {
 	rawConn          net.Conn    // underlying connection when netConn is TLS connection.
 	result           mysqlResult // managed by clearResult() and handleOkPacket().
 	cfg              *Config
+	connector        *connector
 	maxAllowedPacket int
 	maxWriteSize     int
 	writeTimeout     time.Duration
@@ -47,14 +48,19 @@ type mysqlConn struct {
 // Handles parameters set in DSN after the connection is established
 func (mc *mysqlConn) handleParams() (err error) {
 	var cmdSet strings.Builder
+
 	for param, val := range mc.cfg.Params {
 		switch param {
 		// Charset: character_set_connection, character_set_client, character_set_results
 		case "charset":
 			charsets := strings.Split(val, ",")
-			for i := range charsets {
+			for _, cs := range charsets {
 				// ignore errors here - a charset may not exist
-				err = mc.exec("SET NAMES " + charsets[i])
+				if mc.cfg.Collation != "" {
+					err = mc.exec("SET NAMES " + cs + " COLLATE " + mc.cfg.Collation)
+				} else {
+					err = mc.exec("SET NAMES " + cs)
+				}
 				if err == nil {
 					break
 				}
@@ -67,13 +73,13 @@ func (mc *mysqlConn) handleParams() (err error) {
 		default:
 			if cmdSet.Len() == 0 {
 				// Heuristic: 29 chars for each other key=value to reduce reallocations
-				cmdSet.Grow(4 + len(param) + 1 + len(val) + 30*(len(mc.cfg.Params)-1))
+				cmdSet.Grow(4 + len(param) + 3 + len(val) + 30*(len(mc.cfg.Params)-1))
 				cmdSet.WriteString("SET ")
 			} else {
-				cmdSet.WriteByte(',')
+				cmdSet.WriteString(", ")
 			}
 			cmdSet.WriteString(param)
-			cmdSet.WriteByte('=')
+			cmdSet.WriteString(" = ")
 			cmdSet.WriteString(val)
 		}
 	}
@@ -103,8 +109,8 @@ func (mc *mysqlConn) Begin() (driver.Tx, error) {
 }
 
 func (mc *mysqlConn) begin(readOnly bool) (driver.Tx, error) {
-	if mc.closed.IsSet() {
-		errLog.Print(ErrInvalidConn)
+	if mc.closed.Load() {
+		mc.cfg.Logger.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	var q string
@@ -122,7 +128,7 @@ func (mc *mysqlConn) begin(readOnly bool) (driver.Tx, error) {
 
 func (mc *mysqlConn) Close() (err error) {
 	// Makes Close idempotent
-	if !mc.closed.IsSet() {
+	if !mc.closed.Load() {
 		err = mc.writeCommandPacket(comQuit)
 	}
 
@@ -136,7 +142,7 @@ func (mc *mysqlConn) Close() (err error) {
 // is called before auth or on auth failure because MySQL will have already
 // closed the network connection.
 func (mc *mysqlConn) cleanup() {
-	if !mc.closed.TrySet(true) {
+	if mc.closed.Swap(true) {
 		return
 	}
 
@@ -146,13 +152,13 @@ func (mc *mysqlConn) cleanup() {
 		return
 	}
 	if err := mc.netConn.Close(); err != nil {
-		errLog.Print(err)
+		mc.cfg.Logger.Print(err)
 	}
 	mc.clearResult()
 }
 
 func (mc *mysqlConn) error() error {
-	if mc.closed.IsSet() {
+	if mc.closed.Load() {
 		if err := mc.canceled.Value(); err != nil {
 			return err
 		}
@@ -162,15 +168,15 @@ func (mc *mysqlConn) error() error {
 }
 
 func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
-	if mc.closed.IsSet() {
-		errLog.Print(ErrInvalidConn)
+	if mc.closed.Load() {
+		mc.cfg.Logger.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	// Send command
 	err := mc.writeCommandPacketStr(comStmtPrepare, query)
 	if err != nil {
 		// STMT_PREPARE is safe to retry.  So we can return ErrBadConn here.
-		errLog.Print(err)
+		mc.cfg.Logger.Print(err)
 		return nil, driver.ErrBadConn
 	}
 
@@ -204,7 +210,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 	buf, err := mc.buf.takeCompleteBuffer()
 	if err != nil {
 		// can not take the buffer. Something must be wrong with the connection
-		errLog.Print(err)
+		mc.cfg.Logger.Print(err)
 		return "", ErrInvalidConn
 	}
 	buf = buf[:0]
@@ -295,8 +301,8 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 }
 
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
-	if mc.closed.IsSet() {
-		errLog.Print(ErrInvalidConn)
+	if mc.closed.Load() {
+		mc.cfg.Logger.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	if len(args) != 0 {
@@ -355,8 +361,8 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error) {
 	handleOk := mc.clearResult()
 
-	if mc.closed.IsSet() {
-		errLog.Print(ErrInvalidConn)
+	if mc.closed.Load() {
+		mc.cfg.Logger.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	if len(args) != 0 {
@@ -450,8 +456,8 @@ func (mc *mysqlConn) finish() {
 
 // Ping implements driver.Pinger interface
 func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
-	if mc.closed.IsSet() {
-		errLog.Print(ErrInvalidConn)
+	if mc.closed.Load() {
+		mc.cfg.Logger.Print(ErrInvalidConn)
 		return driver.ErrBadConn
 	}
 
@@ -470,7 +476,7 @@ func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
 
 // BeginTx implements driver.ConnBeginTx interface
 func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
-	if mc.closed.IsSet() {
+	if mc.closed.Load() {
 		return nil, driver.ErrBadConn
 	}
 
@@ -637,7 +643,7 @@ func (mc *mysqlConn) CheckNamedValue(nv *driver.NamedValue) (err error) {
 // ResetSession implements driver.SessionResetter.
 // (From Go 1.10)
 func (mc *mysqlConn) ResetSession(ctx context.Context) error {
-	if mc.closed.IsSet() {
+	if mc.closed.Load() {
 		return driver.ErrBadConn
 	}
 	mc.reset = true
@@ -647,5 +653,5 @@ func (mc *mysqlConn) ResetSession(ctx context.Context) error {
 // IsValid implements driver.Validator interface
 // (From Go 1.15)
 func (mc *mysqlConn) IsValid() bool {
-	return !mc.closed.IsSet()
+	return !mc.closed.Load()
 }
