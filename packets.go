@@ -630,7 +630,7 @@ func readStatus(b []byte) statusFlag {
 }
 
 // Returns an instance of okHandler for codepaths where mysqlConn.result doesn't
-// need to be cleared first (eg. during authentication, or while additional
+// need to be cleared first (e.g. during authentication, or while additional
 // resultsets are being fetched.)
 func (mc *mysqlConn) resultUnchanged() *okHandler {
 	return (*okHandler)(mc)
