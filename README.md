@@ -307,7 +307,7 @@ When `multiStatements` is used, `?` parameters must only be used in the first st
 
 It's possible to access the last inserted ID and number of affected rows for multiple statements by using `sql.Conn.Raw()` and the `mysql.Result`. For example:
 
-```
+```go
 conn, _ := db.Conn(ctx)
 conn.Raw(func(conn interface{}) error {
   ex := conn.(driver.Execer)
