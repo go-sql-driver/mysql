@@ -305,6 +305,22 @@ Allow multiple statements in one query. This can be used to bach multiple querie
 
 When `multiStatements` is used, `?` parameters must only be used in the first statement. [interpolateParams](#interpolateparams) can be used to avoid this limitation unless prepared statement is used explicitly.
 
+It's possible to access the last inserted ID and number of affected rows for multiple statements by using `sql.Conn.Raw()` and the `mysql.Result`. For example:
+
+```go
+conn, _ := db.Conn(ctx)
+conn.Raw(func(conn interface{}) error {
+  ex := conn.(driver.Execer)
+  res, err := ex.Exec(`
+  UPDATE point SET x = 1 WHERE y = 2;
+  UPDATE point SET x = 2 WHERE y = 3;
+  `, nil)
+  // Both slices have 2 elements.
+  log.Print(res.(mysql.Result).AllRowsAffected())
+  log.Print(res.(mysql.Result).AllLastInsertIds())
+})
+```
+
 ##### `parseTime`
 
 ```

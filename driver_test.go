@@ -2154,10 +2154,50 @@ func TestRejectReadOnly(t *testing.T) {
 }
 
 func TestPing(t *testing.T) {
+	ctx := context.Background()
 	runTests(t, dsn, func(dbt *DBTest) {
 		if err := dbt.db.Ping(); err != nil {
 			dbt.fail("Ping", "Ping", err)
 		}
+	})
+
+	runTests(t, dsn, func(dbt *DBTest) {
+		conn, err := dbt.db.Conn(ctx)
+		if err != nil {
+			dbt.fail("db", "Conn", err)
+		}
+
+		// Check that affectedRows and insertIds are cleared after each call.
+		conn.Raw(func(conn interface{}) error {
+			c := conn.(*mysqlConn)
+
+			// Issue a query that sets affectedRows and insertIds.
+			q, err := c.Query(`SELECT 1`, nil)
+			if err != nil {
+				dbt.fail("Conn", "Query", err)
+			}
+			if got, want := c.result.affectedRows, []int64{0}; !reflect.DeepEqual(got, want) {
+				dbt.Fatalf("bad affectedRows: got %v, want=%v", got, want)
+			}
+			if got, want := c.result.insertIds, []int64{0}; !reflect.DeepEqual(got, want) {
+				dbt.Fatalf("bad insertIds: got %v, want=%v", got, want)
+			}
+			q.Close()
+
+			// Verify that Ping() clears both fields.
+			for i := 0; i < 2; i++ {
+				if err := c.Ping(ctx); err != nil {
+					dbt.fail("Pinger", "Ping", err)
+				}
+				if got, want := c.result.affectedRows, []int64(nil); !reflect.DeepEqual(got, want) {
+					t.Errorf("bad affectedRows: got %v, want=%v", got, want)
+				}
+				if got, want := c.result.insertIds, []int64(nil); !reflect.DeepEqual(got, want) {
+					t.Errorf("bad affectedRows: got %v, want=%v", got, want)
+				}
+			}
+			return nil
+		})
 	})
 }
 
@@ -2378,6 +2418,42 @@ func TestMultiResultSetNoSelect(t *testing.T) {
 	})
 }
 
+func TestExecMultipleResults(t *testing.T) {
+	ctx := context.Background()
+	runTestsWithMultiStatement(t, dsn, func(dbt *DBTest) {
+		dbt.mustExec(`
+		CREATE TABLE test (
+			id INT NOT NULL AUTO_INCREMENT,
+			value VARCHAR(255),
+			PRIMARY KEY (id)
+		)`)
+		conn, err := dbt.db.Conn(ctx)
+		if err != nil {
+			t.Fatalf("failed to connect: %v", err)
+		}
+		conn.Raw(func(conn interface{}) error {
+			ex := conn.(driver.Execer)
+			res, err := ex.Exec(`
+			INSERT INTO test (value) VALUES ('a'), ('b');
+			INSERT INTO test (value) VALUES ('c'), ('d'), ('e');
+			`, nil)
+			if err != nil {
+				t.Fatalf("insert statements failed: %v", err)
+			}
+			mres := res.(Result)
+			if got, want := mres.AllRowsAffected(), []int64{2, 3}; !reflect.DeepEqual(got, want) {
+				t.Errorf("bad AllRowsAffected: got %v, want=%v", got, want)
+			}
+			// For INSERTs containing multiple rows, LAST_INSERT_ID() returns the
+			// first inserted ID, not the last.
+			if got, want := mres.AllLastInsertIds(), []int64{1, 3}; !reflect.DeepEqual(got, want) {
+				t.Errorf("bad AllLastInsertIds: got %v, want %v", got, want)
+			}
+			return nil
+		})
+	})
+}
+
 // tests if rows are set in a proper state if some results were ignored before
 // calling rows.NextResultSet.
 func TestSkipResults(t *testing.T) {
@@ -2396,6 +2472,42 @@ func TestSkipResults(t *testing.T) {
 		if err := rows.Err(); err != nil {
 			dbt.Error("expected nil; got ", err)
 		}
+	})
+}
+
+func TestQueryMultipleResults(t *testing.T) {
+	ctx := context.Background()
+	runTestsWithMultiStatement(t, dsn, func(dbt *DBTest) {
+		dbt.mustExec(`
+		CREATE TABLE test (
+			id INT NOT NULL AUTO_INCREMENT,
+			value VARCHAR(255),
+			PRIMARY KEY (id)
+		)`)
+		conn, err := dbt.db.Conn(ctx)
+		if err != nil {
+			t.Fatalf("failed to connect: %v", err)
+		}
+		conn.Raw(func(conn interface{}) error {
+			qr := conn.(driver.Queryer)
+
+			c := conn.(*mysqlConn)
+
+			// Demonstrate that repeated queries reset the affectedRows
+			for i := 0; i < 2; i++ {
+				_, err := qr.Query(`
+				INSERT INTO test (value) VALUES ('a'), ('b');
+				INSERT INTO test (value) VALUES ('c'), ('d'), ('e');
+			`, nil)
+				if err != nil {
+					t.Fatalf("insert statements failed: %v", err)
+				}
+				if got, want := c.result.affectedRows, []int64{2, 3}; !reflect.DeepEqual(got, want) {
+					t.Errorf("bad affectedRows: got %v, want=%v", got, want)
+				}
+			}
+			return nil
+		})
 	})
 }
 

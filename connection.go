@@ -23,9 +23,8 @@ import (
 type mysqlConn struct {
 	buf              buffer
 	netConn          net.Conn
-	rawConn          net.Conn // underlying connection when netConn is TLS connection.
-	affectedRows     uint64
-	insertId         uint64
+	rawConn          net.Conn    // underlying connection when netConn is TLS connection.
+	result           mysqlResult // managed by clearResult() and handleOkPacket().
 	cfg              *Config
 	connector        *connector
 	maxAllowedPacket int
@@ -155,6 +154,7 @@ func (mc *mysqlConn) cleanup() {
 	if err := mc.netConn.Close(); err != nil {
 		mc.cfg.Logger.Print(err)
 	}
+	mc.clearResult()
 }
 
 func (mc *mysqlConn) error() error {
@@ -316,28 +316,25 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		}
 		query = prepared
 	}
-	mc.affectedRows = 0
-	mc.insertId = 0
 
 	err := mc.exec(query)
 	if err == nil {
-		return &mysqlResult{
-			affectedRows: int64(mc.affectedRows),
-			insertId:     int64(mc.insertId),
-		}, err
+		copied := mc.result
+		return &copied, err
 	}
 	return nil, mc.markBadConn(err)
 }
 
 // Internal function to execute commands
 func (mc *mysqlConn) exec(query string) error {
+	handleOk := mc.clearResult()
 	// Send command
 	if err := mc.writeCommandPacketStr(comQuery, query); err != nil {
 		return mc.markBadConn(err)
 	}
 
 	// Read Result
-	resLen, err := mc.readResultSetHeaderPacket()
+	resLen, err := handleOk.readResultSetHeaderPacket()
 	if err != nil {
 		return err
 	}
@@ -354,7 +351,7 @@ func (mc *mysqlConn) exec(query string) error {
 		}
 	}
 
-	return mc.discardResults()
+	return handleOk.discardResults()
 }
 
 func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, error) {
@@ -362,6 +359,8 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 }
 
 func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error) {
+	handleOk := mc.clearResult()
+
 	if mc.closed.Load() {
 		mc.cfg.Logger.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
@@ -382,7 +381,7 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 	if err == nil {
 		// Read Result
 		var resLen int
-		resLen, err = mc.readResultSetHeaderPacket()
+		resLen, err = handleOk.readResultSetHeaderPacket()
 		if err == nil {
 			rows := new(textRows)
 			rows.mc = mc
@@ -410,12 +409,13 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 // The returned byte slice is only valid until the next read
 func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 	// Send command
+	handleOk := mc.clearResult()
 	if err := mc.writeCommandPacketStr(comQuery, "SELECT @@"+name); err != nil {
 		return nil, err
 	}
 
 	// Read Result
-	resLen, err := mc.readResultSetHeaderPacket()
+	resLen, err := handleOk.readResultSetHeaderPacket()
 	if err == nil {
 		rows := new(textRows)
 		rows.mc = mc
@@ -466,11 +466,12 @@ func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
 	}
 	defer mc.finish()
 
+	handleOk := mc.clearResult()
 	if err = mc.writeCommandPacket(comPing); err != nil {
 		return mc.markBadConn(err)
 	}
 
-	return mc.readResultOK()
+	return handleOk.readResultOK()
 }
 
 // BeginTx implements driver.ConnBeginTx interface

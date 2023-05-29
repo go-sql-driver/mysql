@@ -93,7 +93,7 @@ func deferredClose(err *error, closer io.Closer) {
 
 const defaultPacketSize = 16 * 1024 // 16KB is small enough for disk readahead and large enough for TCP
 
-func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
+func (mc *okHandler) handleInFileRequest(name string) (err error) {
 	var rdr io.Reader
 	var data []byte
 	packetSize := defaultPacketSize
@@ -154,7 +154,7 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 		for err == nil {
 			n, err = rdr.Read(data[4:])
 			if n > 0 {
-				if ioErr := mc.writePacket(data[:4+n]); ioErr != nil {
+				if ioErr := mc.conn().writePacket(data[:4+n]); ioErr != nil {
 					return ioErr
 				}
 			}
@@ -168,7 +168,7 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 	if data == nil {
 		data = make([]byte, 4)
 	}
-	if ioErr := mc.writePacket(data[:4]); ioErr != nil {
+	if ioErr := mc.conn().writePacket(data[:4]); ioErr != nil {
 		return ioErr
 	}
 
@@ -177,6 +177,6 @@ func (mc *mysqlConn) handleInFileRequest(name string) (err error) {
 		return mc.readResultOK()
 	}
 
-	mc.readPacket()
+	mc.conn().readPacket()
 	return err
 }
