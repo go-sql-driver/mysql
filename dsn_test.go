@@ -130,6 +130,11 @@ func TestDSNReformat(t *testing.T) {
 			res1 := fmt.Sprintf("%+v", cfg1)
 
 			dsn2 := cfg1.FormatDSN()
+			if dsn2 != dsn1 {
+				// Just log
+				t.Logf("%d. %q reformated as %q", i, dsn1, dsn2)
+			}
+
 			cfg2, err := ParseDSN(dsn2)
 			if err != nil {
 				t.Error(err.Error())
@@ -140,6 +145,11 @@ func TestDSNReformat(t *testing.T) {
 
 			if res1 != res2 {
 				t.Errorf("%d. %q does not match %q", i, res2, res1)
+			}
+
+			dsn3 := cfg2.FormatDSN()
+			if dsn3 != dsn2 {
+				t.Errorf("%d. %q does not match %q", i, dsn2, dsn3)
 			}
 		})
 	}
