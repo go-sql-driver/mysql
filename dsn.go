@@ -177,6 +177,8 @@ func writeDSNParam(buf *bytes.Buffer, hasParam *bool, name, value string) {
 
 // FormatDSN formats the given Config into a DSN string which can be passed to
 // the driver.
+//
+// Note: use [NewConnector] and [database/sql.OpenDB] to open a connection from a [*Config].
 func (cfg *Config) FormatDSN() string {
 	var buf bytes.Buffer
 
