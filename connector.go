@@ -11,13 +11,11 @@ package mysql
 import (
 	"context"
 	"database/sql/driver"
-	"errors"
 	"fmt"
 	"net"
 	"os"
 	"strconv"
 	"strings"
-	"syscall"
 )
 
 type connector struct {
@@ -100,11 +98,10 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	// Enable TCP Keepalives on TCP connections
-	if err := enableKeepAlive(mc.netConn); err != nil {
-		// Don't send COM_QUIT before handshake.
-		mc.netConn.Close()
-		mc.netConn = nil
-		return nil, err
+	if tc, ok := mc.netConn.(*net.TCPConn); ok {
+		if err := tc.SetKeepAlive(true); err != nil {
+			c.cfg.Logger.Print(err)
+		}
 	}
 
 	// Call startWatcher for context support (From Go 1.8)
@@ -187,19 +184,4 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 // Driver returns &MySQLDriver{}.
 func (c *connector) Driver() driver.Driver {
 	return &MySQLDriver{}
-}
-
-func enableKeepAlive(nc net.Conn) error {
-	if tc, ok := nc.(*net.TCPConn); ok {
-		if err := tc.SetKeepAlive(true); err != nil {
-			// The underlying setsockopt syscall may return ENOPROTOOPT if the
-			// system does not support TCP keep-alive. We can still successfully
-			// use the driver without keep-alive support, which is why we choose
-			// to silence it here.
-			if !errors.Is(err, syscall.ENOPROTOOPT) {
-				return err
-			}
-		}
-	}
-	return nil
 }
