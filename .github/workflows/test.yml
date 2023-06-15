@@ -16,6 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: dominikh/staticcheck-action@v1.3.0
+        with:
+          version: "2023.1.3"
 
   list:
     runs-on: ubuntu-latest
