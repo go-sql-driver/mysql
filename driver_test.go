@@ -2434,6 +2434,7 @@ func TestExecMultipleResults(t *testing.T) {
 			t.Fatalf("failed to connect: %v", err)
 		}
 		conn.Raw(func(conn interface{}) error {
+			//lint:ignore SA1019 this is a test
 			ex := conn.(driver.Execer)
 			res, err := ex.Exec(`
 			INSERT INTO test (value) VALUES ('a'), ('b');
@@ -2491,8 +2492,8 @@ func TestQueryMultipleResults(t *testing.T) {
 			t.Fatalf("failed to connect: %v", err)
 		}
 		conn.Raw(func(conn interface{}) error {
+			//lint:ignore SA1019 this is a test
 			qr := conn.(driver.Queryer)
-
 			c := conn.(*mysqlConn)
 
 			// Demonstrate that repeated queries reset the affectedRows
