@@ -346,8 +346,8 @@ func TestMultiQuery(t *testing.T) {
 		rows := dbt.mustQuery("SELECT value FROM test WHERE id=1;")
 		if rows.Next() {
 			rows.Scan(&out)
-			if 5 != out {
-				dbt.Errorf("5 != %d", out)
+			if out != 5 {
+				dbt.Errorf("expected 5, got %d", out)
 			}
 
 			if rows.Next() {
@@ -1401,6 +1401,7 @@ func TestReuseClosedConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error preparing statement: %s", err.Error())
 	}
+	//lint:ignore SA1019 this is a test
 	_, err = stmt.Exec(nil)
 	if err != nil {
 		t.Fatalf("error executing statement: %s", err.Error())
@@ -1415,6 +1416,7 @@ func TestReuseClosedConnection(t *testing.T) {
 			t.Errorf("panic after reusing a closed connection: %v", err)
 		}
 	}()
+	//lint:ignore SA1019 this is a test
 	_, err = stmt.Exec(nil)
 	if err != nil && err != driver.ErrBadConn {
 		t.Errorf("unexpected error '%s', expected '%s'",
