@@ -346,8 +346,8 @@ func TestMultiQuery(t *testing.T) {
 		rows := dbt.mustQuery("SELECT value FROM test WHERE id=1;")
 		if rows.Next() {
 			rows.Scan(&out)
-			if 5 != out {
-				dbt.Errorf("5 != %d", out)
+			if out != 5 {
+				dbt.Errorf("expected 5, got %d", out)
 			}
 
 			if rows.Next() {
@@ -1293,7 +1293,7 @@ func TestLoadData(t *testing.T) {
 		_, err = dbt.db.Exec("LOAD DATA LOCAL INFILE 'Reader::doesnotexist' INTO TABLE test")
 		if err == nil {
 			dbt.Fatal("load non-existent Reader didn't fail")
-		} else if err.Error() != "Reader 'doesnotexist' is not registered" {
+		} else if err.Error() != "reader 'doesnotexist' is not registered" {
 			dbt.Fatal(err.Error())
 		}
 	})
@@ -1401,6 +1401,7 @@ func TestReuseClosedConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error preparing statement: %s", err.Error())
 	}
+	//lint:ignore SA1019 this is a test
 	_, err = stmt.Exec(nil)
 	if err != nil {
 		t.Fatalf("error executing statement: %s", err.Error())
@@ -1415,6 +1416,7 @@ func TestReuseClosedConnection(t *testing.T) {
 			t.Errorf("panic after reusing a closed connection: %v", err)
 		}
 	}()
+	//lint:ignore SA1019 this is a test
 	_, err = stmt.Exec(nil)
 	if err != nil && err != driver.ErrBadConn {
 		t.Errorf("unexpected error '%s', expected '%s'",
@@ -2432,6 +2434,7 @@ func TestExecMultipleResults(t *testing.T) {
 			t.Fatalf("failed to connect: %v", err)
 		}
 		conn.Raw(func(conn interface{}) error {
+			//lint:ignore SA1019 this is a test
 			ex := conn.(driver.Execer)
 			res, err := ex.Exec(`
 			INSERT INTO test (value) VALUES ('a'), ('b');
@@ -2489,8 +2492,8 @@ func TestQueryMultipleResults(t *testing.T) {
 			t.Fatalf("failed to connect: %v", err)
 		}
 		conn.Raw(func(conn interface{}) error {
+			//lint:ignore SA1019 this is a test
 			qr := conn.(driver.Queryer)
-
 			c := conn.(*mysqlConn)
 
 			// Demonstrate that repeated queries reset the affectedRows
