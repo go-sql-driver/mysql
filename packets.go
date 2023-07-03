@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strconv"
 	"time"
 )
 
@@ -834,7 +835,8 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 
 	for i := range dest {
 		// Read bytes and convert to string
-		dest[i], isNull, n, err = readLengthEncodedString(data[pos:])
+		var buf []byte
+		buf, isNull, n, err = readLengthEncodedString(data[pos:])
 		pos += n
 
 		if err != nil {
@@ -846,19 +848,40 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 			continue
 		}
 
-		if !mc.parseTime {
-			continue
-		}
-
-		// Parse time field
 		switch rows.rs.columns[i].fieldType {
 		case fieldTypeTimestamp,
 			fieldTypeDateTime,
 			fieldTypeDate,
 			fieldTypeNewDate:
-			if dest[i], err = parseDateTime(dest[i].([]byte), mc.cfg.Loc); err != nil {
-				return err
+			if mc.parseTime {
+				dest[i], err = parseDateTime(buf, mc.cfg.Loc)
+			} else {
+				dest[i] = buf
 			}
+
+		case fieldTypeTiny, fieldTypeShort, fieldTypeInt24, fieldTypeYear, fieldTypeLong:
+			dest[i], err = strconv.ParseInt(string(buf), 10, 32)
+
+		case fieldTypeLongLong:
+			if rows.rs.columns[i].flags&flagUnsigned != 0 {
+				dest[i], err = strconv.ParseUint(string(buf), 10, 64)
+			} else {
+				dest[i], err = strconv.ParseInt(string(buf), 10, 64)
+			}
+
+		case fieldTypeFloat:
+			var d float64
+			d, err = strconv.ParseFloat(string(buf), 32)
+			dest[i] = float32(d)
+
+		case fieldTypeDouble:
+			dest[i], err = strconv.ParseFloat(string(buf), 64)
+
+		default:
+			dest[i] = buf
+		}
+		if err != nil {
+			return err
 		}
 	}
 

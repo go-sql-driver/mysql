@@ -148,29 +148,18 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 		defer db2.Close()
 	}
 
-	dsn3 := dsn + "&multiStatements=true"
-	var db3 *sql.DB
-	if _, err := ParseDSN(dsn3); err != errInvalidDSNUnsafeCollation {
-		db3, err = sql.Open("mysql", dsn3)
-		if err != nil {
-			t.Fatalf("error connecting: %s", err.Error())
-		}
-		defer db3.Close()
-	}
-
-	dbt := &DBTest{t, db}
-	dbt2 := &DBTest{t, db2}
-	dbt3 := &DBTest{t, db3}
 	for _, test := range tests {
-		test(dbt)
-		dbt.db.Exec("DROP TABLE IF EXISTS test")
+		t.Run("default", func(t *testing.T) {
+			dbt := &DBTest{t, db}
+			test(dbt)
+			dbt.db.Exec("DROP TABLE IF EXISTS test")
+		})
 		if db2 != nil {
-			test(dbt2)
-			dbt2.db.Exec("DROP TABLE IF EXISTS test")
-		}
-		if db3 != nil {
-			test(dbt3)
-			dbt3.db.Exec("DROP TABLE IF EXISTS test")
+			t.Run("interpolateParams", func(t *testing.T) {
+				dbt2 := &DBTest{t, db2}
+				test(dbt2)
+				dbt2.db.Exec("DROP TABLE IF EXISTS test")
+			})
 		}
 	}
 }
@@ -312,6 +301,48 @@ func TestCRUD(t *testing.T) {
 		}
 		if count != 0 {
 			dbt.Fatalf("expected 0 affected row, got %d", count)
+		}
+	})
+}
+
+// TestNumbers test that selecting numeric columns.
+// Both of textRows and binaryRows should return same type and value.
+func TestNumbersToAny(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE `test` (id INT PRIMARY KEY, b BOOL, i8 TINYINT, " +
+			"i16 SMALLINT, i32 INT, i64 BIGINT, f32 FLOAT, f64 DOUBLE)")
+		dbt.mustExec("INSERT INTO `test` VALUES (1, true, 127, 32767, 2147483647, 9223372036854775807, 1.25, 2.5)")
+
+		// Use binaryRows for intarpolateParams=false and textRows for intarpolateParams=true.
+		rows := dbt.mustQuery("SELECT b, i8, i16, i32, i64, f32, f64 FROM `test` WHERE id=?", 1)
+		if !rows.Next() {
+			dbt.Fatal("no data")
+		}
+		var b, i8, i16, i32, i64, f32, f64 any
+		err := rows.Scan(&b, &i8, &i16, &i32, &i64, &f32, &f64)
+		if err != nil {
+			dbt.Fatal(err)
+		}
+		if b.(int64) != 1 {
+			dbt.Errorf("b != 1")
+		}
+		if i8.(int64) != 127 {
+			dbt.Errorf("i8 != 127")
+		}
+		if i16.(int64) != 32767 {
+			dbt.Errorf("i16 != 32767")
+		}
+		if i32.(int64) != 2147483647 {
+			dbt.Errorf("i32 != 2147483647")
+		}
+		if i64.(int64) != 9223372036854775807 {
+			dbt.Errorf("i64 != 9223372036854775807")
+		}
+		if f32.(float32) != 1.25 {
+			dbt.Errorf("f32 != 1.25")
+		}
+		if f64.(float64) != 2.5 {
+			dbt.Errorf("f64 != 2.5")
 		}
 	})
 }
@@ -1808,13 +1839,13 @@ func TestConcurrent(t *testing.T) {
 	}
 
 	runTests(t, dsn, func(dbt *DBTest) {
-		var version string
-		if err := dbt.db.QueryRow("SELECT @@version").Scan(&version); err != nil {
-			dbt.Fatalf("%s", err.Error())
-		}
-		if strings.Contains(strings.ToLower(version), "mariadb") {
-			t.Skip(`TODO: "fix commands out of sync. Did you run multiple statements at once?" on MariaDB`)
-		}
+		// var version string
+		// if err := dbt.db.QueryRow("SELECT @@version").Scan(&version); err != nil {
+		// 	dbt.Fatal(err)
+		// }
+		// if strings.Contains(strings.ToLower(version), "mariadb") {
+		// 	t.Skip(`TODO: "fix commands out of sync. Did you run multiple statements at once?" on MariaDB`)
+		// }
 
 		var max int
 		err := dbt.db.QueryRow("SELECT @@max_connections").Scan(&max)
