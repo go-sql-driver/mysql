@@ -44,12 +44,24 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 
 		// check packet sync [8 bit]
 		if data[3] != mc.sequence {
+			var syncErr error
 			if data[3] > mc.sequence {
-				return nil, ErrPktSyncMul
+				syncErr = ErrPktSyncMul
+			} else {
+				syncErr = ErrPktSync
 			}
-			return nil, ErrPktSync
+
+			if prevData != nil {
+				return nil, syncErr
+			} else {
+				// log and ignore seqno mismatch error.
+				// MySQL sometimes sends wrong sequence no.
+				mc.cfg.Logger.Print(syncErr)
+				mc.sequence = data[3] + 1
+			}
+		} else {
+			mc.sequence++
 		}
-		mc.sequence++
 
 		// packets with length 0 terminate a previous packet which is a
 		// multiple of (2^24)-1 bytes long
@@ -111,17 +123,28 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		}
 		var err error
 		if mc.cfg.CheckConnLiveness {
-			if mc.cfg.ReadTimeout != 0 {
-				err = conn.SetReadDeadline(time.Now().Add(mc.cfg.ReadTimeout))
+			err = connCheck(conn)
+			if err != nil {
+				if err == errUnexpectedEvent {
+					_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+					var data []byte
+					data, err = mc.readPacket()
+
+					if err == nil {
+						if data[0] == iERR {
+							err = mc.handleErrorPacket(data)
+						} else {
+							err = fmt.Errorf("unexpected packet: % x", data[:128])
+						}
+					} else {
+						err = fmt.Errorf("readPacket(): %w", err)
+					}
+				}
+
+				mc.cfg.Logger.Print("checkConn() failed: ", err)
+				mc.Close()
+				return driver.ErrBadConn
 			}
-			if err == nil {
-				err = connCheck(conn)
-			}
-		}
-		if err != nil {
-			mc.cfg.Logger.Print("closing bad idle connection: ", err)
-			mc.Close()
-			return driver.ErrBadConn
 		}
 	}
 
