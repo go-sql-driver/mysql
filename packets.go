@@ -14,6 +14,7 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -100,6 +101,9 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		prevData = append(prevData, data...)
 	}
 }
+
+// used in conncheck.go
+var errUnexpectedEvent = errors.New("recieved unexpected event")
 
 // Write packet buffer 'data'
 func (mc *mysqlConn) writePacket(data []byte) error {

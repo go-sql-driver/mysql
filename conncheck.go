@@ -12,15 +12,12 @@
 package mysql
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"syscall"
 
 	"golang.org/x/sys/unix"
 )
-
-var errUnexpectedEvent = errors.New("recieved unexpected event")
 
 func connCheck(conn net.Conn) error {
 	sysConn, ok := conn.(syscall.Conn)
