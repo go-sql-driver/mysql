@@ -3418,10 +3418,6 @@ func TestIssue1361(t *testing.T) {
 	}
 
 	dbt := &DBTest{t, db}
-	// for _, test := range tests {
-	// 	test(dbt)
-	// 	dbt.db.Exec("DROP TABLE IF EXISTS test")
-	// }
 	queries := []string{
 		`
         CREATE PROCEDURE test_proc1()
@@ -3460,7 +3456,7 @@ func runCallCommand(dbt *DBTest, query, name string) {
 
 	for rows.Next() {
 	}
-	for rows.NextResultSet() { // thread will be blocked when exec rs.Close()
+	for rows.NextResultSet() { // original thread will be blocked when exec rs.Close()
 		for rows.Next() {
 		}
 	}
