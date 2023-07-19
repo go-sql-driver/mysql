@@ -3406,3 +3406,62 @@ func TestConnectionAttributes(t *testing.T) {
 	}
 	rows.Close()
 }
+
+func TestIssue1361(t *testing.T) {
+	var db *sql.DB
+	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
+		db, err = sql.Open("mysql", dsn)
+		if err != nil {
+			t.Fatalf("error connecting: %s", err.Error())
+		}
+		defer db.Close()
+	}
+
+	dbt := &DBTest{t, db}
+	// for _, test := range tests {
+	// 	test(dbt)
+	// 	dbt.db.Exec("DROP TABLE IF EXISTS test")
+	// }
+	queries := []string{
+		`
+        CREATE PROCEDURE test_proc1()
+        BEGIN
+            SIGNAL SQLSTATE '10000' SET MESSAGE_TEXT = "some error",  MYSQL_ERRNO = 10000;
+        END;
+	`,
+		`
+        CREATE PROCEDURE test_proc2()
+        BEGIN
+            SELECT 1,2;
+            SELECT 3,4;
+            SIGNAL SQLSTATE '10000' SET MESSAGE_TEXT = "some error",  MYSQL_ERRNO = 10000;
+        END;
+	`,
+	}
+	names := []string{
+		"test_proc1", "test_proc2",
+	}
+	for i, query := range queries {
+		runCallCommand(dbt, query, names[i])
+	}
+
+}
+
+func runCallCommand(dbt *DBTest, query, name string) {
+
+	dbt.mustExec(fmt.Sprintf("DROP PROCEDURE IF EXISTS %s;", name))
+	dbt.mustExec(query)
+	defer dbt.mustExec("drop procedure " + name)
+	rows, err := dbt.db.Query(fmt.Sprintf("call %s;", name))
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+	}
+	for rows.NextResultSet() { // thread will be blocked when exec rs.Close()
+		for rows.Next() {
+		}
+	}
+}
