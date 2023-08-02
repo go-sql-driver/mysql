@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"bytes"
+	"context"
 	"crypto/rsa"
 	"crypto/tls"
 	"errors"
@@ -65,6 +66,8 @@ type Config struct {
 	MultiStatements          bool // Allow multiple statements in one query
 	ParseTime                bool // Parse time values to time.Time
 	RejectReadOnly           bool // Reject read-only connections
+
+	BeforeConnect func(context.Context, *Config) error // Invoked before a connection is established
 }
 
 // NewConfig creates a new Config and sets default values.

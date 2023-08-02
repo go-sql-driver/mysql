@@ -1965,6 +1965,40 @@ func TestCustomDial(t *testing.T) {
 	}
 }
 
+func TestBeforeConnect(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	// dbname is set in the BeforeConnect handle
+	cfg, err := ParseDSN(fmt.Sprintf("%s:%s@%s/%s?timeout=30s", user, pass, netAddr, "_"))
+	if err != nil {
+		t.Fatalf("error parsing DSN: %v", err)
+	}
+
+	cfg.BeforeConnect = func(ctx context.Context, c *Config) error {
+		c.DBName = dbname
+		return nil
+	}
+
+	connector, err := NewConnector(cfg)
+	if err != nil {
+		t.Fatalf("error creating connector: %v", err)
+	}
+
+	db := sql.OpenDB(connector)
+	defer db.Close()
+
+	var connectedDb string
+	err = db.QueryRow("SELECT DATABASE();").Scan(&connectedDb)
+	if err != nil {
+		t.Fatalf("error executing query: %v", err)
+	}
+	if connectedDb != dbname {
+		t.Fatalf("expected to connect to DB %s, but connected to %s instead", dbname, connectedDb)
+	}
+}
+
 func TestSQLInjection(t *testing.T) {
 	createTest := func(arg string) func(dbt *DBTest) {
 		return func(dbt *DBTest) {

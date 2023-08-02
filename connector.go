@@ -66,12 +66,22 @@ func newConnector(cfg *Config) (*connector, error) {
 func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	var err error
 
+	// Invoke BeforeConnect if present, with a copy of the configuration
+	cfg := c.cfg
+	if c.cfg.BeforeConnect != nil {
+		cfg = c.cfg.Clone()
+		err = c.cfg.BeforeConnect(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// New mysqlConn
 	mc := &mysqlConn{
 		maxAllowedPacket: maxPacketSize,
 		maxWriteSize:     maxPacketSize - 1,
 		closech:          make(chan struct{}),
-		cfg:              c.cfg,
+		cfg:              cfg,
 		connector:        c,
 	}
 	mc.parseTime = mc.cfg.ParseTime
