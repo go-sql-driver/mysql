@@ -3367,9 +3367,12 @@ func TestConnectionAttributes(t *testing.T) {
 
 	attr1 := "attr1"
 	value1 := "value1"
-	attr2 := "foo"
-	value2 := "boo"
-	dsn += fmt.Sprintf("&connectionAttributes=%s:%s,%s:%s", attr1, value1, attr2, value2)
+	attr2 := "fo/o"
+	value2 := "bo/o"
+	dsn += fmt.Sprintf(
+		"&connectionAttributes=%s:%s,%s:%s",
+		attr1, value1, url.QueryEscape(attr2), url.QueryEscape(value2),
+	)
 
 	var db *sql.DB
 	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
@@ -3389,6 +3392,17 @@ func TestConnectionAttributes(t *testing.T) {
 		rows.Scan(&attrValue)
 		if attrValue != connAttrClientNameValue {
 			dbt.Errorf("expected %q, got %q", connAttrClientNameValue, attrValue)
+		}
+	} else {
+		dbt.Errorf("no data")
+	}
+	rows.Close()
+
+	rows = dbt.mustQuery(queryString, attr1)
+	if rows.Next() {
+		rows.Scan(&attrValue)
+		if attrValue != value1 {
+			dbt.Errorf("expected %q, got %q", value1, attrValue)
 		}
 	} else {
 		dbt.Errorf("no data")
