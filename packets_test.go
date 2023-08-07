@@ -134,9 +134,9 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 	}
 
 	// too low sequence id
-	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
+	conn.data = []byte{0x01, 0x00, 0x00, 0x01, 0xff}
 	conn.maxReads = 1
-	mc.sequence = 1
+	mc.sequence = 2
 	_, err := mc.readPacket()
 	if err != ErrPktSync {
 		t.Errorf("expected ErrPktSync, got %v", err)
@@ -152,6 +152,27 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 	_, err = mc.readPacket()
 	if err != ErrPktSyncMul {
 		t.Errorf("expected ErrPktSyncMul, got %v", err)
+	}
+}
+
+func TestReadPacketZeroSequenceID(t *testing.T) {
+	conn := new(mockConn)
+	mc := &mysqlConn{
+		buf:     newBuffer(conn),
+		closech: make(chan struct{}),
+	}
+
+	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
+	conn.maxReads = 1
+	mc.sequence = 1
+	_, err := mc.readPacket()
+	if err != ErrInvalidConn {
+		t.Errorf("expected ErrInvalidConn, got %v", err)
+	}
+
+	// The connection should not be returned to the pool.
+	if mc.IsValid() {
+		t.Errorf("expected connection to no longer be valid")
 	}
 }
 

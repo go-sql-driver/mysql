@@ -43,10 +43,20 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		pktLen := int(uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16)
 
 		// check packet sync [8 bit]
-		if data[3] != mc.sequence {
-			if data[3] > mc.sequence {
+		if sequenceID := data[3]; sequenceID != mc.sequence {
+			if sequenceID > mc.sequence {
 				return nil, ErrPktSyncMul
 			}
+
+			if sequenceID == 0 {
+				// If the sequence ID is zero then this is not a response to any
+				// packet that the client has sent. It's likely an error packet
+				// that the server sent simultaneously.
+				errLog.Print("received packet with zero sequence ID")
+				mc.Close()
+				return nil, ErrInvalidConn
+			}
+
 			return nil, ErrPktSync
 		}
 		mc.sequence++
