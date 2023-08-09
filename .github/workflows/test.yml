@@ -31,12 +31,14 @@ jobs:
           import os
           go = [
               # Keep the most recent production release at the top
-              '1.20',
+              '1.21',
               # Older production releases
+              '1.20',
               '1.19',
               '1.18',
           ]
           mysql = [
+              '8.1',
               '8.0',
               '5.7',
               '5.6',
