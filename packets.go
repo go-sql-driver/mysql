@@ -19,6 +19,8 @@ import (
 	"math"
 	"strconv"
 	"time"
+
+	"gitee.com/Trisia/gotlcp/tlcp"
 )
 
 // Packets documentation:
@@ -292,9 +294,11 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		clientFlags |= clientFoundRows
 	}
 
-	// To enable TLS / SSL
+	// To enable TLS / SSL or TLCP
 	if mc.cfg.TLS != nil {
 		clientFlags |= clientSSL
+	} else if mc.cfg.TLCP != nil {
+		clientFlags |= clientTLCP
 	}
 
 	if mc.cfg.MultiStatements {
@@ -382,6 +386,20 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		mc.rawConn = mc.netConn
 		mc.netConn = tlsConn
 		mc.buf.nc = tlsConn
+	} else if mc.cfg.TLCP != nil { // TLCP Connection
+		// Send TLCP request packet
+		if err := mc.writePacket(data[:(4+4+1+23)+4]); err != nil {
+			return err
+		}
+
+		// Switch to TLCP
+		tlcpConn := tlcp.Client(mc.netConn, mc.cfg.TLCP)
+		if err := tlcpConn.Handshake(); err != nil {
+			return err
+		}
+		mc.rawConn = mc.netConn
+		mc.netConn = tlcpConn
+		mc.buf.nc = tlcpConn
 	}
 
 	// User [null terminated string]

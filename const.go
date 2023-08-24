@@ -68,6 +68,7 @@ const (
 	clientCanHandleExpiredPasswords
 	clientSessionTrack
 	clientDeprecateEOF
+	clientTLCP
 )
 
 const (
