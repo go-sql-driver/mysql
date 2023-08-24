@@ -17,10 +17,14 @@ import (
 	"math/big"
 	"net"
 	"net/url"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"gitee.com/Trisia/gotlcp/tlcp"
+	"github.com/emmansun/gmsm/smx509"
 )
 
 var (
@@ -48,6 +52,9 @@ type Config struct {
 	pubKey               *rsa.PublicKey    // Server public key
 	TLSConfig            string            // TLS configuration name
 	TLS                  *tls.Config       // TLS configuration, its priority is higher than TLSConfig
+	TLCPConfig           string            // TLCP configuration name
+	TLCPCaPath           []string          // TLCP CA certificate path
+	TLCP                 *tlcp.Config      // TLCP configuration, its priority is higher than TLCPConfig
 	Timeout              time.Duration     // Dial timeout
 	ReadTimeout          time.Duration     // I/O read timeout
 	WriteTimeout         time.Duration     // I/O write timeout
@@ -141,6 +148,24 @@ func (cfg *Config) normalize() error {
 		}
 	}
 
+	if cfg.TLCP == nil {
+		switch cfg.TLCPConfig {
+		case "false", "":
+			// don't set anything
+		case "true":
+			// todo: CA cert
+			pool := loadTLCPCert(cfg.TLCPCaPath)
+			cfg.TLCP = &tlcp.Config{InsecureSkipVerify: false, RootCAs: pool}
+		case "skip-verify":
+			cfg.TLCP = &tlcp.Config{InsecureSkipVerify: true}
+		case "preferred":
+			cfg.TLCP = &tlcp.Config{InsecureSkipVerify: true}
+			cfg.AllowFallbackToPlaintext = true
+		default:
+			return errors.New("invalid value / unknown tlcp config " + cfg.TLSConfig)
+		}
+	}
+
 	if cfg.TLS != nil && cfg.TLS.ServerName == "" && !cfg.TLS.InsecureSkipVerify {
 		host, _, err := net.SplitHostPort(cfg.Addr)
 		if err == nil {
@@ -160,6 +185,25 @@ func (cfg *Config) normalize() error {
 	}
 
 	return nil
+}
+
+// loadTLCPCert loads the CA cert from the given path.
+func loadTLCPCert(path []string) *smx509.CertPool {
+	pool := smx509.NewCertPool()
+	for _, p := range path {
+		rootCAPem, err := os.ReadFile(p)
+		if err != nil {
+			defaultLogger.Print(err)
+			continue
+		}
+		rootCert, err := smx509.ParseCertificatePEM(rootCAPem)
+		if err != nil {
+			defaultLogger.Print(err)
+			continue
+		}
+		pool.AddCert(rootCert)
+	}
+	return pool
 }
 
 func writeDSNParam(buf *bytes.Buffer, hasParam *bool, name, value string) {
@@ -554,6 +598,23 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				}
 				cfg.TLSConfig = name
 			}
+
+		// TLCP-Encryption
+		case "tlcp":
+			boolValue, isBool := readBool(value)
+			if isBool {
+				if boolValue {
+					cfg.TLCPConfig = "true"
+				} else {
+					cfg.TLCPConfig = "false"
+				}
+			} else if vl := strings.ToLower(value); vl == "skip-verify" || vl == "preferred" {
+				cfg.TLCPConfig = vl
+			}
+
+		// TLCP-CA-Path
+		case "tlcpCaPath":
+			cfg.TLCPCaPath = append(cfg.TLCPCaPath, strings.ToLower(value))
 
 		// I/O write Timeout
 		case "writeTimeout":
