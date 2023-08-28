@@ -220,7 +220,7 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 	pos += 8 + 1
 
 	// capability flags (lower 2 bytes) [2 bytes]
-	mc.flags = clientFlag(binary.LittleEndian.Uint16(data[pos : pos+4]))
+	mc.flags = clientFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
 	if mc.flags&clientProtocol41 == 0 {
 		return nil, "", ErrOldProtocol
 	}
@@ -231,6 +231,12 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 			return nil, "", ErrNoTLS
 		}
 	}
+	pos += 2
+	// TLCP capability flags is in the higher 2 bytes
+	higher2Bytes := clientFlag(binary.LittleEndian.Uint16(data[pos+3 : pos+5]))
+	if higher2Bytes&clientTLCP != 0 {
+		mc.flags |= clientTLCP
+	}
 	if mc.flags&clientTLCP == 0 && mc.cfg.TLCP != nil {
 		if mc.cfg.AllowFallbackToPlaintext {
 			mc.cfg.TLCP = nil
@@ -238,7 +244,6 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 			return nil, "", ErrNoTLCP
 		}
 	}
-	pos += 2
 
 	if len(data) > pos {
 		// character set [1 byte]
