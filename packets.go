@@ -230,7 +230,8 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 		} else {
 			return nil, "", ErrNoTLS
 		}
-	} else if mc.flags&clientTLCP == 0 && mc.cfg.TLCP != nil {
+	}
+	if mc.flags&clientTLCP == 0 && mc.cfg.TLCP != nil {
 		if mc.cfg.AllowFallbackToPlaintext {
 			mc.cfg.TLCP = nil
 		} else {
@@ -303,7 +304,8 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	// To enable TLS / SSL or TLCP
 	if mc.cfg.TLS != nil {
 		clientFlags |= clientSSL
-	} else if mc.cfg.TLCP != nil {
+	}
+	if mc.cfg.TLCP != nil {
 		clientFlags |= clientTLCP
 	}
 
