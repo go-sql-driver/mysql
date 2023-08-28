@@ -220,7 +220,7 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 	pos += 8 + 1
 
 	// capability flags (lower 2 bytes) [2 bytes]
-	mc.flags = clientFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
+	mc.flags = clientFlag(binary.LittleEndian.Uint16(data[pos : pos+4]))
 	if mc.flags&clientProtocol41 == 0 {
 		return nil, "", ErrOldProtocol
 	}
