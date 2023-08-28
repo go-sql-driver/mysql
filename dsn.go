@@ -149,17 +149,16 @@ func (cfg *Config) normalize() error {
 	}
 
 	if cfg.TLCP == nil {
+		pool := loadTLCPCert(cfg.TLCPCaPath)
 		switch cfg.TLCPConfig {
 		case "false", "":
 			// don't set anything
 		case "true":
-			// todo: CA cert
-			pool := loadTLCPCert(cfg.TLCPCaPath)
 			cfg.TLCP = &tlcp.Config{InsecureSkipVerify: false, RootCAs: pool}
 		case "skip-verify":
-			cfg.TLCP = &tlcp.Config{InsecureSkipVerify: true}
+			cfg.TLCP = &tlcp.Config{InsecureSkipVerify: true, RootCAs: pool}
 		case "preferred":
-			cfg.TLCP = &tlcp.Config{InsecureSkipVerify: true}
+			cfg.TLCP = &tlcp.Config{InsecureSkipVerify: true, RootCAs: pool}
 			cfg.AllowFallbackToPlaintext = true
 		default:
 			return errors.New("invalid value / unknown tlcp config " + cfg.TLSConfig)
