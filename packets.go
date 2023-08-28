@@ -230,6 +230,12 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 		} else {
 			return nil, "", ErrNoTLS
 		}
+	} else if mc.flags&clientTLCP == 0 && mc.cfg.TLCP != nil {
+		if mc.cfg.AllowFallbackToPlaintext {
+			mc.cfg.TLCP = nil
+		} else {
+			return nil, "", ErrNoTLCP
+		}
 	}
 	pos += 2
 
