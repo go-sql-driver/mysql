@@ -234,7 +234,7 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 	pos += 2
 	// TLCP capability flags is in the higher 2 bytes
 	higher2Bytes := clientFlag(binary.LittleEndian.Uint16(data[pos+3 : pos+5]))
-	if higher2Bytes&clientTLCP != 0 {
+	if higher2Bytes&(clientTLCP>>16) != 0 {
 		mc.flags |= clientTLCP
 	}
 	if mc.flags&clientTLCP == 0 && mc.cfg.TLCP != nil {
