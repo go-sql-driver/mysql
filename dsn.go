@@ -36,8 +36,8 @@ var (
 type Config struct {
 	User                 string            // Username
 	Passwd               string            // Password (requires User)
-	Net                  string            // Network type
-	Addr                 string            // Network address (requires Net)
+	Net                  string            // Network protocol
+	Addr                 string            // Network address (requires Net, otherwise defaults to a local connection)
 	DBName               string            // Database name
 	Params               map[string]string // Connection parameters
 	ConnectionAttributes string            // Connection Attributes, comma-delimited string of user-defined "key:value" pairs
