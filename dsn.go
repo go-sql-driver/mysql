@@ -36,8 +36,8 @@ var (
 type Config struct {
 	User                 string            // Username
 	Passwd               string            // Password (requires User)
-	Net                  string            // Network type
-	Addr                 string            // Network address (requires Net)
+	Net                  string            // Network (e.g. "tcp", "tcp6", "unix". default: "tcp")
+	Addr                 string            // Address (default: "127.0.0.1:3306" for "tcp" and "/tmp/mysql.sock" for "unix")
 	DBName               string            // Database name
 	Params               map[string]string // Connection parameters
 	ConnectionAttributes string            // Connection Attributes, comma-delimited string of user-defined "key:value" pairs
