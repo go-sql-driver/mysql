@@ -573,8 +573,8 @@ func (mc *okHandler) readResultSetHeaderPacket() (int, error) {
 
 		// column count
 		num, _, _ := readLengthEncodedInteger(data)
+		// ignore remaining data in the packet. see #1478.
 		return int(num), nil
-
 	}
 	return 0, err
 }
