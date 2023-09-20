@@ -572,12 +572,9 @@ func (mc *okHandler) readResultSetHeaderPacket() (int, error) {
 		}
 
 		// column count
-		num, _, n := readLengthEncodedInteger(data)
-		if n-len(data) == 0 {
-			return int(num), nil
-		}
+		num, _, _ := readLengthEncodedInteger(data)
+		return int(num), nil
 
-		return 0, ErrMalformPkt
 	}
 	return 0, err
 }
