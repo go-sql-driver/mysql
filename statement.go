@@ -30,6 +30,9 @@ func (stmt *mysqlStmt) Close() error {
 		//errLog.Print(ErrInvalidConn)
 		return driver.ErrBadConn
 	}
+	if stmt.mc.inLoadData {
+		return stmt.mc.loadDataTerminate()
+	}
 
 	err := stmt.mc.writeCommandPacketUint32(comStmtClose, stmt.id)
 	stmt.mc = nil
@@ -53,6 +56,9 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	if stmt.mc.closed.Load() {
 		stmt.mc.cfg.Logger.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
+	}
+	if stmt.mc.inLoadData {
+		return nil, stmt.mc.loadDataWrite(args)
 	}
 	// Send command
 	err := stmt.writeExecutePacket(args)

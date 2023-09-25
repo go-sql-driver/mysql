@@ -1330,6 +1330,179 @@ func TestLoadData(t *testing.T) {
 	})
 }
 
+func TestExecLoadData(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		in := [][]driver.Value{{"tt1", "tt1"}, {"tt2", "tt2"}, {"tt3", nil}}
+		v := [][]string{{"tt1", "tt1"}, {"tt2", "tt2"}, {"tt3", ""}}
+		dbt.db.Exec("DROP TABLE IF EXISTS test")
+
+		dbt.mustExec("CREATE TABLE test (value text, value2 text)")
+		dbt.mustExec("LOAD DATA LOCAL INFILE 'Data::Data' INTO TABLE test")
+
+		for _, v := range in {
+			dbt.mustExec("", v[0], v[1])
+		}
+		dbt.mustExec("")
+
+		rows := dbt.mustQuery("SELECT * FROM test")
+		for n := 0; rows.Next(); n++ {
+			var out, out2 sql.RawBytes
+			rows.Scan(&out, &out2)
+			if !bytes.Equal([]byte(v[n][0]), out) {
+				dbt.Errorf("expected %v, got %v", v[n][0], out)
+			}
+			if !bytes.Equal([]byte(v[n][1]), out2) {
+				dbt.Errorf("expected %v, got %v", v[n][1], out2)
+			}
+			rows.Close()
+		}
+
+		dbt.mustExec("DROP TABLE IF EXISTS test")
+	})
+}
+
+func TestPrepareLoadData(t *testing.T) {
+	count := 1000
+	runTests(t, dsn, func(dbt *DBTest) {
+		in := []driver.Value{"test1", "test2"}
+		v := []string{"test1", "test2"}
+		dbt.db.Exec("DROP TABLE IF EXISTS test")
+		dbt.mustExec("CREATE TABLE test (id INT, value1 text, value2 text)")
+
+		// Uncomment the next 'INSERT' line and comment out 'LOAD DATA' so it works.
+		//stmt, err := dbt.db.Prepare("INSERT INTO test (id, value1, value2) VALUES(?, ?, ?);")
+		stmt, err := dbt.db.Prepare("LOAD DATA LOCAL INFILE 'Data::Data' INTO TABLE test (id, value1, value2)")
+		if err != nil {
+			t.Fatalf("error preparing statement: %s", err.Error())
+		}
+
+		for i := 0; i < count; i++ {
+			_, err = stmt.Exec(i, in[0], in[1])
+			if err != nil {
+				t.Fatalf("error executing statement: %s", err.Error())
+			}
+		}
+		err = stmt.Close()
+		if err != nil {
+			t.Fatalf("error close statement: %s", err.Error())
+		}
+
+		rows := dbt.mustQuery("SELECT COUNT(*) FROM test")
+		if !rows.Next() {
+			dbt.Fatalf("error rows: %s", rows.Err())
+		}
+
+		c := 0
+		if err := rows.Scan(&c); err != nil {
+			dbt.Fatal(err.Error())
+		}
+		if count != c {
+			dbt.Errorf("Load Data Error:%v != %v", c, count)
+		}
+		rows = dbt.mustQuery("SELECT id, value1, value2 FROM test")
+		for rows.Next() {
+			var id int
+			var out, out2 sql.RawBytes
+			if err := rows.Scan(&id, &out, &out2); err != nil {
+				dbt.Fatal(err.Error())
+			}
+			if !bytes.Equal([]byte(v[0]), out) {
+				dbt.Errorf("expected %v, got %v", v[0], out)
+			}
+			if !bytes.Equal([]byte(v[1]), out2) {
+				dbt.Errorf("expected %v, got %v", v[1], out2)
+			}
+		}
+		rows.Close()
+
+		dbt.mustExec("DROP TABLE IF EXISTS test")
+	})
+}
+
+func TestExecLoadDataType(t *testing.T) {
+	type tType struct {
+		dbType string
+		value  driver.Value
+		result sql.RawBytes
+	}
+	tTypes := []tType{
+		{
+			dbType: "varchar(10)",
+			value:  "ttt",
+			result: []byte("ttt"),
+		},
+		{
+			dbType: "text",
+			value:  "ttt",
+			result: []byte("ttt"),
+		},
+		{
+			dbType: "text",
+			value:  nil,
+			result: []byte(""),
+		},
+		{
+			dbType: "text",
+			value:  []byte(nil),
+			result: []byte(""),
+		},
+		{
+			dbType: "int",
+			value:  42,
+			result: []byte("42"),
+		},
+		{
+			dbType: "float",
+			value:  42.23,
+			result: []byte("42.23"),
+		},
+		{
+			dbType: "datetime",
+			value:  time.Date(2001, 5, 20, 23, 59, 59, 0, time.UTC),
+			result: []byte("2001-05-20 23:59:59"),
+		},
+		{
+			dbType: "datetime",
+			value:  time.Time{},
+			result: []byte("0000-00-00 00:00:00"),
+		},
+		{
+			dbType: "bool",
+			value:  true,
+			result: []byte("1"),
+		},
+		{
+			dbType: "bool",
+			value:  false,
+			result: []byte("0"),
+		},
+	}
+	runTests(t, dsn, func(dbt *DBTest) {
+		var rows *sql.Rows
+		for _, tType := range tTypes {
+			dbt.db.Exec("DROP TABLE IF EXISTS test")
+			dbt.mustExec("CREATE TABLE test (value " + tType.dbType + ")")
+
+			dbt.mustExec("LOAD DATA LOCAL INFILE 'Data::Data' INTO TABLE test")
+			dbt.mustExec("", tType.value)
+			dbt.mustExec("")
+			rows = dbt.mustQuery("SELECT value FROM test")
+			if rows.Next() {
+				var out sql.RawBytes
+				rows.Scan(&out)
+				if !bytes.Equal(tType.result, out) {
+					dbt.Errorf("%s: expected %v, got %v(%s)", tType.dbType, tType.result, out, out)
+				}
+			} else {
+				dbt.Errorf("%s: no data", tType.dbType)
+			}
+			rows.Close()
+
+			dbt.mustExec("DROP TABLE IF EXISTS test")
+		}
+	})
+}
+
 func TestFoundRows(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (id INT NOT NULL ,data INT NOT NULL)")

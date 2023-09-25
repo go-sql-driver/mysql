@@ -515,6 +515,32 @@ To use a `io.Reader` a handler function must be registered with `mysql.RegisterR
 
 See the [godoc of Go-MySQL-Driver](https://godoc.org/github.com/go-sql-driver/mysql "golang mysql driver documentation") for details.
 
+### Execute `LOAD DATA LOCAL INFILE` instead of `INSERT INTO`
+
+Enables `LOAD DATA LOCAL INFILE` without the need to call a special function.
+Using `LOAD DATA LOCAL INFILE` instead of `INSERT INTO` is available with the filepath `Data::Data`.
+Create a statement by executing `LOAD DATA LOCAL INFILE 'Data::Data' INTO TABLE table name` as a query to the prepare function.
+Execute the returned statement with a value in Exec.
+Exec is imported as LOAD DATA until the statement is closed.
+
+```go
+//stmt, _ = db.Prepare("INSERT INTO test (id, value1, value2 ) VALUES (?, ?, ?);")
+stmt, _ = db.Prepare("LOAD DATA LOCAL INFILE 'Data::Data' INTO TABLE test (id, value1, value2);")
+stmt.Exec(1, "test11", "test12")
+stmt.Exec(2, "test21", "test22")
+stmt.Close()
+```
+
+It is also possible to perform a `LOAD DATA LOCAL INFILE Data::Data' INTO TABLE table name` Query with Exec.
+In that case, import the following Exec parameters as LOAD DATA.
+To finish importing LOAD data, run the parameter with nil.
+
+```go
+db.Exec("LOAD DATA LOCAL INFILE 'Data::Data' INTO TABLE test (id, value1, value2);")
+db.Exec("", 1, "test11", "test12")
+db.Exec("", 2, "test21", "test22")
+db.Exec("")
+```
 
 ### `time.Time` support
 The default internal output type of MySQL `DATE` and `DATETIME` values is `[]byte` which allows you to scan the value into a `[]byte`, `string` or `sql.RawBytes` variable in your program.
