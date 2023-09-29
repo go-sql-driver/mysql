@@ -11,6 +11,7 @@ package mysql
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -132,31 +133,57 @@ func TestReadPacketSingleByte(t *testing.T) {
 	}
 }
 
+type mockLogger struct {
+	bytes.Buffer
+}
+
+func (ml *mockLogger) Print(v ...any) {
+	ml.WriteString(fmt.Sprint(v...) + "\n")
+}
+
 func TestReadPacketWrongSequenceID(t *testing.T) {
 	conn := new(mockConn)
 	mc := &mysqlConn{
 		buf: newBuffer(conn),
+		cfg: NewConfig(),
 	}
+	logger := &mockLogger{}
+	mc.cfg.Logger = Logger(logger)
 
 	// too low sequence id
 	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
 	conn.maxReads = 1
 	mc.sequence = 1
-	_, err := mc.readPacket()
-	if err != ErrPktSync {
-		t.Errorf("expected ErrPktSync, got %v", err)
+	data, err := mc.readPacket()
+	if err != nil {
+		t.Errorf("expected nil, got %v", err)
+	}
+	if len(data) != 1 || data[0] != 0xff {
+		t.Errorf("expected [0xff], got % x", data)
+	}
+	logMsg := logger.String()
+	if logMsg != ErrPktSync.Error()+"\n" {
+		t.Errorf("expected ErrPktSync.Error(), got %q", logMsg)
 	}
 
 	// reset
 	conn.reads = 0
 	mc.sequence = 0
 	mc.buf = newBuffer(conn)
+	logger.Reset()
 
 	// too high sequence id
 	conn.data = []byte{0x01, 0x00, 0x00, 0x42, 0xff}
-	_, err = mc.readPacket()
-	if err != ErrPktSyncMul {
-		t.Errorf("expected ErrPktSyncMul, got %v", err)
+	data, err = mc.readPacket()
+	if err != nil {
+		t.Errorf("expected nil, got %v", err)
+	}
+	if len(data) != 1 || data[0] != 0xff {
+		t.Errorf("expected [0xff], got % x", data)
+	}
+	logMsg = logger.String()
+	if logMsg != ErrPktSyncMul.Error()+"\n" {
+		t.Errorf("expected ErrPktSync.Error(), got %q", logMsg)
 	}
 }
 

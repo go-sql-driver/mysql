@@ -12,17 +12,14 @@
 package mysql
 
 import (
-	"errors"
-	"io"
+	"fmt"
 	"net"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
-var errUnexpectedRead = errors.New("unexpected read from socket")
-
 func connCheck(conn net.Conn) error {
-	var sysErr error
-
 	sysConn, ok := conn.(syscall.Conn)
 	if !ok {
 		return nil
@@ -32,24 +29,22 @@ func connCheck(conn net.Conn) error {
 		return err
 	}
 
-	err = rawConn.Read(func(fd uintptr) bool {
-		var buf [1]byte
-		n, err := syscall.Read(int(fd), buf[:])
-		switch {
-		case n == 0 && err == nil:
-			sysErr = io.EOF
-		case n > 0:
-			sysErr = errUnexpectedRead
-		case err == syscall.EAGAIN || err == syscall.EWOULDBLOCK:
-			sysErr = nil
-		default:
-			sysErr = err
+	var pollErr error
+	err = rawConn.Control(func(fd uintptr) {
+		fds := []unix.PollFd{
+			{Fd: int32(fd), Events: unix.POLLIN | unix.POLLERR},
 		}
-		return true
+		n, err := unix.Poll(fds, 0)
+		if err != nil {
+			pollErr = fmt.Errorf("poll: %w", err)
+		}
+		if n > 0 {
+			// fmt.Errorf("poll: %v", fds[0].Revents)
+			pollErr = errUnexpectedEvent
+		}
 	})
 	if err != nil {
 		return err
 	}
-
-	return sysErr
+	return pollErr
 }
