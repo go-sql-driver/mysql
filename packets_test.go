@@ -133,30 +133,34 @@ func TestReadPacketSingleByte(t *testing.T) {
 }
 
 func TestReadPacketWrongSequenceID(t *testing.T) {
-	conn := new(mockConn)
-	mc := &mysqlConn{
-		buf: newBuffer(conn),
-	}
+	for _, testCase := range []struct {
+		ClientSequenceID byte
+		ServerSequenceID byte
+		ExpectedErr      error
+	}{
+		{
+			ClientSequenceID: 1,
+			ServerSequenceID: 0,
+			ExpectedErr:      ErrPktSync,
+		},
+		{
+			ClientSequenceID: 0,
+			ServerSequenceID: 0x42,
+			ExpectedErr:      ErrPktSyncMul,
+		},
+	} {
+		conn, mc := newRWMockConn(testCase.ClientSequenceID)
 
-	// too low sequence id
-	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
-	conn.maxReads = 1
-	mc.sequence = 1
-	_, err := mc.readPacket()
-	if err != ErrPktSync {
-		t.Errorf("expected ErrPktSync, got %v", err)
-	}
+		conn.data = []byte{0x01, 0x00, 0x00, testCase.ServerSequenceID, 0xff}
+		_, err := mc.readPacket()
+		if err != testCase.ExpectedErr {
+			t.Errorf("expected %v, got %v", testCase.ExpectedErr, err)
+		}
 
-	// reset
-	conn.reads = 0
-	mc.sequence = 0
-	mc.buf = newBuffer(conn)
-
-	// too high sequence id
-	conn.data = []byte{0x01, 0x00, 0x00, 0x42, 0xff}
-	_, err = mc.readPacket()
-	if err != ErrPktSyncMul {
-		t.Errorf("expected ErrPktSyncMul, got %v", err)
+		// connection should not be returned to the pool in this state
+		if mc.IsValid() {
+			t.Errorf("expected IsValid() to be false")
+		}
 	}
 }
 
