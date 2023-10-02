@@ -21,20 +21,23 @@ import (
 )
 
 type mysqlConn struct {
-	buf              buffer
-	netConn          net.Conn
-	rawConn          net.Conn    // underlying connection when netConn is TLS connection.
-	result           mysqlResult // managed by clearResult() and handleOkPacket().
-	cfg              *Config
-	connector        *connector
-	maxAllowedPacket int
-	maxWriteSize     int
-	writeTimeout     time.Duration
-	flags            clientFlag
-	status           statusFlag
-	sequence         uint8
-	parseTime        bool
-	reset            bool // set when the Go SQL package calls ResetSession
+	buf                 buffer
+	reader              packetReader
+	writer              io.Writer
+	netConn             net.Conn
+	rawConn             net.Conn    // underlying connection when netConn is TLS connection.
+	result              mysqlResult // managed by clearResult() and handleOkPacket().
+	cfg                 *Config
+	connector           *connector
+	maxAllowedPacket    int
+	maxWriteSize        int
+	writeTimeout        time.Duration
+	flags               clientFlag
+	status              statusFlag
+	sequence            uint8
+	compressionSequence uint8
+	parseTime           bool
+	reset               bool // set when the Go SQL package calls ResetSession
 
 	// for context support (Go 1.8+)
 	watching bool
@@ -43,6 +46,11 @@ type mysqlConn struct {
 	finished chan<- struct{}
 	canceled atomicError // set non-nil if conn is canceled
 	closed   atomicBool  // set when conn is closed, before closech is closed
+}
+
+type packetReader interface {
+	readNext(need int) ([]byte, error)
+	reuseBuffer(length int) ([]byte, error)
 }
 
 // Handles parameters set in DSN after the connection is established

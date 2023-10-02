@@ -29,7 +29,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 	var prevData []byte
 	for {
 		// read packet header
-		data, err := mc.buf.readNext(4)
+		data, err := mc.reader.readNext(4)
 		if err != nil {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
@@ -66,7 +66,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		}
 
 		// read packet body [pktLen bytes]
-		data, err = mc.buf.readNext(pktLen)
+		data, err = mc.reader.readNext(pktLen)
 		if err != nil {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
@@ -148,7 +148,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			}
 		}
 
-		n, err := mc.netConn.Write(data[:4+size])
+		n, err := mc.writer.Write(data[:4+size])
 		if err == nil && n == 4+size {
 			mc.sequence++
 			if size != maxPacketSize {
@@ -291,6 +291,10 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 
 	if mc.cfg.ClientFoundRows {
 		clientFlags |= clientFoundRows
+	}
+
+	if mc.cfg.Compress {
+		clientFlags |= clientCompress
 	}
 
 	// To enable TLS / SSL
@@ -438,6 +442,9 @@ func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
 func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
+	mc.compressionSequence = 0
+
+	data := mc.reader.reuseBuffer(4 + 1)
 
 	data, err := mc.buf.takeSmallBuffer(4 + 1)
 	if err != nil {
@@ -456,6 +463,7 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
+	mc.compressionSequence = 0
 
 	pktLen := 1 + len(arg)
 	data, err := mc.buf.takeBuffer(pktLen + 4)
@@ -478,6 +486,9 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
+	mc.compressionSequence = 0
+
+	data := mc.reader.reuseBuffer(4 + 1 + 4)
 
 	data, err := mc.buf.takeSmallBuffer(4 + 1 + 4)
 	if err != nil {
@@ -940,7 +951,8 @@ func (stmt *mysqlStmt) readPrepareResultPacket() (uint16, error) {
 
 // http://dev.mysql.com/doc/internals/en/com-stmt-send-long-data.html
 func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
-	maxLen := stmt.mc.maxAllowedPacket - 1
+	mc := stmt.mc
+	maxLen := mc.maxAllowedPacket - 1
 	pktLen := maxLen
 
 	// After the header (bytes 0-3) follows before the data:
@@ -961,7 +973,8 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 			pktLen = dataOffset + argLen
 		}
 
-		stmt.mc.sequence = 0
+		mc.sequence = 0
+		mc.compressionSequence = 0
 		// Add command byte [1 byte]
 		data[4] = comStmtSendLongData
 
@@ -976,7 +989,7 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 		data[10] = byte(paramID >> 8)
 
 		// Send CMD packet
-		err := stmt.mc.writePacket(data[:4+pktLen])
+		err := mc.writePacket(data[:4+pktLen])
 		if err == nil {
 			data = data[pktLen-dataOffset:]
 			continue
@@ -986,7 +999,8 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 	}
 
 	// Reset Packet Sequence
-	stmt.mc.sequence = 0
+	mc.sequence = 0
+	mc.compressionSequence = 0
 	return nil
 }
 
@@ -1012,6 +1026,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 	// Reset packet-sequence
 	mc.sequence = 0
+	mc.compressionSequence = 0
 
 	var data []byte
 	var err error

@@ -171,6 +171,31 @@ func (b *buffer) takeCompleteBuffer() ([]byte, error) {
 	return b.buf, nil
 }
 
+// returns a buffer with the requested size.
+// If possible, a slice from the existing buffer is returned.
+// Otherwise a bigger buffer is made.
+// Only one buffer (total) can be used at a time.
+func (b *buffer) reuseBuffer(length int) ([]byte, error) {
+	if length == -1 {
+		return b.takeCompleteBuffer()
+	}
+
+	if b.length > 0 {
+		return nil, nil
+	}
+
+	// test (cheap) general case first
+	if length <= defaultBufSize || length <= cap(b.buf) {
+		return b.buf[:length], nil
+	}
+
+	if length < maxPacketSize {
+		b.buf = make([]byte, length)
+		return b.buf, nil
+	}
+	return make([]byte, length), nil
+}
+
 // store stores buf, an updated buffer, if its suitable to do so.
 func (b *buffer) store(buf []byte) error {
 	if b.length > 0 {

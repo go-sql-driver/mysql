@@ -155,6 +155,11 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 
+	if mc.cfg.Compress {
+		mc.reader = newCompressedReader(&mc.buf, mc)
+		mc.writer = newCompressedWriter(mc.writer, mc)
+	}
+
 	if mc.cfg.MaxAllowedPacket > 0 {
 		mc.maxAllowedPacket = mc.cfg.MaxAllowedPacket
 	} else {

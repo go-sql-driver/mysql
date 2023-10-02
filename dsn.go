@@ -61,6 +61,7 @@ type Config struct {
 	CheckConnLiveness        bool // Check connections for liveness before using them
 	ClientFoundRows          bool // Return number of matching rows instead of rows changed
 	ColumnsWithAlias         bool // Prepend table alias to column names
+	Compress                 bool // Compress packets
 	InterpolateParams        bool // Interpolate placeholders into query string
 	MultiStatements          bool // Allow multiple statements in one query
 	ParseTime                bool // Parse time values to time.Time
@@ -466,7 +467,11 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// Compression
 		case "compress":
-			return errors.New("compression not implemented yet")
+			var isBool bool
+			cfg.Compress, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
 
 		// Enable client side placeholder substitution
 		case "interpolateParams":
