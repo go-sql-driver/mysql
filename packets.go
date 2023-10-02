@@ -444,9 +444,7 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	mc.sequence = 0
 	mc.compressionSequence = 0
 
-	data := mc.reader.reuseBuffer(4 + 1)
-
-	data, err := mc.buf.takeSmallBuffer(4 + 1)
+	data, err := mc.reader.reuseBuffer(4 + 1)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
 		mc.cfg.Logger.Print(err)
@@ -488,9 +486,7 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	mc.sequence = 0
 	mc.compressionSequence = 0
 
-	data := mc.reader.reuseBuffer(4 + 1 + 4)
-
-	data, err := mc.buf.takeSmallBuffer(4 + 1 + 4)
+	data, err := mc.reader.reuseBuffer(4 + 1 + 4)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
 		mc.cfg.Logger.Print(err)

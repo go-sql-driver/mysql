@@ -39,8 +39,8 @@ func (mb *mockBuf) readNext(need int) ([]byte, error) {
 	return data, nil
 }
 
-func (mb *mockBuf) reuseBuffer(length int) []byte {
-	return make([]byte, length) //just give them a new buffer
+func (mb *mockBuf) reuseBuffer(length int) ([]byte, error) {
+	return make([]byte, length), nil //just give them a new buffer
 }
 
 // compressHelper compresses uncompressedPacket and checks state variables
