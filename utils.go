@@ -9,59 +9,62 @@
 package mysql
 
 import (
-	"crypto/sha1"
 	"crypto/tls"
+	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
+// Registry for custom tls.Configs
 var (
 	tlsConfigLock     sync.RWMutex
-	tlsConfigRegister map[string]*tls.Config // Register for custom tls.Configs
+	tlsConfigRegistry map[string]*tls.Config
 )
 
 // RegisterTLSConfig registers a custom tls.Config to be used with sql.Open.
 // Use the key as a value in the DSN where tls=value.
 //
-// Note: The tls.Config provided to needs to be exclusively owned by the driver after registering.
+// Note: The provided tls.Config is exclusively owned by the driver after
+// registering it.
 //
-//  rootCertPool := x509.NewCertPool()
-//  pem, err := ioutil.ReadFile("/path/ca-cert.pem")
-//  if err != nil {
-//      log.Fatal(err)
-//  }
-//  if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
-//      log.Fatal("Failed to append PEM.")
-//  }
-//  clientCert := make([]tls.Certificate, 0, 1)
-//  certs, err := tls.LoadX509KeyPair("/path/client-cert.pem", "/path/client-key.pem")
-//  if err != nil {
-//      log.Fatal(err)
-//  }
-//  clientCert = append(clientCert, certs)
-//  mysql.RegisterTLSConfig("custom", &tls.Config{
-//      RootCAs: rootCertPool,
-//      Certificates: clientCert,
-//  })
-//  db, err := sql.Open("mysql", "user@tcp(localhost:3306)/test?tls=custom")
-//
+//	rootCertPool := x509.NewCertPool()
+//	pem, err := os.ReadFile("/path/ca-cert.pem")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
+//	    log.Fatal("Failed to append PEM.")
+//	}
+//	clientCert := make([]tls.Certificate, 0, 1)
+//	certs, err := tls.LoadX509KeyPair("/path/client-cert.pem", "/path/client-key.pem")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	clientCert = append(clientCert, certs)
+//	mysql.RegisterTLSConfig("custom", &tls.Config{
+//	    RootCAs: rootCertPool,
+//	    Certificates: clientCert,
+//	})
+//	db, err := sql.Open("mysql", "user@tcp(localhost:3306)/test?tls=custom")
 func RegisterTLSConfig(key string, config *tls.Config) error {
-	if _, isBool := readBool(key); isBool || strings.ToLower(key) == "skip-verify" {
+	if _, isBool := readBool(key); isBool || strings.ToLower(key) == "skip-verify" || strings.ToLower(key) == "preferred" {
 		return fmt.Errorf("key '%s' is reserved", key)
 	}
 
 	tlsConfigLock.Lock()
-	if tlsConfigRegister == nil {
-		tlsConfigRegister = make(map[string]*tls.Config)
+	if tlsConfigRegistry == nil {
+		tlsConfigRegistry = make(map[string]*tls.Config)
 	}
 
-	tlsConfigRegister[key] = config
+	tlsConfigRegistry[key] = config
 	tlsConfigLock.Unlock()
 	return nil
 }
@@ -69,16 +72,16 @@ func RegisterTLSConfig(key string, config *tls.Config) error {
 // DeregisterTLSConfig removes the tls.Config associated with key.
 func DeregisterTLSConfig(key string) {
 	tlsConfigLock.Lock()
-	if tlsConfigRegister != nil {
-		delete(tlsConfigRegister, key)
+	if tlsConfigRegistry != nil {
+		delete(tlsConfigRegistry, key)
 	}
 	tlsConfigLock.Unlock()
 }
 
 func getTLSConfigClone(key string) (config *tls.Config) {
 	tlsConfigLock.RLock()
-	if v, ok := tlsConfigRegister[key]; ok {
-		config = cloneTLSConfig(v)
+	if v, ok := tlsConfigRegistry[key]; ok {
+		config = v.Clone()
 	}
 	tlsConfigLock.RUnlock()
 	return
@@ -99,197 +102,129 @@ func readBool(input string) (value bool, valid bool) {
 }
 
 /******************************************************************************
-*                             Authentication                                  *
-******************************************************************************/
-
-// Encrypt password using 4.1+ method
-func scramblePassword(scramble, password []byte) []byte {
-	if len(password) == 0 {
-		return nil
-	}
-
-	// stage1Hash = SHA1(password)
-	crypt := sha1.New()
-	crypt.Write(password)
-	stage1 := crypt.Sum(nil)
-
-	// scrambleHash = SHA1(scramble + SHA1(stage1Hash))
-	// inner Hash
-	crypt.Reset()
-	crypt.Write(stage1)
-	hash := crypt.Sum(nil)
-
-	// outer Hash
-	crypt.Reset()
-	crypt.Write(scramble)
-	crypt.Write(hash)
-	scramble = crypt.Sum(nil)
-
-	// token = scrambleHash XOR stage1Hash
-	for i := range scramble {
-		scramble[i] ^= stage1[i]
-	}
-	return scramble
-}
-
-// Encrypt password using pre 4.1 (old password) method
-// https://github.com/atcurtis/mariadb/blob/master/mysys/my_rnd.c
-type myRnd struct {
-	seed1, seed2 uint32
-}
-
-const myRndMaxVal = 0x3FFFFFFF
-
-// Pseudo random number generator
-func newMyRnd(seed1, seed2 uint32) *myRnd {
-	return &myRnd{
-		seed1: seed1 % myRndMaxVal,
-		seed2: seed2 % myRndMaxVal,
-	}
-}
-
-// Tested to be equivalent to MariaDB's floating point variant
-// http://play.golang.org/p/QHvhd4qved
-// http://play.golang.org/p/RG0q4ElWDx
-func (r *myRnd) NextByte() byte {
-	r.seed1 = (r.seed1*3 + r.seed2) % myRndMaxVal
-	r.seed2 = (r.seed1 + r.seed2 + 33) % myRndMaxVal
-
-	return byte(uint64(r.seed1) * 31 / myRndMaxVal)
-}
-
-// Generate binary hash from byte string using insecure pre 4.1 method
-func pwHash(password []byte) (result [2]uint32) {
-	var add uint32 = 7
-	var tmp uint32
-
-	result[0] = 1345345333
-	result[1] = 0x12345671
-
-	for _, c := range password {
-		// skip spaces and tabs in password
-		if c == ' ' || c == '\t' {
-			continue
-		}
-
-		tmp = uint32(c)
-		result[0] ^= (((result[0] & 63) + add) * tmp) + (result[0] << 8)
-		result[1] += (result[1] << 8) ^ result[0]
-		add += tmp
-	}
-
-	// Remove sign bit (1<<31)-1)
-	result[0] &= 0x7FFFFFFF
-	result[1] &= 0x7FFFFFFF
-
-	return
-}
-
-// Encrypt password using insecure pre 4.1 method
-func scrambleOldPassword(scramble, password []byte) []byte {
-	if len(password) == 0 {
-		return nil
-	}
-
-	scramble = scramble[:8]
-
-	hashPw := pwHash(password)
-	hashSc := pwHash(scramble)
-
-	r := newMyRnd(hashPw[0]^hashSc[0], hashPw[1]^hashSc[1])
-
-	var out [8]byte
-	for i := range out {
-		out[i] = r.NextByte() + 64
-	}
-
-	mask := r.NextByte()
-	for i := range out {
-		out[i] ^= mask
-	}
-
-	return out[:]
-}
-
-/******************************************************************************
 *                           Time related utils                                *
 ******************************************************************************/
 
-// NullTime represents a time.Time that may be NULL.
-// NullTime implements the Scanner interface so
-// it can be used as a scan destination:
-//
-//  var nt NullTime
-//  err := db.QueryRow("SELECT time FROM foo WHERE id=?", id).Scan(&nt)
-//  ...
-//  if nt.Valid {
-//     // use nt.Time
-//  } else {
-//     // NULL value
-//  }
-//
-// This NullTime implementation is not driver-specific
-type NullTime struct {
-	Time  time.Time
-	Valid bool // Valid is true if Time is not NULL
-}
-
-// Scan implements the Scanner interface.
-// The value type must be time.Time or string / []byte (formatted time-string),
-// otherwise Scan fails.
-func (nt *NullTime) Scan(value interface{}) (err error) {
-	if value == nil {
-		nt.Time, nt.Valid = time.Time{}, false
-		return
-	}
-
-	switch v := value.(type) {
-	case time.Time:
-		nt.Time, nt.Valid = v, true
-		return
-	case []byte:
-		nt.Time, err = parseDateTime(string(v), time.UTC)
-		nt.Valid = (err == nil)
-		return
-	case string:
-		nt.Time, err = parseDateTime(v, time.UTC)
-		nt.Valid = (err == nil)
-		return
-	}
-
-	nt.Valid = false
-	return fmt.Errorf("Can't convert %T to time.Time", value)
-}
-
-// Value implements the driver Valuer interface.
-func (nt NullTime) Value() (driver.Value, error) {
-	if !nt.Valid {
-		return nil, nil
-	}
-	return nt.Time, nil
-}
-
-func parseDateTime(str string, loc *time.Location) (t time.Time, err error) {
-	base := "0000-00-00 00:00:00.0000000"
-	switch len(str) {
+func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
+	const base = "0000-00-00 00:00:00.000000"
+	switch len(b) {
 	case 10, 19, 21, 22, 23, 24, 25, 26: // up to "YYYY-MM-DD HH:MM:SS.MMMMMM"
-		if str == base[:len(str)] {
-			return
+		if string(b) == base[:len(b)] {
+			return time.Time{}, nil
 		}
-		t, err = time.Parse(timeFormat[:len(str)], str)
+
+		year, err := parseByteYear(b)
+		if err != nil {
+			return time.Time{}, err
+		}
+		if b[4] != '-' {
+			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[4])
+		}
+
+		m, err := parseByte2Digits(b[5], b[6])
+		if err != nil {
+			return time.Time{}, err
+		}
+		month := time.Month(m)
+
+		if b[7] != '-' {
+			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[7])
+		}
+
+		day, err := parseByte2Digits(b[8], b[9])
+		if err != nil {
+			return time.Time{}, err
+		}
+		if len(b) == 10 {
+			return time.Date(year, month, day, 0, 0, 0, 0, loc), nil
+		}
+
+		if b[10] != ' ' {
+			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[10])
+		}
+
+		hour, err := parseByte2Digits(b[11], b[12])
+		if err != nil {
+			return time.Time{}, err
+		}
+		if b[13] != ':' {
+			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[13])
+		}
+
+		min, err := parseByte2Digits(b[14], b[15])
+		if err != nil {
+			return time.Time{}, err
+		}
+		if b[16] != ':' {
+			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[16])
+		}
+
+		sec, err := parseByte2Digits(b[17], b[18])
+		if err != nil {
+			return time.Time{}, err
+		}
+		if len(b) == 19 {
+			return time.Date(year, month, day, hour, min, sec, 0, loc), nil
+		}
+
+		if b[19] != '.' {
+			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[19])
+		}
+		nsec, err := parseByteNanoSec(b[20:])
+		if err != nil {
+			return time.Time{}, err
+		}
+		return time.Date(year, month, day, hour, min, sec, nsec, loc), nil
 	default:
-		err = fmt.Errorf("invalid time string: %s", str)
-		return
+		return time.Time{}, fmt.Errorf("invalid time bytes: %s", b)
 	}
+}
 
-	// Adjust location
-	if err == nil && loc != time.UTC {
-		y, mo, d := t.Date()
-		h, mi, s := t.Clock()
-		t, err = time.Date(y, mo, d, h, mi, s, t.Nanosecond(), loc), nil
+func parseByteYear(b []byte) (int, error) {
+	year, n := 0, 1000
+	for i := 0; i < 4; i++ {
+		v, err := bToi(b[i])
+		if err != nil {
+			return 0, err
+		}
+		year += v * n
+		n /= 10
 	}
+	return year, nil
+}
 
-	return
+func parseByte2Digits(b1, b2 byte) (int, error) {
+	d1, err := bToi(b1)
+	if err != nil {
+		return 0, err
+	}
+	d2, err := bToi(b2)
+	if err != nil {
+		return 0, err
+	}
+	return d1*10 + d2, nil
+}
+
+func parseByteNanoSec(b []byte) (int, error) {
+	ns, digit := 0, 100000 // max is 6-digits
+	for i := 0; i < len(b); i++ {
+		v, err := bToi(b[i])
+		if err != nil {
+			return 0, err
+		}
+		ns += v * digit
+		digit /= 10
+	}
+	// nanoseconds has 10-digits. (needs to scale digits)
+	// 10 - 6 = 4, so we have to multiple 1000.
+	return ns * 1000, nil
+}
+
+func bToi(b byte) (int, error) {
+	if b < '0' || b > '9' {
+		return 0, errors.New("not [0-9]")
+	}
+	return int(b - '0'), nil
 }
 
 func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Value, error) {
@@ -330,6 +265,64 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 	return nil, fmt.Errorf("invalid DATETIME packet length %d", num)
 }
 
+func appendDateTime(buf []byte, t time.Time) ([]byte, error) {
+	year, month, day := t.Date()
+	hour, min, sec := t.Clock()
+	nsec := t.Nanosecond()
+
+	if year < 1 || year > 9999 {
+		return buf, errors.New("year is not in the range [1, 9999]: " + strconv.Itoa(year)) // use errors.New instead of fmt.Errorf to avoid year escape to heap
+	}
+	year100 := year / 100
+	year1 := year % 100
+
+	var localBuf [len("2006-01-02T15:04:05.999999999")]byte // does not escape
+	localBuf[0], localBuf[1], localBuf[2], localBuf[3] = digits10[year100], digits01[year100], digits10[year1], digits01[year1]
+	localBuf[4] = '-'
+	localBuf[5], localBuf[6] = digits10[month], digits01[month]
+	localBuf[7] = '-'
+	localBuf[8], localBuf[9] = digits10[day], digits01[day]
+
+	if hour == 0 && min == 0 && sec == 0 && nsec == 0 {
+		return append(buf, localBuf[:10]...), nil
+	}
+
+	localBuf[10] = ' '
+	localBuf[11], localBuf[12] = digits10[hour], digits01[hour]
+	localBuf[13] = ':'
+	localBuf[14], localBuf[15] = digits10[min], digits01[min]
+	localBuf[16] = ':'
+	localBuf[17], localBuf[18] = digits10[sec], digits01[sec]
+
+	if nsec == 0 {
+		return append(buf, localBuf[:19]...), nil
+	}
+	nsec100000000 := nsec / 100000000
+	nsec1000000 := (nsec / 1000000) % 100
+	nsec10000 := (nsec / 10000) % 100
+	nsec100 := (nsec / 100) % 100
+	nsec1 := nsec % 100
+	localBuf[19] = '.'
+
+	// milli second
+	localBuf[20], localBuf[21], localBuf[22] =
+		digits01[nsec100000000], digits10[nsec1000000], digits01[nsec1000000]
+	// micro second
+	localBuf[23], localBuf[24], localBuf[25] =
+		digits10[nsec10000], digits01[nsec10000], digits10[nsec100]
+	// nano second
+	localBuf[26], localBuf[27], localBuf[28] =
+		digits01[nsec100], digits10[nsec1], digits01[nsec1]
+
+	// trim trailing zeros
+	n := len(localBuf)
+	for n > 0 && localBuf[n-1] == '0' {
+		n--
+	}
+
+	return append(buf, localBuf[:n]...), nil
+}
+
 // zeroDateTime is used in formatBinaryDateTime to avoid an allocation
 // if the DATE or DATETIME has the zero value.
 // It must never be changed.
@@ -339,87 +332,104 @@ var zeroDateTime = []byte("0000-00-00 00:00:00.000000")
 const digits01 = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
 const digits10 = "0000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999"
 
-func formatBinaryDateTime(src []byte, length uint8, justTime bool) (driver.Value, error) {
+func appendMicrosecs(dst, src []byte, decimals int) []byte {
+	if decimals <= 0 {
+		return dst
+	}
+	if len(src) == 0 {
+		return append(dst, ".000000"[:decimals+1]...)
+	}
+
+	microsecs := binary.LittleEndian.Uint32(src[:4])
+	p1 := byte(microsecs / 10000)
+	microsecs -= 10000 * uint32(p1)
+	p2 := byte(microsecs / 100)
+	microsecs -= 100 * uint32(p2)
+	p3 := byte(microsecs)
+
+	switch decimals {
+	default:
+		return append(dst, '.',
+			digits10[p1], digits01[p1],
+			digits10[p2], digits01[p2],
+			digits10[p3], digits01[p3],
+		)
+	case 1:
+		return append(dst, '.',
+			digits10[p1],
+		)
+	case 2:
+		return append(dst, '.',
+			digits10[p1], digits01[p1],
+		)
+	case 3:
+		return append(dst, '.',
+			digits10[p1], digits01[p1],
+			digits10[p2],
+		)
+	case 4:
+		return append(dst, '.',
+			digits10[p1], digits01[p1],
+			digits10[p2], digits01[p2],
+		)
+	case 5:
+		return append(dst, '.',
+			digits10[p1], digits01[p1],
+			digits10[p2], digits01[p2],
+			digits10[p3],
+		)
+	}
+}
+
+func formatBinaryDateTime(src []byte, length uint8) (driver.Value, error) {
 	// length expects the deterministic length of the zero value,
 	// negative time and 100+ hours are automatically added if needed
 	if len(src) == 0 {
-		if justTime {
-			return zeroDateTime[11 : 11+length], nil
-		}
 		return zeroDateTime[:length], nil
 	}
-	var dst []byte          // return value
-	var pt, p1, p2, p3 byte // current digit pair
-	var zOffs byte          // offset of value in zeroDateTime
-	if justTime {
-		switch length {
-		case
-			8,                      // time (can be up to 10 when negative and 100+ hours)
-			10, 11, 12, 13, 14, 15: // time with fractional seconds
-		default:
-			return nil, fmt.Errorf("illegal TIME length %d", length)
+	var dst []byte      // return value
+	var p1, p2, p3 byte // current digit pair
+
+	switch length {
+	case 10, 19, 21, 22, 23, 24, 25, 26:
+	default:
+		t := "DATE"
+		if length > 10 {
+			t += "TIME"
 		}
-		switch len(src) {
-		case 8, 12:
-		default:
-			return nil, fmt.Errorf("invalid TIME packet length %d", len(src))
-		}
-		// +2 to enable negative time and 100+ hours
-		dst = make([]byte, 0, length+2)
-		if src[0] == 1 {
-			dst = append(dst, '-')
-		}
-		if src[1] != 0 {
-			hour := uint16(src[1])*24 + uint16(src[5])
-			pt = byte(hour / 100)
-			p1 = byte(hour - 100*uint16(pt))
-			dst = append(dst, digits01[pt])
-		} else {
-			p1 = src[5]
-		}
-		zOffs = 11
-		src = src[6:]
-	} else {
-		switch length {
-		case 10, 19, 21, 22, 23, 24, 25, 26:
-		default:
-			t := "DATE"
-			if length > 10 {
-				t += "TIME"
-			}
-			return nil, fmt.Errorf("illegal %s length %d", t, length)
-		}
-		switch len(src) {
-		case 4, 7, 11:
-		default:
-			t := "DATE"
-			if length > 10 {
-				t += "TIME"
-			}
-			return nil, fmt.Errorf("illegal %s packet length %d", t, len(src))
-		}
-		dst = make([]byte, 0, length)
-		// start with the date
-		year := binary.LittleEndian.Uint16(src[:2])
-		pt = byte(year / 100)
-		p1 = byte(year - 100*uint16(pt))
-		p2, p3 = src[2], src[3]
-		dst = append(dst,
-			digits10[pt], digits01[pt],
-			digits10[p1], digits01[p1], '-',
-			digits10[p2], digits01[p2], '-',
-			digits10[p3], digits01[p3],
-		)
-		if length == 10 {
-			return dst, nil
-		}
-		if len(src) == 4 {
-			return append(dst, zeroDateTime[10:length]...), nil
-		}
-		dst = append(dst, ' ')
-		p1 = src[4] // hour
-		src = src[5:]
+		return nil, fmt.Errorf("illegal %s length %d", t, length)
 	}
+	switch len(src) {
+	case 4, 7, 11:
+	default:
+		t := "DATE"
+		if length > 10 {
+			t += "TIME"
+		}
+		return nil, fmt.Errorf("illegal %s packet length %d", t, len(src))
+	}
+	dst = make([]byte, 0, length)
+	// start with the date
+	year := binary.LittleEndian.Uint16(src[:2])
+	pt := year / 100
+	p1 = byte(year - 100*uint16(pt))
+	p2, p3 = src[2], src[3]
+	dst = append(dst,
+		digits10[pt], digits01[pt],
+		digits10[p1], digits01[p1], '-',
+		digits10[p2], digits01[p2], '-',
+		digits10[p3], digits01[p3],
+	)
+	if length == 10 {
+		return dst, nil
+	}
+	if len(src) == 4 {
+		return append(dst, zeroDateTime[10:length]...), nil
+	}
+	dst = append(dst, ' ')
+	p1 = src[4] // hour
+	src = src[5:]
+
 	// p1 is 2-digit hour, src is after hour
 	p2, p3 = src[0], src[1]
 	dst = append(dst,
@@ -427,51 +437,49 @@ func formatBinaryDateTime(src []byte, length uint8, justTime bool) (driver.Value
 		digits10[p2], digits01[p2], ':',
 		digits10[p3], digits01[p3],
 	)
-	if length <= byte(len(dst)) {
-		return dst, nil
-	}
-	src = src[2:]
+	return appendMicrosecs(dst, src[2:], int(length)-20), nil
+}
+
+func formatBinaryTime(src []byte, length uint8) (driver.Value, error) {
+	// length expects the deterministic length of the zero value,
+	// negative time and 100+ hours are automatically added if needed
 	if len(src) == 0 {
-		return append(dst, zeroDateTime[19:zOffs+length]...), nil
+		return zeroDateTime[11 : 11+length], nil
 	}
-	microsecs := binary.LittleEndian.Uint32(src[:4])
-	p1 = byte(microsecs / 10000)
-	microsecs -= 10000 * uint32(p1)
-	p2 = byte(microsecs / 100)
-	microsecs -= 100 * uint32(p2)
-	p3 = byte(microsecs)
-	switch decimals := zOffs + length - 20; decimals {
+	var dst []byte // return value
+
+	switch length {
+	case
+		8,                      // time (can be up to 10 when negative and 100+ hours)
+		10, 11, 12, 13, 14, 15: // time with fractional seconds
 	default:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-			digits10[p2], digits01[p2],
-			digits10[p3], digits01[p3],
-		), nil
-	case 1:
-		return append(dst, '.',
-			digits10[p1],
-		), nil
-	case 2:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-		), nil
-	case 3:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-			digits10[p2],
-		), nil
-	case 4:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-			digits10[p2], digits01[p2],
-		), nil
-	case 5:
-		return append(dst, '.',
-			digits10[p1], digits01[p1],
-			digits10[p2], digits01[p2],
-			digits10[p3],
-		), nil
+		return nil, fmt.Errorf("illegal TIME length %d", length)
 	}
+	switch len(src) {
+	case 8, 12:
+	default:
+		return nil, fmt.Errorf("invalid TIME packet length %d", len(src))
+	}
+	// +2 to enable negative time and 100+ hours
+	dst = make([]byte, 0, length+2)
+	if src[0] == 1 {
+		dst = append(dst, '-')
+	}
+	days := binary.LittleEndian.Uint32(src[1:5])
+	hours := int64(days)*24 + int64(src[5])
+
+	if hours >= 100 {
+		dst = strconv.AppendInt(dst, hours, 10)
+	} else {
+		dst = append(dst, digits10[hours], digits01[hours])
+	}
+
+	min, sec := src[6], src[7]
+	dst = append(dst, ':',
+		digits10[min], digits01[min], ':',
+		digits10[sec], digits01[sec],
+	)
+	return appendMicrosecs(dst, src[8:], int(length)-9), nil
 }
 
 /******************************************************************************
@@ -523,7 +531,7 @@ func stringToInt(b []byte) int {
 	return val
 }
 
-// returns the string read as a bytes slice, wheter the value is NULL,
+// returns the string read as a bytes slice, whether the value is NULL,
 // the number of bytes read and an error, in case the string is longer than
 // the input slice
 func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
@@ -608,6 +616,11 @@ func appendLengthEncodedInteger(b []byte, n uint64) []byte {
 		byte(n>>32), byte(n>>40), byte(n>>48), byte(n>>56))
 }
 
+func appendLengthEncodedString(b []byte, s string) []byte {
+	b = appendLengthEncodedInteger(b, uint64(len(s)))
+	return append(b, s...)
+}
+
 // reserveBuffer checks cap(buf) and expand buffer to len(buf) + appendSize.
 // If cap(buf) is not enough, reallocate new buffer.
 func reserveBuffer(buf []byte, appendSize int) []byte {
@@ -633,32 +646,32 @@ func escapeBytesBackslash(buf, v []byte) []byte {
 	for _, c := range v {
 		switch c {
 		case '\x00':
-			buf[pos] = '\\'
 			buf[pos+1] = '0'
+			buf[pos] = '\\'
 			pos += 2
 		case '\n':
-			buf[pos] = '\\'
 			buf[pos+1] = 'n'
+			buf[pos] = '\\'
 			pos += 2
 		case '\r':
-			buf[pos] = '\\'
 			buf[pos+1] = 'r'
+			buf[pos] = '\\'
 			pos += 2
 		case '\x1a':
-			buf[pos] = '\\'
 			buf[pos+1] = 'Z'
+			buf[pos] = '\\'
 			pos += 2
 		case '\'':
-			buf[pos] = '\\'
 			buf[pos+1] = '\''
+			buf[pos] = '\\'
 			pos += 2
 		case '"':
-			buf[pos] = '\\'
 			buf[pos+1] = '"'
+			buf[pos] = '\\'
 			pos += 2
 		case '\\':
-			buf[pos] = '\\'
 			buf[pos+1] = '\\'
+			buf[pos] = '\\'
 			pos += 2
 		default:
 			buf[pos] = c
@@ -678,32 +691,32 @@ func escapeStringBackslash(buf []byte, v string) []byte {
 		c := v[i]
 		switch c {
 		case '\x00':
-			buf[pos] = '\\'
 			buf[pos+1] = '0'
+			buf[pos] = '\\'
 			pos += 2
 		case '\n':
-			buf[pos] = '\\'
 			buf[pos+1] = 'n'
+			buf[pos] = '\\'
 			pos += 2
 		case '\r':
-			buf[pos] = '\\'
 			buf[pos+1] = 'r'
+			buf[pos] = '\\'
 			pos += 2
 		case '\x1a':
-			buf[pos] = '\\'
 			buf[pos+1] = 'Z'
+			buf[pos] = '\\'
 			pos += 2
 		case '\'':
-			buf[pos] = '\\'
 			buf[pos+1] = '\''
+			buf[pos] = '\\'
 			pos += 2
 		case '"':
-			buf[pos] = '\\'
 			buf[pos+1] = '"'
+			buf[pos] = '\\'
 			pos += 2
 		case '\\':
-			buf[pos] = '\\'
 			buf[pos+1] = '\\'
+			buf[pos] = '\\'
 			pos += 2
 		default:
 			buf[pos] = c
@@ -725,8 +738,8 @@ func escapeBytesQuotes(buf, v []byte) []byte {
 
 	for _, c := range v {
 		if c == '\'' {
-			buf[pos] = '\''
 			buf[pos+1] = '\''
+			buf[pos] = '\''
 			pos += 2
 		} else {
 			buf[pos] = c
@@ -745,8 +758,8 @@ func escapeStringQuotes(buf []byte, v string) []byte {
 	for i := 0; i < len(v); i++ {
 		c := v[i]
 		if c == '\'' {
-			buf[pos] = '\''
 			buf[pos+1] = '\''
+			buf[pos] = '\''
 			pos += 2
 		} else {
 			buf[pos] = c
@@ -771,39 +784,16 @@ type noCopy struct{}
 // Lock is a no-op used by -copylocks checker from `go vet`.
 func (*noCopy) Lock() {}
 
-// atomicBool is a wrapper around uint32 for usage as a boolean value with
-// atomic access.
-type atomicBool struct {
-	_noCopy noCopy
-	value   uint32
-}
-
-// IsSet returns wether the current boolean value is true
-func (ab *atomicBool) IsSet() bool {
-	return atomic.LoadUint32(&ab.value) > 0
-}
-
-// Set sets the value of the bool regardless of the previous value
-func (ab *atomicBool) Set(value bool) {
-	if value {
-		atomic.StoreUint32(&ab.value, 1)
-	} else {
-		atomic.StoreUint32(&ab.value, 0)
-	}
-}
-
-// TrySet sets the value of the bool and returns wether the value changed
-func (ab *atomicBool) TrySet(value bool) bool {
-	if value {
-		return atomic.SwapUint32(&ab.value, 1) == 0
-	}
-	return atomic.SwapUint32(&ab.value, 0) > 0
-}
+// Unlock is a no-op used by -copylocks checker from `go vet`.
+// noCopy should implement sync.Locker from Go 1.11
+// https://github.com/golang/go/commit/c2eba53e7f80df21d51285879d51ab81bcfbf6bc
+// https://github.com/golang/go/issues/26165
+func (*noCopy) Unlock() {}
 
 // atomicError is a wrapper for atomically accessed error values
 type atomicError struct {
-	_noCopy noCopy
-	value   atomic.Value
+	_     noCopy
+	value atomic.Value
 }
 
 // Set sets the error value regardless of the previous value.
@@ -819,4 +809,31 @@ func (ae *atomicError) Value() error {
 		return v.(error)
 	}
 	return nil
+}
+
+func namedValueToValue(named []driver.NamedValue) ([]driver.Value, error) {
+	dargs := make([]driver.Value, len(named))
+	for n, param := range named {
+		if len(param.Name) > 0 {
+			// TODO: support the use of Named Parameters #561
+			return nil, errors.New("mysql: driver does not support the use of Named Parameters")
+		}
+		dargs[n] = param.Value
+	}
+	return dargs, nil
+}
+
+func mapIsolationLevel(level driver.IsolationLevel) (string, error) {
+	switch sql.IsolationLevel(level) {
+	case sql.LevelRepeatableRead:
+		return "REPEATABLE READ", nil
+	case sql.LevelReadCommitted:
+		return "READ COMMITTED", nil
+	case sql.LevelReadUncommitted:
+		return "READ UNCOMMITTED", nil
+	case sql.LevelSerializable:
+		return "SERIALIZABLE", nil
+	default:
+		return "", fmt.Errorf("mysql: unsupported isolation level: %v", level)
+	}
 }

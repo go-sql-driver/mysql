@@ -10,9 +10,12 @@ package mysql
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"database/sql/driver"
+	"fmt"
 	"math"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -137,7 +140,8 @@ func BenchmarkExec(b *testing.B) {
 				}
 
 				if _, err := stmt.Exec(); err != nil {
-					b.Fatal(err.Error())
+					b.Logf("stmt.Exec failed: %v", err)
+					b.Fail()
 				}
 			}
 		}()
@@ -253,4 +257,188 @@ func BenchmarkInterpolation(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+func benchmarkQueryContext(b *testing.B, db *sql.DB, p int) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db.SetMaxIdleConns(p * runtime.GOMAXPROCS(0))
+
+	tb := (*TB)(b)
+	stmt := tb.checkStmt(db.PrepareContext(ctx, "SELECT val FROM foo WHERE id=?"))
+	defer stmt.Close()
+
+	b.SetParallelism(p)
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		var got string
+		for pb.Next() {
+			tb.check(stmt.QueryRow(1).Scan(&got))
+			if got != "one" {
+				b.Fatalf("query = %q; want one", got)
+			}
+		}
+	})
+}
+
+func BenchmarkQueryContext(b *testing.B) {
+	db := initDB(b, false,
+		"DROP TABLE IF EXISTS foo",
+		"CREATE TABLE foo (id INT PRIMARY KEY, val CHAR(50))",
+		`INSERT INTO foo VALUES (1, "one")`,
+		`INSERT INTO foo VALUES (2, "two")`,
+	)
+	defer db.Close()
+	for _, p := range []int{1, 2, 3, 4} {
+		b.Run(fmt.Sprintf("%d", p), func(b *testing.B) {
+			benchmarkQueryContext(b, db, p)
+		})
+	}
+}
+
+func benchmarkExecContext(b *testing.B, db *sql.DB, p int) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db.SetMaxIdleConns(p * runtime.GOMAXPROCS(0))
+
+	tb := (*TB)(b)
+	stmt := tb.checkStmt(db.PrepareContext(ctx, "DO 1"))
+	defer stmt.Close()
+
+	b.SetParallelism(p)
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if _, err := stmt.ExecContext(ctx); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+func BenchmarkExecContext(b *testing.B) {
+	db := initDB(b, false,
+		"DROP TABLE IF EXISTS foo",
+		"CREATE TABLE foo (id INT PRIMARY KEY, val CHAR(50))",
+		`INSERT INTO foo VALUES (1, "one")`,
+		`INSERT INTO foo VALUES (2, "two")`,
+	)
+	defer db.Close()
+	for _, p := range []int{1, 2, 3, 4} {
+		b.Run(fmt.Sprintf("%d", p), func(b *testing.B) {
+			benchmarkExecContext(b, db, p)
+		})
+	}
+}
+
+// BenchmarkQueryRawBytes benchmarks fetching 100 blobs using sql.RawBytes.
+// "size=" means size of each blobs.
+func BenchmarkQueryRawBytes(b *testing.B) {
+	var sizes []int = []int{100, 1000, 2000, 4000, 8000, 12000, 16000, 32000, 64000, 256000}
+	db := initDB(b, false,
+		"DROP TABLE IF EXISTS bench_rawbytes",
+		"CREATE TABLE bench_rawbytes (id INT PRIMARY KEY, val LONGBLOB)",
+	)
+	defer db.Close()
+
+	blob := make([]byte, sizes[len(sizes)-1])
+	for i := range blob {
+		blob[i] = 42
+	}
+	for i := 0; i < 100; i++ {
+		_, err := db.Exec("INSERT INTO bench_rawbytes VALUES (?, ?)", i, blob)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+
+	for _, s := range sizes {
+		b.Run(fmt.Sprintf("size=%v", s), func(b *testing.B) {
+			db.SetMaxIdleConns(0)
+			db.SetMaxIdleConns(1)
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			for j := 0; j < b.N; j++ {
+				rows, err := db.Query("SELECT LEFT(val, ?) as v FROM bench_rawbytes", s)
+				if err != nil {
+					b.Fatal(err)
+				}
+				nrows := 0
+				for rows.Next() {
+					var buf sql.RawBytes
+					err := rows.Scan(&buf)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if len(buf) != s {
+						b.Fatalf("size mismatch: expected %v, got %v", s, len(buf))
+					}
+					nrows++
+				}
+				rows.Close()
+				if nrows != 100 {
+					b.Fatalf("numbers of rows mismatch: expected %v, got %v", 100, nrows)
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkReceiveMassiveRows measures performance of receiving large number of rows.
+func BenchmarkReceiveMassiveRows(b *testing.B) {
+	// Setup -- prepare 10000 rows.
+	db := initDB(b, false,
+		"DROP TABLE IF EXISTS foo",
+		"CREATE TABLE foo (id INT PRIMARY KEY, val TEXT)")
+	defer db.Close()
+
+	sval := strings.Repeat("x", 50)
+	stmt, err := db.Prepare(`INSERT INTO foo (id, val) VALUES (?, ?)` + strings.Repeat(",(?,?)", 99))
+	if err != nil {
+		b.Errorf("failed to prepare query: %v", err)
+		return
+	}
+	for i := 0; i < 10000; i += 100 {
+		args := make([]any, 200)
+		for j := 0; j < 100; j++ {
+			args[j*2] = i + j
+			args[j*2+1] = sval
+		}
+		_, err := stmt.Exec(args...)
+		if err != nil {
+			b.Error(err)
+			return
+		}
+	}
+	stmt.Close()
+
+	// Use b.Run() to skip expensive setup.
+	b.Run("query", func(b *testing.B) {
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			rows, err := db.Query(`SELECT id, val FROM foo`)
+			if err != nil {
+				b.Errorf("failed to select: %v", err)
+				return
+			}
+			for rows.Next() {
+				var i int
+				var s sql.RawBytes
+				err = rows.Scan(&i, &s)
+				if err != nil {
+					b.Errorf("failed to scan: %v", err)
+					_ = rows.Close()
+					return
+				}
+			}
+			if err = rows.Err(); err != nil {
+				b.Errorf("failed to read rows: %v", err)
+			}
+			_ = rows.Close()
+		}
+	})
 }

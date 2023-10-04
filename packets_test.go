@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"bytes"
 	"errors"
 	"net"
 	"testing"
@@ -23,16 +24,17 @@ var (
 
 // struct to mock a net.Conn for testing purposes
 type mockConn struct {
-	laddr     net.Addr
-	raddr     net.Addr
-	data      []byte
-	closed    bool
-	read      int
-	written   int
-	reads     int
-	writes    int
-	maxReads  int
-	maxWrites int
+	laddr         net.Addr
+	raddr         net.Addr
+	data          []byte
+	written       []byte
+	queuedReplies [][]byte
+	closed        bool
+	read          int
+	reads         int
+	writes        int
+	maxReads      int
+	maxWrites     int
 }
 
 func (m *mockConn) Read(b []byte) (n int, err error) {
@@ -61,7 +63,12 @@ func (m *mockConn) Write(b []byte) (n int, err error) {
 	}
 
 	n = len(b)
-	m.written += n
+	m.written = append(m.written, b...)
+
+	if n > 0 && len(m.queuedReplies) > 0 {
+		m.data = m.queuedReplies[0]
+		m.queuedReplies = m.queuedReplies[1:]
+	}
 	return
 }
 func (m *mockConn) Close() error {
@@ -87,6 +94,24 @@ func (m *mockConn) SetWriteDeadline(t time.Time) error {
 // make sure mockConn implements the net.Conn interface
 var _ net.Conn = new(mockConn)
 
+func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
+	conn := new(mockConn)
+	connector, err := newConnector(NewConfig())
+	if err != nil {
+		panic(err)
+	}
+	mc := &mysqlConn{
+		buf:              newBuffer(conn),
+		cfg:              connector.cfg,
+		connector:        connector,
+		netConn:          conn,
+		closech:          make(chan struct{}),
+		maxAllowedPacket: defaultMaxAllowedPacket,
+		sequence:         sequence,
+	}
+	return conn, mc
+}
+
 func TestReadPacketSingleByte(t *testing.T) {
 	conn := new(mockConn)
 	mc := &mysqlConn{
@@ -110,31 +135,34 @@ func TestReadPacketSingleByte(t *testing.T) {
 }
 
 func TestReadPacketWrongSequenceID(t *testing.T) {
-	conn := new(mockConn)
-	mc := &mysqlConn{
-		buf: newBuffer(conn),
-	}
-	mc.reader = &mc.buf
+	for _, testCase := range []struct {
+		ClientSequenceID byte
+		ServerSequenceID byte
+		ExpectedErr      error
+	}{
+		{
+			ClientSequenceID: 1,
+			ServerSequenceID: 0,
+			ExpectedErr:      ErrPktSync,
+		},
+		{
+			ClientSequenceID: 0,
+			ServerSequenceID: 0x42,
+			ExpectedErr:      ErrPktSyncMul,
+		},
+	} {
+		conn, mc := newRWMockConn(testCase.ClientSequenceID)
 
-	// too low sequence id
-	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
-	conn.maxReads = 1
-	mc.sequence = 1
-	_, err := mc.readPacket()
-	if err != ErrPktSync {
-		t.Errorf("expected ErrPktSync, got %v", err)
-	}
+		conn.data = []byte{0x01, 0x00, 0x00, testCase.ServerSequenceID, 0xff}
+		_, err := mc.readPacket()
+		if err != testCase.ExpectedErr {
+			t.Errorf("expected %v, got %v", testCase.ExpectedErr, err)
+		}
 
-	// reset
-	conn.reads = 0
-	mc.sequence = 0
-	mc.buf = newBuffer(conn)
-
-	// too high sequence id
-	conn.data = []byte{0x01, 0x00, 0x00, 0x42, 0xff}
-	_, err = mc.readPacket()
-	if err != ErrPktSyncMul {
-		t.Errorf("expected ErrPktSyncMul, got %v", err)
+		// connection should not be returned to the pool in this state
+		if mc.IsValid() {
+			t.Errorf("expected IsValid() to be false")
+		}
 	}
 }
 
@@ -250,6 +278,7 @@ func TestReadPacketFail(t *testing.T) {
 	mc := &mysqlConn{
 		buf:     newBuffer(conn),
 		closech: make(chan struct{}),
+		cfg:     NewConfig(),
 	}
 	mc.reader = &mc.buf
 
@@ -284,5 +313,39 @@ func TestReadPacketFail(t *testing.T) {
 	_, err = mc.readPacket()
 	if err != ErrInvalidConn {
 		t.Errorf("expected ErrInvalidConn, got %v", err)
+	}
+}
+
+// https://github.com/go-sql-driver/mysql/pull/801
+// not-NUL terminated plugin_name in init packet
+func TestRegression801(t *testing.T) {
+	conn := new(mockConn)
+	mc := &mysqlConn{
+		buf:      newBuffer(conn),
+		cfg:      new(Config),
+		sequence: 42,
+		closech:  make(chan struct{}),
+	}
+
+	conn.data = []byte{72, 0, 0, 42, 10, 53, 46, 53, 46, 56, 0, 165, 0, 0, 0,
+		60, 70, 63, 58, 68, 104, 34, 97, 0, 223, 247, 33, 2, 0, 15, 128, 21, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 98, 120, 114, 47, 85, 75, 109, 99, 51, 77,
+		50, 64, 0, 109, 121, 115, 113, 108, 95, 110, 97, 116, 105, 118, 101, 95,
+		112, 97, 115, 115, 119, 111, 114, 100}
+	conn.maxReads = 1
+
+	authData, pluginName, err := mc.readHandshakePacket()
+	if err != nil {
+		t.Fatalf("got error: %v", err)
+	}
+
+	if pluginName != "mysql_native_password" {
+		t.Errorf("expected plugin name 'mysql_native_password', got '%s'", pluginName)
+	}
+
+	expectedAuthData := []byte{60, 70, 63, 58, 68, 104, 34, 97, 98, 120, 114,
+		47, 85, 75, 109, 99, 51, 77, 50, 64}
+	if !bytes.Equal(authData, expectedAuthData) {
+		t.Errorf("expected authData '%v', got '%v'", expectedAuthData, authData)
 	}
 }

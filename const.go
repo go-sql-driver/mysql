@@ -8,21 +8,35 @@
 
 package mysql
 
+import "runtime"
+
 const (
-	defaultMaxAllowedPacket = 4 << 20 // 4 MiB
+	defaultAuthPlugin       = "mysql_native_password"
+	defaultMaxAllowedPacket = 64 << 20 // 64 MiB. See https://github.com/go-sql-driver/mysql/issues/1355
 	minProtocolVersion      = 10
 	maxPacketSize           = 1<<24 - 1
 	timeFormat              = "2006-01-02 15:04:05.999999"
+
+	// Connection attributes
+	// See https://dev.mysql.com/doc/refman/8.0/en/performance-schema-connection-attribute-tables.html#performance-schema-connection-attributes-available
+	connAttrClientName      = "_client_name"
+	connAttrClientNameValue = "Go-MySQL-Driver"
+	connAttrOS              = "_os"
+	connAttrOSValue         = runtime.GOOS
+	connAttrPlatform        = "_platform"
+	connAttrPlatformValue   = runtime.GOARCH
+	connAttrPid             = "_pid"
 )
 
 // MySQL constants documentation:
 // http://dev.mysql.com/doc/internals/en/client-server-protocol.html
 
 const (
-	iOK          byte = 0x00
-	iLocalInFile byte = 0xfb
-	iEOF         byte = 0xfe
-	iERR         byte = 0xff
+	iOK           byte = 0x00
+	iAuthMoreData byte = 0x01
+	iLocalInFile  byte = 0xfb
+	iEOF          byte = 0xfe
+	iERR          byte = 0xff
 )
 
 // https://dev.mysql.com/doc/internals/en/capability-flags.html#packet-Protocol::CapabilityFlags
@@ -163,4 +177,10 @@ const (
 	statusPsOutParams
 	statusInTransReadonly
 	statusSessionStateChanged
+)
+
+const (
+	cachingSha2PasswordRequestPublicKey          = 2
+	cachingSha2PasswordFastAuthSuccess           = 3
+	cachingSha2PasswordPerformFullAuthentication = 4
 )

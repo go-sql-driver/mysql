@@ -10,14 +10,15 @@ package mysql
 
 import (
 	"bytes"
+	"errors"
 	"log"
 	"testing"
 )
 
 func TestErrorsSetLogger(t *testing.T) {
-	previous := errLog
+	previous := defaultLogger
 	defer func() {
-		errLog = previous
+		defaultLogger = previous
 	}()
 
 	// set up logger
@@ -27,7 +28,7 @@ func TestErrorsSetLogger(t *testing.T) {
 
 	// print
 	SetLogger(logger)
-	errLog.Print("test")
+	defaultLogger.Print("test")
 
 	// check result
 	if actual := buffer.String(); actual != expected {
@@ -39,4 +40,22 @@ func TestErrorsStrictIgnoreNotes(t *testing.T) {
 	runTests(t, dsn+"&sql_notes=false", func(dbt *DBTest) {
 		dbt.mustExec("DROP TABLE IF EXISTS does_not_exist")
 	})
+}
+
+func TestMySQLErrIs(t *testing.T) {
+	infraErr := &MySQLError{Number: 1234, Message: "the server is on fire"}
+	otherInfraErr := &MySQLError{Number: 1234, Message: "the datacenter is flooded"}
+	if !errors.Is(infraErr, otherInfraErr) {
+		t.Errorf("expected errors to be the same: %+v %+v", infraErr, otherInfraErr)
+	}
+
+	differentCodeErr := &MySQLError{Number: 5678, Message: "the server is on fire"}
+	if errors.Is(infraErr, differentCodeErr) {
+		t.Fatalf("expected errors to be different: %+v %+v", infraErr, differentCodeErr)
+	}
+
+	nonMysqlErr := errors.New("not a mysql error")
+	if errors.Is(infraErr, nonMysqlErr) {
+		t.Fatalf("expected errors to be different: %+v %+v", infraErr, nonMysqlErr)
+	}
 }
