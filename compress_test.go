@@ -57,18 +57,18 @@ func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []by
 	}
 
 	if n != len(uncompressedPacket) {
-		t.Fatal(fmt.Sprintf("expected to write %d bytes, wrote %d bytes", len(uncompressedPacket), n))
+		t.Fatalf("expected to write %d bytes, wrote %d bytes", len(uncompressedPacket), n)
 	}
 
 	if len(uncompressedPacket) > 0 {
 
 		if mc.compressionSequence != (cs + 1) {
-			t.Fatal(fmt.Sprintf("mc.compressionSequence updated incorrectly, expected %d and saw %d", (cs + 1), mc.compressionSequence))
+			t.Fatalf("mc.compressionSequence updated incorrectly, expected %d and saw %d", (cs + 1), mc.compressionSequence)
 		}
 
 	} else {
 		if mc.compressionSequence != cs {
-			t.Fatal(fmt.Sprintf("mc.compressionSequence updated incorrectly for case of empty write, expected %d and saw %d", cs, mc.compressionSequence))
+			t.Fatalf("mc.compressionSequence updated incorrectly for case of empty write, expected %d and saw %d", cs, mc.compressionSequence)
 		}
 	}
 
@@ -95,17 +95,17 @@ func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expS
 	uncompressedPacket, err := cr.readNext(expSize)
 	if err != nil {
 		if err != io.EOF {
-			t.Fatal(fmt.Sprintf("non-nil/non-EOF error when reading contents: %s", err.Error()))
+			t.Fatalf("non-nil/non-EOF error when reading contents: %s", err.Error())
 		}
 	}
 
 	if expSize > 0 {
 		if mc.compressionSequence != (cs + 1) {
-			t.Fatal(fmt.Sprintf("mc.compressionSequence updated incorrectly, expected %d and saw %d", (cs + 1), mc.compressionSequence))
+			t.Fatalf("mc.compressionSequence updated incorrectly, expected %d and saw %d", (cs + 1), mc.compressionSequence)
 		}
 	} else {
 		if mc.compressionSequence != cs {
-			t.Fatal(fmt.Sprintf("mc.compressionSequence updated incorrectly for case of empty read, expected %d and saw %d", cs, mc.compressionSequence))
+			t.Fatalf("mc.compressionSequence updated incorrectly for case of empty read, expected %d and saw %d", cs, mc.compressionSequence)
 		}
 	}
 	return uncompressedPacket
@@ -154,15 +154,15 @@ func TestCompressedReaderThenWriter(t *testing.T) {
 		// test uncompression only
 		c := newMockConn()
 		uncompressed := uncompressHelper(t, c, test.compressed, len(test.uncompressed))
-		if bytes.Compare(uncompressed, test.uncompressed) != 0 {
-			t.Fatal(fmt.Sprintf("%s: uncompression failed", s))
+		if !bytes.Equal(uncompressed, test.uncompressed) {
+			t.Fatalf("%s: uncompression failed", s)
 		}
 
 		// test compression only
 		c = newMockConn()
 		compressed := compressHelper(t, c, test.uncompressed)
-		if bytes.Compare(compressed, test.compressed) != 0 {
-			t.Fatal(fmt.Sprintf("%s: compression failed", s))
+		if !bytes.Equal(compressed, test.compressed) {
+			t.Fatalf("%s: compression failed", s)
 		}
 	}
 }
@@ -210,8 +210,8 @@ func TestRoundtrip(t *testing.T) {
 		s := fmt.Sprintf("Test roundtrip with %s", test.desc)
 
 		uncompressed := roundtripHelper(t, cSend, cReceive, test.uncompressed)
-		if bytes.Compare(uncompressed, test.uncompressed) != 0 {
-			t.Fatal(fmt.Sprintf("%s: roundtrip failed", s))
+		if !bytes.Equal(uncompressed, test.uncompressed) {
+			t.Fatalf("%s: roundtrip failed", s)
 		}
 	}
 }
