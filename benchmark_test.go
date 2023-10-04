@@ -72,7 +72,6 @@ func BenchmarkQueryCompression(b *testing.B) {
 }
 
 func benchmarkQueryHelper(b *testing.B, compr bool) {
-
 	tb := (*TB)(b)
 	b.StopTimer()
 	b.ReportAllocs()

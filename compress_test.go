@@ -113,7 +113,6 @@ func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expS
 
 // TestCompressedReaderThenWriter tests reader and writer seperately.
 func TestCompressedReaderThenWriter(t *testing.T) {
-
 	makeTestUncompressedPacket := func(size int) []byte {
 		uncompressedHeader := make([]byte, 4)
 		uncompressedHeader[0] = byte(size)
@@ -169,7 +168,6 @@ func TestCompressedReaderThenWriter(t *testing.T) {
 
 // TestRoundtrip tests two connections, where one is reading and the other is writing
 func TestRoundtrip(t *testing.T) {
-
 	tests := []struct {
 		uncompressed []byte
 		desc         string
