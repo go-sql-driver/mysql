@@ -338,7 +338,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 
 	switch plugin {
 
-	// https://insidemysql.com/preparing-your-community-connector-for-mysql-8-part-2-sha256/
+	// https://dev.mysql.com/blog-archive/preparing-your-community-connector-for-mysql-8-part-2-sha256/
 	case "caching_sha2_password":
 		switch len(authData) {
 		case 0:
@@ -376,7 +376,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 						}
 
 						if data[0] != iAuthMoreData {
-							return fmt.Errorf("unexpect resp from server for caching_sha2_password perform full authentication")
+							return fmt.Errorf("unexpected resp from server for caching_sha2_password, perform full authentication")
 						}
 
 						// parse public key
