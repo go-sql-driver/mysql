@@ -61,7 +61,6 @@ func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []by
 	}
 
 	if len(uncompressedPacket) > 0 {
-
 		if mc.compressionSequence != (cs + 1) {
 			t.Fatalf("mc.compressionSequence updated incorrectly, expected %d and saw %d", (cs + 1), mc.compressionSequence)
 		}
