@@ -27,17 +27,18 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
 ---------------------------------------
 
 ## Features
-  * Lightweight and [fast](https://github.com/go-sql-driver/sql-benchmark "golang MySQL-Driver performance")
-  * Native Go implementation. No C-bindings, just pure Go
-  * Connections over TCP/IPv4, TCP/IPv6, Unix domain sockets or [custom protocols](https://godoc.org/github.com/go-sql-driver/mysql#DialFunc)
-  * Automatic handling of broken connections
-  * Automatic Connection Pooling *(by database/sql package)*
-  * Supports queries larger than 16MB
+  * Lightweight and [fast](https://github.com/go-sql-driver/sql-benchmark "golang MySQL-Driver performance").
+  * Native Go implementation. No C-bindings, just pure Go.
+  * Connections over TCP/IPv4, TCP/IPv6, Unix domain sockets or [custom protocols](https://godoc.org/github.com/go-sql-driver/mysql#DialFunc).
+  * Automatic handling of broken connections.
+  * Automatic Connection Pooling *(by database/sql package)*.
+  * Supports queries larger than 16MB.
   * Full [`sql.RawBytes`](https://golang.org/pkg/database/sql/#RawBytes) support.
-  * Intelligent `LONG DATA` handling in prepared statements
-  * Secure `LOAD DATA LOCAL INFILE` support with file allowlisting and `io.Reader` support
-  * Optional `time.Time` parsing
-  * Optional placeholder interpolation
+  * Intelligent `LONG DATA` handling in prepared statements.
+  * Secure `LOAD DATA LOCAL INFILE` support with file allowlisting and `io.Reader` support.
+  * Optional `time.Time` parsing.
+  * Optional placeholder interpolation.
+  * Supports zlib compression.
 
 ## Requirements
   * Go 1.18 or higher. We aim to support the 3 latest versions of Go.
