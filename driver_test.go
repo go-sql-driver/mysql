@@ -3308,16 +3308,16 @@ func TestConnectorTimeoutsDuringOpen(t *testing.T) {
 	}
 }
 
-// A connection which can only be closed.
-type dummyConnection struct {
-	net.Conn
-	closed bool
-}
+// // A connection which can only be closed.
+// type dummyConnection struct {
+// 	net.Conn
+// 	closed bool
+// }
 
-func (d *dummyConnection) Close() error {
-	d.closed = true
-	return nil
-}
+// func (d *dummyConnection) Close() error {
+// 	d.closed = true
+// 	return nil
+// }
 
 // func TestConnectorTimeoutsWatchCancel(t *testing.T) {
 // 	var (
