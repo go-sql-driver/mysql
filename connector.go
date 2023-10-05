@@ -38,13 +38,12 @@ func encodeConnectionAttributes(textAttributes string) string {
 
 	// user-defined connection attributes
 	for _, connAttr := range strings.Split(textAttributes, ",") {
-		attr := strings.SplitN(connAttr, ":", 2)
-		if len(attr) != 2 {
+		k, v, found := strings.Cut(connAttr, ":")
+		if !found {
 			continue
 		}
-		for _, v := range attr {
-			connAttrsBuf = appendLengthEncodedString(connAttrsBuf, v)
-		}
+		connAttrsBuf = appendLengthEncodedString(connAttrsBuf, k)
+		connAttrsBuf = appendLengthEncodedString(connAttrsBuf, v)
 	}
 
 	return string(connAttrsBuf)
