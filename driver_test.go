@@ -1199,7 +1199,7 @@ func TestLongData(t *testing.T) {
 				dbt.Fatalf("LONGBLOB: length in: %d, length out: %d", len(inS), len(out))
 			}
 			if rows.Next() {
-				dbt.Error("LONGBLOB: unexpexted row")
+				dbt.Error("LONGBLOB: unexpected row")
 			}
 		} else {
 			dbt.Fatalf("LONGBLOB: no data")
@@ -1218,7 +1218,7 @@ func TestLongData(t *testing.T) {
 				dbt.Fatalf("LONGBLOB: length in: %d, length out: %d", len(in), len(out))
 			}
 			if rows.Next() {
-				dbt.Error("LONGBLOB: unexpexted row")
+				dbt.Error("LONGBLOB: unexpected row")
 			}
 		} else {
 			if err = rows.Err(); err != nil {
@@ -1294,7 +1294,7 @@ func TestLoadData(t *testing.T) {
 			dbt.Fatalf("unexpected row count: got %d, want 0", count)
 		}
 
-		// Then fille File with data and try to load it
+		// Then fill File with data and try to load it
 		file.WriteString("1\ta string\n2\ta string containing a \\t\n3\ta string containing a \\n\n4\ta string containing both \\t\\n\n")
 		file.Close()
 		dbt.mustExec(fmt.Sprintf("LOAD DATA LOCAL INFILE %q INTO TABLE test", file.Name()))
@@ -1900,7 +1900,7 @@ func TestConcurrent(t *testing.T) {
 			}(i)
 		}
 
-		// wait until all conections are open
+		// wait until all connections are open
 		wg.Wait()
 
 		if fatalError != "" {
@@ -1949,7 +1949,7 @@ func TestCustomDial(t *testing.T) {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	// our custom dial function which justs wraps net.Dial here
+	// our custom dial function which just wraps net.Dial here
 	RegisterDialContext("mydial", func(ctx context.Context, addr string) (net.Conn, error) {
 		var d net.Dialer
 		return d.DialContext(ctx, prot, addr)

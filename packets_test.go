@@ -186,9 +186,9 @@ var _ net.Conn = new(mockConn)
 // 	data[4] = 0x11
 // 	data[maxPacketSize+3] = 0x22
 
-// 	// 2nd packet has payload length 0 and squence id 1
-// 	// 00 00 00 01
-// 	data[pkt2ofs+3] = 0x01
+// // 2nd packet has payload length 0 and sequence id 1
+// // 00 00 00 01
+// data[pkt2ofs+3] = 0x01
 
 // 	conn.data = data
 // 	conn.maxReads = 3
@@ -218,9 +218,15 @@ var _ net.Conn = new(mockConn)
 // 	data[pkt2ofs+4] = 0x33
 // 	data[pkt2ofs+maxPacketSize+3] = 0x44
 
+<<<<<<< HEAD
 // 	// 3rd packet has payload length 0 and squence id 2
 // 	// 00 00 00 02
 // 	data[pkt3ofs+3] = 0x02
+=======
+	// 3rd packet has payload length 0 and sequence id 2
+	// 00 00 00 02
+	data[pkt3ofs+3] = 0x02
+>>>>>>> master
 
 // 	conn.data = data
 // 	conn.reads = 0
