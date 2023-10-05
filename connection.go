@@ -20,6 +20,11 @@ import (
 	"time"
 )
 
+type writeResult struct {
+	n   int
+	err error
+}
+
 type mysqlConn struct {
 	buf              buffer
 	netConn          net.Conn
@@ -43,6 +48,9 @@ type mysqlConn struct {
 	finished chan<- struct{}
 	canceled atomicError // set non-nil if conn is canceled
 	closed   atomicBool  // set when conn is closed, before closech is closed
+
+	writeReq chan []byte      // buffered channel for write packets
+	writeRes chan writeResult // channel for write result
 }
 
 // Handles parameters set in DSN after the connection is established

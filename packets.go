@@ -142,13 +142,20 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		data[3] = mc.sequence
 
 		// Write packet
-		if mc.writeTimeout > 0 {
-			if err := mc.netConn.SetWriteDeadline(time.Now().Add(mc.writeTimeout)); err != nil {
-				return err
-			}
+		select {
+		case mc.writeReq <- data:
+		case <-mc.closech:
+			return ErrInvalidConn
 		}
 
-		n, err := mc.netConn.Write(data[:4+size])
+		var result writeResult
+		select {
+		case result = <-mc.writeRes:
+		case <-mc.closech:
+			return ErrInvalidConn
+		}
+		n, err := result.n, result.err
+
 		if err == nil && n == 4+size {
 			mc.sequence++
 			if size != maxPacketSize {
@@ -1434,4 +1441,33 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 	}
 
 	return nil
+}
+
+func (mc *mysqlConn) writeLoop() {
+	for {
+		var data []byte
+		select {
+		case data = <-mc.writeReq:
+		case <-mc.closech:
+			return
+		}
+
+		n, err := mc.writeSync(data)
+
+		select {
+		case mc.writeRes <- writeResult{n, err}:
+		case <-mc.closech:
+			return
+		}
+	}
+}
+
+func (mc *mysqlConn) writeSync(data []byte) (n int, err error) {
+	// Write packet
+	if mc.writeTimeout > 0 {
+		if err := mc.netConn.SetWriteDeadline(time.Now().Add(mc.writeTimeout)); err != nil {
+			return 0, err
+		}
+	}
+	return mc.netConn.Write(data)
 }
