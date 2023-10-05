@@ -114,6 +114,10 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 
 	mc.buf = newBuffer(mc.netConn)
 
+	// packet reader and writer in handshake are never compressed
+	mc.reader = &mc.buf
+	mc.writer = mc.netConn
+
 	// Set I/O timeouts
 	mc.buf.timeout = mc.cfg.ReadTimeout
 	mc.writeTimeout = mc.cfg.WriteTimeout
@@ -153,6 +157,11 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		// Do not send COM_QUIT, just cleanup and return the error.
 		mc.cleanup()
 		return nil, err
+	}
+
+	if mc.cfg.Compress {
+		mc.reader = newCompressedReader(&mc.buf, mc)
+		mc.writer = newCompressedWriter(mc.writer, mc)
 	}
 
 	if mc.cfg.MaxAllowedPacket > 0 {

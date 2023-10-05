@@ -100,8 +100,14 @@ func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
 	if err != nil {
 		panic(err)
 	}
+
+	buf := newBuffer(conn)
+	reader := newBuffer(conn)
+
 	mc := &mysqlConn{
-		buf:              newBuffer(conn),
+		buf:              buf,
+		reader:           &reader,
+		writer:           conn,
 		cfg:              connector.cfg,
 		connector:        connector,
 		netConn:          conn,
@@ -326,6 +332,7 @@ func TestRegression801(t *testing.T) {
 		sequence: 42,
 		closech:  make(chan struct{}),
 	}
+	mc.reader = &mc.buf
 
 	conn.data = []byte{72, 0, 0, 42, 10, 53, 46, 53, 46, 56, 0, 165, 0, 0, 0,
 		60, 70, 63, 58, 68, 104, 34, 97, 0, 223, 247, 33, 2, 0, 15, 128, 21, 0,

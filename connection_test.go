@@ -163,13 +163,17 @@ func TestCleanCancel(t *testing.T) {
 
 func TestPingMarkBadConnection(t *testing.T) {
 	nc := badConnection{err: errors.New("boom")}
-	ms := &mysqlConn{
+
+	buf := newBuffer(nc)
+	mc := &mysqlConn{
 		netConn:          nc,
-		buf:              newBuffer(nc),
+		buf:              buf,
+		reader:           &buf,
+		writer:           nc,
 		maxAllowedPacket: defaultMaxAllowedPacket,
 	}
 
-	err := ms.Ping(context.Background())
+	err := mc.Ping(context.Background())
 
 	if err != driver.ErrBadConn {
 		t.Errorf("expected driver.ErrBadConn, got  %#v", err)
@@ -178,15 +182,19 @@ func TestPingMarkBadConnection(t *testing.T) {
 
 func TestPingErrInvalidConn(t *testing.T) {
 	nc := badConnection{err: errors.New("failed to write"), n: 10}
-	ms := &mysqlConn{
+
+	buf := newBuffer(nc)
+	mc := &mysqlConn{
 		netConn:          nc,
-		buf:              newBuffer(nc),
+		buf:              buf,
+		reader:           &buf,
+		writer:           nc,
 		maxAllowedPacket: defaultMaxAllowedPacket,
 		closech:          make(chan struct{}),
 		cfg:              NewConfig(),
 	}
 
-	err := ms.Ping(context.Background())
+	err := mc.Ping(context.Background())
 
 	if err != ErrInvalidConn {
 		t.Errorf("expected ErrInvalidConn, got  %#v", err)
