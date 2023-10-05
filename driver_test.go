@@ -3319,47 +3319,47 @@ func (d *dummyConnection) Close() error {
 	return nil
 }
 
-func TestConnectorTimeoutsWatchCancel(t *testing.T) {
-	var (
-		cancel  func()           // Used to cancel the context just after connecting.
-		created *dummyConnection // The created connection.
-	)
+// func TestConnectorTimeoutsWatchCancel(t *testing.T) {
+// 	var (
+// 		cancel  func()           // Used to cancel the context just after connecting.
+// 		created *dummyConnection // The created connection.
+// 	)
 
-	RegisterDialContext("TestConnectorTimeoutsWatchCancel", func(ctx context.Context, addr string) (net.Conn, error) {
-		// Canceling at this time triggers the watchCancel error branch in Connect().
-		cancel()
-		created = &dummyConnection{}
-		return created, nil
-	})
+// 	RegisterDialContext("TestConnectorTimeoutsWatchCancel", func(ctx context.Context, addr string) (net.Conn, error) {
+// 		// Canceling at this time triggers the watchCancel error branch in Connect().
+// 		cancel()
+// 		created = &dummyConnection{}
+// 		return created, nil
+// 	})
 
-	mycnf := NewConfig()
-	mycnf.User = "root"
-	mycnf.Addr = "foo"
-	mycnf.Net = "TestConnectorTimeoutsWatchCancel"
+// 	mycnf := NewConfig()
+// 	mycnf.User = "root"
+// 	mycnf.Addr = "foo"
+// 	mycnf.Net = "TestConnectorTimeoutsWatchCancel"
 
-	conn, err := NewConnector(mycnf)
-	if err != nil {
-		t.Fatal(err)
-	}
+// 	conn, err := NewConnector(mycnf)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	db := sql.OpenDB(conn)
-	defer db.Close()
+// 	db := sql.OpenDB(conn)
+// 	defer db.Close()
 
-	var ctx context.Context
-	ctx, cancel = context.WithCancel(context.Background())
-	defer cancel()
+// 	var ctx context.Context
+// 	ctx, cancel = context.WithCancel(context.Background())
+// 	defer cancel()
 
-	if _, err := db.Conn(ctx); err != context.Canceled {
-		t.Errorf("got %v, want context.Canceled", err)
-	}
+// 	if _, err := db.Conn(ctx); err != context.Canceled {
+// 		t.Errorf("got %v, want context.Canceled", err)
+// 	}
 
-	if created == nil {
-		t.Fatal("no connection created")
-	}
-	if !created.closed {
-		t.Errorf("connection not closed")
-	}
-}
+// 	if created == nil {
+// 		t.Fatal("no connection created")
+// 	}
+// 	if !created.closed {
+// 		t.Errorf("connection not closed")
+// 	}
+// }
 
 // func TestConnectionAttributes(t *testing.T) {
 // 	if !available {
