@@ -23,7 +23,7 @@ type compressedWriter struct {
 	zw         *zlib.Writer
 }
 
-func NewCompressedReader(buf packetReader, mc *mysqlConn) *compressedReader {
+func newCompressedReader(buf packetReader, mc *mysqlConn) *compressedReader {
 	return &compressedReader{
 		buf:      buf,
 		bytesBuf: make([]byte, 0),
@@ -31,7 +31,7 @@ func NewCompressedReader(buf packetReader, mc *mysqlConn) *compressedReader {
 	}
 }
 
-func NewCompressedWriter(connWriter io.Writer, mc *mysqlConn) *compressedWriter {
+func newCompressedWriter(connWriter io.Writer, mc *mysqlConn) *compressedWriter {
 	return &compressedWriter{
 		connWriter: connWriter,
 		mc:         mc,
