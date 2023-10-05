@@ -74,6 +74,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		cfg:              c.cfg,
 		connector:        c,
 
+		readRes:  make(chan readResult),
 		writeReq: make(chan []byte, 1),
 		writeRes: make(chan writeResult),
 	}
@@ -107,6 +108,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		}
 	}
 
+	go mc.readLoop()
 	go mc.writeLoop()
 
 	// Call startWatcher for context support (From Go 1.8)
@@ -117,7 +119,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 	defer mc.finish()
 
-	mc.buf = newBuffer(mc.netConn)
+	mc.buf = newBuffer(mc)
 
 	// Set I/O timeouts
 	mc.buf.timeout = mc.cfg.ReadTimeout

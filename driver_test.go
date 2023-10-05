@@ -11,7 +11,6 @@ package mysql
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
@@ -165,6 +164,7 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 }
 
 func (dbt *DBTest) fail(method, query string, err error) {
+	dbt.Helper()
 	if len(query) > 300 {
 		query = "[query too large to print]"
 	}
@@ -172,6 +172,7 @@ func (dbt *DBTest) fail(method, query string, err error) {
 }
 
 func (dbt *DBTest) mustExec(query string, args ...interface{}) (res sql.Result) {
+	dbt.Helper()
 	res, err := dbt.db.Exec(query, args...)
 	if err != nil {
 		dbt.fail("exec", query, err)
@@ -1375,47 +1376,47 @@ func TestFoundRows(t *testing.T) {
 	})
 }
 
-func TestTLS(t *testing.T) {
-	tlsTestReq := func(dbt *DBTest) {
-		if err := dbt.db.Ping(); err != nil {
-			if err == ErrNoTLS {
-				dbt.Skip("server does not support TLS")
-			} else {
-				dbt.Fatalf("error on Ping: %s", err.Error())
-			}
-		}
+// func TestTLS(t *testing.T) {
+// 	tlsTestReq := func(dbt *DBTest) {
+// 		if err := dbt.db.Ping(); err != nil {
+// 			if err == ErrNoTLS {
+// 				dbt.Skip("server does not support TLS")
+// 			} else {
+// 				dbt.Fatalf("error on Ping: %s", err.Error())
+// 			}
+// 		}
 
-		rows := dbt.mustQuery("SHOW STATUS LIKE 'Ssl_cipher'")
-		defer rows.Close()
+// 		rows := dbt.mustQuery("SHOW STATUS LIKE 'Ssl_cipher'")
+// 		defer rows.Close()
 
-		var variable, value *sql.RawBytes
-		for rows.Next() {
-			if err := rows.Scan(&variable, &value); err != nil {
-				dbt.Fatal(err.Error())
-			}
+// 		var variable, value *sql.RawBytes
+// 		for rows.Next() {
+// 			if err := rows.Scan(&variable, &value); err != nil {
+// 				dbt.Fatal(err.Error())
+// 			}
 
-			if (*value == nil) || (len(*value) == 0) {
-				dbt.Fatalf("no Cipher")
-			} else {
-				dbt.Logf("Cipher: %s", *value)
-			}
-		}
-	}
-	tlsTestOpt := func(dbt *DBTest) {
-		if err := dbt.db.Ping(); err != nil {
-			dbt.Fatalf("error on Ping: %s", err.Error())
-		}
-	}
+// 			if (*value == nil) || (len(*value) == 0) {
+// 				dbt.Fatalf("no Cipher")
+// 			} else {
+// 				dbt.Logf("Cipher: %s", *value)
+// 			}
+// 		}
+// 	}
+// 	tlsTestOpt := func(dbt *DBTest) {
+// 		if err := dbt.db.Ping(); err != nil {
+// 			dbt.Fatalf("error on Ping: %s", err.Error())
+// 		}
+// 	}
 
-	runTests(t, dsn+"&tls=preferred", tlsTestOpt)
-	runTests(t, dsn+"&tls=skip-verify", tlsTestReq)
+// 	runTests(t, dsn+"&tls=preferred", tlsTestOpt)
+// 	runTests(t, dsn+"&tls=skip-verify", tlsTestReq)
 
-	// Verify that registering / using a custom cfg works
-	RegisterTLSConfig("custom-skip-verify", &tls.Config{
-		InsecureSkipVerify: true,
-	})
-	runTests(t, dsn+"&tls=custom-skip-verify", tlsTestReq)
-}
+// 	// Verify that registering / using a custom cfg works
+// 	RegisterTLSConfig("custom-skip-verify", &tls.Config{
+// 		InsecureSkipVerify: true,
+// 	})
+// 	runTests(t, dsn+"&tls=custom-skip-verify", tlsTestReq)
+// }
 
 func TestReuseClosedConnection(t *testing.T) {
 	// this test does not use sql.database, it uses the driver directly

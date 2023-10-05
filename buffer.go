@@ -10,7 +10,6 @@ package mysql
 
 import (
 	"io"
-	"net"
 	"time"
 )
 
@@ -25,7 +24,7 @@ const maxCachedBufSize = 256 * 1024
 // This buffer is backed by two byte slices in a double-buffering scheme
 type buffer struct {
 	buf     []byte // buf is a byte buffer who's length and capacity are equal.
-	nc      net.Conn
+	mc      *mysqlConn
 	idx     int
 	length  int
 	timeout time.Duration
@@ -34,11 +33,11 @@ type buffer struct {
 }
 
 // newBuffer allocates and returns a new buffer.
-func newBuffer(nc net.Conn) buffer {
+func newBuffer(mc *mysqlConn) buffer {
 	fg := make([]byte, defaultBufSize)
 	return buffer{
 		buf:  fg,
-		nc:   nc,
+		mc:   mc,
 		dbuf: [2][]byte{fg, nil},
 	}
 }
@@ -81,16 +80,16 @@ func (b *buffer) fill(need int) error {
 	b.idx = 0
 
 	for {
-		if b.timeout > 0 {
-			if err := b.nc.SetReadDeadline(time.Now().Add(b.timeout)); err != nil {
-				return err
-			}
+		var result readResult
+		select {
+		case result = <-b.mc.readRes:
+		case <-b.mc.closech:
+			return ErrInvalidConn
 		}
+		b.buf = append(b.buf[:n], result.data...)
+		n += len(result.data)
 
-		nn, err := b.nc.Read(b.buf[n:])
-		n += nn
-
-		switch err {
+		switch result.err {
 		case nil:
 			if n < need {
 				continue
@@ -106,7 +105,7 @@ func (b *buffer) fill(need int) error {
 			return io.ErrUnexpectedEOF
 
 		default:
-			return err
+			return result.err
 		}
 	}
 }
@@ -168,7 +167,7 @@ func (b *buffer) takeCompleteBuffer() ([]byte, error) {
 	if b.length > 0 {
 		return nil, ErrBusyBuffer
 	}
-	return b.buf, nil
+	return b.buf[:cap(b.buf)], nil
 }
 
 // store stores buf, an updated buffer, if its suitable to do so.
