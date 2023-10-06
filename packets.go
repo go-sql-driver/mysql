@@ -970,17 +970,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	var data []byte
 	var err error
 
-	if len(args) == 0 {
-		data, err = mc.buf.takeBuffer(minPktLen)
-	} else {
-		data, err = mc.buf.takeCompleteBuffer()
-		// In this case the len(data) == cap(data) which is used to optimise the flow below.
-	}
-	if err != nil {
-		// cannot take the buffer. Something must be wrong with the connection
-		mc.cfg.Logger.Print(err)
-		return errBadConnNoWrite
-	}
+	data = make([]byte, defaultBufSize)
 
 	// command [1 byte]
 	data[4] = comStmtExecute

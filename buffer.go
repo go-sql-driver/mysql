@@ -149,17 +149,6 @@ func (b *buffer) takeBuffer(length int) ([]byte, error) {
 	return make([]byte, length), nil
 }
 
-// takeCompleteBuffer returns the complete existing buffer.
-// This can be used if the necessary buffer size is unknown.
-// cap and len of the returned buffer will be equal.
-// Only one buffer (total) can be used at a time.
-func (b *buffer) takeCompleteBuffer() ([]byte, error) {
-	if b.length > 0 {
-		return nil, ErrBusyBuffer
-	}
-	return b.buf[:cap(b.buf)], nil
-}
-
 // store stores buf, an updated buffer, if its suitable to do so.
 func (b *buffer) store(buf []byte) error {
 	if b.length > 0 {
