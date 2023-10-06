@@ -54,6 +54,7 @@ type mysqlConn struct {
 	canceled atomicError // set non-nil if conn is canceled
 	closed   atomicBool  // set when conn is closed, before closech is closed
 
+	data     [16]byte         // buffer for small reads and writes
 	readRes  chan readResult  // channel for read result
 	writeReq chan []byte      // buffered channel for write packets
 	writeRes chan writeResult // channel for write result
