@@ -387,6 +387,8 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		mc.rawConn = mc.netConn
 		mc.netConn = tlsConn
 		mc.buf.nc = tlsConn
+
+		mc.writer = mc.netConn
 	}
 
 	// User [null terminated string]
