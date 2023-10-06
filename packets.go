@@ -407,18 +407,11 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
-	data, err := mc.buf.takeSmallBuffer(4 + 1)
-	if err != nil {
-		// cannot take the buffer. Something must be wrong with the connection
-		mc.cfg.Logger.Print(err)
-		return errBadConnNoWrite
-	}
-
 	// Add command byte
-	data[4] = command
+	mc.data[4] = command
 
 	// Send CMD packet
-	return mc.writePacket(data)
+	return mc.writePacket(mc.data[:4+1])
 }
 
 func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
