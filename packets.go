@@ -307,12 +307,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	pktLen += 1 + len(mc.connector.encodedAttributes)
 
 	// Calculate packet length and get buffer with that size
-	data, err := mc.buf.takeSmallBuffer(pktLen + 4)
-	if err != nil {
-		// cannot take the buffer. Something must be wrong with the connection
-		mc.cfg.Logger.Print(err)
-		return errBadConnNoWrite
-	}
+	data := make([]byte, pktLen+4)
 
 	// ClientFlags [32 bit]
 	data[4] = byte(clientFlags)
@@ -397,12 +392,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
 func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
 	pktLen := 4 + len(authData)
-	data, err := mc.buf.takeSmallBuffer(pktLen)
-	if err != nil {
-		// cannot take the buffer. Something must be wrong with the connection
-		mc.cfg.Logger.Print(err)
-		return errBadConnNoWrite
-	}
+	data := make([]byte, pktLen)
 
 	// Add the auth data [EOF]
 	copy(data[4:], authData)
