@@ -149,16 +149,6 @@ func (b *buffer) takeBuffer(length int) ([]byte, error) {
 	return make([]byte, length), nil
 }
 
-// takeSmallBuffer is shortcut which can be used if length is
-// known to be smaller than defaultBufSize.
-// Only one buffer (total) can be used at a time.
-func (b *buffer) takeSmallBuffer(length int) ([]byte, error) {
-	if b.length > 0 {
-		return nil, ErrBusyBuffer
-	}
-	return b.buf[:length], nil
-}
-
 // store stores buf, an updated buffer, if its suitable to do so.
 func (b *buffer) store(buf []byte) error {
 	if b.length > 0 {
