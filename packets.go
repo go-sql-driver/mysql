@@ -440,24 +440,17 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
-	data, err := mc.buf.takeSmallBuffer(4 + 1 + 4)
-	if err != nil {
-		// cannot take the buffer. Something must be wrong with the connection
-		mc.cfg.Logger.Print(err)
-		return errBadConnNoWrite
-	}
-
 	// Add command byte
-	data[4] = command
+	mc.data[4] = command
 
 	// Add arg [32 bit]
-	data[5] = byte(arg)
-	data[6] = byte(arg >> 8)
-	data[7] = byte(arg >> 16)
-	data[8] = byte(arg >> 24)
+	mc.data[5] = byte(arg)
+	mc.data[6] = byte(arg >> 8)
+	mc.data[7] = byte(arg >> 16)
+	mc.data[8] = byte(arg >> 24)
 
 	// Send CMD packet
-	return mc.writePacket(data)
+	return mc.writePacket(mc.data[:4+1+4])
 }
 
 /******************************************************************************
