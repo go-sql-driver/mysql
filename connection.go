@@ -31,7 +31,6 @@ type writeResult struct {
 }
 
 type mysqlConn struct {
-	buf              buffer
 	netConn          net.Conn
 	rawConn          net.Conn    // underlying connection when netConn is TLS connection.
 	result           mysqlResult // managed by clearResult() and handleOkPacket().
@@ -54,7 +53,8 @@ type mysqlConn struct {
 	canceled atomicError // set non-nil if conn is canceled
 	closed   atomicBool  // set when conn is closed, before closech is closed
 
-	data     [16]byte         // buffer for small writes
+	data     [16]byte // buffer for small writes
+	readBuf  []byte
 	readRes  chan readResult  // channel for read result
 	writeReq chan []byte      // buffered channel for write packets
 	writeRes chan writeResult // channel for write result

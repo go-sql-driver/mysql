@@ -118,10 +118,6 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 	defer mc.finish()
 
-	mc.buf = newBuffer(mc)
-
-	// Set I/O timeouts
-	mc.buf.timeout = mc.cfg.ReadTimeout
 	mc.writeTimeout = mc.cfg.WriteTimeout
 
 	// Reading Handshake Initialization Packet

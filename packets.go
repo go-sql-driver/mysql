@@ -29,7 +29,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 	var prevData []byte
 	for {
 		// read packet header
-		data, err := mc.buf.readNext(4)
+		err := mc.readFull(mc.data[:4])
 		if err != nil {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
@@ -40,12 +40,12 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		}
 
 		// packet length [24 bit]
-		pktLen := int(uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16)
+		pktLen := int(uint32(mc.data[0]) | uint32(mc.data[1])<<8 | uint32(mc.data[2])<<16)
 
 		// check packet sync [8 bit]
-		if data[3] != mc.sequence {
+		if mc.data[3] != mc.sequence {
 			mc.Close()
-			if data[3] > mc.sequence {
+			if mc.data[3] > mc.sequence {
 				return nil, ErrPktSyncMul
 			}
 			return nil, ErrPktSync
@@ -66,7 +66,8 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		}
 
 		// read packet body [pktLen bytes]
-		data, err = mc.buf.readNext(pktLen)
+		data := make([]byte, pktLen)
+		err = mc.readFull(data)
 		if err != nil {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
@@ -88,6 +89,32 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 
 		prevData = append(prevData, data...)
 	}
+}
+
+func (mc *mysqlConn) readFull(data []byte) error {
+	var n int
+	if len(mc.readBuf) > 0 {
+		m := copy(data[n:], mc.readBuf)
+		mc.readBuf = mc.readBuf[m:]
+		n += m
+	}
+
+	for n < len(data) {
+		var result readResult
+		select {
+		case result = <-mc.readRes:
+		case <-mc.closech:
+			return ErrInvalidConn
+		}
+		if result.err != nil {
+			return result.err
+		}
+
+		m := copy(data[n:], result.data)
+		mc.readBuf = result.data[m:]
+		n += m
+	}
+	return nil
 }
 
 // Write packet buffer 'data'

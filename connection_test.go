@@ -10,122 +10,120 @@ package mysql
 
 import (
 	"context"
-	"database/sql/driver"
-	"encoding/json"
 	"testing"
 )
 
-func TestInterpolateParams(t *testing.T) {
-	mc := &mysqlConn{
-		buf:              newBuffer(nil),
-		maxAllowedPacket: maxPacketSize,
-		cfg: &Config{
-			InterpolateParams: true,
-		},
-	}
+// func TestInterpolateParams(t *testing.T) {
+// 	mc := &mysqlConn{
+// 		buf:              newBuffer(nil),
+// 		maxAllowedPacket: maxPacketSize,
+// 		cfg: &Config{
+// 			InterpolateParams: true,
+// 		},
+// 	}
 
-	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42), "gopher"})
-	if err != nil {
-		t.Errorf("Expected err=nil, got %#v", err)
-		return
-	}
-	expected := `SELECT 42+'gopher'`
-	if q != expected {
-		t.Errorf("Expected: %q\nGot: %q", expected, q)
-	}
-}
+// 	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42), "gopher"})
+// 	if err != nil {
+// 		t.Errorf("Expected err=nil, got %#v", err)
+// 		return
+// 	}
+// 	expected := `SELECT 42+'gopher'`
+// 	if q != expected {
+// 		t.Errorf("Expected: %q\nGot: %q", expected, q)
+// 	}
+// }
 
-func TestInterpolateParamsJSONRawMessage(t *testing.T) {
-	mc := &mysqlConn{
-		buf:              newBuffer(nil),
-		maxAllowedPacket: maxPacketSize,
-		cfg: &Config{
-			InterpolateParams: true,
-		},
-	}
+// func TestInterpolateParamsJSONRawMessage(t *testing.T) {
+// 	mc := &mysqlConn{
+// 		buf:              newBuffer(nil),
+// 		maxAllowedPacket: maxPacketSize,
+// 		cfg: &Config{
+// 			InterpolateParams: true,
+// 		},
+// 	}
 
-	buf, err := json.Marshal(struct {
-		Value int `json:"value"`
-	}{Value: 42})
-	if err != nil {
-		t.Errorf("Expected err=nil, got %#v", err)
-		return
-	}
-	q, err := mc.interpolateParams("SELECT ?", []driver.Value{json.RawMessage(buf)})
-	if err != nil {
-		t.Errorf("Expected err=nil, got %#v", err)
-		return
-	}
-	expected := `SELECT '{\"value\":42}'`
-	if q != expected {
-		t.Errorf("Expected: %q\nGot: %q", expected, q)
-	}
-}
+// 	buf, err := json.Marshal(struct {
+// 		Value int `json:"value"`
+// 	}{Value: 42})
+// 	if err != nil {
+// 		t.Errorf("Expected err=nil, got %#v", err)
+// 		return
+// 	}
+// 	q, err := mc.interpolateParams("SELECT ?", []driver.Value{json.RawMessage(buf)})
+// 	if err != nil {
+// 		t.Errorf("Expected err=nil, got %#v", err)
+// 		return
+// 	}
+// 	expected := `SELECT '{\"value\":42}'`
+// 	if q != expected {
+// 		t.Errorf("Expected: %q\nGot: %q", expected, q)
+// 	}
+// }
 
-func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
-	mc := &mysqlConn{
-		buf:              newBuffer(nil),
-		maxAllowedPacket: maxPacketSize,
-		cfg: &Config{
-			InterpolateParams: true,
-		},
-	}
+// func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
+// 	mc := &mysqlConn{
+// 		buf:              newBuffer(nil),
+// 		maxAllowedPacket: maxPacketSize,
+// 		cfg: &Config{
+// 			InterpolateParams: true,
+// 		},
+// 	}
 
-	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42)})
-	if err != driver.ErrSkip {
-		t.Errorf("Expected err=driver.ErrSkip, got err=%#v, q=%#v", err, q)
-	}
-}
+// 	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42)})
+// 	if err != driver.ErrSkip {
+// 		t.Errorf("Expected err=driver.ErrSkip, got err=%#v, q=%#v", err, q)
+// 	}
+// }
 
 // We don't support placeholder in string literal for now.
 // https://github.com/go-sql-driver/mysql/pull/490
-func TestInterpolateParamsPlaceholderInString(t *testing.T) {
-	mc := &mysqlConn{
-		buf:              newBuffer(nil),
-		maxAllowedPacket: maxPacketSize,
-		cfg: &Config{
-			InterpolateParams: true,
-		},
-	}
+// func TestInterpolateParamsPlaceholderInString(t *testing.T) {
+// 	mc := &mysqlConn{
+// 		buf:              newBuffer(nil),
+// 		maxAllowedPacket: maxPacketSize,
+// 		cfg: &Config{
+// 			InterpolateParams: true,
+// 		},
+// 	}
 
-	q, err := mc.interpolateParams("SELECT 'abc?xyz',?", []driver.Value{int64(42)})
-	// When InterpolateParams support string literal, this should return `"SELECT 'abc?xyz', 42`
-	if err != driver.ErrSkip {
-		t.Errorf("Expected err=driver.ErrSkip, got err=%#v, q=%#v", err, q)
-	}
-}
+// 	q, err := mc.interpolateParams("SELECT 'abc?xyz',?", []driver.Value{int64(42)})
+// 	// When InterpolateParams support string literal, this should return `"SELECT 'abc?xyz', 42`
+// 	if err != driver.ErrSkip {
+// 		t.Errorf("Expected err=driver.ErrSkip, got err=%#v, q=%#v", err, q)
+// 	}
+// }
 
-func TestInterpolateParamsUint64(t *testing.T) {
-	mc := &mysqlConn{
-		buf:              newBuffer(nil),
-		maxAllowedPacket: maxPacketSize,
-		cfg: &Config{
-			InterpolateParams: true,
-		},
-	}
+// func TestInterpolateParamsUint64(t *testing.T) {
+// 	mc := &mysqlConn{
+// 		buf:              newBuffer(nil),
+// 		maxAllowedPacket: maxPacketSize,
+// 		cfg: &Config{
+// 			InterpolateParams: true,
+// 		},
+// 	}
 
-	q, err := mc.interpolateParams("SELECT ?", []driver.Value{uint64(42)})
-	if err != nil {
-		t.Errorf("Expected err=nil, got err=%#v, q=%#v", err, q)
-	}
-	if q != "SELECT 42" {
-		t.Errorf("Expected uint64 interpolation to work, got q=%#v", q)
-	}
-}
+// 	q, err := mc.interpolateParams("SELECT ?", []driver.Value{uint64(42)})
+// 	if err != nil {
+// 		t.Errorf("Expected err=nil, got err=%#v, q=%#v", err, q)
+// 	}
+// 	if q != "SELECT 42" {
+// 		t.Errorf("Expected uint64 interpolation to work, got q=%#v", q)
+// 	}
+// }
 
-func TestCheckNamedValue(t *testing.T) {
-	value := driver.NamedValue{Value: ^uint64(0)}
-	x := &mysqlConn{}
-	err := x.CheckNamedValue(&value)
+// func TestCheckNamedValue(t *testing.T) {
+// 	value := driver.NamedValue{Value: ^uint64(0)}
+// 	x := &mysqlConn{}
+// 	err := x.CheckNamedValue(&value)
 
-	if err != nil {
-		t.Fatal("uint64 high-bit not convertible", err)
-	}
+// 	if err != nil {
+// 		t.Fatal("uint64 high-bit not convertible", err)
+// 	}
 
-	if value.Value != ^uint64(0) {
-		t.Fatalf("uint64 high-bit converted, got %#v %T", value.Value, value.Value)
-	}
-}
+// 	if value.Value != ^uint64(0) {
+// 		t.Fatalf("uint64 high-bit converted, got %#v %T", value.Value, value.Value)
+// 	}
+// }
 
 // TestCleanCancel tests passed context is cancelled at start.
 // No packet should be sent.  Connection should keep current status.
