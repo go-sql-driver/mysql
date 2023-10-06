@@ -125,26 +125,3 @@ func (b *buffer) readNext(need int) ([]byte, error) {
 	b.length -= need
 	return b.buf[offset:b.idx], nil
 }
-
-// takeBuffer returns a buffer with the requested size.
-// If possible, a slice from the existing buffer is returned.
-// Otherwise a bigger buffer is made.
-// Only one buffer (total) can be used at a time.
-func (b *buffer) takeBuffer(length int) ([]byte, error) {
-	if b.length > 0 {
-		return nil, ErrBusyBuffer
-	}
-
-	// test (cheap) general case first
-	if length <= cap(b.buf) {
-		return b.buf[:length], nil
-	}
-
-	if length < maxPacketSize {
-		b.buf = make([]byte, length)
-		return b.buf, nil
-	}
-
-	// buffer is larger than we want to store.
-	return make([]byte, length), nil
-}
