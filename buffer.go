@@ -148,13 +148,3 @@ func (b *buffer) takeBuffer(length int) ([]byte, error) {
 	// buffer is larger than we want to store.
 	return make([]byte, length), nil
 }
-
-// store stores buf, an updated buffer, if its suitable to do so.
-func (b *buffer) store(buf []byte) error {
-	if b.length > 0 {
-		return ErrBusyBuffer
-	} else if cap(buf) <= maxPacketSize && cap(buf) > cap(b.buf) {
-		b.buf = buf[:cap(buf)]
-	}
-	return nil
-}
