@@ -145,14 +145,29 @@ func (mc *mysqlConn) writePacket(ctx context.Context, data []byte) error {
 		}
 		data[3] = mc.sequence
 
+		// check the connection is still alive
+		select {
+		case <-mc.readRes:
+			mc.closeContext(ctx)
+			return errBadConnNoWrite
+		case <-mc.closech:
+			return ErrInvalidConn
+		case <-ctx.Done():
+			mc.cleanup()
+			return ctx.Err()
+		default:
+		}
+
 		// request writing the packet
 		select {
 		case <-mc.readRes:
+			mc.closeContext(ctx)
 			return errBadConnNoWrite
 		case mc.writeReq <- data:
 		case <-mc.closech:
 			return ErrInvalidConn
 		case <-ctx.Done():
+			mc.cleanup()
 			return ctx.Err()
 		}
 
