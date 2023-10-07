@@ -584,7 +584,7 @@ func (mc *okHandler) readResultSetHeaderPacket() (int, error) {
 			return 0, mc.conn().handleErrorPacket(data)
 
 		case iLocalInFile:
-			return 0, mc.handleInFileRequest(string(data[1:]))
+			return 0, mc.handleInFileRequest(ctx, string(data[1:]))
 		}
 
 		// column count

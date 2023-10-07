@@ -94,9 +94,7 @@ func deferredClose(err *error, closer io.Closer) {
 
 const defaultPacketSize = 16 * 1024 // 16KB is small enough for disk readahead and large enough for TCP
 
-func (mc *okHandler) handleInFileRequest(name string) (err error) {
-	ctx := context.TODO()
-
+func (mc *okHandler) handleInFileRequest(ctx context.Context, name string) (err error) {
 	var rdr io.Reader
 	var data []byte
 	packetSize := defaultPacketSize
