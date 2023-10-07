@@ -28,9 +28,7 @@ import (
 // http://dev.mysql.com/doc/internals/en/client-server-protocol.html
 
 // Read packet to buffer 'data'
-func (mc *mysqlConn) readPacket() ([]byte, error) {
-	ctx := context.TODO()
-
+func (mc *mysqlConn) readPacket(ctx context.Context) ([]byte, error) {
 	var prevData []byte
 	for {
 		// read packet header
@@ -213,7 +211,9 @@ func (mc *mysqlConn) writePacket(ctx context.Context, data []byte) error {
 // Handshake Initialization Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::Handshake
 func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err error) {
-	data, err = mc.readPacket()
+	ctx := context.TODO()
+
+	data, err = mc.readPacket(ctx)
 	if err != nil {
 		// for init we can rewrite this to ErrBadConn for sql.Driver to retry, since
 		// in connection initialization we don't risk retrying non-idempotent actions.
@@ -514,7 +514,9 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 ******************************************************************************/
 
 func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
-	data, err := mc.readPacket()
+	ctx := context.TODO()
+
+	data, err := mc.readPacket(ctx)
 	if err != nil {
 		return nil, "", err
 	}
@@ -550,7 +552,8 @@ func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
 
 // Returns error if Packet is not a 'Result OK'-Packet
 func (mc *okHandler) readResultOK() error {
-	data, err := mc.conn().readPacket()
+	ctx := context.TODO()
+	data, err := mc.conn().readPacket(ctx)
 	if err != nil {
 		return err
 	}
@@ -564,11 +567,13 @@ func (mc *okHandler) readResultOK() error {
 // Result Set Header Packet
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-ProtocolText::Resultset
 func (mc *okHandler) readResultSetHeaderPacket() (int, error) {
+	ctx := context.TODO()
+
 	// handleOkPacket replaces both values; other cases leave the values unchanged.
 	mc.result.affectedRows = append(mc.result.affectedRows, 0)
 	mc.result.insertIds = append(mc.result.insertIds, 0)
 
-	data, err := mc.conn().readPacket()
+	data, err := mc.conn().readPacket(ctx)
 	if err == nil {
 		switch data[0] {
 
@@ -708,10 +713,12 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
 func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
+	ctx := context.TODO()
+
 	columns := make([]mysqlField, count)
 
 	for i := 0; ; i++ {
-		data, err := mc.readPacket()
+		data, err := mc.readPacket(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -808,13 +815,14 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-ProtocolText::ResultsetRow
 func (rows *textRows) readRow(dest []driver.Value) error {
+	ctx := context.TODO()
 	mc := rows.mc
 
 	if rows.rs.done {
 		return io.EOF
 	}
 
-	data, err := mc.readPacket()
+	data, err := mc.readPacket(ctx)
 	if err != nil {
 		return err
 	}
@@ -898,8 +906,9 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 
 // Reads Packets until EOF-Packet or an Error appears. Returns count of Packets read
 func (mc *mysqlConn) readUntilEOF() error {
+	ctx := context.TODO()
 	for {
-		data, err := mc.readPacket()
+		data, err := mc.readPacket(ctx)
 		if err != nil {
 			return err
 		}
@@ -923,7 +932,8 @@ func (mc *mysqlConn) readUntilEOF() error {
 // Prepare Result Packets
 // http://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
 func (stmt *mysqlStmt) readPrepareResultPacket() (uint16, error) {
-	data, err := stmt.mc.readPacket()
+	ctx := context.TODO()
+	data, err := stmt.mc.readPacket(ctx)
 	if err == nil {
 		// packet indicator [1 byte]
 		if data[0] != iOK {
@@ -1259,7 +1269,8 @@ func (mc *okHandler) discardResults() error {
 
 // http://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html
 func (rows *binaryRows) readRow(dest []driver.Value) error {
-	data, err := rows.mc.readPacket()
+	ctx := context.TODO()
+	data, err := rows.mc.readPacket(ctx)
 	if err != nil {
 		return err
 	}

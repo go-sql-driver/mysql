@@ -180,6 +180,6 @@ func (mc *okHandler) handleInFileRequest(name string) (err error) {
 		return mc.readResultOK()
 	}
 
-	mc.conn().readPacket()
+	mc.conn().readPacket(ctx)
 	return err
 }
