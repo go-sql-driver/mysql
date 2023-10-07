@@ -198,7 +198,7 @@ func (mc *mysqlConn) error() error {
 }
 
 func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
-	return mc.PrepareContext(context.Background())
+	return mc.PrepareContext(context.Background(), query)
 }
 
 func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (string, error) {
