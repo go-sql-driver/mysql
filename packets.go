@@ -43,9 +43,9 @@ func (mc *mysqlConn) readPacket(ctx context.Context) ([]byte, error) {
 		pktLen := int(uint32(mc.data[0]) | uint32(mc.data[1])<<8 | uint32(mc.data[2])<<16)
 
 		// check packet sync [8 bit]
-		if mc.data[3] != mc.sequence {
+		if seq := mc.data[3]; seq != mc.sequence {
 			mc.closeContext(ctx)
-			if mc.data[3] > mc.sequence {
+			if seq > mc.sequence {
 				return nil, ErrPktSyncMul
 			}
 			return nil, ErrPktSync

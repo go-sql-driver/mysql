@@ -154,7 +154,7 @@ func (mc *mysqlConn) Close() error {
 func (mc *mysqlConn) closeContext(ctx context.Context) (err error) {
 	// Makes Close idempotent
 	if !mc.closed.Load() {
-		err = mc.writeCommandPacket(context.Background(), comQuit)
+		err = mc.writeCommandPacket(ctx, comQuit)
 	}
 
 	mc.cleanup()

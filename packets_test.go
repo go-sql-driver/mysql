@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"context"
+	"io"
 	"net"
 	"testing"
 )
@@ -52,37 +53,43 @@ func TestReadPacketSingleByte(t *testing.T) {
 	}
 }
 
-// func TestReadPacketWrongSequenceID(t *testing.T) {
-// 	for _, testCase := range []struct {
-// 		ClientSequenceID byte
-// 		ServerSequenceID byte
-// 		ExpectedErr      error
-// 	}{
-// 		{
-// 			ClientSequenceID: 1,
-// 			ServerSequenceID: 0,
-// 			ExpectedErr:      ErrPktSync,
-// 		},
-// 		{
-// 			ClientSequenceID: 0,
-// 			ServerSequenceID: 0x42,
-// 			ExpectedErr:      ErrPktSyncMul,
-// 		},
-// 	} {
-// 		conn, mc := newRWMockConn(testCase.ClientSequenceID)
+func TestReadPacketWrongSequenceID(t *testing.T) {
+	for _, testCase := range []struct {
+		ClientSequenceID byte
+		ServerSequenceID byte
+		ExpectedErr      error
+	}{
+		{
+			ClientSequenceID: 1,
+			ServerSequenceID: 0,
+			ExpectedErr:      ErrPktSync,
+		},
+		{
+			ClientSequenceID: 0,
+			ServerSequenceID: 0x42,
+			ExpectedErr:      ErrPktSyncMul,
+		},
+	} {
+		testCase := testCase
 
-// 		conn.data = []byte{0x01, 0x00, 0x00, testCase.ServerSequenceID, 0xff}
-// 		_, err := mc.readPacket()
-// 		if err != testCase.ExpectedErr {
-// 			t.Errorf("expected %v, got %v", testCase.ExpectedErr, err)
-// 		}
+		conn, mc := newRWMockConn(t, testCase.ClientSequenceID)
+		go func() {
+			io.Copy(io.Discard, conn)
+		}()
+		go func() {
+			conn.Write([]byte{0x01, 0x00, 0x00, testCase.ServerSequenceID, 0xff})
+		}()
+		_, err := mc.readPacket(context.Background())
+		if err != testCase.ExpectedErr {
+			t.Errorf(`expected "%v", got "%v"`, testCase.ExpectedErr, err)
+		}
 
-// 		// connection should not be returned to the pool in this state
-// 		if mc.IsValid() {
-// 			t.Errorf("expected IsValid() to be false")
-// 		}
-// 	}
-// }
+		// connection should not be returned to the pool in this state
+		if mc.IsValid() {
+			t.Errorf("expected IsValid() to be false")
+		}
+	}
+}
 
 // func TestReadPacketSplit(t *testing.T) {
 // 	conn := new(mockConn)
