@@ -152,6 +152,8 @@ func (mc *mysqlConn) writePacket(ctx context.Context, data []byte) error {
 
 		// request writing the packet
 		select {
+		case <-mc.readRes:
+			return errBadConnNoWrite
 		case mc.writeReq <- data:
 		case <-mc.closech:
 			return ErrInvalidConn
@@ -1422,12 +1424,25 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 	return nil
 }
 
+func (mc *mysqlConn) startGoroutines() {
+	mc.closech = make(chan struct{})
+	mc.readRes = make(chan readResult)
+	mc.writeReq = make(chan []byte, 1)
+	mc.writeRes = make(chan writeResult)
+
+	go mc.readLoop()
+	go mc.writeLoop()
+}
+
 func (mc *mysqlConn) readLoop() {
 	for {
 		data := make([]byte, 1024)
 		mc.muRead.Lock()
 		n, err := mc.netConn.Read(data)
 		mc.muRead.Unlock()
+		if n == 0 && err == nil {
+			continue
+		}
 		select {
 		case mc.readRes <- readResult{data[:n], err}:
 		case <-mc.closech:

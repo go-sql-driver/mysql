@@ -12,7 +12,11 @@ import (
 	"context"
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
+	"io"
+	"net"
 	"testing"
+	"time"
 )
 
 func TestInterpolateParams(t *testing.T) {
@@ -144,49 +148,120 @@ func TestCleanCancel(t *testing.T) {
 	}
 }
 
-// TODO: fix me!
-// func TestPingMarkBadConnection(t *testing.T) {
-// 	nc := badConnection{err: errors.New("boom")}
-// 	ms := &mysqlConn{
-// 		netConn:          nc,
-// 		buf:              newBuffer(nc),
-// 		maxAllowedPacket: defaultMaxAllowedPacket,
-// 	}
+func TestPingMarkBadConnection(t *testing.T) {
+	t.Run("empty write", func(t *testing.T) {
+		nc := badConnection{
+			werr: errors.New("boom"),
+			done: make(chan struct{}),
+		}
+		ms := &mysqlConn{
+			netConn:          nc,
+			maxAllowedPacket: defaultMaxAllowedPacket,
+		}
+		ms.startGoroutines()
+		defer ms.cleanup()
 
-// 	err := ms.Ping(context.Background())
+		err := ms.Ping(context.Background())
 
-// 	if err != driver.ErrBadConn {
-// 		t.Errorf("expected driver.ErrBadConn, got  %#v", err)
-// 	}
-// }
+		if err != driver.ErrBadConn {
+			t.Errorf("expected driver.ErrBadConn, got  %#v", err)
+		}
+	})
 
-// func TestPingErrInvalidConn(t *testing.T) {
-// 	nc := badConnection{err: errors.New("failed to write"), n: 10}
-// 	ms := &mysqlConn{
-// 		netConn:          nc,
-// 		buf:              newBuffer(nc),
-// 		maxAllowedPacket: defaultMaxAllowedPacket,
-// 		closech:          make(chan struct{}),
-// 		cfg:              NewConfig(),
-// 	}
+	t.Run("unexpected read", func(t *testing.T) {
+		nc := badConnection{
+			rerr: io.EOF,
+			read: make(chan struct{}, 1),
+			done: make(chan struct{}),
+		}
+		ms := &mysqlConn{
+			netConn:          nc,
+			maxAllowedPacket: defaultMaxAllowedPacket,
+		}
+		ms.startGoroutines()
+		defer ms.cleanup()
 
-// 	err := ms.Ping(context.Background())
+		<-nc.read
+		err := ms.Ping(context.Background())
 
-// 	if err != ErrInvalidConn {
-// 		t.Errorf("expected ErrInvalidConn, got  %#v", err)
-// 	}
-// }
+		if err != driver.ErrBadConn {
+			t.Errorf("expected driver.ErrBadConn, got  %#v", err)
+		}
+	})
+}
 
-// type badConnection struct {
-// 	n   int
-// 	err error
-// 	net.Conn
-// }
+func TestPingErrInvalidConn(t *testing.T) {
+	nc := badConnection{
+		werr: errors.New("failed to write"),
+		n:    10,
+		done: make(chan struct{}),
+	}
+	ms := &mysqlConn{
+		netConn:          nc,
+		maxAllowedPacket: defaultMaxAllowedPacket,
+		closech:          make(chan struct{}),
+		cfg:              NewConfig(),
+	}
+	ms.startGoroutines()
+	defer ms.cleanup()
 
-// func (bc badConnection) Write(b []byte) (n int, err error) {
-// 	return bc.n, bc.err
-// }
+	err := ms.Ping(context.Background())
 
-// func (bc badConnection) Close() error {
-// 	return nil
-// }
+	if err != ErrInvalidConn {
+		t.Errorf("expected ErrInvalidConn, got  %#v", err)
+	}
+}
+
+type badConnection struct {
+	n    int
+	rerr error
+	werr error
+	read chan struct{}
+	done chan struct{}
+}
+
+func (bc badConnection) Read(b []byte) (n int, err error) {
+	select {
+	case bc.read <- struct{}{}:
+	case <-bc.done:
+		return 0, io.EOF
+	}
+
+	if bc.rerr != nil {
+		return 0, bc.rerr
+	}
+	<-bc.done
+	return 0, io.EOF
+}
+
+func (bc badConnection) Write(b []byte) (n int, err error) {
+	if bc.werr != nil {
+		return bc.n, bc.werr
+	}
+	return 0, io.ErrShortWrite
+}
+
+func (bc badConnection) Close() error {
+	close(bc.done)
+	return nil
+}
+
+func (bc badConnection) LocalAddr() net.Addr {
+	return nil
+}
+
+func (bc badConnection) RemoteAddr() net.Addr {
+	return nil
+}
+
+func (bc badConnection) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (bc badConnection) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (bc badConnection) SetWriteDeadline(t time.Time) error {
+	return nil
+}

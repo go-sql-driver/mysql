@@ -69,13 +69,8 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	mc := &mysqlConn{
 		maxAllowedPacket: maxPacketSize,
 		maxWriteSize:     maxPacketSize - 1,
-		closech:          make(chan struct{}),
 		cfg:              c.cfg,
 		connector:        c,
-
-		readRes:  make(chan readResult),
-		writeReq: make(chan []byte, 1),
-		writeRes: make(chan writeResult),
 	}
 	mc.parseTime = mc.cfg.ParseTime
 
@@ -107,11 +102,9 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		}
 	}
 
-	go mc.readLoop()
-	go mc.writeLoop()
-
 	mc.readTimeout = mc.cfg.ReadTimeout
 	mc.writeTimeout = mc.cfg.WriteTimeout
+	mc.startGoroutines()
 
 	// Reading Handshake Initialization Packet
 	authData, plugin, err := mc.readHandshakePacket(ctx)
