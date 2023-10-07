@@ -65,11 +65,17 @@ func (mc *mysqlConn) readPacket(ctx context.Context) (*packet, error) {
 		select {
 		case pkt = <-mc.readRes:
 		case <-mc.closech:
+			mc.cfg.Logger.Print(ErrMalformPkt)
 			mc.closeContext(ctx)
 			return nil, ErrInvalidConn
 		case <-ctx.Done():
 			mc.cleanup()
 			return nil, ctx.Err()
+		}
+		if pkt.err != nil {
+			mc.cfg.Logger.Print(ErrMalformPkt)
+			mc.closeContext(ctx)
+			return nil, ErrInvalidConn
 		}
 
 		// check packet sync [8 bit]
@@ -89,7 +95,7 @@ func (mc *mysqlConn) readPacket(ctx context.Context) (*packet, error) {
 			// there was no previous packet
 			if prevData == nil {
 				mc.cfg.Logger.Print(ErrMalformPkt)
-				mc.Close()
+				mc.closeContext(ctx)
 				return nil, ErrInvalidConn
 			}
 
