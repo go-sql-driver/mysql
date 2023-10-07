@@ -54,9 +54,7 @@ type mysqlConn struct {
 
 	// for context support (Go 1.8+)
 	watching bool
-	watcher  chan<- context.Context
 	closech  chan struct{}
-	finished chan<- struct{}
 	canceled atomicError // set non-nil if conn is canceled
 	closed   atomicBool  // set when conn is closed, before closech is closed
 
@@ -442,18 +440,6 @@ func (mc *mysqlConn) cancel(err error) {
 	mc.cleanup()
 }
 
-// finish is called when the query has succeeded.
-func (mc *mysqlConn) finish() {
-	if !mc.watching || mc.finished == nil {
-		return
-	}
-	select {
-	case mc.finished <- struct{}{}:
-		mc.watching = false
-	case <-mc.closech:
-	}
-}
-
 // Ping implements driver.Pinger interface
 func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
 	if mc.closed.Load() {
@@ -574,18 +560,7 @@ func (stmt *mysqlStmt) QueryContext(ctx context.Context, args []driver.NamedValu
 	if err != nil {
 		return nil, err
 	}
-
-	if err := stmt.mc.watchCancel(ctx); err != nil {
-		return nil, err
-	}
-
-	rows, err := stmt.query(ctx, dargs)
-	if err != nil {
-		stmt.mc.finish()
-		return nil, err
-	}
-	rows.finish = stmt.mc.finish
-	return rows, err
+	return stmt.query(ctx, dargs)
 }
 
 func (stmt *mysqlStmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
@@ -632,56 +607,6 @@ func (stmt *mysqlStmt) ExecContext(ctx context.Context, args []driver.NamedValue
 
 	copied := mc.result
 	return &copied, nil
-}
-
-func (mc *mysqlConn) watchCancel(ctx context.Context) error {
-	if mc.watching {
-		// Reach here if canceled,
-		// so the connection is already invalid
-		mc.cleanup()
-		return nil
-	}
-	// When ctx is already cancelled, don't watch it.
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	// When ctx is not cancellable, don't watch it.
-	if ctx.Done() == nil {
-		return nil
-	}
-	// When watcher is not alive, can't watch it.
-	if mc.watcher == nil {
-		return nil
-	}
-
-	mc.watching = true
-	mc.watcher <- ctx
-	return nil
-}
-
-func (mc *mysqlConn) startWatcher() {
-	watcher := make(chan context.Context, 1)
-	mc.watcher = watcher
-	finished := make(chan struct{})
-	mc.finished = finished
-	go func() {
-		for {
-			var ctx context.Context
-			select {
-			case ctx = <-watcher:
-			case <-mc.closech:
-				return
-			}
-
-			select {
-			case <-ctx.Done():
-				mc.cancel(ctx.Err())
-			case <-finished:
-			case <-mc.closech:
-				return
-			}
-		}
-	}()
 }
 
 func (mc *mysqlConn) CheckNamedValue(nv *driver.NamedValue) (err error) {

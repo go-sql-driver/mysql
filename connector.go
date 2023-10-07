@@ -110,9 +110,6 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	go mc.readLoop()
 	go mc.writeLoop()
 
-	// TODO: remove me
-	mc.startWatcher()
-
 	mc.readTimeout = mc.cfg.ReadTimeout
 	mc.writeTimeout = mc.cfg.WriteTimeout
 
