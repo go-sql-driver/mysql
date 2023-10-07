@@ -53,7 +53,6 @@ type mysqlConn struct {
 	reset            bool // set when the Go SQL package calls ResetSession
 
 	// for context support (Go 1.8+)
-	watching bool
 	closech  chan struct{}
 	canceled atomicError // set non-nil if conn is canceled
 	closed   atomicBool  // set when conn is closed, before closech is closed

@@ -144,10 +144,6 @@ func TestCleanCancel(t *testing.T) {
 		if mc.closed.Load() {
 			t.Error("expected mc is not closed, closed actually")
 		}
-
-		if mc.watching {
-			t.Error("expected watching is false, but true")
-		}
 	}
 }
 
