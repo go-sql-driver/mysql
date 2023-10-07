@@ -8,15 +8,18 @@
 
 package mysql
 
+import "context"
+
 type mysqlTx struct {
-	mc *mysqlConn
+	ctx context.Context
+	mc  *mysqlConn
 }
 
 func (tx *mysqlTx) Commit() (err error) {
 	if tx.mc == nil || tx.mc.closed.Load() {
 		return ErrInvalidConn
 	}
-	err = tx.mc.exec("COMMIT")
+	err = tx.mc.exec(tx.ctx, "COMMIT")
 	tx.mc = nil
 	return
 }
@@ -25,7 +28,7 @@ func (tx *mysqlTx) Rollback() (err error) {
 	if tx.mc == nil || tx.mc.closed.Load() {
 		return ErrInvalidConn
 	}
-	err = tx.mc.exec("ROLLBACK")
+	err = tx.mc.exec(tx.ctx, "ROLLBACK")
 	tx.mc = nil
 	return
 }

@@ -69,6 +69,7 @@ type mysqlConn struct {
 
 // Handles parameters set in DSN after the connection is established
 func (mc *mysqlConn) handleParams() (err error) {
+	ctx := context.TODO()
 	var cmdSet strings.Builder
 
 	for param, val := range mc.cfg.Params {
@@ -79,9 +80,9 @@ func (mc *mysqlConn) handleParams() (err error) {
 			for _, cs := range charsets {
 				// ignore errors here - a charset may not exist
 				if mc.cfg.Collation != "" {
-					err = mc.exec("SET NAMES " + cs + " COLLATE " + mc.cfg.Collation)
+					err = mc.exec(ctx, "SET NAMES "+cs+" COLLATE "+mc.cfg.Collation)
 				} else {
-					err = mc.exec("SET NAMES " + cs)
+					err = mc.exec(ctx, "SET NAMES "+cs)
 				}
 				if err == nil {
 					break
@@ -107,7 +108,7 @@ func (mc *mysqlConn) handleParams() (err error) {
 	}
 
 	if cmdSet.Len() > 0 {
-		err = mc.exec(cmdSet.String())
+		err = mc.exec(ctx, cmdSet.String())
 		if err != nil {
 			return
 		}
@@ -131,6 +132,8 @@ func (mc *mysqlConn) Begin() (driver.Tx, error) {
 }
 
 func (mc *mysqlConn) begin(readOnly bool) (driver.Tx, error) {
+	ctx := context.TODO()
+
 	if mc.closed.Load() {
 		mc.cfg.Logger.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
@@ -141,9 +144,12 @@ func (mc *mysqlConn) begin(readOnly bool) (driver.Tx, error) {
 	} else {
 		q = "START TRANSACTION"
 	}
-	err := mc.exec(q)
+	err := mc.exec(ctx, q)
 	if err == nil {
-		return &mysqlTx{mc}, err
+		return &mysqlTx{
+			ctx: ctx,
+			mc:  mc,
+		}, err
 	}
 	return nil, mc.markBadConn(err)
 }
@@ -320,6 +326,8 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 }
 
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
+	ctx := context.TODO()
+
 	if mc.closed.Load() {
 		mc.cfg.Logger.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
@@ -336,7 +344,7 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		query = prepared
 	}
 
-	err := mc.exec(query)
+	err := mc.exec(ctx, query)
 	if err == nil {
 		copied := mc.result
 		return &copied, err
@@ -345,9 +353,7 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 }
 
 // Internal function to execute commands
-func (mc *mysqlConn) exec(query string) error {
-	ctx := context.TODO()
-
+func (mc *mysqlConn) exec(ctx context.Context, query string) error {
 	handleOk := mc.clearResult()
 	// Send command
 	if err := mc.writeCommandPacketStr(ctx, comQuery, query); err != nil {
@@ -515,7 +521,7 @@ func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 		if err != nil {
 			return nil, err
 		}
-		err = mc.exec("SET TRANSACTION ISOLATION LEVEL " + level)
+		err = mc.exec(ctx, "SET TRANSACTION ISOLATION LEVEL "+level)
 		if err != nil {
 			return nil, err
 		}
