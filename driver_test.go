@@ -692,14 +692,14 @@ func (tv testValuer) Value() (driver.Value, error) {
 }
 
 func TestValuer(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
 		in := testValuer{"a_value"}
 		var out string
 		var rows *sql.Rows
 
-		dbt.mustExec("CREATE TABLE test (value VARCHAR(255)) CHARACTER SET utf8")
-		dbt.mustExec("INSERT INTO test VALUES (?)", in)
-		rows = dbt.mustQuery("SELECT value FROM test")
+		dbt.mustExec("CREATE TABLE " + tbl + " (value VARCHAR(255)) CHARACTER SET utf8")
+		dbt.mustExec("INSERT INTO "+tbl+" VALUES (?)", in)
+		rows = dbt.mustQuery("SELECT value FROM " + tbl)
 		if rows.Next() {
 			rows.Scan(&out)
 			if in.value != out {
@@ -710,7 +710,7 @@ func TestValuer(t *testing.T) {
 		}
 		rows.Close()
 
-		dbt.mustExec("DROP TABLE IF EXISTS test")
+		dbt.mustExec("DROP TABLE IF EXISTS " + tbl)
 	})
 }
 
