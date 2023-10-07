@@ -154,7 +154,11 @@ func (mc *mysqlConn) begin(readOnly bool) (driver.Tx, error) {
 	return nil, mc.markBadConn(err)
 }
 
-func (mc *mysqlConn) Close() (err error) {
+func (mc *mysqlConn) Close() error {
+	return mc.closeContext(context.Background())
+}
+
+func (mc *mysqlConn) closeContext(ctx context.Context) (err error) {
 	// Makes Close idempotent
 	if !mc.closed.Load() {
 		err = mc.writeCommandPacket(context.Background(), comQuit)
@@ -326,7 +330,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 }
 
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	if mc.closed.Load() {
 		mc.cfg.Logger.Print(ErrInvalidConn)
@@ -550,17 +554,33 @@ func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driv
 }
 
 func (mc *mysqlConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	if mc.closed.Load() {
+		mc.cfg.Logger.Print(ErrInvalidConn)
+		return nil, driver.ErrBadConn
+	}
+
 	dargs, err := namedValueToValue(args)
 	if err != nil {
 		return nil, err
 	}
-
-	if err := mc.watchCancel(ctx); err != nil {
-		return nil, err
+	if len(dargs) != 0 {
+		if !mc.cfg.InterpolateParams {
+			return nil, driver.ErrSkip
+		}
+		// try to interpolate the parameters to save extra roundtrips for preparing and closing a statement
+		prepared, err := mc.interpolateParams(query, dargs)
+		if err != nil {
+			return nil, err
+		}
+		query = prepared
 	}
-	defer mc.finish()
 
-	return mc.Exec(query, dargs)
+	err = mc.exec(ctx, query)
+	if err == nil {
+		copied := mc.result
+		return &copied, err
+	}
+	return nil, mc.markBadConn(err)
 }
 
 func (mc *mysqlConn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
