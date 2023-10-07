@@ -23,10 +23,9 @@ type resultSet struct {
 }
 
 type mysqlRows struct {
-	mc     *mysqlConn
-	ctx    context.Context
-	rs     resultSet
-	finish func()
+	mc  *mysqlConn
+	ctx context.Context
+	rs  resultSet
 }
 
 type binaryRows struct {
@@ -100,12 +99,7 @@ func (rows *mysqlRows) ColumnTypeScanType(i int) reflect.Type {
 }
 
 func (rows *mysqlRows) Close() (err error) {
-	ctx := context.TODO()
-	if f := rows.finish; f != nil {
-		f()
-		rows.finish = nil
-	}
-
+	ctx := rows.ctx
 	mc := rows.mc
 	if mc == nil {
 		return nil
