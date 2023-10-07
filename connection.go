@@ -621,17 +621,49 @@ func (stmt *mysqlStmt) QueryContext(ctx context.Context, args []driver.NamedValu
 }
 
 func (stmt *mysqlStmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
+	if stmt.mc.closed.Load() {
+		stmt.mc.cfg.Logger.Print(ErrInvalidConn)
+		return nil, driver.ErrBadConn
+	}
+
 	dargs, err := namedValueToValue(args)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := stmt.mc.watchCancel(ctx); err != nil {
+	// Send command
+	err = stmt.writeExecutePacket(dargs)
+	if err != nil {
+		return nil, stmt.mc.markBadConn(err)
+	}
+
+	mc := stmt.mc
+	handleOk := stmt.mc.clearResult()
+
+	// Read Result
+	resLen, err := handleOk.readResultSetHeaderPacket(ctx)
+	if err != nil {
 		return nil, err
 	}
-	defer stmt.mc.finish()
 
-	return stmt.Exec(dargs)
+	if resLen > 0 {
+		// Columns
+		if err = mc.readUntilEOF(); err != nil {
+			return nil, err
+		}
+
+		// Rows
+		if err := mc.readUntilEOF(); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := handleOk.discardResults(); err != nil {
+		return nil, err
+	}
+
+	copied := mc.result
+	return &copied, nil
 }
 
 func (mc *mysqlConn) watchCancel(ctx context.Context) error {
