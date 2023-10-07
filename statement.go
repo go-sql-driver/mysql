@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"context"
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
@@ -23,6 +24,8 @@ type mysqlStmt struct {
 }
 
 func (stmt *mysqlStmt) Close() error {
+	ctx := context.TODO()
+
 	if stmt.mc == nil || stmt.mc.closed.Load() {
 		// driver.Stmt.Close can be called more than once, thus this function
 		// has to be idempotent.
@@ -31,7 +34,7 @@ func (stmt *mysqlStmt) Close() error {
 		return driver.ErrBadConn
 	}
 
-	err := stmt.mc.writeCommandPacketUint32(comStmtClose, stmt.id)
+	err := stmt.mc.writeCommandPacketUint32(ctx, comStmtClose, stmt.id)
 	stmt.mc = nil
 	return err
 }
