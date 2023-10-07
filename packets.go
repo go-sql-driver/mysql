@@ -1217,9 +1217,7 @@ func (stmt *mysqlStmt) writeExecutePacket(ctx context.Context, args []driver.Val
 
 // For each remaining resultset in the stream, discards its rows and updates
 // mc.affectedRows and mc.insertIds.
-func (mc *okHandler) discardResults() error {
-	ctx := context.TODO()
-
+func (mc *okHandler) discardResults(ctx context.Context) error {
 	for mc.status&statusMoreResultsExists != 0 {
 		resLen, err := mc.readResultSetHeaderPacket(ctx)
 		if err != nil {

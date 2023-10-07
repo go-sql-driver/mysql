@@ -86,7 +86,7 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 		}
 	}
 
-	if err := handleOk.discardResults(); err != nil {
+	if err := handleOk.discardResults(ctx); err != nil {
 		return nil, err
 	}
 

@@ -340,7 +340,7 @@ func (mc *mysqlConn) exec(ctx context.Context, query string) error {
 		}
 	}
 
-	return handleOk.discardResults()
+	return handleOk.discardResults(ctx)
 }
 
 func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, error) {
@@ -587,7 +587,7 @@ func (stmt *mysqlStmt) ExecContext(ctx context.Context, args []driver.NamedValue
 		}
 	}
 
-	if err := handleOk.discardResults(); err != nil {
+	if err := handleOk.discardResults(ctx); err != nil {
 		return nil, err
 	}
 
