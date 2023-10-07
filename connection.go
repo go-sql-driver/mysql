@@ -632,7 +632,7 @@ func (stmt *mysqlStmt) ExecContext(ctx context.Context, args []driver.NamedValue
 	}
 
 	// Send command
-	err = stmt.writeExecutePacket(dargs)
+	err = stmt.writeExecutePacket(ctx, dargs)
 	if err != nil {
 		return nil, stmt.mc.markBadConn(err)
 	}
