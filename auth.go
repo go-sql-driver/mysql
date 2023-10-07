@@ -227,11 +227,12 @@ func encryptPassword(password string, seed []byte, pub *rsa.PublicKey) ([]byte, 
 }
 
 func (mc *mysqlConn) sendEncryptedPassword(seed []byte, pub *rsa.PublicKey) error {
+	ctx := context.TODO()
 	enc, err := encryptPassword(mc.cfg.Passwd, seed, pub)
 	if err != nil {
 		return err
 	}
-	return mc.writeAuthSwitchPacket(enc)
+	return mc.writeAuthSwitchPacket(ctx, enc)
 }
 
 func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
@@ -321,7 +322,7 @@ func (mc *mysqlConn) handleAuthResult(ctx context.Context, oldAuthData []byte, p
 		if err != nil {
 			return err
 		}
-		if err = mc.writeAuthSwitchPacket(authResp); err != nil {
+		if err = mc.writeAuthSwitchPacket(ctx, authResp); err != nil {
 			return err
 		}
 
@@ -354,7 +355,7 @@ func (mc *mysqlConn) handleAuthResult(ctx context.Context, oldAuthData []byte, p
 			case cachingSha2PasswordPerformFullAuthentication:
 				if mc.cfg.TLS != nil || mc.cfg.Net == "unix" {
 					// write cleartext auth packet
-					err = mc.writeAuthSwitchPacket(append([]byte(mc.cfg.Passwd), 0))
+					err = mc.writeAuthSwitchPacket(ctx, append([]byte(mc.cfg.Passwd), 0))
 					if err != nil {
 						return err
 					}

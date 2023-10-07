@@ -439,9 +439,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(ctx context.Context, authResp 
 }
 
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
-func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
-	ctx := context.TODO()
-
+func (mc *mysqlConn) writeAuthSwitchPacket(ctx context.Context, authData []byte) error {
 	pktLen := 4 + len(authData)
 	data := make([]byte, pktLen)
 
