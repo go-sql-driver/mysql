@@ -879,8 +879,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 }
 
 // Reads Packets until EOF-Packet or an Error appears. Returns count of Packets read
-func (mc *mysqlConn) readUntilEOF() error {
-	ctx := context.TODO()
+func (mc *mysqlConn) readUntilEOF(ctx context.Context) error {
 	for {
 		data, err := mc.readPacket(ctx)
 		if err != nil {
@@ -1229,11 +1228,11 @@ func (mc *okHandler) discardResults() error {
 		}
 		if resLen > 0 {
 			// columns
-			if err := mc.conn().readUntilEOF(); err != nil {
+			if err := mc.conn().readUntilEOF(ctx); err != nil {
 				return err
 			}
 			// rows
-			if err := mc.conn().readUntilEOF(); err != nil {
+			if err := mc.conn().readUntilEOF(ctx); err != nil {
 				return err
 			}
 		}

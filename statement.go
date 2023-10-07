@@ -76,12 +76,12 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 
 	if resLen > 0 {
 		// Columns
-		if err = mc.readUntilEOF(); err != nil {
+		if err = mc.readUntilEOF(ctx); err != nil {
 			return nil, err
 		}
 
 		// Rows
-		if err := mc.readUntilEOF(); err != nil {
+		if err := mc.readUntilEOF(ctx); err != nil {
 			return nil, err
 		}
 	}
