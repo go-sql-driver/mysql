@@ -494,11 +494,6 @@ func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
 		return driver.ErrBadConn
 	}
 
-	if err = mc.watchCancel(ctx); err != nil {
-		return
-	}
-	defer mc.finish()
-
 	handleOk := mc.clearResult()
 	if err = mc.writeCommandPacket(ctx, comPing); err != nil {
 		return mc.markBadConn(err)
