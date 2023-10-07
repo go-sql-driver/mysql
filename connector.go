@@ -62,18 +62,18 @@ func newConnector(cfg *Config) (*connector, error) {
 	return &connector{
 		cfg:               cfg,
 		encodedAttributes: encodedAttributes,
-		packetPool: sync.Pool{
-			New: func() interface{} {
-				return &packet{
-					data: make([]byte, defaultBufSize),
-				}
-			},
-		},
 	}, nil
 }
 
 func (c *connector) getPacket() *packet {
-	return c.packetPool.Get().(*packet)
+	if c == nil {
+		return &packet{data: make([]byte, defaultBufSize)}
+	}
+	pkt := c.packetPool.Get()
+	if pkt == nil {
+		return &packet{data: make([]byte, defaultBufSize)}
+	}
+	return pkt.(*packet)
 }
 
 func (c *connector) putPacket(pkt *packet) {
