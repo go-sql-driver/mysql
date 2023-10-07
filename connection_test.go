@@ -10,28 +10,28 @@ package mysql
 
 import (
 	"context"
+	"database/sql/driver"
 	"testing"
 )
 
-// func TestInterpolateParams(t *testing.T) {
-// 	mc := &mysqlConn{
-// 		buf:              newBuffer(nil),
-// 		maxAllowedPacket: maxPacketSize,
-// 		cfg: &Config{
-// 			InterpolateParams: true,
-// 		},
-// 	}
+func TestInterpolateParams(t *testing.T) {
+	mc := &mysqlConn{
+		maxAllowedPacket: maxPacketSize,
+		cfg: &Config{
+			InterpolateParams: true,
+		},
+	}
 
-// 	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42), "gopher"})
-// 	if err != nil {
-// 		t.Errorf("Expected err=nil, got %#v", err)
-// 		return
-// 	}
-// 	expected := `SELECT 42+'gopher'`
-// 	if q != expected {
-// 		t.Errorf("Expected: %q\nGot: %q", expected, q)
-// 	}
-// }
+	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42), "gopher"})
+	if err != nil {
+		t.Errorf("Expected err=nil, got %#v", err)
+		return
+	}
+	expected := `SELECT 42+'gopher'`
+	if q != expected {
+		t.Errorf("Expected: %q\nGot: %q", expected, q)
+	}
+}
 
 // func TestInterpolateParamsJSONRawMessage(t *testing.T) {
 // 	mc := &mysqlConn{
