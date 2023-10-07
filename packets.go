@@ -150,7 +150,7 @@ func (mc *mysqlConn) writePacket(ctx context.Context, data []byte) error {
 		}
 		data[3] = mc.sequence
 
-		// Write packet
+		// request writing the packet
 		select {
 		case mc.writeReq <- data:
 		case <-mc.closech:
@@ -159,12 +159,21 @@ func (mc *mysqlConn) writePacket(ctx context.Context, data []byte) error {
 			return ctx.Err()
 		}
 
+		// wait for the packet to be written
 		var result writeResult
 		select {
 		case result = <-mc.writeRes:
 		case <-mc.closech:
 			return ErrInvalidConn
 		case <-ctx.Done():
+			// abort writing operation
+			if err := mc.netConn.SetWriteDeadline(aLongTimeAgo); err == nil {
+				<-mc.writeRes
+			}
+
+			// we must not use this connection anymore because we don't know its state.
+			mc.cleanup()
+
 			return ctx.Err()
 		}
 		n, err := result.n, result.err
