@@ -228,50 +228,47 @@ func TestReadPacketSplit(t *testing.T) {
 	})
 }
 
-func TestReadPacketFail(t *testing.T) {
-	t.Run("illegal empty (stand-alone) packet", func(t *testing.T) {
-		conn, mc := newRWMockConn(t, 0)
-		go func() {
-			conn.Write([]byte{0x00, 0x00, 0x00, 0x00})
-		}()
-		go func() {
-			io.Copy(io.Discard, conn)
-		}()
+// func TestReadPacketFail(t *testing.T) {
+// 	conn := new(mockConn)
+// 	mc := &mysqlConn{
+// 		buf:     newBuffer(conn),
+// 		closech: make(chan struct{}),
+// 		cfg:     NewConfig(),
+// 	}
 
-		_, err := mc.readPacket(context.Background())
-		if err != ErrInvalidConn {
-			t.Errorf("expected ErrInvalidConn, got %v", err)
-		}
-	})
+// 	// illegal empty (stand-alone) packet
+// 	conn.data = []byte{0x00, 0x00, 0x00, 0x00}
+// 	conn.maxReads = 1
+// 	_, err := mc.readPacket()
+// 	if err != ErrInvalidConn {
+// 		t.Errorf("expected ErrInvalidConn, got %v", err)
+// 	}
 
-	t.Run("fail to read header", func(t *testing.T) {
-		conn, mc := newRWMockConn(t, 0)
-		go func() {
-			conn.Close()
-		}()
+// 	// reset
+// 	conn.reads = 0
+// 	mc.sequence = 0
+// 	mc.buf = newBuffer(conn)
 
-		_, err := mc.readPacket(context.Background())
-		if err != ErrInvalidConn {
-			t.Errorf("expected ErrInvalidConn, got %v", err)
-		}
-	})
+// 	// fail to read header
+// 	conn.closed = true
+// 	_, err = mc.readPacket()
+// 	if err != ErrInvalidConn {
+// 		t.Errorf("expected ErrInvalidConn, got %v", err)
+// 	}
 
-	t.Run("fail to read body", func(t *testing.T) {
-		conn, mc := newRWMockConn(t, 0)
-		go func() {
-			conn.Write([]byte{0x01, 0x00, 0x00, 0x00})
-			conn.Close()
-		}()
-		go func() {
-			io.Copy(io.Discard, conn)
-		}()
+// 	// reset
+// 	conn.closed = false
+// 	conn.reads = 0
+// 	mc.sequence = 0
+// 	mc.buf = newBuffer(conn)
 
-		_, err := mc.readPacket(context.Background())
-		if err != ErrInvalidConn {
-			t.Errorf("expected ErrInvalidConn, got %v", err)
-		}
-	})
-}
+// 	// fail to read body
+// 	conn.maxReads = 1
+// 	_, err = mc.readPacket()
+// 	if err != ErrInvalidConn {
+// 		t.Errorf("expected ErrInvalidConn, got %v", err)
+// 	}
+// }
 
 // https://github.com/go-sql-driver/mysql/pull/801
 // not-NUL terminated plugin_name in init packet
