@@ -150,7 +150,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	// Handle response to auth packet, switch methods if possible
-	if err = mc.handleAuthResult(authData, plugin); err != nil {
+	if err = mc.handleAuthResult(ctx, authData, plugin); err != nil {
 		// Authentication failed and MySQL has already closed the connection
 		// (https://dev.mysql.com/doc/internals/en/authentication-fails.html).
 		// Do not send COM_QUIT, just cleanup and return the error.

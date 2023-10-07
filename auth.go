@@ -297,9 +297,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 	}
 }
 
-func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
-	ctx := context.TODO()
-
+func (mc *mysqlConn) handleAuthResult(ctx context.Context, oldAuthData []byte, plugin string) error {
 	// Read Result Packet
 	authData, newPlugin, err := mc.readAuthResult()
 	if err != nil {
@@ -370,7 +368,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 						}
 
 						var data []byte
-						if data, err = mc.readPacket(); err != nil {
+						if data, err = mc.readPacket(ctx); err != nil {
 							return err
 						}
 
