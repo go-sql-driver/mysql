@@ -397,9 +397,7 @@ func (mc *mysqlConn) query(ctx context.Context, query string, args []driver.Valu
 
 // Gets the value of the given MySQL System Variable
 // The returned byte slice is only valid until the next read
-func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
-	ctx := context.TODO()
-
+func (mc *mysqlConn) getSystemVar(ctx context.Context, name string) ([]byte, error) {
 	// Send command
 	handleOk := mc.clearResult()
 	if err := mc.writeCommandPacketStr(ctx, comQuery, "SELECT @@"+name); err != nil {

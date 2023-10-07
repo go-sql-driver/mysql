@@ -154,7 +154,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		mc.maxAllowedPacket = mc.cfg.MaxAllowedPacket
 	} else {
 		// Get max allowed packet size
-		maxap, err := mc.getSystemVar("max_allowed_packet")
+		maxap, err := mc.getSystemVar(ctx, "max_allowed_packet")
 		if err != nil {
 			mc.Close()
 			return nil, err
