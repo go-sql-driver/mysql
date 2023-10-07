@@ -583,18 +583,18 @@ func TestFloat64Placeholder(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
 		types := [6]string{"CHAR(255)", "VARCHAR(255)", "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT"}
 		in := "κόσμε üöäßñóùéàâÿœ'îë Árvíztűrő いろはにほへとちりぬるを イロハニホヘト דג סקרן чащах  น่าฟังเอย"
 		var out string
 		var rows *sql.Rows
 
 		for _, v := range types {
-			dbt.mustExec("CREATE TABLE test (value " + v + ") CHARACTER SET utf8")
+			dbt.mustExec("CREATE TABLE " + tbl + " (value " + v + ") CHARACTER SET utf8")
 
-			dbt.mustExec("INSERT INTO test VALUES (?)", in)
+			dbt.mustExec("INSERT INTO "+tbl+" VALUES (?)", in)
 
-			rows = dbt.mustQuery("SELECT value FROM test")
+			rows = dbt.mustQuery("SELECT value FROM " + tbl)
 			if rows.Next() {
 				rows.Scan(&out)
 				if in != out {
@@ -605,11 +605,11 @@ func TestString(t *testing.T) {
 			}
 			rows.Close()
 
-			dbt.mustExec("DROP TABLE IF EXISTS test")
+			dbt.mustExec("DROP TABLE IF EXISTS " + tbl)
 		}
 
 		// BLOB
-		dbt.mustExec("CREATE TABLE test (id int, value BLOB) CHARACTER SET utf8")
+		dbt.mustExec("CREATE TABLE " + tbl + " (id int, value BLOB) CHARACTER SET utf8")
 
 		id := 2
 		in = "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, " +
@@ -620,9 +620,9 @@ func TestString(t *testing.T) {
 			"sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, " +
 			"sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. " +
 			"Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet."
-		dbt.mustExec("INSERT INTO test VALUES (?, ?)", id, in)
+		dbt.mustExec("INSERT INTO "+tbl+" VALUES (?, ?)", id, in)
 
-		err := dbt.db.QueryRow("SELECT value FROM test WHERE id = ?", id).Scan(&out)
+		err := dbt.db.QueryRow("SELECT value FROM "+tbl+" WHERE id = ?", id).Scan(&out)
 		if err != nil {
 			dbt.Fatalf("Error on BLOB-Query: %s", err.Error())
 		} else if out != in {
