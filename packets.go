@@ -578,6 +578,9 @@ func (mc *okHandler) readResultSetHeaderPacket(ctx context.Context) (int, error)
 	mc.result.insertIds = append(mc.result.insertIds, 0)
 
 	packet, err := mc.conn().readPacket(ctx)
+	if err != nil {
+		return 0, err
+	}
 	data := packet.data
 	if err == nil {
 		switch data[0] {
