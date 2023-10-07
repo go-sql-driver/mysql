@@ -525,7 +525,7 @@ func (mc *mysqlConn) PrepareContext(ctx context.Context, query string) (driver.S
 	}
 
 	// Read Result
-	columnCount, err := stmt.readPrepareResultPacket()
+	columnCount, err := stmt.readPrepareResultPacket(ctx)
 	if err == nil {
 		if stmt.paramCount > 0 {
 			if err = mc.readUntilEOF(ctx); err != nil {

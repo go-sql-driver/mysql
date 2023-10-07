@@ -904,8 +904,7 @@ func (mc *mysqlConn) readUntilEOF(ctx context.Context) error {
 
 // Prepare Result Packets
 // http://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
-func (stmt *mysqlStmt) readPrepareResultPacket() (uint16, error) {
-	ctx := context.TODO()
+func (stmt *mysqlStmt) readPrepareResultPacket(ctx context.Context) (uint16, error) {
 	data, err := stmt.mc.readPacket(ctx)
 	if err == nil {
 		// packet indicator [1 byte]
