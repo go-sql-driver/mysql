@@ -503,9 +503,7 @@ func (mc *mysqlConn) writeCommandPacketUint32(ctx context.Context, command byte,
 *                              Result Packets                                 *
 ******************************************************************************/
 
-func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
-	ctx := context.TODO()
-
+func (mc *mysqlConn) readAuthResult(ctx context.Context) ([]byte, string, error) {
 	data, err := mc.readPacket(ctx)
 	if err != nil {
 		return nil, "", err

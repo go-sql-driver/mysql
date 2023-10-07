@@ -300,7 +300,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 
 func (mc *mysqlConn) handleAuthResult(ctx context.Context, oldAuthData []byte, plugin string) error {
 	// Read Result Packet
-	authData, newPlugin, err := mc.readAuthResult()
+	authData, newPlugin, err := mc.readAuthResult(ctx)
 	if err != nil {
 		return err
 	}
@@ -327,7 +327,7 @@ func (mc *mysqlConn) handleAuthResult(ctx context.Context, oldAuthData []byte, p
 		}
 
 		// Read Result Packet
-		authData, newPlugin, err = mc.readAuthResult()
+		authData, newPlugin, err = mc.readAuthResult(ctx)
 		if err != nil {
 			return err
 		}
