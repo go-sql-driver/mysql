@@ -128,12 +128,10 @@ func (mc *mysqlConn) markBadConn(err error) error {
 }
 
 func (mc *mysqlConn) Begin() (driver.Tx, error) {
-	return mc.begin(false)
+	return mc.begin(context.Background(), false)
 }
 
-func (mc *mysqlConn) begin(readOnly bool) (driver.Tx, error) {
-	ctx := context.TODO()
-
+func (mc *mysqlConn) begin(ctx context.Context, readOnly bool) (driver.Tx, error) {
 	if mc.closed.Load() {
 		mc.cfg.Logger.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
@@ -508,11 +506,6 @@ func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 		return nil, driver.ErrBadConn
 	}
 
-	if err := mc.watchCancel(ctx); err != nil {
-		return nil, err
-	}
-	defer mc.finish()
-
 	if sql.IsolationLevel(opts.Isolation) != sql.LevelDefault {
 		level, err := mapIsolationLevel(opts.Isolation)
 		if err != nil {
@@ -524,7 +517,7 @@ func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 		}
 	}
 
-	return mc.begin(opts.ReadOnly)
+	return mc.begin(ctx, opts.ReadOnly)
 }
 
 func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
