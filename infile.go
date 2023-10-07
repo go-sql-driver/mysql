@@ -175,7 +175,7 @@ func (mc *okHandler) handleInFileRequest(ctx context.Context, name string) (err 
 
 	// read OK packet
 	if err == nil {
-		return mc.readResultOK()
+		return mc.readResultOK(ctx)
 	}
 
 	mc.conn().readPacket(ctx)

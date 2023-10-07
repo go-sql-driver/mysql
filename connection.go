@@ -496,7 +496,7 @@ func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
 		return mc.markBadConn(err)
 	}
 
-	return handleOk.readResultOK()
+	return handleOk.readResultOK(ctx)
 }
 
 // BeginTx implements driver.ConnBeginTx interface
