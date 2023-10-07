@@ -144,7 +144,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 			return nil, err
 		}
 	}
-	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
+	if err = mc.writeHandshakeResponsePacket(ctx, authResp, plugin); err != nil {
 		mc.cleanup()
 		return nil, err
 	}

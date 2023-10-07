@@ -303,9 +303,7 @@ func (mc *mysqlConn) readHandshakePacket(ctx context.Context) (data []byte, plug
 
 // Client Authentication Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::HandshakeResponse
-func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string) error {
-	ctx := context.TODO()
-
+func (mc *mysqlConn) writeHandshakeResponsePacket(ctx context.Context, authResp []byte, plugin string) error {
 	// Adjust client flags based on server support
 	clientFlags := clientProtocol41 |
 		clientSecureConn |
