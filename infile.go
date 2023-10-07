@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -94,6 +95,8 @@ func deferredClose(err *error, closer io.Closer) {
 const defaultPacketSize = 16 * 1024 // 16KB is small enough for disk readahead and large enough for TCP
 
 func (mc *okHandler) handleInFileRequest(name string) (err error) {
+	ctx := context.TODO()
+
 	var rdr io.Reader
 	var data []byte
 	packetSize := defaultPacketSize
@@ -154,7 +157,7 @@ func (mc *okHandler) handleInFileRequest(name string) (err error) {
 		for err == nil {
 			n, err = rdr.Read(data[4:])
 			if n > 0 {
-				if ioErr := mc.conn().writePacket(data[:4+n]); ioErr != nil {
+				if ioErr := mc.conn().writePacket(ctx, data[:4+n]); ioErr != nil {
 					return ioErr
 				}
 			}
@@ -168,7 +171,7 @@ func (mc *okHandler) handleInFileRequest(name string) (err error) {
 	if data == nil {
 		data = make([]byte, 4)
 	}
-	if ioErr := mc.conn().writePacket(data[:4]); ioErr != nil {
+	if ioErr := mc.conn().writePacket(ctx, data[:4]); ioErr != nil {
 		return ioErr
 	}
 

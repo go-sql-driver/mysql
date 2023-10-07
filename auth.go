@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -297,6 +298,8 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 }
 
 func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
+	ctx := context.TODO()
+
 	// Read Result Packet
 	authData, newPlugin, err := mc.readAuthResult()
 	if err != nil {
@@ -361,7 +364,7 @@ func (mc *mysqlConn) handleAuthResult(oldAuthData []byte, plugin string) error {
 					pubKey := mc.cfg.pubKey
 					if pubKey == nil {
 						mc.data[4] = cachingSha2PasswordRequestPublicKey
-						err = mc.writePacket(mc.data[:5])
+						err = mc.writePacket(ctx, mc.data[:5])
 						if err != nil {
 							return err
 						}
