@@ -110,13 +110,8 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	go mc.readLoop()
 	go mc.writeLoop()
 
-	// Call startWatcher for context support (From Go 1.8)
+	// TODO: remove me
 	mc.startWatcher()
-	if err := mc.watchCancel(ctx); err != nil {
-		mc.cleanup()
-		return nil, err
-	}
-	defer mc.finish()
 
 	mc.readTimeout = mc.cfg.ReadTimeout
 	mc.writeTimeout = mc.cfg.WriteTimeout
