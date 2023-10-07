@@ -25,11 +25,6 @@ import (
 // immediate cancellation of dials.
 var aLongTimeAgo = time.Unix(1, 0)
 
-type readResult struct {
-	data []byte
-	err  error
-}
-
 type writeResult struct {
 	n   int
 	err error
@@ -56,9 +51,8 @@ type mysqlConn struct {
 	closech chan struct{}
 	closed  atomicBool // set when conn is closed, before closech is closed
 
-	data     [16]byte // buffer for small writes
-	readBuf  []byte
-	readRes  chan readResult  // channel for read result
+	data     [16]byte         // buffer for small writes
+	readRes  chan *packet     // channel for read result
 	writeReq chan []byte      // buffered channel for write packets
 	writeRes chan writeResult // channel for write result
 }
@@ -408,6 +402,7 @@ func (mc *mysqlConn) getSystemVar(ctx context.Context, name string) ([]byte, err
 	resLen, err := handleOk.readResultSetHeaderPacket(ctx)
 	if err == nil {
 		rows := new(textRows)
+		rows.ctx = ctx
 		rows.mc = mc
 		rows.rs.columns = []mysqlField{{fieldType: fieldTypeVarChar}}
 

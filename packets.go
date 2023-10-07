@@ -28,29 +28,52 @@ import (
 // http://dev.mysql.com/doc/internals/en/client-server-protocol.html
 
 type packet struct {
-	data []byte
+	header [4]byte
+	data   []byte
+	err    error
+}
+
+func (p *packet) readFrom(r io.Reader) {
+	_, p.err = io.ReadFull(r, p.header[:4])
+	if p.err != nil {
+		return
+	}
+
+	// packet length [24 bit]
+	pktLen := int(uint32(p.header[0]) | uint32(p.header[1])<<8 | uint32(p.header[2])<<16)
+
+	// read the body
+	data := p.data
+	if cap(data) < pktLen {
+		data = make([]byte, pktLen)
+	} else {
+		data = data[:pktLen]
+	}
+	_, p.err = io.ReadFull(r, data)
+	if p.err != nil {
+		return
+	}
+
+	p.data = data
 }
 
 // Read packet to buffer 'data'
 func (mc *mysqlConn) readPacket(ctx context.Context) (*packet, error) {
-	var prevData []byte
+	var prevData *packet
 	for {
-		// read packet header
-		err := mc.readFull(ctx, mc.data[:4])
-		if err != nil {
-			mc.cfg.Logger.Print(err)
+		var pkt *packet
+		select {
+		case pkt = <-mc.readRes:
+		case <-mc.closech:
 			mc.closeContext(ctx)
-			if err == context.Canceled || err == context.DeadlineExceeded {
-				return nil, err
-			}
 			return nil, ErrInvalidConn
+		case <-ctx.Done():
+			mc.cleanup()
+			return nil, ctx.Err()
 		}
 
-		// packet length [24 bit]
-		pktLen := int(uint32(mc.data[0]) | uint32(mc.data[1])<<8 | uint32(mc.data[2])<<16)
-
 		// check packet sync [8 bit]
-		if seq := mc.data[3]; seq != mc.sequence {
+		if seq := pkt.header[3]; seq != mc.sequence {
 			mc.closeContext(ctx)
 			if seq > mc.sequence {
 				return nil, ErrPktSyncMul
@@ -61,6 +84,7 @@ func (mc *mysqlConn) readPacket(ctx context.Context) (*packet, error) {
 
 		// packets with length 0 terminate a previous packet which is a
 		// multiple of (2^24)-1 bytes long
+		pktLen := len(pkt.data)
 		if pktLen == 0 {
 			// there was no previous packet
 			if prevData == nil {
@@ -69,78 +93,26 @@ func (mc *mysqlConn) readPacket(ctx context.Context) (*packet, error) {
 				return nil, ErrInvalidConn
 			}
 
-			return &packet{
-				data: prevData,
-			}, nil
-		}
-
-		// read packet body [pktLen bytes]
-		data := make([]byte, pktLen)
-		err = mc.readFull(ctx, data)
-		if err != nil {
-			mc.cfg.Logger.Print(err)
-			mc.closeContext(ctx)
-			if err == context.Canceled || err == context.DeadlineExceeded {
-				return nil, err
-			}
-			return nil, ErrInvalidConn
+			return prevData, nil
 		}
 
 		// return data if this was the last packet
 		if pktLen < maxPacketSize {
 			// zero allocations for non-split packets
 			if prevData == nil {
-				return &packet{
-					data: data,
-				}, nil
+				return pkt, nil
 			}
 
-			return &packet{
-				data: append(prevData, data...),
-			}, nil
+			prevData.data = append(prevData.data, pkt.data...)
+			return prevData, nil
 		}
 
-		prevData = append(prevData, data...)
-	}
-}
-
-func (mc *mysqlConn) readFull(ctx context.Context, data []byte) error {
-	var n int
-	if len(mc.readBuf) > 0 {
-		m := copy(data[n:], mc.readBuf)
-		mc.readBuf = mc.readBuf[m:]
-		n += m
-	}
-
-	for n < len(data) {
-		var result readResult
-		err := func() error {
-			if mc.readTimeout > 0 {
-				var cancel context.CancelFunc
-				ctx, cancel = context.WithTimeout(ctx, mc.readTimeout)
-				defer cancel()
-			}
-			select {
-			case result = <-mc.readRes:
-			case <-mc.closech:
-				return ErrInvalidConn
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-			if result.err != nil {
-				return result.err
-			}
-			return nil
-		}()
-		if err != nil {
-			return err
+		if prevData == nil {
+			prevData = pkt
+		} else {
+			prevData.data = append(prevData.data, pkt.data...)
 		}
-
-		m := copy(data[n:], result.data)
-		mc.readBuf = result.data[m:]
-		n += m
 	}
-	return nil
 }
 
 // Write packet buffer 'data'
@@ -1454,7 +1426,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 
 func (mc *mysqlConn) startGoroutines() {
 	mc.closech = make(chan struct{})
-	mc.readRes = make(chan readResult)
+	mc.readRes = make(chan *packet)
 	mc.writeReq = make(chan []byte, 1)
 	mc.writeRes = make(chan writeResult)
 
@@ -1464,15 +1436,12 @@ func (mc *mysqlConn) startGoroutines() {
 
 func (mc *mysqlConn) readLoop() {
 	for {
-		data := make([]byte, 1024)
+		var pkt packet
 		mc.muRead.Lock()
-		n, err := mc.netConn.Read(data)
+		pkt.readFrom(mc.netConn)
 		mc.muRead.Unlock()
-		if n == 0 && err == nil {
-			continue
-		}
 		select {
-		case mc.readRes <- readResult{data[:n], err}:
+		case mc.readRes <- &pkt:
 		case <-mc.closech:
 			return
 		}

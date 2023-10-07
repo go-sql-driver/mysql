@@ -22,7 +22,6 @@ import (
 	"net/url"
 	"os"
 	"reflect"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -2758,10 +2757,6 @@ func TestContextCancelStmtQuery(t *testing.T) {
 }
 
 func TestContextCancelBegin(t *testing.T) {
-	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
-		t.Skip(`FIXME: it sometime fails with "expected driver.ErrBadConn, got sql: connection is already closed" on windows and macOS`)
-	}
-
 	runTests(t, dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
