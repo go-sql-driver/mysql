@@ -165,6 +165,7 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 }
 
 func (dbt *DBTest) fail(method, query string, err error) {
+	dbt.Helper()
 	if len(query) > 300 {
 		query = "[query too large to print]"
 	}
@@ -172,6 +173,7 @@ func (dbt *DBTest) fail(method, query string, err error) {
 }
 
 func (dbt *DBTest) mustExec(query string, args ...interface{}) (res sql.Result) {
+	dbt.Helper()
 	res, err := dbt.db.Exec(query, args...)
 	if err != nil {
 		dbt.fail("exec", query, err)
@@ -180,6 +182,7 @@ func (dbt *DBTest) mustExec(query string, args ...interface{}) (res sql.Result) 
 }
 
 func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows) {
+	dbt.Helper()
 	rows, err := dbt.db.Query(query, args...)
 	if err != nil {
 		dbt.fail("query", query, err)
