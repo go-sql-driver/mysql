@@ -452,9 +452,7 @@ func (mc *mysqlConn) writeAuthSwitchPacket(ctx context.Context, authData []byte)
 *                             Command Packets                                 *
 ******************************************************************************/
 
-func (mc *mysqlConn) writeCommandPacket(command byte) error {
-	ctx := context.TODO()
-
+func (mc *mysqlConn) writeCommandPacket(ctx context.Context, command byte) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
