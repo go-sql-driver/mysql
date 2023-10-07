@@ -12,12 +12,15 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
+	"math"
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 type TB testing.B
@@ -211,36 +214,35 @@ func BenchmarkRoundtripBin(b *testing.B) {
 	}
 }
 
-// func BenchmarkInterpolation(b *testing.B) {
-// 	mc := &mysqlConn{
-// 		cfg: &Config{
-// 			InterpolateParams: true,
-// 			Loc:               time.UTC,
-// 		},
-// 		maxAllowedPacket: maxPacketSize,
-// 		maxWriteSize:     maxPacketSize - 1,
-// 		buf:              newBuffer(nil),
-// 	}
+func BenchmarkInterpolation(b *testing.B) {
+	mc := &mysqlConn{
+		cfg: &Config{
+			InterpolateParams: true,
+			Loc:               time.UTC,
+		},
+		maxAllowedPacket: maxPacketSize,
+		maxWriteSize:     maxPacketSize - 1,
+	}
 
-// 	args := []driver.Value{
-// 		int64(42424242),
-// 		float64(math.Pi),
-// 		false,
-// 		time.Unix(1423411542, 807015000),
-// 		[]byte("bytes containing special chars ' \" \a \x00"),
-// 		"string containing special chars ' \" \a \x00",
-// 	}
-// 	q := "SELECT ?, ?, ?, ?, ?, ?"
+	args := []driver.Value{
+		int64(42424242),
+		float64(math.Pi),
+		false,
+		time.Unix(1423411542, 807015000),
+		[]byte("bytes containing special chars ' \" \a \x00"),
+		"string containing special chars ' \" \a \x00",
+	}
+	q := "SELECT ?, ?, ?, ?, ?, ?"
 
-// 	b.ReportAllocs()
-// 	b.ResetTimer()
-// 	for i := 0; i < b.N; i++ {
-// 		_, err := mc.interpolateParams(q, args)
-// 		if err != nil {
-// 			b.Fatal(err)
-// 		}
-// 	}
-// }
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := mc.interpolateParams(q, args)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
 
 func benchmarkQueryContext(b *testing.B, db *sql.DB, p int) {
 	ctx, cancel := context.WithCancel(context.Background())
