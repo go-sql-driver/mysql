@@ -382,6 +382,7 @@ func (mc *mysqlConn) query(ctx context.Context, query string, args []driver.Valu
 		if err == nil {
 			rows := new(textRows)
 			rows.mc = mc
+			rows.ctx = ctx
 
 			if resLen == 0 {
 				rows.rs.done = true
@@ -497,16 +498,10 @@ func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driv
 		return nil, err
 	}
 
-	if err := mc.watchCancel(ctx); err != nil {
-		return nil, err
-	}
-
 	rows, err := mc.query(ctx, query, dargs)
 	if err != nil {
-		mc.finish()
 		return nil, err
 	}
-	rows.finish = mc.finish
 	return rows, err
 }
 

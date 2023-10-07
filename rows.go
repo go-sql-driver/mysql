@@ -24,6 +24,7 @@ type resultSet struct {
 
 type mysqlRows struct {
 	mc     *mysqlConn
+	ctx    context.Context
 	rs     resultSet
 	finish func()
 }
@@ -135,7 +136,7 @@ func (rows *mysqlRows) HasNextResultSet() (b bool) {
 }
 
 func (rows *mysqlRows) nextResultSet() (int, error) {
-	ctx := context.TODO()
+	ctx := rows.ctx
 
 	if rows.mc == nil {
 		return 0, io.EOF
@@ -178,7 +179,7 @@ func (rows *mysqlRows) nextNotEmptyResultSet() (int, error) {
 }
 
 func (rows *binaryRows) NextResultSet() error {
-	ctx := context.TODO()
+	ctx := rows.ctx
 	resLen, err := rows.nextNotEmptyResultSet()
 	if err != nil {
 		return err
@@ -201,8 +202,7 @@ func (rows *binaryRows) Next(dest []driver.Value) error {
 }
 
 func (rows *textRows) NextResultSet() (err error) {
-	ctx := context.TODO()
-
+	ctx := rows.ctx
 	resLen, err := rows.nextNotEmptyResultSet()
 	if err != nil {
 		return err
