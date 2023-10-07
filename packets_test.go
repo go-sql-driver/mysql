@@ -9,126 +9,48 @@
 package mysql
 
 import (
-	"errors"
+	"context"
 	"net"
-	"time"
+	"testing"
 )
 
-var (
-	errConnClosed        = errors.New("connection is closed")
-	errConnTooManyReads  = errors.New("too many reads")
-	errConnTooManyWrites = errors.New("too many writes")
-)
-
-// struct to mock a net.Conn for testing purposes
-type mockConn struct {
-	laddr         net.Addr
-	raddr         net.Addr
-	data          []byte
-	written       []byte
-	queuedReplies [][]byte
-	closed        bool
-	read          int
-	reads         int
-	writes        int
-	maxReads      int
-	maxWrites     int
-}
-
-func (m *mockConn) Read(b []byte) (n int, err error) {
-	if m.closed {
-		return 0, errConnClosed
+func newRWMockConn(t *testing.T, sequence uint8) (net.Conn, *mysqlConn) {
+	connector, err := newConnector(NewConfig())
+	if err != nil {
+		panic(err)
 	}
 
-	m.reads++
-	if m.maxReads > 0 && m.reads > m.maxReads {
-		return 0, errConnTooManyReads
+	client, server := net.Pipe()
+	mc := &mysqlConn{
+		cfg:              connector.cfg,
+		connector:        connector,
+		netConn:          server,
+		maxAllowedPacket: defaultMaxAllowedPacket,
+		sequence:         sequence,
 	}
-
-	n = copy(b, m.data)
-	m.read += n
-	m.data = m.data[n:]
-	return
+	mc.startGoroutines()
+	t.Cleanup(mc.cleanup)
+	return client, mc
 }
-func (m *mockConn) Write(b []byte) (n int, err error) {
-	if m.closed {
-		return 0, errConnClosed
+
+func TestReadPacketSingleByte(t *testing.T) {
+	conn, mc := newRWMockConn(t, 0)
+
+	go func() {
+		conn.Write([]byte{0x01, 0x00, 0x00, 0x00, 0xff})
+	}()
+
+	packet, err := mc.readPacket(context.Background())
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	m.writes++
-	if m.maxWrites > 0 && m.writes > m.maxWrites {
-		return 0, errConnTooManyWrites
+	if len(packet) != 1 {
+		t.Fatalf("unexpected packet length: expected %d, got %d", 1, len(packet))
 	}
-
-	n = len(b)
-	m.written = append(m.written, b...)
-
-	if n > 0 && len(m.queuedReplies) > 0 {
-		m.data = m.queuedReplies[0]
-		m.queuedReplies = m.queuedReplies[1:]
+	if packet[0] != 0xff {
+		t.Fatalf("unexpected packet content: expected %x, got %x", 0xff, packet[0])
 	}
-	return
 }
-func (m *mockConn) Close() error {
-	m.closed = true
-	return nil
-}
-func (m *mockConn) LocalAddr() net.Addr {
-	return m.laddr
-}
-func (m *mockConn) RemoteAddr() net.Addr {
-	return m.raddr
-}
-func (m *mockConn) SetDeadline(t time.Time) error {
-	return nil
-}
-func (m *mockConn) SetReadDeadline(t time.Time) error {
-	return nil
-}
-func (m *mockConn) SetWriteDeadline(t time.Time) error {
-	return nil
-}
-
-// make sure mockConn implements the net.Conn interface
-var _ net.Conn = new(mockConn)
-
-// func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
-// 	conn := new(mockConn)
-// 	connector, err := newConnector(NewConfig())
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	mc := &mysqlConn{
-// 		buf:              newBuffer(conn),
-// 		cfg:              connector.cfg,
-// 		connector:        connector,
-// 		netConn:          conn,
-// 		closech:          make(chan struct{}),
-// 		maxAllowedPacket: defaultMaxAllowedPacket,
-// 		sequence:         sequence,
-// 	}
-// 	return conn, mc
-// }
-
-// func TestReadPacketSingleByte(t *testing.T) {
-// 	conn := new(mockConn)
-// 	mc := &mysqlConn{
-// 		buf: newBuffer(conn),
-// 	}
-
-// 	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
-// 	conn.maxReads = 1
-// 	packet, err := mc.readPacket()
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	if len(packet) != 1 {
-// 		t.Fatalf("unexpected packet length: expected %d, got %d", 1, len(packet))
-// 	}
-// 	if packet[0] != 0xff {
-// 		t.Fatalf("unexpected packet content: expected %x, got %x", 0xff, packet[0])
-// 	}
-// }
 
 // func TestReadPacketWrongSequenceID(t *testing.T) {
 // 	for _, testCase := range []struct {
