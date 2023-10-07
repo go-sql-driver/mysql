@@ -111,6 +111,7 @@ func (mc *mysqlConn) readPacket(ctx context.Context) (*packet, error) {
 			prevData = pkt
 		} else {
 			prevData.data = append(prevData.data, pkt.data...)
+			mc.connector.putPacket(pkt)
 		}
 	}
 }
@@ -1436,12 +1437,13 @@ func (mc *mysqlConn) startGoroutines() {
 
 func (mc *mysqlConn) readLoop() {
 	for {
-		var pkt packet
+		pkt := mc.connector.getPacket()
+
 		mc.muRead.Lock()
 		pkt.readFrom(mc.netConn)
 		mc.muRead.Unlock()
 		select {
-		case mc.readRes <- &pkt:
+		case mc.readRes <- pkt:
 		case <-mc.closech:
 			return
 		}

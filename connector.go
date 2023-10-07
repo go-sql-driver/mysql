@@ -16,11 +16,16 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
+
+const defaultBufSize = 4096
+const maxCachedBufSize = 256 * 1024
 
 type connector struct {
 	cfg               *Config // immutable private copy.
 	encodedAttributes string  // Encoded connection attributes.
+	packetPool        sync.Pool
 }
 
 func encodeConnectionAttributes(textAttributes string) string {
@@ -57,7 +62,24 @@ func newConnector(cfg *Config) (*connector, error) {
 	return &connector{
 		cfg:               cfg,
 		encodedAttributes: encodedAttributes,
+		packetPool: sync.Pool{
+			New: func() interface{} {
+				return &packet{
+					data: make([]byte, defaultBufSize),
+				}
+			},
+		},
 	}, nil
+}
+
+func (c *connector) getPacket() *packet {
+	return c.packetPool.Get().(*packet)
+}
+
+func (c *connector) putPacket(pkt *packet) {
+	if cap(pkt.data) <= maxCachedBufSize {
+		c.packetPool.Put(pkt)
+	}
 }
 
 // Connect implements driver.Connector interface.
