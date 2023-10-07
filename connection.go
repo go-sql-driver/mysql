@@ -17,8 +17,13 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
+
+// aLongTimeAgo is a non-zero time, far in the past, used for
+// immediate cancellation of dials.
+var aLongTimeAgo = time.Unix(1, 0)
 
 type readResult struct {
 	data []byte
@@ -31,6 +36,7 @@ type writeResult struct {
 }
 
 type mysqlConn struct {
+	muRead           sync.Mutex // protects netConn for reads
 	netConn          net.Conn
 	rawConn          net.Conn    // underlying connection when netConn is TLS connection.
 	result           mysqlResult // managed by clearResult() and handleOkPacket().

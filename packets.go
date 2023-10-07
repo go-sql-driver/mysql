@@ -14,9 +14,11 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"strconv"
 	"time"
 )
@@ -377,12 +379,14 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		}
 
 		// Switch to TLS
+		mc.pauseReadLoop()
 		tlsConn := tls.Client(mc.netConn, mc.cfg.TLS)
 		if err := tlsConn.Handshake(); err != nil {
 			return err
 		}
 		mc.rawConn = mc.netConn
 		mc.netConn = tlsConn
+		mc.resumeReadLoop()
 	}
 
 	// User [null terminated string]
@@ -1401,13 +1405,41 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 func (mc *mysqlConn) readLoop() {
 	for {
 		data := make([]byte, 1024)
+		mc.muRead.Lock()
 		n, err := mc.netConn.Read(data)
+		mc.muRead.Unlock()
 		select {
 		case mc.readRes <- readResult{data[:n], err}:
 		case <-mc.closech:
 			return
 		}
 	}
+}
+
+func (mc *mysqlConn) pauseReadLoop() error {
+	// abort current read operation.
+	if err := mc.netConn.SetReadDeadline(aLongTimeAgo); err != nil {
+		return err
+	}
+
+	// wait for read loop to abort.
+	mc.muRead.Lock()
+	result := <-mc.readRes
+	if !errors.Is(result.err, os.ErrDeadlineExceeded) {
+		mc.muRead.Unlock()
+		return errors.New("mysql: failed to abort read loop")
+	}
+
+	// reset read deadline.
+	if err := mc.netConn.SetReadDeadline(time.Time{}); err != nil {
+		mc.muRead.Unlock()
+		return err
+	}
+	return nil
+}
+
+func (mc *mysqlConn) resumeReadLoop() {
+	mc.muRead.Unlock()
 }
 
 func (mc *mysqlConn) writeLoop() {
