@@ -465,9 +465,7 @@ func (mc *mysqlConn) writeCommandPacket(ctx context.Context, command byte) error
 	return mc.writePacket(ctx, mc.data[:4+1])
 }
 
-func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
-	ctx := context.TODO()
-
+func (mc *mysqlConn) writeCommandPacketStr(ctx context.Context, command byte, arg string) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 

@@ -190,12 +190,14 @@ func (mc *mysqlConn) error() error {
 }
 
 func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
+	ctx := context.TODO()
+
 	if mc.closed.Load() {
 		mc.cfg.Logger.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	// Send command
-	err := mc.writeCommandPacketStr(comStmtPrepare, query)
+	err := mc.writeCommandPacketStr(ctx, comStmtPrepare, query)
 	if err != nil {
 		// STMT_PREPARE is safe to retry.  So we can return ErrBadConn here.
 		mc.cfg.Logger.Print(err)
@@ -344,9 +346,11 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 
 // Internal function to execute commands
 func (mc *mysqlConn) exec(query string) error {
+	ctx := context.TODO()
+
 	handleOk := mc.clearResult()
 	// Send command
-	if err := mc.writeCommandPacketStr(comQuery, query); err != nil {
+	if err := mc.writeCommandPacketStr(ctx, comQuery, query); err != nil {
 		return mc.markBadConn(err)
 	}
 
@@ -376,6 +380,8 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 }
 
 func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error) {
+	ctx := context.TODO()
+
 	handleOk := mc.clearResult()
 
 	if mc.closed.Load() {
@@ -394,7 +400,7 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 		query = prepared
 	}
 	// Send command
-	err := mc.writeCommandPacketStr(comQuery, query)
+	err := mc.writeCommandPacketStr(ctx, comQuery, query)
 	if err == nil {
 		// Read Result
 		var resLen int
@@ -425,9 +431,11 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 // Gets the value of the given MySQL System Variable
 // The returned byte slice is only valid until the next read
 func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
+	ctx := context.TODO()
+
 	// Send command
 	handleOk := mc.clearResult()
-	if err := mc.writeCommandPacketStr(comQuery, "SELECT @@"+name); err != nil {
+	if err := mc.writeCommandPacketStr(ctx, comQuery, "SELECT @@"+name); err != nil {
 		return nil, err
 	}
 
