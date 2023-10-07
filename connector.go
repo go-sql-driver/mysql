@@ -122,7 +122,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	mc.writeTimeout = mc.cfg.WriteTimeout
 
 	// Reading Handshake Initialization Packet
-	authData, plugin, err := mc.readHandshakePacket(ctx)
+	authData, plugin, err := mc.readHandshakePacket()
 	if err != nil {
 		mc.cleanup()
 		return nil, err
