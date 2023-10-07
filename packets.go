@@ -34,9 +34,12 @@ func (mc *mysqlConn) readPacket(ctx context.Context) ([]byte, error) {
 		// read packet header
 		err := mc.readFull(ctx, mc.data[:4])
 		if err != nil {
+			if err == context.Canceled || err == context.DeadlineExceeded {
+				return nil, err
+			}
 			mc.cfg.Logger.Print(err)
 			mc.closeContext(ctx)
-			return nil, err
+			return nil, ErrInvalidConn
 		}
 
 		// packet length [24 bit]
@@ -69,6 +72,9 @@ func (mc *mysqlConn) readPacket(ctx context.Context) ([]byte, error) {
 		data := make([]byte, pktLen)
 		err = mc.readFull(ctx, data)
 		if err != nil {
+			if err == context.Canceled || err == context.DeadlineExceeded {
+				return nil, err
+			}
 			mc.cfg.Logger.Print(err)
 			mc.closeContext(ctx)
 			return nil, ErrInvalidConn
