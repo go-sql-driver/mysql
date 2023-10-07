@@ -91,110 +91,140 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 	}
 }
 
-// func TestReadPacketSplit(t *testing.T) {
-// 	conn := new(mockConn)
-// 	mc := &mysqlConn{
-// 		buf: newBuffer(conn),
-// 	}
+func TestReadPacketSplit(t *testing.T) {
+	const pkt2ofs = maxPacketSize + 4
+	const pkt3ofs = 2 * (maxPacketSize + 4)
 
-// 	data := make([]byte, maxPacketSize*2+4*3)
-// 	const pkt2ofs = maxPacketSize + 4
-// 	const pkt3ofs = 2 * (maxPacketSize + 4)
+	t.Run("case 1: payload has length maxPacketSize", func(t *testing.T) {
+		conn, mc := newRWMockConn(t, 0)
+		data := make([]byte, pkt2ofs+4)
 
-// 	// case 1: payload has length maxPacketSize
-// 	data = data[:pkt2ofs+4]
+		// 1st packet has maxPacketSize length and sequence id 0
+		// ff ff ff 00 ...
+		data[0] = 0xff
+		data[1] = 0xff
+		data[2] = 0xff
 
-// 	// 1st packet has maxPacketSize length and sequence id 0
-// 	// ff ff ff 00 ...
-// 	data[0] = 0xff
-// 	data[1] = 0xff
-// 	data[2] = 0xff
+		// mark the payload start and end of 1st packet so that we can check if the
+		// content was correctly appended
+		data[4] = 0x11
+		data[maxPacketSize+3] = 0x22
 
-// 	// mark the payload start and end of 1st packet so that we can check if the
-// 	// content was correctly appended
-// 	data[4] = 0x11
-// 	data[maxPacketSize+3] = 0x22
+		// 2nd packet has payload length 0 and sequence id 1
+		// 00 00 00 01
+		data[pkt2ofs+3] = 0x01
 
-// // 2nd packet has payload length 0 and sequence id 1
-// // 00 00 00 01
-// data[pkt2ofs+3] = 0x01
+		go func() {
+			conn.Write(data)
+		}()
+		// TODO: check read operation count
 
-// 	conn.data = data
-// 	conn.maxReads = 3
-// 	packet, err := mc.readPacket()
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	if len(packet) != maxPacketSize {
-// 		t.Fatalf("unexpected packet length: expected %d, got %d", maxPacketSize, len(packet))
-// 	}
-// 	if packet[0] != 0x11 {
-// 		t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet[0])
-// 	}
-// 	if packet[maxPacketSize-1] != 0x22 {
-// 		t.Fatalf("unexpected payload end: expected %x, got %x", 0x22, packet[maxPacketSize-1])
-// 	}
+		packet, err := mc.readPacket(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(packet) != maxPacketSize {
+			t.Fatalf("unexpected packet length: expected %d, got %d", maxPacketSize, len(packet))
+		}
+		if packet[0] != 0x11 {
+			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet[0])
+		}
+		if packet[maxPacketSize-1] != 0x22 {
+			t.Fatalf("unexpected payload end: expected %x, got %x", 0x22, packet[maxPacketSize-1])
+		}
+	})
 
-// 	// case 2: payload has length which is a multiple of maxPacketSize
-// 	data = data[:cap(data)]
+	t.Run("case 2: payload has length which is a multiple of maxPacketSize", func(t *testing.T) {
+		conn, mc := newRWMockConn(t, 0)
+		data := make([]byte, maxPacketSize*2+4*3)
 
-// 	// 2nd packet now has maxPacketSize length
-// 	data[pkt2ofs] = 0xff
-// 	data[pkt2ofs+1] = 0xff
-// 	data[pkt2ofs+2] = 0xff
+		// 1st packet has maxPacketSize length and sequence id 0
+		// ff ff ff 00 ...
+		data[0] = 0xff
+		data[1] = 0xff
+		data[2] = 0xff
 
-// 	// mark the payload start and end of the 2nd packet
-// 	data[pkt2ofs+4] = 0x33
-// 	data[pkt2ofs+maxPacketSize+3] = 0x44
+		// mark the payload start and end of 1st packet so that we can check if the
+		// content was correctly appended
+		data[4] = 0x11
+		data[maxPacketSize+3] = 0x22
 
-// // 3rd packet has payload length 0 and sequence id 2
-// // 00 00 00 02
-// data[pkt3ofs+3] = 0x02
+		// 2nd packet now has maxPacketSize length
+		data[pkt2ofs] = 0xff
+		data[pkt2ofs+1] = 0xff
+		data[pkt2ofs+2] = 0xff
+		data[pkt2ofs+3] = 0x01
 
-// 	conn.data = data
-// 	conn.reads = 0
-// 	conn.maxReads = 5
-// 	mc.sequence = 0
-// 	packet, err = mc.readPacket()
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	if len(packet) != 2*maxPacketSize {
-// 		t.Fatalf("unexpected packet length: expected %d, got %d", 2*maxPacketSize, len(packet))
-// 	}
-// 	if packet[0] != 0x11 {
-// 		t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet[0])
-// 	}
-// 	if packet[2*maxPacketSize-1] != 0x44 {
-// 		t.Fatalf("unexpected payload end: expected %x, got %x", 0x44, packet[2*maxPacketSize-1])
-// 	}
+		// mark the payload start and end of the 2nd packet
+		data[pkt2ofs+4] = 0x33
+		data[pkt2ofs+maxPacketSize+3] = 0x44
 
-// 	// case 3: payload has a length larger maxPacketSize, which is not an exact
-// 	// multiple of it
-// 	data = data[:pkt2ofs+4+42]
-// 	data[pkt2ofs] = 0x2a
-// 	data[pkt2ofs+1] = 0x00
-// 	data[pkt2ofs+2] = 0x00
-// 	data[pkt2ofs+4+41] = 0x44
+		// 3rd packet has payload length 0 and sequence id 2
+		// 00 00 00 02
+		data[pkt3ofs+3] = 0x02
 
-// 	conn.data = data
-// 	conn.reads = 0
-// 	conn.maxReads = 4
-// 	mc.sequence = 0
-// 	packet, err = mc.readPacket()
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	if len(packet) != maxPacketSize+42 {
-// 		t.Fatalf("unexpected packet length: expected %d, got %d", maxPacketSize+42, len(packet))
-// 	}
-// 	if packet[0] != 0x11 {
-// 		t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet[0])
-// 	}
-// 	if packet[maxPacketSize+41] != 0x44 {
-// 		t.Fatalf("unexpected payload end: expected %x, got %x", 0x44, packet[maxPacketSize+41])
-// 	}
-// }
+		go func() {
+			conn.Write(data)
+		}()
+		// TODO: check read operation count
+
+		packet, err := mc.readPacket(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(packet) != 2*maxPacketSize {
+			t.Fatalf("unexpected packet length: expected %d, got %d", 2*maxPacketSize, len(packet))
+		}
+		if packet[0] != 0x11 {
+			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet[0])
+		}
+		if packet[2*maxPacketSize-1] != 0x44 {
+			t.Fatalf("unexpected payload end: expected %x, got %x", 0x44, packet[2*maxPacketSize-1])
+		}
+	})
+
+	t.Run("case 3: payload has a length larger maxPacketSize, which is not an exact multiple of it", func(t *testing.T) {
+		conn, mc := newRWMockConn(t, 0)
+		data := make([]byte, pkt2ofs+4+42)
+
+		// 1st packet has maxPacketSize length and sequence id 0
+		// ff ff ff 00 ...
+		data[0] = 0xff
+		data[1] = 0xff
+		data[2] = 0xff
+
+		// mark the payload start and end of 1st packet so that we can check if the
+		// content was correctly appended
+		data[4] = 0x11
+		data[maxPacketSize+3] = 0x22
+
+		// 2nd packet
+		data[pkt2ofs] = 0x2a
+		data[pkt2ofs+1] = 0x00
+		data[pkt2ofs+2] = 0x00
+		data[pkt2ofs+3] = 0x01
+		data[pkt2ofs+4+41] = 0x44
+
+		go func() {
+			conn.Write(data)
+		}()
+		// TODO: check read operation count
+
+		packet, err := mc.readPacket(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(packet) != maxPacketSize+42 {
+			t.Fatalf("unexpected packet length: expected %d, got %d", maxPacketSize+42, len(packet))
+		}
+		if packet[0] != 0x11 {
+			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet[0])
+		}
+		if packet[maxPacketSize+41] != 0x44 {
+			t.Fatalf("unexpected payload end: expected %x, got %x", 0x44, packet[maxPacketSize+41])
+		}
+	})
+}
 
 // func TestReadPacketFail(t *testing.T) {
 // 	conn := new(mockConn)
