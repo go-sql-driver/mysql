@@ -2625,8 +2625,8 @@ func TestPingContext(t *testing.T) {
 }
 
 func TestContextCancelExec(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
-		dbt.mustExec("CREATE TABLE test (v INTEGER)")
+	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
+		dbt.mustExec("CREATE TABLE " + tbl + " (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 
 		// Delay execution for just a bit until db.ExecContext has begun.
@@ -2634,7 +2634,7 @@ func TestContextCancelExec(t *testing.T) {
 
 		// This query will be canceled.
 		startTime := time.Now()
-		if _, err := dbt.db.ExecContext(ctx, "INSERT INTO test VALUES (SLEEP(1))"); err != context.Canceled {
+		if _, err := dbt.db.ExecContext(ctx, "INSERT INTO "+tbl+" VALUES (SLEEP(1))"); err != context.Canceled {
 			dbt.Errorf("expected context.Canceled, got %v", err)
 		}
 		if d := time.Since(startTime); d > 500*time.Millisecond {
@@ -2646,7 +2646,7 @@ func TestContextCancelExec(t *testing.T) {
 
 		// Check how many times the query is executed.
 		var v int
-		if err := dbt.db.QueryRow("SELECT COUNT(*) FROM test").Scan(&v); err != nil {
+		if err := dbt.db.QueryRow("SELECT COUNT(*) FROM " + tbl).Scan(&v); err != nil {
 			dbt.Fatalf("%s", err.Error())
 		}
 		if v != 1 { // TODO: need to kill the query, and v should be 0.
@@ -2654,14 +2654,14 @@ func TestContextCancelExec(t *testing.T) {
 		}
 
 		// Context is already canceled, so error should come before execution.
-		if _, err := dbt.db.ExecContext(ctx, "INSERT INTO test VALUES (1)"); err == nil {
+		if _, err := dbt.db.ExecContext(ctx, "INSERT INTO "+tbl+" VALUES (1)"); err == nil {
 			dbt.Error("expected error")
 		} else if err.Error() != "context canceled" {
 			dbt.Fatalf("unexpected error: %s", err)
 		}
 
 		// The second insert query will fail, so the table has no changes.
-		if err := dbt.db.QueryRow("SELECT COUNT(*) FROM test").Scan(&v); err != nil {
+		if err := dbt.db.QueryRow("SELECT COUNT(*) FROM " + tbl).Scan(&v); err != nil {
 			dbt.Fatalf("%s", err.Error())
 		}
 		if v != 1 {
