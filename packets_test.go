@@ -45,11 +45,12 @@ func TestReadPacketSingleByte(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(packet) != 1 {
-		t.Fatalf("unexpected packet length: expected %d, got %d", 1, len(packet))
+	data := packet.data
+	if len(data) != 1 {
+		t.Fatalf("unexpected packet length: expected %d, got %d", 1, len(data))
 	}
-	if packet[0] != 0xff {
-		t.Fatalf("unexpected packet content: expected %x, got %x", 0xff, packet[0])
+	if data[0] != 0xff {
+		t.Fatalf("unexpected packet content: expected %x, got %x", 0xff, data[0])
 	}
 }
 
@@ -123,14 +124,14 @@ func TestReadPacketSplit(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(packet) != maxPacketSize {
-			t.Fatalf("unexpected packet length: expected %d, got %d", maxPacketSize, len(packet))
+		if len(packet.data) != maxPacketSize {
+			t.Fatalf("unexpected packet length: expected %d, got %d", maxPacketSize, len(packet.data))
 		}
-		if packet[0] != 0x11 {
-			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet[0])
+		if packet.data[0] != 0x11 {
+			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet.data[0])
 		}
-		if packet[maxPacketSize-1] != 0x22 {
-			t.Fatalf("unexpected payload end: expected %x, got %x", 0x22, packet[maxPacketSize-1])
+		if packet.data[maxPacketSize-1] != 0x22 {
+			t.Fatalf("unexpected payload end: expected %x, got %x", 0x22, packet.data[maxPacketSize-1])
 		}
 	})
 
@@ -172,14 +173,14 @@ func TestReadPacketSplit(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(packet) != 2*maxPacketSize {
-			t.Fatalf("unexpected packet length: expected %d, got %d", 2*maxPacketSize, len(packet))
+		if len(packet.data) != 2*maxPacketSize {
+			t.Fatalf("unexpected packet length: expected %d, got %d", 2*maxPacketSize, len(packet.data))
 		}
-		if packet[0] != 0x11 {
-			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet[0])
+		if packet.data[0] != 0x11 {
+			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet.data[0])
 		}
-		if packet[2*maxPacketSize-1] != 0x44 {
-			t.Fatalf("unexpected payload end: expected %x, got %x", 0x44, packet[2*maxPacketSize-1])
+		if packet.data[2*maxPacketSize-1] != 0x44 {
+			t.Fatalf("unexpected payload end: expected %x, got %x", 0x44, packet.data[2*maxPacketSize-1])
 		}
 	})
 
@@ -214,14 +215,14 @@ func TestReadPacketSplit(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(packet) != maxPacketSize+42 {
-			t.Fatalf("unexpected packet length: expected %d, got %d", maxPacketSize+42, len(packet))
+		if len(packet.data) != maxPacketSize+42 {
+			t.Fatalf("unexpected packet length: expected %d, got %d", maxPacketSize+42, len(packet.data))
 		}
-		if packet[0] != 0x11 {
-			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet[0])
+		if packet.data[0] != 0x11 {
+			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet.data[0])
 		}
-		if packet[maxPacketSize+41] != 0x44 {
-			t.Fatalf("unexpected payload end: expected %x, got %x", 0x44, packet[maxPacketSize+41])
+		if packet.data[maxPacketSize+41] != 0x44 {
+			t.Fatalf("unexpected payload end: expected %x, got %x", 0x44, packet.data[maxPacketSize+41])
 		}
 	})
 }

@@ -367,11 +367,12 @@ func (mc *mysqlConn) handleAuthResult(ctx context.Context, oldAuthData []byte, p
 							return err
 						}
 
-						var data []byte
-						if data, err = mc.readPacket(ctx); err != nil {
+						packet, err := mc.readPacket(ctx)
+						if err != nil {
 							return err
 						}
 
+						data := packet.data
 						if data[0] != iAuthMoreData {
 							return fmt.Errorf("unexpected resp from server for caching_sha2_password, perform full authentication")
 						}
