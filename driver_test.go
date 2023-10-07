@@ -993,7 +993,7 @@ func TestTimestampMicros(t *testing.T) {
 	f0 := format[:19]
 	f1 := format[:21]
 	f6 := format[:26]
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
 		// check if microseconds are supported.
 		// Do not use timestamp(x) for that check - before 5.5.6, x would mean display width
 		// and not precision.
@@ -1008,7 +1008,7 @@ func TestTimestampMicros(t *testing.T) {
 			return
 		}
 		_, err := dbt.db.Exec(`
-			CREATE TABLE test (
+			CREATE TABLE ` + tbl + ` (
 				value0 TIMESTAMP NOT NULL DEFAULT '` + f0 + `',
 				value1 TIMESTAMP(1) NOT NULL DEFAULT '` + f1 + `',
 				value6 TIMESTAMP(6) NOT NULL DEFAULT '` + f6 + `'
@@ -1017,10 +1017,10 @@ func TestTimestampMicros(t *testing.T) {
 		if err != nil {
 			dbt.Error(err)
 		}
-		defer dbt.mustExec("DROP TABLE IF EXISTS test")
-		dbt.mustExec("INSERT INTO test SET value0=?, value1=?, value6=?", f0, f1, f6)
+		defer dbt.mustExec("DROP TABLE IF EXISTS " + tbl)
+		dbt.mustExec("INSERT INTO "+tbl+" SET value0=?, value1=?, value6=?", f0, f1, f6)
 		var res0, res1, res6 string
-		rows := dbt.mustQuery("SELECT * FROM test")
+		rows := dbt.mustQuery("SELECT * FROM " + tbl)
 		defer rows.Close()
 		if !rows.Next() {
 			dbt.Errorf("test contained no selectable values")
