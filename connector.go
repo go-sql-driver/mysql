@@ -118,6 +118,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 	defer mc.finish()
 
+	mc.readTimeout = mc.cfg.ReadTimeout
 	mc.writeTimeout = mc.cfg.WriteTimeout
 
 	// Reading Handshake Initialization Packet

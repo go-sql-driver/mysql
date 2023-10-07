@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"database/sql/driver"
 	"encoding/binary"
@@ -28,10 +29,12 @@ import (
 
 // Read packet to buffer 'data'
 func (mc *mysqlConn) readPacket() ([]byte, error) {
+	ctx := context.TODO()
+
 	var prevData []byte
 	for {
 		// read packet header
-		err := mc.readFull(mc.data[:4])
+		err := mc.readFull(ctx, mc.data[:4])
 		if err != nil {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
@@ -69,7 +72,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 
 		// read packet body [pktLen bytes]
 		data := make([]byte, pktLen)
-		err = mc.readFull(data)
+		err = mc.readFull(ctx, data)
 		if err != nil {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
@@ -93,7 +96,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 	}
 }
 
-func (mc *mysqlConn) readFull(data []byte) error {
+func (mc *mysqlConn) readFull(ctx context.Context, data []byte) error {
 	var n int
 	if len(mc.readBuf) > 0 {
 		m := copy(data[n:], mc.readBuf)
@@ -103,13 +106,26 @@ func (mc *mysqlConn) readFull(data []byte) error {
 
 	for n < len(data) {
 		var result readResult
-		select {
-		case result = <-mc.readRes:
-		case <-mc.closech:
-			return ErrInvalidConn
-		}
-		if result.err != nil {
-			return result.err
+		err := func() error {
+			if mc.readTimeout > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, mc.readTimeout)
+				defer cancel()
+			}
+			select {
+			case result = <-mc.readRes:
+			case <-mc.closech:
+				return ErrInvalidConn
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			if result.err != nil {
+				return result.err
+			}
+			return nil
+		}()
+		if err != nil {
+			return err
 		}
 
 		m := copy(data[n:], result.data)
