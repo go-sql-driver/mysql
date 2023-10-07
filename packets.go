@@ -553,9 +553,7 @@ func (mc *okHandler) readResultOK(ctx context.Context) error {
 
 // Result Set Header Packet
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-ProtocolText::Resultset
-func (mc *okHandler) readResultSetHeaderPacket() (int, error) {
-	ctx := context.TODO()
-
+func (mc *okHandler) readResultSetHeaderPacket(ctx context.Context) (int, error) {
 	// handleOkPacket replaces both values; other cases leave the values unchanged.
 	mc.result.affectedRows = append(mc.result.affectedRows, 0)
 	mc.result.insertIds = append(mc.result.insertIds, 0)
@@ -1235,8 +1233,10 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 // For each remaining resultset in the stream, discards its rows and updates
 // mc.affectedRows and mc.insertIds.
 func (mc *okHandler) discardResults() error {
+	ctx := context.TODO()
+
 	for mc.status&statusMoreResultsExists != 0 {
-		resLen, err := mc.readResultSetHeaderPacket()
+		resLen, err := mc.readResultSetHeaderPacket(ctx)
 		if err != nil {
 			return err
 		}

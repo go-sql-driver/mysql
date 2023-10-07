@@ -53,6 +53,8 @@ func (stmt *mysqlStmt) CheckNamedValue(nv *driver.NamedValue) (err error) {
 }
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
+	ctx := context.TODO()
+
 	if stmt.mc.closed.Load() {
 		stmt.mc.cfg.Logger.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
@@ -67,7 +69,7 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	handleOk := stmt.mc.clearResult()
 
 	// Read Result
-	resLen, err := handleOk.readResultSetHeaderPacket()
+	resLen, err := handleOk.readResultSetHeaderPacket(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +99,8 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 }
 
 func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
+	ctx := context.TODO()
+
 	if stmt.mc.closed.Load() {
 		stmt.mc.cfg.Logger.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
@@ -111,7 +115,7 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 
 	// Read Result
 	handleOk := stmt.mc.clearResult()
-	resLen, err := handleOk.readResultSetHeaderPacket()
+	resLen, err := handleOk.readResultSetHeaderPacket(ctx)
 	if err != nil {
 		return nil, err
 	}
