@@ -2715,12 +2715,12 @@ func TestContextCancelQuery(t *testing.T) {
 }
 
 func TestContextCancelQueryRow(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
-		dbt.mustExec("CREATE TABLE test (v INTEGER)")
-		dbt.mustExec("INSERT INTO test VALUES (1), (2), (3)")
+	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
+		dbt.mustExec("CREATE TABLE " + tbl + " (v INTEGER)")
+		dbt.mustExec("INSERT INTO " + tbl + " VALUES (1), (2), (3)")
 		ctx, cancel := context.WithCancel(context.Background())
 
-		rows, err := dbt.db.QueryContext(ctx, "SELECT v FROM test")
+		rows, err := dbt.db.QueryContext(ctx, "SELECT v FROM "+tbl)
 		if err != nil {
 			dbt.Fatalf("%s", err.Error())
 		}
