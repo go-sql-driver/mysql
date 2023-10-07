@@ -60,20 +60,19 @@ func TestInterpolateParamsJSONRawMessage(t *testing.T) {
 	}
 }
 
-// func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
-// 	mc := &mysqlConn{
-// 		buf:              newBuffer(nil),
-// 		maxAllowedPacket: maxPacketSize,
-// 		cfg: &Config{
-// 			InterpolateParams: true,
-// 		},
-// 	}
+func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
+	mc := &mysqlConn{
+		maxAllowedPacket: maxPacketSize,
+		cfg: &Config{
+			InterpolateParams: true,
+		},
+	}
 
-// 	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42)})
-// 	if err != driver.ErrSkip {
-// 		t.Errorf("Expected err=driver.ErrSkip, got err=%#v, q=%#v", err, q)
-// 	}
-// }
+	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42)})
+	if err != driver.ErrSkip {
+		t.Errorf("Expected err=driver.ErrSkip, got err=%#v, q=%#v", err, q)
+	}
+}
 
 // We don't support placeholder in string literal for now.
 // https://github.com/go-sql-driver/mysql/pull/490
