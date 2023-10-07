@@ -131,8 +131,6 @@ func TestCleanCancel(t *testing.T) {
 	mc := &mysqlConn{
 		closech: make(chan struct{}),
 	}
-	mc.startWatcher()
-	defer mc.cleanup()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

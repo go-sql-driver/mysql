@@ -459,6 +459,9 @@ func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
 		mc.cfg.Logger.Print(ErrInvalidConn)
 		return driver.ErrBadConn
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	handleOk := mc.clearResult()
 	if err = mc.writeCommandPacket(ctx, comPing); err != nil {
