@@ -178,12 +178,13 @@ func (rows *mysqlRows) nextNotEmptyResultSet() (int, error) {
 }
 
 func (rows *binaryRows) NextResultSet() error {
+	ctx := context.TODO()
 	resLen, err := rows.nextNotEmptyResultSet()
 	if err != nil {
 		return err
 	}
 
-	rows.rs.columns, err = rows.mc.readColumns(resLen)
+	rows.rs.columns, err = rows.mc.readColumns(ctx, resLen)
 	return err
 }
 
@@ -200,12 +201,14 @@ func (rows *binaryRows) Next(dest []driver.Value) error {
 }
 
 func (rows *textRows) NextResultSet() (err error) {
+	ctx := context.TODO()
+
 	resLen, err := rows.nextNotEmptyResultSet()
 	if err != nil {
 		return err
 	}
 
-	rows.rs.columns, err = rows.mc.readColumns(resLen)
+	rows.rs.columns, err = rows.mc.readColumns(ctx, resLen)
 	return err
 }
 

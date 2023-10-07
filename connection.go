@@ -421,7 +421,7 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 			}
 
 			// Columns
-			rows.rs.columns, err = mc.readColumns(resLen)
+			rows.rs.columns, err = mc.readColumns(ctx, resLen)
 			return rows, err
 		}
 	}

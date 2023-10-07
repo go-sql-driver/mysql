@@ -697,9 +697,7 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
-func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
-	ctx := context.TODO()
-
+func (mc *mysqlConn) readColumns(ctx context.Context, count int) ([]mysqlField, error) {
 	columns := make([]mysqlField, count)
 
 	for i := 0; ; i++ {
