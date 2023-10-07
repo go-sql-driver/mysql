@@ -173,28 +173,6 @@ func TestEscapeQuotes(t *testing.T) {
 	expect("foo\"bar", "foo\"bar")     // not affected
 }
 
-func TestAtomicError(t *testing.T) {
-	var ae atomicError
-	if ae.Value() != nil {
-		t.Fatal("Expected value to be nil")
-	}
-
-	ae.Set(ErrMalformPkt)
-	if v := ae.Value(); v != ErrMalformPkt {
-		if v == nil {
-			t.Fatal("Value is still nil")
-		}
-		t.Fatal("Error did not match")
-	}
-	ae.Set(ErrPktSync)
-	if ae.Value() == ErrMalformPkt {
-		t.Fatal("Error still matches old error")
-	}
-	if v := ae.Value(); v != ErrPktSync {
-		t.Fatal("Error did not match")
-	}
-}
-
 func TestIsolationLevelMapping(t *testing.T) {
 	data := []struct {
 		level    driver.IsolationLevel

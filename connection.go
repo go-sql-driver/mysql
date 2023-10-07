@@ -53,9 +53,8 @@ type mysqlConn struct {
 	reset            bool // set when the Go SQL package calls ResetSession
 
 	// for context support (Go 1.8+)
-	closech  chan struct{}
-	canceled atomicError // set non-nil if conn is canceled
-	closed   atomicBool  // set when conn is closed, before closech is closed
+	closech chan struct{}
+	closed  atomicBool // set when conn is closed, before closech is closed
 
 	data     [16]byte // buffer for small writes
 	readBuf  []byte
@@ -186,9 +185,6 @@ func (mc *mysqlConn) cleanup() {
 
 func (mc *mysqlConn) error() error {
 	if mc.closed.Load() {
-		if err := mc.canceled.Value(); err != nil {
-			return err
-		}
 		return ErrInvalidConn
 	}
 	return nil
@@ -431,12 +427,6 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 		}
 	}
 	return nil, err
-}
-
-// finish is called when the query has canceled.
-func (mc *mysqlConn) cancel(err error) {
-	mc.canceled.Set(err)
-	mc.cleanup()
 }
 
 // Ping implements driver.Pinger interface

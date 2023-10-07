@@ -69,9 +69,6 @@ func (mc *mysqlConn) readPacket(ctx context.Context) ([]byte, error) {
 		data := make([]byte, pktLen)
 		err = mc.readFull(ctx, data)
 		if err != nil {
-			if cerr := mc.canceled.Value(); cerr != nil {
-				return nil, cerr
-			}
 			mc.cfg.Logger.Print(err)
 			mc.closeContext(ctx)
 			return nil, ErrInvalidConn
@@ -187,9 +184,6 @@ func (mc *mysqlConn) writePacket(ctx context.Context, data []byte) error {
 			mc.cleanup()
 			mc.cfg.Logger.Print(ErrMalformPkt)
 		} else {
-			if cerr := mc.canceled.Value(); cerr != nil {
-				return cerr
-			}
 			if n == 0 && pktLen == len(data)-4 {
 				// only for the first loop iteration when nothing was written yet
 				return errBadConnNoWrite

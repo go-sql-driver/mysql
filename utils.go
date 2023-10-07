@@ -19,7 +19,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -768,47 +767,6 @@ func escapeStringQuotes(buf []byte, v string) []byte {
 	}
 
 	return buf[:pos]
-}
-
-/******************************************************************************
-*                               Sync utils                                    *
-******************************************************************************/
-
-// noCopy may be embedded into structs which must not be copied
-// after the first use.
-//
-// See https://github.com/golang/go/issues/8005#issuecomment-190753527
-// for details.
-type noCopy struct{}
-
-// Lock is a no-op used by -copylocks checker from `go vet`.
-func (*noCopy) Lock() {}
-
-// Unlock is a no-op used by -copylocks checker from `go vet`.
-// noCopy should implement sync.Locker from Go 1.11
-// https://github.com/golang/go/commit/c2eba53e7f80df21d51285879d51ab81bcfbf6bc
-// https://github.com/golang/go/issues/26165
-func (*noCopy) Unlock() {}
-
-// atomicError is a wrapper for atomically accessed error values
-type atomicError struct {
-	_     noCopy
-	value atomic.Value
-}
-
-// Set sets the error value regardless of the previous value.
-// The value must not be nil
-func (ae *atomicError) Set(value error) {
-	ae.value.Store(value)
-}
-
-// Value returns the current error value
-func (ae *atomicError) Value() error {
-	if v := ae.value.Load(); v != nil {
-		// this will panic if the value doesn't implement the error interface
-		return v.(error)
-	}
-	return nil
 }
 
 func namedValueToValue(named []driver.NamedValue) ([]driver.Value, error) {
