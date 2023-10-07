@@ -210,9 +210,7 @@ func (mc *mysqlConn) writePacket(ctx context.Context, data []byte) error {
 
 // Handshake Initialization Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::Handshake
-func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err error) {
-	ctx := context.TODO()
-
+func (mc *mysqlConn) readHandshakePacket(ctx context.Context) (data []byte, plugin string, err error) {
 	data, err = mc.readPacket(ctx)
 	if err != nil {
 		// for init we can rewrite this to ErrBadConn for sql.Driver to retry, since
