@@ -795,7 +795,7 @@ func (mc *mysqlConn) readColumns(ctx context.Context, count int) ([]mysqlField, 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-ProtocolText::ResultsetRow
 func (rows *textRows) readRow(dest []driver.Value) error {
-	ctx := context.TODO()
+	ctx := rows.ctx
 	mc := rows.mc
 
 	if rows.rs.done {
@@ -1249,7 +1249,7 @@ func (mc *okHandler) discardResults() error {
 
 // http://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html
 func (rows *binaryRows) readRow(dest []driver.Value) error {
-	ctx := context.TODO()
+	ctx := rows.ctx
 	data, err := rows.mc.readPacket(ctx)
 	if err != nil {
 		return err
