@@ -166,7 +166,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	// Handle DSN Params
-	err = mc.handleParams()
+	err = mc.handleParams(ctx)
 	if err != nil {
 		mc.Close()
 		return nil, err

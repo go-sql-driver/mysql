@@ -64,8 +64,7 @@ type mysqlConn struct {
 }
 
 // Handles parameters set in DSN after the connection is established
-func (mc *mysqlConn) handleParams() (err error) {
-	ctx := context.TODO()
+func (mc *mysqlConn) handleParams(ctx context.Context) (err error) {
 	var cmdSet strings.Builder
 
 	for param, val := range mc.cfg.Params {
