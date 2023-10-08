@@ -387,6 +387,8 @@ func (mc *mysqlConn) handleAuthResult(ctx context.Context, oldAuthData []byte, p
 							return err
 						}
 						pubKey = pkix.(*rsa.PublicKey)
+
+						mc.connector.putPacket(packet)
 					}
 
 					// send encrypted password

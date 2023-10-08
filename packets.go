@@ -556,6 +556,7 @@ func (mc *okHandler) readResultOK(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer mc.connector.putPacket(packet)
 	data := packet.data
 
 	if data[0] == iOK {
@@ -823,10 +824,14 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 		return io.EOF
 	}
 
+	if pkt := rows.pkt; pkt != nil {
+		rows.mc.connector.putPacket(pkt)
+	}
 	packet, err := mc.readPacket(ctx)
 	if err != nil {
 		return err
 	}
+	rows.pkt = packet
 	data := packet.data
 
 	// EOF Packet
@@ -924,6 +929,7 @@ func (mc *mysqlConn) readUntilEOF(ctx context.Context) error {
 			}
 			return nil
 		}
+		mc.connector.putPacket(packet)
 	}
 }
 
@@ -935,6 +941,9 @@ func (mc *mysqlConn) readUntilEOF(ctx context.Context) error {
 // http://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
 func (stmt *mysqlStmt) readPrepareResultPacket(ctx context.Context) (uint16, error) {
 	packet, err := stmt.mc.readPacket(ctx)
+	if err != nil {
+		return 0, err
+	}
 	data := packet.data
 	if err == nil {
 		// packet indicator [1 byte]
@@ -957,6 +966,7 @@ func (stmt *mysqlStmt) readPrepareResultPacket(ctx context.Context) (uint16, err
 
 		return columnCount, nil
 	}
+	stmt.mc.connector.putPacket(packet)
 	return 0, err
 }
 
@@ -1268,10 +1278,14 @@ func (mc *okHandler) discardResults(ctx context.Context) error {
 // http://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html
 func (rows *binaryRows) readRow(dest []driver.Value) error {
 	ctx := rows.ctx
+	if pkt := rows.pkt; pkt != nil {
+		rows.mc.connector.putPacket(pkt)
+	}
 	packet, err := rows.mc.readPacket(ctx)
 	if err != nil {
 		return err
 	}
+	rows.pkt = packet
 	data := packet.data
 
 	// packet indicator [1 byte]

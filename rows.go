@@ -26,6 +26,7 @@ type mysqlRows struct {
 	mc  *mysqlConn
 	ctx context.Context
 	rs  resultSet
+	pkt *packet // last read packet
 }
 
 type binaryRows struct {
