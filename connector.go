@@ -76,6 +76,16 @@ func (c *connector) getPacket() *packet {
 	return pkt.(*packet)
 }
 
+func (c *connector) getPacketWithSize(n int) *packet {
+	pkt := c.getPacket()
+	if cap(pkt.data) < n {
+		pkt.data = make([]byte, n)
+	} else {
+		pkt.data = pkt.data[:n]
+	}
+	return pkt
+}
+
 func (c *connector) putPacket(pkt *packet) {
 	if cap(pkt.data) <= maxCachedBufSize {
 		c.packetPool.Put(pkt)

@@ -454,7 +454,9 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(ctx context.Context, authResp 
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
 func (mc *mysqlConn) writeAuthSwitchPacket(ctx context.Context, authData []byte) error {
 	pktLen := 4 + len(authData)
-	data := make([]byte, pktLen)
+	packet := mc.connector.getPacketWithSize(pktLen)
+	defer mc.connector.putPacket(packet)
+	data := packet.data
 
 	// Add the auth data [EOF]
 	copy(data[4:], authData)
@@ -481,7 +483,10 @@ func (mc *mysqlConn) writeCommandPacketStr(ctx context.Context, command byte, ar
 	mc.sequence = 0
 
 	pktLen := 1 + len(arg)
-	data := make([]byte, pktLen+4)
+
+	packet := mc.connector.getPacketWithSize(4 + pktLen)
+	defer mc.connector.putPacket(packet)
+	data := packet.data
 
 	// Add command byte
 	data[4] = command
@@ -984,7 +989,10 @@ func (stmt *mysqlStmt) writeCommandLongData(ctx context.Context, paramID int, ar
 	// Cannot use the write buffer since
 	// a) the buffer is too small
 	// b) it is in use
-	data := make([]byte, 4+1+4+2+len(arg))
+	bufLen := 4 + 1 + 4 + 2 + len(arg)
+	packet := stmt.mc.connector.getPacketWithSize(bufLen)
+	defer stmt.mc.connector.putPacket(packet)
+	data := packet.data
 
 	copy(data[4+dataOffset:], arg)
 
@@ -1045,10 +1053,11 @@ func (stmt *mysqlStmt) writeExecutePacket(ctx context.Context, args []driver.Val
 	// Reset packet-sequence
 	mc.sequence = 0
 
-	var data []byte
 	var err error
 
-	data = make([]byte, defaultBufSize)
+	packet := mc.connector.getPacket()
+	defer mc.connector.putPacket(packet)
+	data := packet.data[:cap(packet.data)]
 
 	// command [1 byte]
 	data[4] = comStmtExecute
@@ -1250,6 +1259,7 @@ func (stmt *mysqlStmt) writeExecutePacket(ctx context.Context, args []driver.Val
 		data = data[:pos]
 	}
 
+	packet.data = data
 	return mc.writePacket(ctx, data)
 }
 
