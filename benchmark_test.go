@@ -220,6 +220,7 @@ func BenchmarkInterpolation(b *testing.B) {
 			InterpolateParams: true,
 			Loc:               time.UTC,
 		},
+		connector:        &connector{},
 		maxAllowedPacket: maxPacketSize,
 		maxWriteSize:     maxPacketSize - 1,
 	}

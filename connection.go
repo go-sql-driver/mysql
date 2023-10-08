@@ -194,7 +194,9 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 	}
 
 	var err error
-	buf := make([]byte, 0, len(query))
+	packet := mc.connector.getPacket()
+	defer mc.connector.putPacket(packet)
+	buf := packet.data[:0]
 	argPos := 0
 
 	for i := 0; i < len(query); i++ {
