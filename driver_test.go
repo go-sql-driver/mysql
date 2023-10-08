@@ -1872,7 +1872,6 @@ func TestConcurrent(t *testing.T) {
 				defer wg.Done()
 
 				tx, err := dbt.db.Begin()
-				atomic.AddInt32(&remaining, -1)
 
 				if err != nil {
 					if err.Error() != "Error 1040: Too many connections" {
@@ -1882,7 +1881,7 @@ func TestConcurrent(t *testing.T) {
 				}
 
 				// keep the connection busy until all connections are open
-				for remaining > 0 {
+				for atomic.AddInt32(&remaining, -1) > 0 {
 					if _, err = tx.Exec("DO 1"); err != nil {
 						fatalf("error on conn %d: %s", id, err.Error())
 						return
