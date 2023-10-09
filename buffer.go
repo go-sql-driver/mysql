@@ -6,7 +6,7 @@ import (
 )
 
 const defaultBufSize = 4096 // must be 2^n
-// const maxCachedBufSize = 256 * 1024
+const maxCachedBufSize = 256 * 1024
 
 type writeBuffer struct {
 	buf []byte
@@ -39,9 +39,10 @@ func (wb *writeBuffer) store(buf []byte) {
 }
 
 type readBuffer struct {
-	buf []byte
-	idx int
-	nc  net.Conn
+	buf    []byte
+	idx    int
+	nc     net.Conn
+	cached []byte
 }
 
 func newReadBuffer(nc net.Conn) readBuffer {
@@ -54,12 +55,16 @@ func newReadBuffer(nc net.Conn) readBuffer {
 // fill reads into the buffer until at least _need_ bytes are in it.
 func (rb *readBuffer) fill(need int) error {
 	var buf []byte
-	if need <= cap(rb.buf) {
-		buf = rb.buf[:0]
+	if need <= cap(rb.cached) {
+		buf = rb.cached[:0]
 	} else {
 		// Round up to the next multiple of the default size
 		size := (need + defaultBufSize - 1) &^ (defaultBufSize - 1)
+
 		buf = make([]byte, 0, size)
+		if size <= maxCachedBufSize {
+			rb.cached = buf
+		}
 	}
 
 	// move the existing data to the start of it.
