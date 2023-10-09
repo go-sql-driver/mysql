@@ -98,34 +98,6 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		return ErrPktTooLarge
 	}
 
-	// Perform a stale connection check. We only perform this check for
-	// the first query on a connection that has been checked out of the
-	// connection pool: a fresh connection from the pool is more likely
-	// to be stale, and it has not performed any previous writes that
-	// could cause data corruption, so it's safe to return ErrBadConn
-	// if the check fails.
-	if mc.reset {
-		mc.reset = false
-		conn := mc.netConn
-		if mc.rawConn != nil {
-			conn = mc.rawConn
-		}
-		var err error
-		if mc.cfg.CheckConnLiveness {
-			if mc.cfg.ReadTimeout != 0 {
-				err = conn.SetReadDeadline(time.Now().Add(mc.cfg.ReadTimeout))
-			}
-			if err == nil {
-				err = connCheck(conn)
-			}
-		}
-		if err != nil {
-			mc.cfg.Logger.Print("closing bad idle connection: ", err)
-			mc.Close()
-			return driver.ErrBadConn
-		}
-	}
-
 	for {
 		var size int
 		if pktLen >= maxPacketSize {
