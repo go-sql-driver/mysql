@@ -31,6 +31,13 @@ func (wb *writeBuffer) takeBuffer(length int) []byte {
 	return make([]byte, length)
 }
 
+func (wb *writeBuffer) store(buf []byte) {
+	if cap(buf) < cap(wb.buf) || cap(buf) > maxPacketSize {
+		return
+	}
+	wb.buf = buf
+}
+
 type readBuffer struct {
 	buf []byte
 	idx int

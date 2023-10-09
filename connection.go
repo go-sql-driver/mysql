@@ -278,7 +278,9 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 	if argPos != len(args) {
 		return "", driver.ErrSkip
 	}
-	return string(buf), nil
+	s := string(buf)
+	mc.wbuf.store(buf[:0])
+	return s, nil
 }
 
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
