@@ -16,11 +16,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type connector struct {
 	cfg               *Config // immutable private copy.
 	encodedAttributes string  // Encoded connection attributes.
+	packetPool        sync.Pool
 }
 
 func encodeConnectionAttributes(textAttributes string) string {
@@ -167,6 +169,20 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	return mc, nil
+}
+
+func (c *connector) getPacket() *packet {
+	p := c.packetPool.Get()
+	if p == nil {
+		return &packet{}
+	}
+	return p.(*packet)
+}
+
+func (c *connector) putPacket(p *packet) {
+	if p != nil && len(p.data) < maxPacketSize {
+		c.packetPool.Put(p)
+	}
 }
 
 // Driver implements driver.Connector interface.

@@ -51,14 +51,14 @@ func (p *packet) readFrom(r *readBuffer) {
 		return
 	}
 
-	p.data = append([]byte(nil), data...) // TODO: reduce allocations
+	p.data = append(p.data[:0], data...)
 }
 
 // Read packet to buffer 'data'
-func (mc *mysqlConn) readPacket(ctx context.Context) ([]byte, error) {
-	var prevData []byte
+func (mc *mysqlConn) readPacket(ctx context.Context) (*packet, error) {
+	var prevData *packet
 	for {
-		var pkt packet
+		var pkt *packet
 		select {
 		case pkt = <-mc.readRes:
 		case <-mc.closech:
@@ -99,11 +99,23 @@ func (mc *mysqlConn) readPacket(ctx context.Context) ([]byte, error) {
 			return prevData, nil
 		}
 
-		prevData = append(prevData, pkt.data...)
-
 		// return data if this was the last packet
 		if pktLen < maxPacketSize {
+			// zero allocations for non-split packets
+			if prevData == nil {
+				return pkt, nil
+			}
+
+			prevData.data = append(prevData.data, pkt.data...)
+			mc.connector.putPacket(pkt)
 			return prevData, nil
+		}
+
+		if prevData != nil {
+			prevData.data = append(prevData.data, pkt.data...)
+			mc.connector.putPacket(pkt)
+		} else {
+			prevData = pkt
 		}
 	}
 }
@@ -209,7 +221,7 @@ func (mc *mysqlConn) writePacket(ctx context.Context, data []byte) error {
 // Handshake Initialization Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::Handshake
 func (mc *mysqlConn) readHandshakePacket(ctx context.Context) (data []byte, plugin string, err error) {
-	data, err = mc.readPacket(ctx)
+	packet, err := mc.readPacket(ctx)
 	if err != nil {
 		// for init we can rewrite this to ErrBadConn for sql.Driver to retry, since
 		// in connection initialization we don't risk retrying non-idempotent actions.
@@ -218,6 +230,8 @@ func (mc *mysqlConn) readHandshakePacket(ctx context.Context) (data []byte, plug
 		}
 		return
 	}
+	defer mc.connector.putPacket(packet)
+	data = packet.data
 
 	if data[0] == iERR {
 		return nil, "", mc.handleErrorPacket(data)
@@ -504,10 +518,11 @@ func (mc *mysqlConn) writeCommandPacketUint32(ctx context.Context, command byte,
 ******************************************************************************/
 
 func (mc *mysqlConn) readAuthResult(ctx context.Context) ([]byte, string, error) {
-	data, err := mc.readPacket(ctx)
+	packet, err := mc.readPacket(ctx)
 	if err != nil {
 		return nil, "", err
 	}
+	data := packet.data
 
 	// packet indicator
 	switch data[0] {
@@ -540,10 +555,11 @@ func (mc *mysqlConn) readAuthResult(ctx context.Context) ([]byte, string, error)
 
 // Returns error if Packet is not a 'Result OK'-Packet
 func (mc *okHandler) readResultOK(ctx context.Context) error {
-	data, err := mc.conn().readPacket(ctx)
+	packet, err := mc.conn().readPacket(ctx)
 	if err != nil {
 		return err
 	}
+	data := packet.data
 
 	if data[0] == iOK {
 		return mc.handleOkPacket(data)
@@ -558,10 +574,12 @@ func (mc *okHandler) readResultSetHeaderPacket(ctx context.Context) (int, error)
 	mc.result.affectedRows = append(mc.result.affectedRows, 0)
 	mc.result.insertIds = append(mc.result.insertIds, 0)
 
-	data, err := mc.conn().readPacket(ctx)
+	packet, err := mc.conn().readPacket(ctx)
 	if err != nil {
 		return 0, err
 	}
+	defer mc.conn().connector.putPacket(packet)
+	data := packet.data
 	if err == nil {
 		switch data[0] {
 
@@ -704,10 +722,11 @@ func (mc *mysqlConn) readColumns(ctx context.Context, count int) ([]mysqlField, 
 	columns := make([]mysqlField, count)
 
 	for i := 0; ; i++ {
-		data, err := mc.readPacket(ctx)
+		packet, err := mc.readPacket(ctx)
 		if err != nil {
 			return nil, err
 		}
+		data := packet.data
 
 		// EOF Packet
 		if data[0] == iEOF && (len(data) == 5 || len(data) == 1) {
@@ -808,10 +827,13 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 		return io.EOF
 	}
 
-	data, err := mc.readPacket(ctx)
+	rows.mc.connector.putPacket(rows.pkt)
+	packet, err := mc.readPacket(ctx)
+	rows.pkt = packet
 	if err != nil {
 		return err
 	}
+	data := packet.data
 
 	// EOF Packet
 	if data[0] == iEOF && len(data) == 5 {
@@ -893,10 +915,11 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 // Reads Packets until EOF-Packet or an Error appears. Returns count of Packets read
 func (mc *mysqlConn) readUntilEOF(ctx context.Context) error {
 	for {
-		data, err := mc.readPacket(ctx)
+		packet, err := mc.readPacket(ctx)
 		if err != nil {
 			return err
 		}
+		data := packet.data
 
 		switch data[0] {
 		case iERR:
@@ -907,6 +930,7 @@ func (mc *mysqlConn) readUntilEOF(ctx context.Context) error {
 			}
 			return nil
 		}
+		mc.connector.putPacket(packet)
 	}
 }
 
@@ -917,10 +941,12 @@ func (mc *mysqlConn) readUntilEOF(ctx context.Context) error {
 // Prepare Result Packets
 // http://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
 func (stmt *mysqlStmt) readPrepareResultPacket(ctx context.Context) (uint16, error) {
-	data, err := stmt.mc.readPacket(ctx)
+	packet, err := stmt.mc.readPacket(ctx)
 	if err != nil {
 		return 0, err
 	}
+	defer stmt.mc.connector.putPacket(packet)
+	data := packet.data
 	if err == nil {
 		// packet indicator [1 byte]
 		if data[0] != iOK {
@@ -1253,10 +1279,14 @@ func (mc *okHandler) discardResults(ctx context.Context) error {
 // http://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html
 func (rows *binaryRows) readRow(dest []driver.Value) error {
 	ctx := rows.ctx
-	data, err := rows.mc.readPacket(ctx)
+
+	rows.mc.connector.putPacket(rows.pkt)
+	packet, err := rows.mc.readPacket(ctx)
+	rows.pkt = packet
 	if err != nil {
 		return err
 	}
+	data := packet.data
 
 	// packet indicator [1 byte]
 	if data[0] != iOK {
@@ -1432,7 +1462,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 
 func (mc *mysqlConn) startGoroutines() {
 	mc.closech = make(chan struct{})
-	mc.readRes = make(chan packet)
+	mc.readRes = make(chan *packet)
 	mc.writeReq = make(chan []byte, 1)
 	mc.writeRes = make(chan writeResult)
 
@@ -1442,7 +1472,7 @@ func (mc *mysqlConn) startGoroutines() {
 
 func (mc *mysqlConn) readLoop() {
 	for {
-		var pkt packet
+		pkt := mc.connector.getPacket()
 		mc.muRead.Lock()
 		pkt.readFrom(&mc.rbuf)
 		mc.muRead.Unlock()

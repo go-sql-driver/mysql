@@ -26,6 +26,7 @@ type mysqlRows struct {
 	mc  *mysqlConn
 	ctx context.Context
 	rs  resultSet
+	pkt *packet // current read packet
 }
 
 type binaryRows struct {
@@ -107,6 +108,9 @@ func (rows *mysqlRows) Close() (err error) {
 	if err := mc.error(); err != nil {
 		return err
 	}
+
+	rows.mc.connector.putPacket(rows.pkt)
+	rows.pkt = nil
 
 	// Remove unread packets from stream
 	if !rows.rs.done {

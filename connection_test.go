@@ -157,6 +157,7 @@ func TestPingMarkBadConnection(t *testing.T) {
 		netConn:          nc,
 		rbuf:             newReadBuffer(nc),
 		maxAllowedPacket: defaultMaxAllowedPacket,
+		connector:        &connector{},
 	}
 	ms.startGoroutines()
 	defer ms.cleanup()
@@ -180,6 +181,7 @@ func TestPingErrInvalidConn(t *testing.T) {
 		maxAllowedPacket: defaultMaxAllowedPacket,
 		closech:          make(chan struct{}),
 		cfg:              NewConfig(),
+		connector:        &connector{},
 	}
 	ms.startGoroutines()
 	defer ms.cleanup()

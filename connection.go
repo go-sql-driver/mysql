@@ -52,7 +52,7 @@ type mysqlConn struct {
 	// for context support (Go 1.8+)
 	closech  chan struct{}
 	closed   atomicBool       // set when conn is closed, before closech is closed
-	readRes  chan packet      // channel for read result
+	readRes  chan *packet     // channel for read result
 	writeReq chan []byte      // buffered channel for write packets
 	writeRes chan writeResult // channel for write result
 }
