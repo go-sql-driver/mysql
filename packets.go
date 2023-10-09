@@ -117,7 +117,6 @@ func (mc *mysqlConn) readPacket(ctx context.Context) (*packet, error) {
 			prevData = pkt
 		} else {
 			prevData.data = append(prevData.data, pkt.data...)
-			mc.connector.putPacket(pkt)
 		}
 	}
 }
@@ -454,9 +453,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(ctx context.Context, authResp 
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
 func (mc *mysqlConn) writeAuthSwitchPacket(ctx context.Context, authData []byte) error {
 	pktLen := 4 + len(authData)
-	packet := mc.connector.getPacketWithSize(pktLen)
-	defer mc.connector.putPacket(packet)
-	data := packet.data
+	data := mc.wbuf.takeBuffer(pktLen)
 
 	// Add the auth data [EOF]
 	copy(data[4:], authData)
@@ -472,10 +469,11 @@ func (mc *mysqlConn) writeCommandPacket(ctx context.Context, command byte) error
 	mc.sequence = 0
 
 	// Add command byte
-	mc.data[4] = command
+	data := mc.wbuf.takeBuffer(4 + 1)
+	data[4] = command
 
 	// Send CMD packet
-	return mc.writePacket(ctx, mc.data[:4+1])
+	return mc.writePacket(ctx, data)
 }
 
 func (mc *mysqlConn) writeCommandPacketStr(ctx context.Context, command byte, arg string) error {
@@ -484,9 +482,7 @@ func (mc *mysqlConn) writeCommandPacketStr(ctx context.Context, command byte, ar
 
 	pktLen := 1 + len(arg)
 
-	packet := mc.connector.getPacketWithSize(4 + pktLen)
-	defer mc.connector.putPacket(packet)
-	data := packet.data
+	data := mc.wbuf.takeBuffer(4 + pktLen)
 
 	// Add command byte
 	data[4] = command
@@ -503,16 +499,17 @@ func (mc *mysqlConn) writeCommandPacketUint32(ctx context.Context, command byte,
 	mc.sequence = 0
 
 	// Add command byte
-	mc.data[4] = command
+	data := mc.wbuf.takeBuffer(4 + 1 + 4)
+	data[4] = command
 
 	// Add arg [32 bit]
-	mc.data[5] = byte(arg)
-	mc.data[6] = byte(arg >> 8)
-	mc.data[7] = byte(arg >> 16)
-	mc.data[8] = byte(arg >> 24)
+	data[5] = byte(arg)
+	data[6] = byte(arg >> 8)
+	data[7] = byte(arg >> 16)
+	data[8] = byte(arg >> 24)
 
 	// Send CMD packet
-	return mc.writePacket(ctx, mc.data[:4+1+4])
+	return mc.writePacket(ctx, data)
 }
 
 /******************************************************************************
@@ -561,7 +558,6 @@ func (mc *okHandler) readResultOK(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer mc.connector.putPacket(packet)
 	data := packet.data
 
 	if data[0] == iOK {
@@ -829,9 +825,6 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 		return io.EOF
 	}
 
-	if pkt := rows.pkt; pkt != nil {
-		rows.mc.connector.putPacket(pkt)
-	}
 	packet, err := mc.readPacket(ctx)
 	if err != nil {
 		return err
@@ -934,7 +927,6 @@ func (mc *mysqlConn) readUntilEOF(ctx context.Context) error {
 			}
 			return nil
 		}
-		mc.connector.putPacket(packet)
 	}
 }
 
@@ -971,7 +963,6 @@ func (stmt *mysqlStmt) readPrepareResultPacket(ctx context.Context) (uint16, err
 
 		return columnCount, nil
 	}
-	stmt.mc.connector.putPacket(packet)
 	return 0, err
 }
 
@@ -989,10 +980,7 @@ func (stmt *mysqlStmt) writeCommandLongData(ctx context.Context, paramID int, ar
 	// Cannot use the write buffer since
 	// a) the buffer is too small
 	// b) it is in use
-	bufLen := 4 + 1 + 4 + 2 + len(arg)
-	packet := stmt.mc.connector.getPacketWithSize(bufLen)
-	defer stmt.mc.connector.putPacket(packet)
-	data := packet.data
+	data := make([]byte, 4+1+4+2+len(arg))
 
 	copy(data[4+dataOffset:], arg)
 
@@ -1055,9 +1043,8 @@ func (stmt *mysqlStmt) writeExecutePacket(ctx context.Context, args []driver.Val
 
 	var err error
 
-	packet := mc.connector.getPacket()
-	defer mc.connector.putPacket(packet)
-	data := packet.data[:cap(packet.data)]
+	data := mc.wbuf.takeBuffer(minPktLen)
+	data = data[:cap(data)]
 
 	// command [1 byte]
 	data[4] = comStmtExecute
@@ -1259,7 +1246,6 @@ func (stmt *mysqlStmt) writeExecutePacket(ctx context.Context, args []driver.Val
 		data = data[:pos]
 	}
 
-	packet.data = data
 	return mc.writePacket(ctx, data)
 }
 
@@ -1288,9 +1274,6 @@ func (mc *okHandler) discardResults(ctx context.Context) error {
 // http://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html
 func (rows *binaryRows) readRow(dest []driver.Value) error {
 	ctx := rows.ctx
-	if pkt := rows.pkt; pkt != nil {
-		rows.mc.connector.putPacket(pkt)
-	}
 	packet, err := rows.mc.readPacket(ctx)
 	if err != nil {
 		return err
@@ -1482,8 +1465,7 @@ func (mc *mysqlConn) startGoroutines() {
 
 func (mc *mysqlConn) readLoop() {
 	for {
-		pkt := mc.connector.getPacket()
-
+		pkt := new(packet)
 		mc.muRead.Lock()
 		pkt.readFrom(mc.netConn)
 		mc.muRead.Unlock()

@@ -46,12 +46,11 @@ type mysqlConn struct {
 	sequence         uint8
 	parseTime        bool
 	reset            bool // set when the Go SQL package calls ResetSession
+	wbuf             writeBuffer
 
 	// for context support (Go 1.8+)
-	closech chan struct{}
-	closed  atomicBool // set when conn is closed, before closech is closed
-
-	data     [16]byte         // buffer for small writes
+	closech  chan struct{}
+	closed   atomicBool       // set when conn is closed, before closech is closed
 	readRes  chan *packet     // channel for read result
 	writeReq chan []byte      // buffered channel for write packets
 	writeRes chan writeResult // channel for write result
@@ -194,9 +193,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 	}
 
 	var err error
-	packet := mc.connector.getPacket()
-	defer mc.connector.putPacket(packet)
-	buf := packet.data[:0]
+	buf := mc.wbuf.takeBuffer(0)
 	argPos := 0
 
 	for i := 0; i < len(query); i++ {
