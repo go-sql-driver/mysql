@@ -42,11 +42,10 @@ func TestReadPacketSingleByte(t *testing.T) {
 		conn.Write([]byte{0x01, 0x00, 0x00, 0x00, 0xff})
 	}()
 
-	packet, err := mc.readPacket(context.Background())
+	data, err := mc.readPacket(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	data := packet.data
 	if len(data) != 1 {
 		t.Fatalf("unexpected packet length: expected %d, got %d", 1, len(data))
 	}
@@ -121,18 +120,18 @@ func TestReadPacketSplit(t *testing.T) {
 		}()
 		// TODO: check read operation count
 
-		packet, err := mc.readPacket(context.Background())
+		data, err := mc.readPacket(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(packet.data) != maxPacketSize {
-			t.Fatalf("unexpected packet length: expected %d, got %d", maxPacketSize, len(packet.data))
+		if len(data) != maxPacketSize {
+			t.Fatalf("unexpected packet length: expected %d, got %d", maxPacketSize, len(data))
 		}
-		if packet.data[0] != 0x11 {
-			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet.data[0])
+		if data[0] != 0x11 {
+			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, data[0])
 		}
-		if packet.data[maxPacketSize-1] != 0x22 {
-			t.Fatalf("unexpected payload end: expected %x, got %x", 0x22, packet.data[maxPacketSize-1])
+		if data[maxPacketSize-1] != 0x22 {
+			t.Fatalf("unexpected payload end: expected %x, got %x", 0x22, data[maxPacketSize-1])
 		}
 	})
 
@@ -170,18 +169,18 @@ func TestReadPacketSplit(t *testing.T) {
 		}()
 		// TODO: check read operation count
 
-		packet, err := mc.readPacket(context.Background())
+		data, err := mc.readPacket(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(packet.data) != 2*maxPacketSize {
-			t.Fatalf("unexpected packet length: expected %d, got %d", 2*maxPacketSize, len(packet.data))
+		if len(data) != 2*maxPacketSize {
+			t.Fatalf("unexpected packet length: expected %d, got %d", 2*maxPacketSize, len(data))
 		}
-		if packet.data[0] != 0x11 {
-			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet.data[0])
+		if data[0] != 0x11 {
+			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, data[0])
 		}
-		if packet.data[2*maxPacketSize-1] != 0x44 {
-			t.Fatalf("unexpected payload end: expected %x, got %x", 0x44, packet.data[2*maxPacketSize-1])
+		if data[2*maxPacketSize-1] != 0x44 {
+			t.Fatalf("unexpected payload end: expected %x, got %x", 0x44, data[2*maxPacketSize-1])
 		}
 	})
 
@@ -212,18 +211,18 @@ func TestReadPacketSplit(t *testing.T) {
 		}()
 		// TODO: check read operation count
 
-		packet, err := mc.readPacket(context.Background())
+		data, err := mc.readPacket(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(packet.data) != maxPacketSize+42 {
-			t.Fatalf("unexpected packet length: expected %d, got %d", maxPacketSize+42, len(packet.data))
+		if len(data) != maxPacketSize+42 {
+			t.Fatalf("unexpected packet length: expected %d, got %d", maxPacketSize+42, len(data))
 		}
-		if packet.data[0] != 0x11 {
-			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet.data[0])
+		if data[0] != 0x11 {
+			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, data[0])
 		}
-		if packet.data[maxPacketSize+41] != 0x44 {
-			t.Fatalf("unexpected payload end: expected %x, got %x", 0x44, packet.data[maxPacketSize+41])
+		if data[maxPacketSize+41] != 0x44 {
+			t.Fatalf("unexpected payload end: expected %x, got %x", 0x44, data[maxPacketSize+41])
 		}
 	})
 }

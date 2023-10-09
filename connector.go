@@ -104,6 +104,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 
 	mc.readTimeout = mc.cfg.ReadTimeout
 	mc.writeTimeout = mc.cfg.WriteTimeout
+	mc.rbuf = newReadBuffer(mc.netConn)
 	mc.startGoroutines()
 
 	// Reading Handshake Initialization Packet

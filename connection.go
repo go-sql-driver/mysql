@@ -33,7 +33,9 @@ type writeResult struct {
 type mysqlConn struct {
 	muRead           sync.Mutex // protects netConn for reads
 	netConn          net.Conn
-	rawConn          net.Conn    // underlying connection when netConn is TLS connection.
+	rawConn          net.Conn // underlying connection when netConn is TLS connection.
+	wbuf             writeBuffer
+	rbuf             readBuffer
 	result           mysqlResult // managed by clearResult() and handleOkPacket().
 	cfg              *Config
 	connector        *connector
@@ -46,12 +48,11 @@ type mysqlConn struct {
 	sequence         uint8
 	parseTime        bool
 	reset            bool // set when the Go SQL package calls ResetSession
-	wbuf             writeBuffer
 
 	// for context support (Go 1.8+)
 	closech  chan struct{}
 	closed   atomicBool       // set when conn is closed, before closech is closed
-	readRes  chan *packet     // channel for read result
+	readRes  chan packet      // channel for read result
 	writeReq chan []byte      // buffered channel for write packets
 	writeRes chan writeResult // channel for write result
 }

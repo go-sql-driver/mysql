@@ -33,23 +33,20 @@ type packet struct {
 	err    error
 }
 
-func (p *packet) readFrom(r io.Reader) {
-	_, p.err = io.ReadFull(r, p.header[:4])
+func (p *packet) readFrom(r *readBuffer) {
+	// read the header
+	var data []byte
+	data, p.err = r.readNext(4)
 	if p.err != nil {
 		return
 	}
+	copy(p.header[:], data)
 
 	// packet length [24 bit]
 	pktLen := int(uint32(p.header[0]) | uint32(p.header[1])<<8 | uint32(p.header[2])<<16)
 
 	// read the body
-	data := p.data
-	if cap(data) < pktLen {
-		data = make([]byte, pktLen)
-	} else {
-		data = data[:pktLen]
-	}
-	_, p.err = io.ReadFull(r, data)
+	data, p.err = r.readNext(pktLen)
 	if p.err != nil {
 		return
 	}
@@ -58,10 +55,10 @@ func (p *packet) readFrom(r io.Reader) {
 }
 
 // Read packet to buffer 'data'
-func (mc *mysqlConn) readPacket(ctx context.Context) (*packet, error) {
-	var prevData *packet
+func (mc *mysqlConn) readPacket(ctx context.Context) ([]byte, error) {
+	var prevData []byte
 	for {
-		var pkt *packet
+		var pkt packet
 		select {
 		case pkt = <-mc.readRes:
 		case <-mc.closech:
@@ -102,21 +99,11 @@ func (mc *mysqlConn) readPacket(ctx context.Context) (*packet, error) {
 			return prevData, nil
 		}
 
+		prevData = append(prevData, pkt.data...)
+
 		// return data if this was the last packet
 		if pktLen < maxPacketSize {
-			// zero allocations for non-split packets
-			if prevData == nil {
-				return pkt, nil
-			}
-
-			prevData.data = append(prevData.data, pkt.data...)
 			return prevData, nil
-		}
-
-		if prevData == nil {
-			prevData = pkt
-		} else {
-			prevData.data = append(prevData.data, pkt.data...)
 		}
 	}
 }
@@ -222,7 +209,7 @@ func (mc *mysqlConn) writePacket(ctx context.Context, data []byte) error {
 // Handshake Initialization Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::Handshake
 func (mc *mysqlConn) readHandshakePacket(ctx context.Context) (data []byte, plugin string, err error) {
-	packet, err := mc.readPacket(ctx)
+	data, err = mc.readPacket(ctx)
 	if err != nil {
 		// for init we can rewrite this to ErrBadConn for sql.Driver to retry, since
 		// in connection initialization we don't risk retrying non-idempotent actions.
@@ -231,7 +218,6 @@ func (mc *mysqlConn) readHandshakePacket(ctx context.Context) (data []byte, plug
 		}
 		return
 	}
-	data = packet.data
 
 	if data[0] == iERR {
 		return nil, "", mc.handleErrorPacket(data)
@@ -416,6 +402,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(ctx context.Context, authResp 
 		}
 		mc.rawConn = mc.netConn
 		mc.netConn = tlsConn
+		mc.rbuf.nc = tlsConn
 		mc.resumeReadLoop()
 	}
 
@@ -517,11 +504,10 @@ func (mc *mysqlConn) writeCommandPacketUint32(ctx context.Context, command byte,
 ******************************************************************************/
 
 func (mc *mysqlConn) readAuthResult(ctx context.Context) ([]byte, string, error) {
-	packet, err := mc.readPacket(ctx)
+	data, err := mc.readPacket(ctx)
 	if err != nil {
 		return nil, "", err
 	}
-	data := packet.data
 
 	// packet indicator
 	switch data[0] {
@@ -554,11 +540,10 @@ func (mc *mysqlConn) readAuthResult(ctx context.Context) ([]byte, string, error)
 
 // Returns error if Packet is not a 'Result OK'-Packet
 func (mc *okHandler) readResultOK(ctx context.Context) error {
-	packet, err := mc.conn().readPacket(ctx)
+	data, err := mc.conn().readPacket(ctx)
 	if err != nil {
 		return err
 	}
-	data := packet.data
 
 	if data[0] == iOK {
 		return mc.handleOkPacket(data)
@@ -573,11 +558,10 @@ func (mc *okHandler) readResultSetHeaderPacket(ctx context.Context) (int, error)
 	mc.result.affectedRows = append(mc.result.affectedRows, 0)
 	mc.result.insertIds = append(mc.result.insertIds, 0)
 
-	packet, err := mc.conn().readPacket(ctx)
+	data, err := mc.conn().readPacket(ctx)
 	if err != nil {
 		return 0, err
 	}
-	data := packet.data
 	if err == nil {
 		switch data[0] {
 
@@ -720,11 +704,10 @@ func (mc *mysqlConn) readColumns(ctx context.Context, count int) ([]mysqlField, 
 	columns := make([]mysqlField, count)
 
 	for i := 0; ; i++ {
-		packet, err := mc.readPacket(ctx)
+		data, err := mc.readPacket(ctx)
 		if err != nil {
 			return nil, err
 		}
-		data := packet.data
 
 		// EOF Packet
 		if data[0] == iEOF && (len(data) == 5 || len(data) == 1) {
@@ -825,12 +808,10 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 		return io.EOF
 	}
 
-	packet, err := mc.readPacket(ctx)
+	data, err := mc.readPacket(ctx)
 	if err != nil {
 		return err
 	}
-	rows.pkt = packet
-	data := packet.data
 
 	// EOF Packet
 	if data[0] == iEOF && len(data) == 5 {
@@ -912,11 +893,10 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 // Reads Packets until EOF-Packet or an Error appears. Returns count of Packets read
 func (mc *mysqlConn) readUntilEOF(ctx context.Context) error {
 	for {
-		packet, err := mc.readPacket(ctx)
+		data, err := mc.readPacket(ctx)
 		if err != nil {
 			return err
 		}
-		data := packet.data
 
 		switch data[0] {
 		case iERR:
@@ -937,11 +917,10 @@ func (mc *mysqlConn) readUntilEOF(ctx context.Context) error {
 // Prepare Result Packets
 // http://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
 func (stmt *mysqlStmt) readPrepareResultPacket(ctx context.Context) (uint16, error) {
-	packet, err := stmt.mc.readPacket(ctx)
+	data, err := stmt.mc.readPacket(ctx)
 	if err != nil {
 		return 0, err
 	}
-	data := packet.data
 	if err == nil {
 		// packet indicator [1 byte]
 		if data[0] != iOK {
@@ -1274,12 +1253,10 @@ func (mc *okHandler) discardResults(ctx context.Context) error {
 // http://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html
 func (rows *binaryRows) readRow(dest []driver.Value) error {
 	ctx := rows.ctx
-	packet, err := rows.mc.readPacket(ctx)
+	data, err := rows.mc.readPacket(ctx)
 	if err != nil {
 		return err
 	}
-	rows.pkt = packet
-	data := packet.data
 
 	// packet indicator [1 byte]
 	if data[0] != iOK {
@@ -1455,7 +1432,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 
 func (mc *mysqlConn) startGoroutines() {
 	mc.closech = make(chan struct{})
-	mc.readRes = make(chan *packet)
+	mc.readRes = make(chan packet)
 	mc.writeReq = make(chan []byte, 1)
 	mc.writeRes = make(chan writeResult)
 
@@ -1465,9 +1442,9 @@ func (mc *mysqlConn) startGoroutines() {
 
 func (mc *mysqlConn) readLoop() {
 	for {
-		pkt := new(packet)
+		var pkt packet
 		mc.muRead.Lock()
-		pkt.readFrom(mc.netConn)
+		pkt.readFrom(&mc.rbuf)
 		mc.muRead.Unlock()
 		select {
 		case mc.readRes <- pkt:
