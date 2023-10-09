@@ -149,45 +149,23 @@ func TestCleanCancel(t *testing.T) {
 }
 
 func TestPingMarkBadConnection(t *testing.T) {
-	t.Run("empty write", func(t *testing.T) {
-		nc := badConnection{
-			werr: errors.New("boom"),
-			done: make(chan struct{}),
-		}
-		ms := &mysqlConn{
-			netConn:          nc,
-			maxAllowedPacket: defaultMaxAllowedPacket,
-		}
-		ms.startGoroutines()
-		defer ms.cleanup()
+	nc := badConnection{
+		werr: errors.New("boom"),
+		done: make(chan struct{}),
+	}
+	ms := &mysqlConn{
+		netConn:          nc,
+		rbuf:             newReadBuffer(nc),
+		maxAllowedPacket: defaultMaxAllowedPacket,
+	}
+	ms.startGoroutines()
+	defer ms.cleanup()
 
-		err := ms.Ping(context.Background())
+	err := ms.Ping(context.Background())
 
-		if err != driver.ErrBadConn {
-			t.Errorf("expected driver.ErrBadConn, got  %#v", err)
-		}
-	})
-
-	t.Run("unexpected read", func(t *testing.T) {
-		nc := badConnection{
-			rerr: io.EOF,
-			read: make(chan struct{}, 1),
-			done: make(chan struct{}),
-		}
-		ms := &mysqlConn{
-			netConn:          nc,
-			maxAllowedPacket: defaultMaxAllowedPacket,
-		}
-		ms.startGoroutines()
-		defer ms.cleanup()
-
-		<-nc.read
-		err := ms.Ping(context.Background())
-
-		if err != driver.ErrBadConn {
-			t.Errorf("expected driver.ErrBadConn, got  %#v", err)
-		}
-	})
+	if err != driver.ErrBadConn {
+		t.Errorf("expected driver.ErrBadConn, got  %#v", err)
+	}
 }
 
 func TestPingErrInvalidConn(t *testing.T) {
@@ -198,6 +176,7 @@ func TestPingErrInvalidConn(t *testing.T) {
 	}
 	ms := &mysqlConn{
 		netConn:          nc,
+		rbuf:             newReadBuffer(nc),
 		maxAllowedPacket: defaultMaxAllowedPacket,
 		closech:          make(chan struct{}),
 		cfg:              NewConfig(),
