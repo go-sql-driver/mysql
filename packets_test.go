@@ -27,6 +27,7 @@ func newRWMockConn(t *testing.T, sequence uint8) (net.Conn, *mysqlConn) {
 		cfg:              connector.cfg,
 		connector:        connector,
 		netConn:          server,
+		rbuf:             newReadBuffer(server),
 		maxAllowedPacket: defaultMaxAllowedPacket,
 		sequence:         sequence,
 	}
@@ -38,6 +39,9 @@ func newRWMockConn(t *testing.T, sequence uint8) (net.Conn, *mysqlConn) {
 func TestReadPacketSingleByte(t *testing.T) {
 	conn, mc := newRWMockConn(t, 0)
 
+	go func() {
+		io.Copy(io.Discard, conn)
+	}()
 	go func() {
 		conn.Write([]byte{0x01, 0x00, 0x00, 0x00, 0xff})
 	}()

@@ -39,7 +39,7 @@ type readBuffer struct {
 
 func newReadBuffer(nc net.Conn) readBuffer {
 	return readBuffer{
-		buf: make([]byte, defaultBufSize),
+		buf: make([]byte, 0, defaultBufSize),
 		nc:  nc,
 	}
 }
