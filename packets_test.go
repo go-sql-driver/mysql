@@ -129,13 +129,13 @@ func TestReadPacketSplit(t *testing.T) {
 			t.Fatal(err)
 		}
 		if len(packet.data) != maxPacketSize {
-			t.Fatalf("unexpected packet length: expected %d, got %d", maxPacketSize, len(data))
+			t.Fatalf("unexpected packet length: expected %d, got %d", maxPacketSize, len(packet.data))
 		}
-		if data[0] != 0x11 {
-			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, data[0])
+		if packet.data[0] != 0x11 {
+			t.Fatalf("unexpected payload start: expected %x, got %x", 0x11, packet.data[0])
 		}
-		if data[maxPacketSize-1] != 0x22 {
-			t.Fatalf("unexpected payload end: expected %x, got %x", 0x22, data[maxPacketSize-1])
+		if packet.data[maxPacketSize-1] != 0x22 {
+			t.Fatalf("unexpected payload end: expected %x, got %x", 0x22, packet.data[maxPacketSize-1])
 		}
 	})
 
