@@ -143,17 +143,25 @@ func (mc *mysqlConn) writePacket(ctx context.Context, data []byte) error {
 		}
 		data[3] = mc.sequence
 
-		// check the connection is still alive
-		select {
-		case <-mc.readRes:
-			mc.closeContext(ctx)
-			return errBadConnNoWrite
-		case <-mc.closech:
-			return ErrInvalidConn
-		case <-ctx.Done():
-			mc.cleanup()
-			return ctx.Err()
-		default:
+		// Perform a stale connection check. We only perform this check for
+		// the first query on a connection that has been checked out of the
+		// connection pool: a fresh connection from the pool is more likely
+		// to be stale, and it has not performed any previous writes that
+		// could cause data corruption, so it's safe to return ErrBadConn
+		// if the check fails.
+		if mc.reset {
+			mc.reset = false
+			select {
+			case <-mc.readRes:
+				mc.closeContext(ctx)
+				return errBadConnNoWrite
+			case <-mc.closech:
+				return ErrInvalidConn
+			case <-ctx.Done():
+				mc.cleanup()
+				return ctx.Err()
+			default:
+			}
 		}
 
 		// request writing the packet
