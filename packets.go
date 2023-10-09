@@ -51,7 +51,7 @@ func (p *packet) readFrom(r *readBuffer) {
 		return
 	}
 
-	p.data = data
+	p.data = append([]byte(nil), data...) // TODO: reduce allocations
 }
 
 // Read packet to buffer 'data'
