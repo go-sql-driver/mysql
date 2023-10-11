@@ -39,21 +39,20 @@ func newCompressedWriter(connWriter io.Writer, mc *mysqlConn) *compressedWriter 
 	}
 }
 
-func (cr *compressedReader) readNext(need int) ([]byte, error) {
-	for len(cr.bytesBuf) < need {
-		err := cr.uncompressPacket()
-		if err != nil {
+func (r *compressedReader) readNext(need int) ([]byte, error) {
+	for len(r.bytesBuf) < need {
+		if err := r.uncompressPacket(); err != nil {
 			return nil, err
 		}
 	}
 
-	data := cr.bytesBuf[:need]
-	cr.bytesBuf = cr.bytesBuf[need:]
+	data := r.bytesBuf[:need]
+	r.bytesBuf = r.bytesBuf[need:]
 	return data, nil
 }
 
-func (cr *compressedReader) uncompressPacket() error {
-	header, err := cr.buf.readNext(7) // size of compressed header
+func (r *compressedReader) uncompressPacket() error {
+	header, err := r.buf.readNext(7) // size of compressed header
 	if err != nil {
 		return err
 	}
@@ -62,14 +61,13 @@ func (cr *compressedReader) uncompressPacket() error {
 	comprLength := int(uint32(header[0]) | uint32(header[1])<<8 | uint32(header[2])<<16)
 	uncompressedLength := int(uint32(header[4]) | uint32(header[5])<<8 | uint32(header[6])<<16)
 	compressionSequence := uint8(header[3])
-
-	if compressionSequence != cr.mc.compressionSequence {
+	if compressionSequence != r.mc.compressionSequence {
 		return ErrPktSync
 	}
 
-	cr.mc.compressionSequence++
+	r.mc.compressionSequence++
 
-	comprData, err := cr.buf.readNext(comprLength)
+	comprData, err := r.buf.readNext(comprLength)
 	if err != nil {
 		return err
 	}
@@ -77,40 +75,38 @@ func (cr *compressedReader) uncompressPacket() error {
 	// if payload is uncompressed, its length will be specified as zero, and its
 	// true length is contained in comprLength
 	if uncompressedLength == 0 {
-		cr.bytesBuf = append(cr.bytesBuf, comprData...)
+		r.bytesBuf = append(r.bytesBuf, comprData...)
 		return nil
 	}
 
 	// write comprData to a bytes.buffer, then read it using zlib into data
 	br := bytes.NewReader(comprData)
-
-	if cr.zr == nil {
-		cr.zr, err = zlib.NewReader(br)
+	if r.zr == nil {
+		if r.zr, err = zlib.NewReader(br); err != nil {
+			return err
+		}
 	} else {
-		err = cr.zr.(zlib.Resetter).Reset(br, nil)
+		if err = r.zr.(zlib.Resetter).Reset(br, nil); err != nil {
+			return err
+		}
 	}
-
-	if err != nil {
-		return err
-	}
-
-	defer cr.zr.Close()
+	defer r.zr.Close()
 
 	// use existing capacity in bytesBuf if possible
-	offset := len(cr.bytesBuf)
-	if cap(cr.bytesBuf)-offset < uncompressedLength {
-		old := cr.bytesBuf
-		cr.bytesBuf = make([]byte, offset, offset+uncompressedLength)
-		copy(cr.bytesBuf, old)
+	offset := len(r.bytesBuf)
+	if cap(r.bytesBuf)-offset < uncompressedLength {
+		old := r.bytesBuf
+		r.bytesBuf = make([]byte, offset, offset+uncompressedLength)
+		copy(r.bytesBuf, old)
 	}
 
-	data := cr.bytesBuf[offset : offset+uncompressedLength]
+	data := r.bytesBuf[offset : offset+uncompressedLength]
 
 	lenRead := 0
 
 	// http://grokbase.com/t/gg/golang-nuts/146y9ppn6b/go-nuts-stream-compression-with-compress-flate
 	for lenRead < uncompressedLength {
-		n, err := cr.zr.Read(data[lenRead:])
+		n, err := r.zr.Read(data[lenRead:])
 		lenRead += n
 
 		if err == io.EOF {
@@ -118,19 +114,17 @@ func (cr *compressedReader) uncompressPacket() error {
 				return io.ErrUnexpectedEOF
 			}
 			break
-		}
-
-		if err != nil {
+		} else if err != nil {
 			return err
 		}
 	}
 
-	cr.bytesBuf = append(cr.bytesBuf, data...)
+	r.bytesBuf = append(r.bytesBuf, data...)
 
 	return nil
 }
 
-func (cw *compressedWriter) Write(data []byte) (int, error) {
+func (w *compressedWriter) Write(data []byte) (int, error) {
 	// when asked to write an empty packet, do nothing
 	if len(data) == 0 {
 		return 0, nil
@@ -147,12 +141,11 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 
 		bytesBuf := &bytes.Buffer{}
 		bytesBuf.Write(blankHeader)
-		cw.zw.Reset(bytesBuf)
-		_, err := cw.zw.Write(payload)
-		if err != nil {
+		w.zw.Reset(bytesBuf)
+		if _, err := w.zw.Write(payload); err != nil {
 			return 0, err
 		}
-		cw.zw.Close()
+		w.zw.Close()
 
 		// if compression expands the payload, do not compress
 		compressedPayload := bytesBuf.Bytes()
@@ -161,9 +154,7 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 			payloadLen = 0
 		}
 
-		err = cw.writeToNetwork(compressedPayload, payloadLen)
-
-		if err != nil {
+		if err := w.writeToNetwork(compressedPayload, payloadLen); err != nil {
 			return 0, err
 		}
 
@@ -175,8 +166,7 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 
 	// do not attempt compression if packet is too small
 	if payloadLen < minCompressLength {
-		err := cw.writeToNetwork(append(blankHeader, data...), 0)
-		if err != nil {
+		if err := w.writeToNetwork(append(blankHeader, data...), 0); err != nil {
 			return 0, err
 		}
 		return totalBytes, nil
@@ -184,12 +174,11 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 
 	bytesBuf := &bytes.Buffer{}
 	bytesBuf.Write(blankHeader)
-	cw.zw.Reset(bytesBuf)
-	_, err := cw.zw.Write(data)
-	if err != nil {
+	w.zw.Reset(bytesBuf)
+	if _, err := w.zw.Write(data); err != nil {
 		return 0, err
 	}
-	cw.zw.Close()
+	w.zw.Close()
 
 	compressedPayload := bytesBuf.Bytes()
 
@@ -199,8 +188,7 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 	}
 
 	// add header and send over the wire
-	err = cw.writeToNetwork(compressedPayload, payloadLen)
-	if err != nil {
+	if err := w.writeToNetwork(compressedPayload, payloadLen); err != nil {
 		return 0, err
 	}
 
@@ -208,7 +196,7 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 
 }
 
-func (cw *compressedWriter) writeToNetwork(data []byte, uncomprLength int) error {
+func (w *compressedWriter) writeToNetwork(data []byte, uncomprLength int) error {
 	comprLength := len(data) - 7
 
 	// compression header
@@ -216,17 +204,17 @@ func (cw *compressedWriter) writeToNetwork(data []byte, uncomprLength int) error
 	data[1] = byte(0xff & (comprLength >> 8))
 	data[2] = byte(0xff & (comprLength >> 16))
 
-	data[3] = cw.mc.compressionSequence
+	data[3] = w.mc.compressionSequence
 
 	// this value is never greater than maxPayloadLength
 	data[4] = byte(0xff & uncomprLength)
 	data[5] = byte(0xff & (uncomprLength >> 8))
 	data[6] = byte(0xff & (uncomprLength >> 16))
 
-	if _, err := cw.connWriter.Write(data); err != nil {
+	if _, err := w.connWriter.Write(data); err != nil {
 		return err
 	}
 
-	cw.mc.compressionSequence++
+	w.mc.compressionSequence++
 	return nil
 }
