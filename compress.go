@@ -54,7 +54,6 @@ func (cr *compressedReader) readNext(need int) ([]byte, error) {
 
 func (cr *compressedReader) uncompressPacket() error {
 	header, err := cr.buf.readNext(7) // size of compressed header
-
 	if err != nil {
 		return err
 	}
@@ -210,7 +209,6 @@ func (cw *compressedWriter) Write(data []byte) (int, error) {
 }
 
 func (cw *compressedWriter) writeToNetwork(data []byte, uncomprLength int) error {
-
 	comprLength := len(data) - 7
 
 	// compression header
