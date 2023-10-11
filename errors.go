@@ -20,6 +20,7 @@ var (
 	ErrInvalidConn       = errors.New("invalid connection")
 	ErrMalformPkt        = errors.New("malformed packet")
 	ErrNoTLS             = errors.New("TLS requested but server does not support TLS")
+	ErrNoCompression     = errors.New("compression requested but server does not support compression")
 	ErrCleartextPassword = errors.New("this user requires clear text authentication. If you still want to use it, please add 'allowCleartextPasswords=1' to your DSN")
 	ErrNativePassword    = errors.New("this user requires mysql native password authentication")
 	ErrOldPassword       = errors.New("this user requires old password authentication. If you still want to use it, please add 'allowOldPasswords=1' to your DSN. See also https://github.com/go-sql-driver/mysql/wiki/old_passwords")

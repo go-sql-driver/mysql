@@ -223,6 +223,7 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 	if mc.flags&clientProtocol41 == 0 {
 		return nil, "", ErrOldProtocol
 	}
+
 	if mc.flags&clientSSL == 0 && mc.cfg.TLS != nil {
 		if mc.cfg.AllowFallbackToPlaintext {
 			mc.cfg.TLS = nil
@@ -230,6 +231,15 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 			return nil, "", ErrNoTLS
 		}
 	}
+
+	if mc.flags&clientCompress == 0 {
+		if mc.cfg.Compress != CompressionModeRequired {
+			mc.cfg.Compress = CompressionModeDisabled
+		} else {
+			return nil, "", ErrNoCompression
+		}
+	}
+
 	pos += 2
 
 	if len(data) > pos {
@@ -293,7 +303,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		clientFlags |= clientFoundRows
 	}
 
-	if mc.cfg.Compress {
+	if mc.cfg.Compress != CompressionModeDisabled {
 		clientFlags |= clientCompress
 	}
 

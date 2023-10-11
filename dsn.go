@@ -61,12 +61,21 @@ type Config struct {
 	CheckConnLiveness        bool // Check connections for liveness before using them
 	ClientFoundRows          bool // Return number of matching rows instead of rows changed
 	ColumnsWithAlias         bool // Prepend table alias to column names
-	Compress                 bool // Compress packets
 	InterpolateParams        bool // Interpolate placeholders into query string
 	MultiStatements          bool // Allow multiple statements in one query
 	ParseTime                bool // Parse time values to time.Time
 	RejectReadOnly           bool // Reject read-only connections
+
+	Compress CompressionMode // Compress packets
 }
+
+type CompressionMode string
+
+const (
+	CompressionModeDisabled  CompressionMode = "disabled"
+	CompressionModePreferred CompressionMode = "preferred"
+	CompressionModeRequired  CompressionMode = "required"
+)
 
 // NewConfig creates a new Config and sets default values.
 func NewConfig() *Config {
@@ -245,6 +254,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.ColumnsWithAlias {
 		writeDSNParam(&buf, &hasParam, "columnsWithAlias", "true")
+	}
+
+	if cfg.Compress != CompressionModeDisabled {
+		writeDSNParam(&buf, &hasParam, "compress", url.QueryEscape(string(cfg.Compress)))
 	}
 
 	if cfg.InterpolateParams {
@@ -467,10 +480,24 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// Compression
 		case "compress":
-			var isBool bool
-			cfg.Compress, isBool = readBool(value)
-			if !isBool {
-				return errors.New("invalid bool value: " + value)
+			boolValue, isBool := readBool(value)
+			if isBool {
+				if boolValue {
+					cfg.Compress = CompressionModePreferred
+				} else {
+					cfg.Compress = CompressionModeDisabled
+				}
+			} else {
+				switch strings.ToLower(value) {
+				case string(CompressionModeDisabled):
+					cfg.Compress = CompressionModeDisabled
+				case string(CompressionModePreferred):
+					cfg.Compress = CompressionModePreferred
+				case string(CompressionModeRequired):
+					cfg.Compress = CompressionModeRequired
+				default:
+					return fmt.Errorf("invalid value for compression mode")
+				}
 			}
 
 		// Enable client side placeholder substitution

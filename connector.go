@@ -145,6 +145,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 			return nil, err
 		}
 	}
+
 	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
 		mc.cleanup()
 		return nil, err
@@ -159,7 +160,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 
-	if mc.cfg.Compress {
+	if mc.cfg.Compress != CompressionModeDisabled {
 		mc.reader = newCompressedReader(&mc.buf, mc)
 		mc.writer = newCompressedWriter(mc.writer, mc)
 	}
