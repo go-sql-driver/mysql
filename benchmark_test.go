@@ -236,7 +236,7 @@ func BenchmarkInterpolation(b *testing.B) {
 		maxWriteSize:     maxPacketSize - 1,
 		buf:              newBuffer(nil),
 	}
-	mc.reader = &mc.buf
+	mc.packetReader = &mc.buf
 
 	args := []driver.Value{
 		int64(42424242),

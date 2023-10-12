@@ -25,8 +25,8 @@ type mysqlConn struct {
 	netConn             net.Conn
 	rawConn             net.Conn    // underlying connection when netConn is TLS connection.
 	result              mysqlResult // managed by clearResult() and handleOkPacket().
-	reader              packetReader
-	writer              io.Writer
+	packetReader        packetReader
+	packetWriter        io.Writer
 	cfg                 *Config
 	connector           *connector
 	maxAllowedPacket    int
