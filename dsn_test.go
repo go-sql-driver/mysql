@@ -132,7 +132,7 @@ func TestDSNReformat(t *testing.T) {
 			dsn2 := cfg1.FormatDSN()
 			if dsn2 != dsn1 {
 				// Just log
-				t.Logf("%d. %q reformated as %q", i, dsn1, dsn2)
+				t.Logf("%d. %q reformatted as %q", i, dsn1, dsn2)
 			}
 
 			cfg2, err := ParseDSN(dsn2)

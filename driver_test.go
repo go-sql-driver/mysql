@@ -165,6 +165,7 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 }
 
 func (dbt *DBTest) fail(method, query string, err error) {
+	dbt.Helper()
 	if len(query) > 300 {
 		query = "[query too large to print]"
 	}
@@ -172,6 +173,7 @@ func (dbt *DBTest) fail(method, query string, err error) {
 }
 
 func (dbt *DBTest) mustExec(query string, args ...interface{}) (res sql.Result) {
+	dbt.Helper()
 	res, err := dbt.db.Exec(query, args...)
 	if err != nil {
 		dbt.fail("exec", query, err)
@@ -180,6 +182,7 @@ func (dbt *DBTest) mustExec(query string, args ...interface{}) (res sql.Result) 
 }
 
 func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows) {
+	dbt.Helper()
 	rows, err := dbt.db.Query(query, args...)
 	if err != nil {
 		dbt.fail("query", query, err)
@@ -1198,7 +1201,7 @@ func TestLongData(t *testing.T) {
 				dbt.Fatalf("LONGBLOB: length in: %d, length out: %d", len(inS), len(out))
 			}
 			if rows.Next() {
-				dbt.Error("LONGBLOB: unexpexted row")
+				dbt.Error("LONGBLOB: unexpected row")
 			}
 		} else {
 			dbt.Fatalf("LONGBLOB: no data")
@@ -1217,7 +1220,7 @@ func TestLongData(t *testing.T) {
 				dbt.Fatalf("LONGBLOB: length in: %d, length out: %d", len(in), len(out))
 			}
 			if rows.Next() {
-				dbt.Error("LONGBLOB: unexpexted row")
+				dbt.Error("LONGBLOB: unexpected row")
 			}
 		} else {
 			if err = rows.Err(); err != nil {
@@ -1293,7 +1296,7 @@ func TestLoadData(t *testing.T) {
 			dbt.Fatalf("unexpected row count: got %d, want 0", count)
 		}
 
-		// Then fille File with data and try to load it
+		// Then fill File with data and try to load it
 		file.WriteString("1\ta string\n2\ta string containing a \\t\n3\ta string containing a \\n\n4\ta string containing both \\t\\n\n")
 		file.Close()
 		dbt.mustExec(fmt.Sprintf("LOAD DATA LOCAL INFILE %q INTO TABLE test", file.Name()))
@@ -1872,7 +1875,6 @@ func TestConcurrent(t *testing.T) {
 				defer wg.Done()
 
 				tx, err := dbt.db.Begin()
-				atomic.AddInt32(&remaining, -1)
 
 				if err != nil {
 					if err.Error() != "Error 1040: Too many connections" {
@@ -1882,7 +1884,7 @@ func TestConcurrent(t *testing.T) {
 				}
 
 				// keep the connection busy until all connections are open
-				for remaining > 0 {
+				for atomic.AddInt32(&remaining, -1) > 0 {
 					if _, err = tx.Exec("DO 1"); err != nil {
 						fatalf("error on conn %d: %s", id, err.Error())
 						return
@@ -1899,7 +1901,7 @@ func TestConcurrent(t *testing.T) {
 			}(i)
 		}
 
-		// wait until all conections are open
+		// wait until all connections are open
 		wg.Wait()
 
 		if fatalError != "" {
@@ -1948,7 +1950,7 @@ func TestCustomDial(t *testing.T) {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	// our custom dial function which justs wraps net.Dial here
+	// our custom dial function which just wraps net.Dial here
 	RegisterDialContext("mydial", func(ctx context.Context, addr string) (net.Conn, error) {
 		var d net.Dialer
 		return d.DialContext(ctx, prot, addr)

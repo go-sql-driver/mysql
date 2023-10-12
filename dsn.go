@@ -410,13 +410,13 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 // Values must be url.QueryEscape'ed
 func parseDSNParams(cfg *Config, params string) (err error) {
 	for _, v := range strings.Split(params, "&") {
-		param := strings.SplitN(v, "=", 2)
-		if len(param) != 2 {
+		key, value, found := strings.Cut(v, "=")
+		if !found {
 			continue
 		}
 
 		// cfg params
-		switch value := param[1]; param[0] {
+		switch key {
 		// Disable INFILE allowlist / enable all files
 		case "allowAllFiles":
 			var isBool bool
@@ -620,7 +620,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				cfg.Params = make(map[string]string)
 			}
 
-			if cfg.Params[param[0]], err = url.QueryUnescape(value); err != nil {
+			if cfg.Params[key], err = url.QueryUnescape(value); err != nil {
 				return
 			}
 		}

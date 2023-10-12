@@ -142,7 +142,7 @@ Passwords can consist of any character. Escaping is **not** necessary.
 #### Protocol
 
 See [net.Dial](https://golang.org/pkg/net/#Dial) for more information which networks are available.
-In general you should use an Unix domain socket if available and TCP otherwise for best performance.
+In general you should use a Unix domain socket if available and TCP otherwise for best performance.
 
 #### Address
 
