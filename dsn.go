@@ -66,7 +66,8 @@ type Config struct {
 	ParseTime                bool // Parse time values to time.Time
 	RejectReadOnly           bool // Reject read-only connections
 
-	Compress CompressionMode // Compress packets
+	Compress          CompressionMode // Compress packets
+	MinCompressLength int             // Don't compress packets less than this number of bytes
 }
 
 type CompressionMode string
@@ -85,6 +86,7 @@ func NewConfig() *Config {
 		Logger:               defaultLogger,
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
+		MinCompressLength:    defaultMinCompressLength,
 	}
 }
 
@@ -258,6 +260,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.Compress != CompressionModeDisabled {
 		writeDSNParam(&buf, &hasParam, "compress", url.QueryEscape(string(cfg.Compress)))
+	}
+
+	if cfg.MinCompressLength != defaultMinCompressLength {
+		writeDSNParam(&buf, &hasParam, "minCompressLength", strconv.Itoa(cfg.MinCompressLength))
 	}
 
 	if cfg.InterpolateParams {
@@ -498,6 +504,11 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				default:
 					return fmt.Errorf("invalid value for compression mode")
 				}
+			}
+		case "minCompressLength":
+			cfg.MinCompressLength, err = strconv.Atoi(value)
+			if err != nil {
+				return
 			}
 
 		// Enable client side placeholder substitution
