@@ -137,24 +137,25 @@ func (w *compressedWriter) Write(data []byte) (int, error) {
 
 	for length >= maxPayloadLength {
 		payload := data[:maxPayloadLength]
-		payloadLen := len(payload)
+		uncompressedLen := len(payload)
 
-		bytesBuf := &bytes.Buffer{}
-		bytesBuf.Write(blankHeader)
-		w.zw.Reset(bytesBuf)
-		if _, err := w.zw.Write(payload); err != nil {
-			return 0, err
+		buf := bytes.NewBuffer(blankHeader)
+
+		// If payload is less than minCompressLength, don't compress.
+		if uncompressedLen < w.mc.cfg.MinCompressLength {
+			if _, err := buf.Write(payload); err != nil {
+				return 0, err
+			}
+			uncompressedLen = 0
+		} else {
+			w.zw.Reset(buf)
+			if _, err := w.zw.Write(payload); err != nil {
+				return 0, err
+			}
+			w.zw.Close()
 		}
-		w.zw.Close()
 
-		// if compression expands the payload, do not compress
-		compressedPayload := bytesBuf.Bytes()
-		if len(compressedPayload) > maxPayloadLength {
-			compressedPayload = append(blankHeader, payload...)
-			payloadLen = 0
-		}
-
-		if err := w.writeToNetwork(compressedPayload, payloadLen); err != nil {
+		if err := w.writeToNetwork(buf.Bytes(), uncompressedLen); err != nil {
 			return 0, err
 		}
 
@@ -196,7 +197,7 @@ func (w *compressedWriter) Write(data []byte) (int, error) {
 
 }
 
-func (w *compressedWriter) writeToNetwork(data []byte, uncomprLength int) error {
+func (w *compressedWriter) writeToNetwork(data []byte, uncompressedLen int) error {
 	comprLength := len(data) - 7
 
 	// compression header
@@ -207,9 +208,9 @@ func (w *compressedWriter) writeToNetwork(data []byte, uncomprLength int) error 
 	data[3] = w.mc.compressionSequence
 
 	// this value is never greater than maxPayloadLength
-	data[4] = byte(0xff & uncomprLength)
-	data[5] = byte(0xff & (uncomprLength >> 8))
-	data[6] = byte(0xff & (uncomprLength >> 16))
+	data[4] = byte(0xff & uncompressedLen)
+	data[5] = byte(0xff & (uncompressedLen >> 8))
+	data[6] = byte(0xff & (uncompressedLen >> 16))
 
 	if _, err := w.connWriter.Write(data); err != nil {
 		return err
