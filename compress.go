@@ -6,10 +6,6 @@ import (
 	"io"
 )
 
-const (
-	minCompressLength = 50
-)
-
 type compressedReader struct {
 	buf      packetReader
 	bytesBuf []byte
@@ -124,6 +120,10 @@ func (r *compressedReader) uncompressPacket() error {
 	return nil
 }
 
+const maxPayloadLen = maxPacketSize - 4
+
+var blankHeader = make([]byte, 7)
+
 func (w *compressedWriter) Write(data []byte) (int, error) {
 	// when asked to write an empty packet, do nothing
 	if len(data) == 0 {
@@ -131,13 +131,16 @@ func (w *compressedWriter) Write(data []byte) (int, error) {
 	}
 
 	totalBytes := len(data)
-	length := len(data) - 4
-	maxPayloadLength := maxPacketSize - 4
-	blankHeader := make([]byte, 7)
 
-	for length >= maxPayloadLength {
-		payload := data[:maxPayloadLength]
-		uncompressedLen := len(payload)
+	dataLen := len(data)
+	for dataLen != 0 {
+		payloadLen := dataLen
+		if payloadLen > maxPayloadLen {
+			payloadLen = maxPayloadLen
+		}
+		payload := data[:payloadLen]
+
+		uncompressedLen := payloadLen
 
 		buf := bytes.NewBuffer(blankHeader)
 
@@ -159,42 +162,11 @@ func (w *compressedWriter) Write(data []byte) (int, error) {
 			return 0, err
 		}
 
-		length -= maxPayloadLength
-		data = data[maxPayloadLength:]
-	}
-
-	payloadLen := len(data)
-
-	// do not attempt compression if packet is too small
-	if payloadLen < minCompressLength {
-		if err := w.writeToNetwork(append(blankHeader, data...), 0); err != nil {
-			return 0, err
-		}
-		return totalBytes, nil
-	}
-
-	bytesBuf := &bytes.Buffer{}
-	bytesBuf.Write(blankHeader)
-	w.zw.Reset(bytesBuf)
-	if _, err := w.zw.Write(data); err != nil {
-		return 0, err
-	}
-	w.zw.Close()
-
-	compressedPayload := bytesBuf.Bytes()
-
-	if len(compressedPayload) > len(data) {
-		compressedPayload = append(blankHeader, data...)
-		payloadLen = 0
-	}
-
-	// add header and send over the wire
-	if err := w.writeToNetwork(compressedPayload, payloadLen); err != nil {
-		return 0, err
+		dataLen -= payloadLen
+		data = data[payloadLen:]
 	}
 
 	return totalBytes, nil
-
 }
 
 func (w *compressedWriter) writeToNetwork(data []byte, uncompressedLen int) error {
