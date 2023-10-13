@@ -86,6 +86,7 @@ func NewConfig() *Config {
 		Logger:               defaultLogger,
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
+		Compress:             CompressionModeDisabled,
 		MinCompressLength:    defaultMinCompressLength,
 	}
 }
