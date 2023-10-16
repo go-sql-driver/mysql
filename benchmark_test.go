@@ -48,7 +48,7 @@ func (tb *TB) checkStmt(stmt *sql.Stmt, err error) *sql.Stmt {
 
 func initDB(b *testing.B, queries ...string) *sql.DB {
 	tb := (*TB)(b)
-	db := tb.checkDB(sql.Open("mysql", dsn))
+	db := tb.checkDB(sql.Open(driverNameTest, dsn))
 	for _, query := range queries {
 		if _, err := db.Exec(query); err != nil {
 			b.Fatalf("error on %q: %v", query, err)
@@ -105,7 +105,7 @@ func BenchmarkExec(b *testing.B) {
 	tb := (*TB)(b)
 	b.StopTimer()
 	b.ReportAllocs()
-	db := tb.checkDB(sql.Open("mysql", dsn))
+	db := tb.checkDB(sql.Open(driverNameTest, dsn))
 	db.SetMaxIdleConns(concurrencyLevel)
 	defer db.Close()
 
@@ -151,7 +151,7 @@ func BenchmarkRoundtripTxt(b *testing.B) {
 	sampleString := string(sample)
 	b.ReportAllocs()
 	tb := (*TB)(b)
-	db := tb.checkDB(sql.Open("mysql", dsn))
+	db := tb.checkDB(sql.Open(driverNameTest, dsn))
 	defer db.Close()
 	b.StartTimer()
 	var result string
@@ -184,7 +184,7 @@ func BenchmarkRoundtripBin(b *testing.B) {
 	sample, min, max := initRoundtripBenchmarks()
 	b.ReportAllocs()
 	tb := (*TB)(b)
-	db := tb.checkDB(sql.Open("mysql", dsn))
+	db := tb.checkDB(sql.Open(driverNameTest, dsn))
 	defer db.Close()
 	stmt := tb.checkStmt(db.Prepare("SELECT ?"))
 	defer stmt.Close()
