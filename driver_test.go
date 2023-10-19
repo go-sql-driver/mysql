@@ -3369,10 +3369,8 @@ func TestConnectionAttributes(t *testing.T) {
 	value1 := "value1"
 	attr2 := "fo/o"
 	value2 := "bo/o"
-	dsn += fmt.Sprintf(
-		"&connectionAttributes=%s:%s,%s:%s",
-		attr1, value1, url.QueryEscape(attr2), url.QueryEscape(value2),
-	)
+	dsn += "&connectionAttributes=" + url.QueryEscape(fmt.Sprintf("%s:%s,%s:%s", attr1, value1, attr2, value2))
+
 
 	var db *sql.DB
 	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
