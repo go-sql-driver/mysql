@@ -92,7 +92,7 @@ func init() {
 }
 
 type DBTest struct {
-	*testing.T
+	testing.TB
 	db *sql.DB
 }
 
