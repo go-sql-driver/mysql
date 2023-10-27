@@ -142,7 +142,10 @@ func (w *compressedWriter) Write(data []byte) (int, error) {
 
 		uncompressedLen := payloadLen
 
-		buf := bytes.NewBuffer(blankHeader)
+		var buf bytes.Buffer
+		if _, err := buf.Write(blankHeader); err != nil {
+			return 0, err
+		}
 
 		// If payload is less than minCompressLength, don't compress.
 		if uncompressedLen < w.mc.cfg.MinCompressLength {
@@ -151,7 +154,7 @@ func (w *compressedWriter) Write(data []byte) (int, error) {
 			}
 			uncompressedLen = 0
 		} else {
-			w.zw.Reset(buf)
+			w.zw.Reset(&buf)
 			if _, err := w.zw.Write(payload); err != nil {
 				return 0, err
 			}
