@@ -96,10 +96,7 @@ var _ net.Conn = new(mockConn)
 
 func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
 	conn := new(mockConn)
-	connector, err := newConnector(NewConfig())
-	if err != nil {
-		panic(err)
-	}
+	connector := newConnector(NewConfig())
 	mc := &mysqlConn{
 		buf:              newBuffer(conn),
 		cfg:              connector.cfg,

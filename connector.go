@@ -11,7 +11,6 @@ package mysql
 import (
 	"context"
 	"database/sql/driver"
-	"fmt"
 	"net"
 	"os"
 	"strconv"
@@ -24,7 +23,7 @@ type connector struct {
 }
 
 func encodeConnectionAttributes(textAttributes string) string {
-	connAttrsBuf := make([]byte, 0, 251)
+	connAttrsBuf := make([]byte, 0)
 
 	// default connection attributes
 	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrClientName)
@@ -49,15 +48,12 @@ func encodeConnectionAttributes(textAttributes string) string {
 	return string(connAttrsBuf)
 }
 
-func newConnector(cfg *Config) (*connector, error) {
+func newConnector(cfg *Config) *connector {
 	encodedAttributes := encodeConnectionAttributes(cfg.ConnectionAttributes)
-	if len(encodedAttributes) > 250 {
-		return nil, fmt.Errorf("connection attributes are longer than 250 bytes: %dbytes (%q)", len(encodedAttributes), cfg.ConnectionAttributes)
-	}
 	return &connector{
 		cfg:               cfg,
 		encodedAttributes: encodedAttributes,
-	}, nil
+	}
 }
 
 // Connect implements driver.Connector interface.
