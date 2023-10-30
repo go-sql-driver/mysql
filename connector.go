@@ -22,7 +22,7 @@ type connector struct {
 	encodedAttributes string  // Encoded connection attributes.
 }
 
-func encodeConnectionAttributes(textAttributes string) string {
+func encodeConnectionAttributes(cfg *Config) string {
 	connAttrsBuf := make([]byte, 0)
 
 	// default connection attributes
@@ -34,9 +34,12 @@ func encodeConnectionAttributes(textAttributes string) string {
 	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPlatformValue)
 	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPid)
 	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, strconv.Itoa(os.Getpid()))
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrServerHost)
+	serverHost, _, _ := net.SplitHostPort(cfg.Addr)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, serverHost)
 
 	// user-defined connection attributes
-	for _, connAttr := range strings.Split(textAttributes, ",") {
+	for _, connAttr := range strings.Split(cfg.ConnectionAttributes, ",") {
 		k, v, found := strings.Cut(connAttr, ":")
 		if !found {
 			continue
@@ -49,7 +52,7 @@ func encodeConnectionAttributes(textAttributes string) string {
 }
 
 func newConnector(cfg *Config) *connector {
-	encodedAttributes := encodeConnectionAttributes(cfg.ConnectionAttributes)
+	encodedAttributes := encodeConnectionAttributes(cfg)
 	return &connector{
 		cfg:               cfg,
 		encodedAttributes: encodedAttributes,

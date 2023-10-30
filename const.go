@@ -26,6 +26,7 @@ const (
 	connAttrPlatform        = "_platform"
 	connAttrPlatformValue   = runtime.GOARCH
 	connAttrPid             = "_pid"
+	connAttrServerHost      = "_server_host"
 )
 
 // MySQL constants documentation:
