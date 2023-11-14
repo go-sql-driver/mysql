@@ -569,7 +569,11 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// Connection attributes
 		case "connectionAttributes":
-			cfg.ConnectionAttributes = value
+			connectionAttributes, err := url.QueryUnescape(value)
+			if err != nil {
+				return fmt.Errorf("invalid connectionAttributes value: %v", err)
+			}
+			cfg.ConnectionAttributes = connectionAttributes
 
 		default:
 			// lazy init

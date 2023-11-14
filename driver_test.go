@@ -3394,15 +3394,14 @@ func TestConnectionAttributes(t *testing.T) {
 		host,
 	}
 
-	customAttrs := []string{"attr1", "attr2"}
-	customAttrValues := []string{"foo", "bar"}
+	customAttrs := []string{"attr1", "fo/o"}
+	customAttrValues := []string{"value1", "bo/o"}
 
 	customAttrStrs := make([]string, len(customAttrs))
 	for i := range customAttrs {
 		customAttrStrs[i] = fmt.Sprintf("%s:%s", customAttrs[i], customAttrValues[i])
 	}
-
-	dsn += fmt.Sprintf("&connectionAttributes=%s", strings.Join(customAttrStrs, ","))
+	dsn += "&connectionAttributes=" + url.QueryEscape(strings.Join(customAttrStrs, ","))
 
 	var db *sql.DB
 	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
@@ -3430,7 +3429,7 @@ func TestConnectionAttributes(t *testing.T) {
 	expectedAttrValues := append(append([]string{}, defaultAttrValues...), customAttrValues...)
 	for i := range connAttrs {
 		if gotValue := rowsMap[connAttrs[i]]; gotValue != expectedAttrValues[i] {
-			dbt.Errorf("expected %s, got %s", expectedAttrValues[i], gotValue)
+			dbt.Errorf("expected %q, got %q", expectedAttrValues[i], gotValue)
 		}
 	}
 }
