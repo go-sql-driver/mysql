@@ -34,9 +34,11 @@ func encodeConnectionAttributes(cfg *Config) string {
 	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPlatformValue)
 	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPid)
 	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, strconv.Itoa(os.Getpid()))
-	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrServerHost)
 	serverHost, _, _ := net.SplitHostPort(cfg.Addr)
-	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, serverHost)
+	if serverHost != "" {
+		connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrServerHost)
+		connAttrsBuf = appendLengthEncodedString(connAttrsBuf, serverHost)
+	}
 
 	// user-defined connection attributes
 	for _, connAttr := range strings.Split(cfg.ConnectionAttributes, ",") {
