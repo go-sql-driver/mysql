@@ -3430,3 +3430,44 @@ func TestConnectionAttributes(t *testing.T) {
 	}
 	rows.Close()
 }
+
+func TestErrorInMultiResult(t *testing.T) {
+	// https://github.com/go-sql-driver/mysql/issues/1361
+	var db *sql.DB
+	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
+		db, err = sql.Open("mysql", dsn)
+		if err != nil {
+			t.Fatalf("error connecting: %s", err.Error())
+		}
+		defer db.Close()
+	}
+
+	dbt := &DBTest{t, db}
+	query := `
+CREATE PROCEDURE test_proc1()
+BEGIN
+	SELECT 1,2;
+	SELECT 3,4;
+	SIGNAL SQLSTATE '10000' SET MESSAGE_TEXT = "some error",  MYSQL_ERRNO = 10000;
+END;
+`
+	runCallCommand(dbt, query, "test_proc1")
+}
+
+func runCallCommand(dbt *DBTest, query, name string) {
+	dbt.mustExec(fmt.Sprintf("DROP PROCEDURE IF EXISTS %s", name))
+	dbt.mustExec(query)
+	defer dbt.mustExec("DROP PROCEDURE " + name)
+	rows, err := dbt.db.Query(fmt.Sprintf("CALL %s", name))
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+	}
+	for rows.NextResultSet() {
+		for rows.Next() {
+		}
+	}
+}
