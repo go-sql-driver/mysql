@@ -19,16 +19,16 @@ import (
 // NullTime implements the Scanner interface so
 // it can be used as a scan destination:
 //
-//  var nt NullTime
-//  err := db.QueryRow("SELECT time FROM foo WHERE id=?", id).Scan(&nt)
-//  ...
-//  if nt.Valid {
-//     // use nt.Time
-//  } else {
-//     // NULL value
-//  }
+//	var nt NullTime
+//	err := db.QueryRow("SELECT time FROM foo WHERE id=?", id).Scan(&nt)
+//	...
+//	if nt.Valid {
+//	   // use nt.Time
+//	} else {
+//	   // NULL value
+//	}
 //
-// This NullTime implementation is not driver-specific
+// # This NullTime implementation is not driver-specific
 //
 // Deprecated: NullTime doesn't honor the loc DSN parameter.
 // NullTime.Scan interprets a time as UTC, not the loc DSN parameter.
@@ -59,7 +59,7 @@ func (nt *NullTime) Scan(value interface{}) (err error) {
 	}
 
 	nt.Valid = false
-	return fmt.Errorf("Can't convert %T to time.Time", value)
+	return fmt.Errorf("can't convert %T to time.Time", value)
 }
 
 // Value implements the driver Valuer interface.

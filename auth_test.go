@@ -291,7 +291,7 @@ func TestAuthFastCachingSHA256PasswordFullSecure(t *testing.T) {
 
 	// Hack to make the caching_sha2_password plugin believe that the connection
 	// is secure
-	mc.cfg.tls = &tls.Config{InsecureSkipVerify: true}
+	mc.cfg.TLS = &tls.Config{InsecureSkipVerify: true}
 
 	// check written auth response
 	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1
@@ -663,7 +663,7 @@ func TestAuthFastSHA256PasswordSecure(t *testing.T) {
 
 	// hack to make the caching_sha2_password plugin believe that the connection
 	// is secure
-	mc.cfg.tls = &tls.Config{InsecureSkipVerify: true}
+	mc.cfg.TLS = &tls.Config{InsecureSkipVerify: true}
 
 	authData := []byte{6, 81, 96, 114, 14, 42, 50, 30, 76, 47, 1, 95, 126, 81,
 		62, 94, 83, 80, 52, 85}
@@ -676,7 +676,7 @@ func TestAuthFastSHA256PasswordSecure(t *testing.T) {
 	}
 
 	// unset TLS config to prevent the actual establishment of a TLS wrapper
-	mc.cfg.tls = nil
+	mc.cfg.TLS = nil
 
 	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
@@ -866,7 +866,7 @@ func TestAuthSwitchCachingSHA256PasswordFullSecure(t *testing.T) {
 
 	// Hack to make the caching_sha2_password plugin believe that the connection
 	// is secure
-	mc.cfg.tls = &tls.Config{InsecureSkipVerify: true}
+	mc.cfg.TLS = &tls.Config{InsecureSkipVerify: true}
 
 	// auth switch request
 	conn.data = []byte{44, 0, 0, 2, 254, 99, 97, 99, 104, 105, 110, 103, 95,
@@ -1299,7 +1299,7 @@ func TestAuthSwitchSHA256PasswordSecure(t *testing.T) {
 
 	// Hack to make the caching_sha2_password plugin believe that the connection
 	// is secure
-	mc.cfg.tls = &tls.Config{InsecureSkipVerify: true}
+	mc.cfg.TLS = &tls.Config{InsecureSkipVerify: true}
 
 	// auth switch request
 	conn.data = []byte{38, 0, 0, 2, 254, 115, 104, 97, 50, 53, 54, 95, 112, 97,

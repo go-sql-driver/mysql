@@ -147,7 +147,7 @@ func TestCleanCancel(t *testing.T) {
 			t.Errorf("expected context.Canceled, got %#v", err)
 		}
 
-		if mc.closed.IsSet() {
+		if mc.closed.Load() {
 			t.Error("expected mc is not closed, closed actually")
 		}
 
@@ -179,6 +179,7 @@ func TestPingErrInvalidConn(t *testing.T) {
 		buf:              newBuffer(nc),
 		maxAllowedPacket: defaultMaxAllowedPacket,
 		closech:          make(chan struct{}),
+		cfg:              NewConfig(),
 	}
 
 	err := ms.Ping(context.Background())

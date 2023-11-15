@@ -123,7 +123,8 @@ func (rows *mysqlRows) Close() (err error) {
 		err = mc.readUntilEOF()
 	}
 	if err == nil {
-		if err = mc.discardResults(); err != nil {
+		handleOk := mc.clearResult()
+		if err = handleOk.discardResults(); err != nil {
 			return err
 		}
 	}
@@ -160,7 +161,15 @@ func (rows *mysqlRows) nextResultSet() (int, error) {
 		return 0, io.EOF
 	}
 	rows.rs = resultSet{}
-	return rows.mc.readResultSetHeaderPacket()
+	// rows.mc.affectedRows and rows.mc.insertIds accumulate on each call to
+	// nextResultSet.
+	resLen, err := rows.mc.resultUnchanged().readResultSetHeaderPacket()
+	if err != nil {
+		// Clean up about multi-results flag
+		rows.rs.done = true
+		rows.mc.status = rows.mc.status & (^statusMoreResultsExists)
+	}
+	return resLen, err
 }
 
 func (rows *mysqlRows) nextNotEmptyResultSet() (int, error) {

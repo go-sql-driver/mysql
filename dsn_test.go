@@ -22,71 +22,77 @@ var testDSNs = []struct {
 	out *Config
 }{{
 	"username:password@protocol(address)/dbname?param=value",
-	&Config{User: "username", Passwd: "password", Net: "protocol", Addr: "address", DBName: "dbname", Params: map[string]string{"param": "value"}, Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+	&Config{User: "username", Passwd: "password", Net: "protocol", Addr: "address", DBName: "dbname", Params: map[string]string{"param": "value"}, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
 	"username:password@protocol(address)/dbname?param=value&columnsWithAlias=true",
-	&Config{User: "username", Passwd: "password", Net: "protocol", Addr: "address", DBName: "dbname", Params: map[string]string{"param": "value"}, Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true, ColumnsWithAlias: true},
+	&Config{User: "username", Passwd: "password", Net: "protocol", Addr: "address", DBName: "dbname", Params: map[string]string{"param": "value"}, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, ColumnsWithAlias: true},
 }, {
 	"username:password@protocol(address)/dbname?param=value&columnsWithAlias=true&multiStatements=true",
-	&Config{User: "username", Passwd: "password", Net: "protocol", Addr: "address", DBName: "dbname", Params: map[string]string{"param": "value"}, Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true, ColumnsWithAlias: true, MultiStatements: true},
+	&Config{User: "username", Passwd: "password", Net: "protocol", Addr: "address", DBName: "dbname", Params: map[string]string{"param": "value"}, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, ColumnsWithAlias: true, MultiStatements: true},
 }, {
 	"user@unix(/path/to/socket)/dbname?charset=utf8",
-	&Config{User: "user", Net: "unix", Addr: "/path/to/socket", DBName: "dbname", Params: map[string]string{"charset": "utf8"}, Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+	&Config{User: "user", Net: "unix", Addr: "/path/to/socket", DBName: "dbname", Params: map[string]string{"charset": "utf8"}, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
 	"user:password@tcp(localhost:5555)/dbname?charset=utf8&tls=true",
-	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", Params: map[string]string{"charset": "utf8"}, Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true, TLSConfig: "true"},
+	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", Params: map[string]string{"charset": "utf8"}, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, TLSConfig: "true"},
 }, {
 	"user:password@tcp(localhost:5555)/dbname?charset=utf8mb4,utf8&tls=skip-verify",
-	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", Params: map[string]string{"charset": "utf8mb4,utf8"}, Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true, TLSConfig: "skip-verify"},
+	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", Params: map[string]string{"charset": "utf8mb4,utf8"}, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, TLSConfig: "skip-verify"},
 }, {
 	"user:password@/dbname?loc=UTC&timeout=30s&readTimeout=1s&writeTimeout=1s&allowAllFiles=1&clientFoundRows=true&allowOldPasswords=TRUE&collation=utf8mb4_unicode_ci&maxAllowedPacket=16777216&tls=false&allowCleartextPasswords=true&parseTime=true&rejectReadOnly=true",
-	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Collation: "utf8mb4_unicode_ci", Loc: time.UTC, TLSConfig: "false", AllowCleartextPasswords: true, AllowNativePasswords: true, Timeout: 30 * time.Second, ReadTimeout: time.Second, WriteTimeout: time.Second, AllowAllFiles: true, AllowOldPasswords: true, CheckConnLiveness: true, ClientFoundRows: true, MaxAllowedPacket: 16777216, ParseTime: true, RejectReadOnly: true},
+	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Collation: "utf8mb4_unicode_ci", Loc: time.UTC, TLSConfig: "false", AllowCleartextPasswords: true, AllowNativePasswords: true, Timeout: 30 * time.Second, ReadTimeout: time.Second, WriteTimeout: time.Second, Logger: defaultLogger, AllowAllFiles: true, AllowOldPasswords: true, CheckConnLiveness: true, ClientFoundRows: true, MaxAllowedPacket: 16777216, ParseTime: true, RejectReadOnly: true},
 }, {
-	"user:password@/dbname?allowNativePasswords=false&checkConnLiveness=false&maxAllowedPacket=0",
-	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: 0, AllowNativePasswords: false, CheckConnLiveness: false},
+	"user:password@/dbname?allowNativePasswords=false&checkConnLiveness=false&maxAllowedPacket=0&allowFallbackToPlaintext=true",
+	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Loc: time.UTC, MaxAllowedPacket: 0, Logger: defaultLogger, AllowFallbackToPlaintext: true, AllowNativePasswords: false, CheckConnLiveness: false},
 }, {
 	"user:p@ss(word)@tcp([de:ad:be:ef::ca:fe]:80)/dbname?loc=Local",
-	&Config{User: "user", Passwd: "p@ss(word)", Net: "tcp", Addr: "[de:ad:be:ef::ca:fe]:80", DBName: "dbname", Collation: "utf8mb4_general_ci", Loc: time.Local, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+	&Config{User: "user", Passwd: "p@ss(word)", Net: "tcp", Addr: "[de:ad:be:ef::ca:fe]:80", DBName: "dbname", Loc: time.Local, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
 	"/dbname",
-	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
+}, {
+	"/dbname%2Fwithslash",
+	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname/withslash", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
 	"@/",
-	&Config{Net: "tcp", Addr: "127.0.0.1:3306", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+	&Config{Net: "tcp", Addr: "127.0.0.1:3306", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
 	"/",
-	&Config{Net: "tcp", Addr: "127.0.0.1:3306", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+	&Config{Net: "tcp", Addr: "127.0.0.1:3306", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
 	"",
-	&Config{Net: "tcp", Addr: "127.0.0.1:3306", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+	&Config{Net: "tcp", Addr: "127.0.0.1:3306", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
 	"user:p@/ssword@/",
-	&Config{User: "user", Passwd: "p@/ssword", Net: "tcp", Addr: "127.0.0.1:3306", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+	&Config{User: "user", Passwd: "p@/ssword", Net: "tcp", Addr: "127.0.0.1:3306", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
 	"unix/?arg=%2Fsome%2Fpath.ext",
-	&Config{Net: "unix", Addr: "/tmp/mysql.sock", Params: map[string]string{"arg": "/some/path.ext"}, Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+	&Config{Net: "unix", Addr: "/tmp/mysql.sock", Params: map[string]string{"arg": "/some/path.ext"}, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
 	"tcp(127.0.0.1)/dbname",
-	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
 	"tcp(de:ad:be:ef::ca:fe)/dbname",
-	&Config{Net: "tcp", Addr: "[de:ad:be:ef::ca:fe]:3306", DBName: "dbname", Collation: "utf8mb4_general_ci", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, AllowNativePasswords: true, CheckConnLiveness: true},
+	&Config{Net: "tcp", Addr: "[de:ad:be:ef::ca:fe]:3306", DBName: "dbname", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
 },
 }
 
 func TestDSNParser(t *testing.T) {
 	for i, tst := range testDSNs {
-		cfg, err := ParseDSN(tst.in)
-		if err != nil {
-			t.Error(err.Error())
-		}
+		t.Run(tst.in, func(t *testing.T) {
+			cfg, err := ParseDSN(tst.in)
+			if err != nil {
+				t.Error(err.Error())
+				return
+			}
 
-		// pointer not static
-		cfg.tls = nil
+			// pointer not static
+			cfg.TLS = nil
 
-		if !reflect.DeepEqual(cfg, tst.out) {
-			t.Errorf("%d. ParseDSN(%q) mismatch:\ngot  %+v\nwant %+v", i, tst.in, cfg, tst.out)
-		}
+			if !reflect.DeepEqual(cfg, tst.out) {
+				t.Errorf("%d. ParseDSN(%q) mismatch:\ngot  %+v\nwant %+v", i, tst.in, cfg, tst.out)
+			}
+		})
 	}
 }
 
@@ -100,6 +106,7 @@ func TestDSNParserInvalid(t *testing.T) {
 		"User:pass@tcp(1.2.3.4:3306)",           // no trailing slash
 		"net()/",                                // unknown default addr
 		"user:pass@tcp(127.0.0.1:3306)/db/name", // invalid dbname
+		"user:password@/dbname?allowFallbackToPlaintext=PREFERRED", // wrong bool flag
 		//"/dbname?arg=/some/unescaped/path",
 	}
 
@@ -112,27 +119,39 @@ func TestDSNParserInvalid(t *testing.T) {
 
 func TestDSNReformat(t *testing.T) {
 	for i, tst := range testDSNs {
-		dsn1 := tst.in
-		cfg1, err := ParseDSN(dsn1)
-		if err != nil {
-			t.Error(err.Error())
-			continue
-		}
-		cfg1.tls = nil // pointer not static
-		res1 := fmt.Sprintf("%+v", cfg1)
+		t.Run(tst.in, func(t *testing.T) {
+			dsn1 := tst.in
+			cfg1, err := ParseDSN(dsn1)
+			if err != nil {
+				t.Error(err.Error())
+				return
+			}
+			cfg1.TLS = nil // pointer not static
+			res1 := fmt.Sprintf("%+v", cfg1)
 
-		dsn2 := cfg1.FormatDSN()
-		cfg2, err := ParseDSN(dsn2)
-		if err != nil {
-			t.Error(err.Error())
-			continue
-		}
-		cfg2.tls = nil // pointer not static
-		res2 := fmt.Sprintf("%+v", cfg2)
+			dsn2 := cfg1.FormatDSN()
+			if dsn2 != dsn1 {
+				// Just log
+				t.Logf("%d. %q reformatted as %q", i, dsn1, dsn2)
+			}
 
-		if res1 != res2 {
-			t.Errorf("%d. %q does not match %q", i, res2, res1)
-		}
+			cfg2, err := ParseDSN(dsn2)
+			if err != nil {
+				t.Error(err.Error())
+				return
+			}
+			cfg2.TLS = nil // pointer not static
+			res2 := fmt.Sprintf("%+v", cfg2)
+
+			if res1 != res2 {
+				t.Errorf("%d. %q does not match %q", i, res2, res1)
+			}
+
+			dsn3 := cfg2.FormatDSN()
+			if dsn3 != dsn2 {
+				t.Errorf("%d. %q does not match %q", i, dsn2, dsn3)
+			}
+		})
 	}
 }
 
@@ -203,7 +222,7 @@ func TestDSNWithCustomTLS(t *testing.T) {
 
 	if err != nil {
 		t.Error(err.Error())
-	} else if cfg.tls.ServerName != name {
+	} else if cfg.TLS.ServerName != name {
 		t.Errorf("did not get the correct TLS ServerName (%s) parsing DSN (%s).", name, tst)
 	}
 
@@ -214,7 +233,7 @@ func TestDSNWithCustomTLS(t *testing.T) {
 
 	if err != nil {
 		t.Error(err.Error())
-	} else if cfg.tls.ServerName != name {
+	} else if cfg.TLS.ServerName != name {
 		t.Errorf("did not get the correct ServerName (%s) parsing DSN (%s).", name, tst)
 	} else if tlsCfg.ServerName != "" {
 		t.Errorf("tlsCfg was mutated ServerName (%s) should be empty parsing DSN (%s).", name, tst)
@@ -229,11 +248,11 @@ func TestDSNTLSConfig(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-	if cfg.tls == nil {
+	if cfg.TLS == nil {
 		t.Error("cfg.tls should not be nil")
 	}
-	if cfg.tls.ServerName != expectedServerName {
-		t.Errorf("cfg.tls.ServerName should be %q, got %q (host with port)", expectedServerName, cfg.tls.ServerName)
+	if cfg.TLS.ServerName != expectedServerName {
+		t.Errorf("cfg.tls.ServerName should be %q, got %q (host with port)", expectedServerName, cfg.TLS.ServerName)
 	}
 
 	dsn = "tcp(example.com)/?tls=true"
@@ -241,11 +260,11 @@ func TestDSNTLSConfig(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-	if cfg.tls == nil {
+	if cfg.TLS == nil {
 		t.Error("cfg.tls should not be nil")
 	}
-	if cfg.tls.ServerName != expectedServerName {
-		t.Errorf("cfg.tls.ServerName should be %q, got %q (host without port)", expectedServerName, cfg.tls.ServerName)
+	if cfg.TLS.ServerName != expectedServerName {
+		t.Errorf("cfg.tls.ServerName should be %q, got %q (host without port)", expectedServerName, cfg.TLS.ServerName)
 	}
 }
 
@@ -262,7 +281,7 @@ func TestDSNWithCustomTLSQueryEscape(t *testing.T) {
 
 	if err != nil {
 		t.Error(err.Error())
-	} else if cfg.tls.ServerName != name {
+	} else if cfg.TLS.ServerName != name {
 		t.Errorf("did not get the correct TLS ServerName (%s) parsing DSN (%s).", name, dsn)
 	}
 }
@@ -335,12 +354,12 @@ func TestCloneConfig(t *testing.T) {
 		t.Errorf("Config.Clone did not create a separate config struct")
 	}
 
-	if cfg2.tls.ServerName != expectedServerName {
-		t.Errorf("cfg.tls.ServerName should be %q, got %q (host with port)", expectedServerName, cfg.tls.ServerName)
+	if cfg2.TLS.ServerName != expectedServerName {
+		t.Errorf("cfg.tls.ServerName should be %q, got %q (host with port)", expectedServerName, cfg.TLS.ServerName)
 	}
 
-	cfg2.tls.ServerName = "example2.com"
-	if cfg.tls.ServerName == cfg2.tls.ServerName {
+	cfg2.TLS.ServerName = "example2.com"
+	if cfg.TLS.ServerName == cfg2.TLS.ServerName {
 		t.Errorf("changed cfg.tls.Server name should not propagate to original Config")
 	}
 
@@ -384,20 +403,20 @@ func TestNormalizeTLSConfig(t *testing.T) {
 
 			cfg.normalize()
 
-			if cfg.tls == nil {
+			if cfg.TLS == nil {
 				if tc.want != nil {
 					t.Fatal("wanted a tls config but got nil instead")
 				}
 				return
 			}
 
-			if cfg.tls.ServerName != tc.want.ServerName {
+			if cfg.TLS.ServerName != tc.want.ServerName {
 				t.Errorf("tls.ServerName doesn't match (want: '%s', got: '%s')",
-					tc.want.ServerName, cfg.tls.ServerName)
+					tc.want.ServerName, cfg.TLS.ServerName)
 			}
-			if cfg.tls.InsecureSkipVerify != tc.want.InsecureSkipVerify {
+			if cfg.TLS.InsecureSkipVerify != tc.want.InsecureSkipVerify {
 				t.Errorf("tls.InsecureSkipVerify doesn't match (want: %T, got :%T)",
-					tc.want.InsecureSkipVerify, cfg.tls.InsecureSkipVerify)
+					tc.want.InsecureSkipVerify, cfg.TLS.InsecureSkipVerify)
 			}
 		})
 	}

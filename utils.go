@@ -35,26 +35,25 @@ var (
 // Note: The provided tls.Config is exclusively owned by the driver after
 // registering it.
 //
-//  rootCertPool := x509.NewCertPool()
-//  pem, err := ioutil.ReadFile("/path/ca-cert.pem")
-//  if err != nil {
-//      log.Fatal(err)
-//  }
-//  if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
-//      log.Fatal("Failed to append PEM.")
-//  }
-//  clientCert := make([]tls.Certificate, 0, 1)
-//  certs, err := tls.LoadX509KeyPair("/path/client-cert.pem", "/path/client-key.pem")
-//  if err != nil {
-//      log.Fatal(err)
-//  }
-//  clientCert = append(clientCert, certs)
-//  mysql.RegisterTLSConfig("custom", &tls.Config{
-//      RootCAs: rootCertPool,
-//      Certificates: clientCert,
-//  })
-//  db, err := sql.Open("mysql", "user@tcp(localhost:3306)/test?tls=custom")
-//
+//	rootCertPool := x509.NewCertPool()
+//	pem, err := os.ReadFile("/path/ca-cert.pem")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
+//	    log.Fatal("Failed to append PEM.")
+//	}
+//	clientCert := make([]tls.Certificate, 0, 1)
+//	certs, err := tls.LoadX509KeyPair("/path/client-cert.pem", "/path/client-key.pem")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	clientCert = append(clientCert, certs)
+//	mysql.RegisterTLSConfig("custom", &tls.Config{
+//	    RootCAs: rootCertPool,
+//	    Certificates: clientCert,
+//	})
+//	db, err := sql.Open("mysql", "user@tcp(localhost:3306)/test?tls=custom")
 func RegisterTLSConfig(key string, config *tls.Config) error {
 	if _, isBool := readBool(key); isBool || strings.ToLower(key) == "skip-verify" || strings.ToLower(key) == "preferred" {
 		return fmt.Errorf("key '%s' is reserved", key)
@@ -118,10 +117,6 @@ func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 		if err != nil {
 			return time.Time{}, err
 		}
-		if year <= 0 {
-			year = 1
-		}
-
 		if b[4] != '-' {
 			return time.Time{}, fmt.Errorf("bad value for field: `%c`", b[4])
 		}
@@ -129,9 +124,6 @@ func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 		m, err := parseByte2Digits(b[5], b[6])
 		if err != nil {
 			return time.Time{}, err
-		}
-		if m <= 0 {
-			m = 1
 		}
 		month := time.Month(m)
 
@@ -142,9 +134,6 @@ func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 		day, err := parseByte2Digits(b[8], b[9])
 		if err != nil {
 			return time.Time{}, err
-		}
-		if day <= 0 {
-			day = 1
 		}
 		if len(b) == 10 {
 			return time.Date(year, month, day, 0, 0, 0, 0, loc), nil
@@ -627,6 +616,11 @@ func appendLengthEncodedInteger(b []byte, n uint64) []byte {
 		byte(n>>32), byte(n>>40), byte(n>>48), byte(n>>56))
 }
 
+func appendLengthEncodedString(b []byte, s string) []byte {
+	b = appendLengthEncodedInteger(b, uint64(len(s)))
+	return append(b, s...)
+}
+
 // reserveBuffer checks cap(buf) and expand buffer to len(buf) + appendSize.
 // If cap(buf) is not enough, reallocate new buffer.
 func reserveBuffer(buf []byte, appendSize int) []byte {
@@ -796,39 +790,10 @@ func (*noCopy) Lock() {}
 // https://github.com/golang/go/issues/26165
 func (*noCopy) Unlock() {}
 
-// atomicBool is a wrapper around uint32 for usage as a boolean value with
-// atomic access.
-type atomicBool struct {
-	_noCopy noCopy
-	value   uint32
-}
-
-// IsSet returns whether the current boolean value is true
-func (ab *atomicBool) IsSet() bool {
-	return atomic.LoadUint32(&ab.value) > 0
-}
-
-// Set sets the value of the bool regardless of the previous value
-func (ab *atomicBool) Set(value bool) {
-	if value {
-		atomic.StoreUint32(&ab.value, 1)
-	} else {
-		atomic.StoreUint32(&ab.value, 0)
-	}
-}
-
-// TrySet sets the value of the bool and returns whether the value changed
-func (ab *atomicBool) TrySet(value bool) bool {
-	if value {
-		return atomic.SwapUint32(&ab.value, 1) == 0
-	}
-	return atomic.SwapUint32(&ab.value, 0) > 0
-}
-
 // atomicError is a wrapper for atomically accessed error values
 type atomicError struct {
-	_noCopy noCopy
-	value   atomic.Value
+	_     noCopy
+	value atomic.Value
 }
 
 // Set sets the error value regardless of the previous value.

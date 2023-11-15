@@ -11,11 +11,53 @@ package mysql
 import (
 	"context"
 	"database/sql/driver"
+	"fmt"
 	"net"
+	"os"
+	"strconv"
+	"strings"
 )
 
 type connector struct {
-	cfg *Config // immutable private copy.
+	cfg               *Config // immutable private copy.
+	encodedAttributes string  // Encoded connection attributes.
+}
+
+func encodeConnectionAttributes(textAttributes string) string {
+	connAttrsBuf := make([]byte, 0, 251)
+
+	// default connection attributes
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrClientName)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrClientNameValue)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrOS)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrOSValue)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPlatform)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPlatformValue)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPid)
+	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, strconv.Itoa(os.Getpid()))
+
+	// user-defined connection attributes
+	for _, connAttr := range strings.Split(textAttributes, ",") {
+		k, v, found := strings.Cut(connAttr, ":")
+		if !found {
+			continue
+		}
+		connAttrsBuf = appendLengthEncodedString(connAttrsBuf, k)
+		connAttrsBuf = appendLengthEncodedString(connAttrsBuf, v)
+	}
+
+	return string(connAttrsBuf)
+}
+
+func newConnector(cfg *Config) (*connector, error) {
+	encodedAttributes := encodeConnectionAttributes(cfg.ConnectionAttributes)
+	if len(encodedAttributes) > 250 {
+		return nil, fmt.Errorf("connection attributes are longer than 250 bytes: %dbytes (%q)", len(encodedAttributes), cfg.ConnectionAttributes)
+	}
+	return &connector{
+		cfg:               cfg,
+		encodedAttributes: encodedAttributes,
+	}, nil
 }
 
 // Connect implements driver.Connector interface.
@@ -29,6 +71,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		maxWriteSize:     maxPacketSize - 1,
 		closech:          make(chan struct{}),
 		cfg:              c.cfg,
+		connector:        c,
 	}
 	mc.parseTime = mc.cfg.ParseTime
 
@@ -56,10 +99,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	// Enable TCP Keepalives on TCP connections
 	if tc, ok := mc.netConn.(*net.TCPConn); ok {
 		if err := tc.SetKeepAlive(true); err != nil {
-			// Don't send COM_QUIT before handshake.
-			mc.netConn.Close()
-			mc.netConn = nil
-			return nil, err
+			c.cfg.Logger.Print(err)
 		}
 	}
 
@@ -92,7 +132,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	authResp, err := mc.auth(authData, plugin)
 	if err != nil {
 		// try the default auth plugin, if using the requested plugin failed
-		errLog.Print("could not use requested auth plugin '"+plugin+"': ", err.Error())
+		c.cfg.Logger.Print("could not use requested auth plugin '"+plugin+"': ", err.Error())
 		plugin = defaultAuthPlugin
 		authResp, err = mc.auth(authData, plugin)
 		if err != nil {
