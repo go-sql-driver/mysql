@@ -11,7 +11,6 @@ package mysql
 import (
 	"context"
 	"database/sql/driver"
-	"fmt"
 	"net"
 	"os"
 	"strconv"
@@ -23,8 +22,8 @@ type connector struct {
 	encodedAttributes string  // Encoded connection attributes.
 }
 
-func encodeConnectionAttributes(textAttributes string) string {
-	connAttrsBuf := make([]byte, 0, 251)
+func encodeConnectionAttributes(cfg *Config) string {
+	connAttrsBuf := make([]byte, 0)
 
 	// default connection attributes
 	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrClientName)
@@ -35,9 +34,14 @@ func encodeConnectionAttributes(textAttributes string) string {
 	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPlatformValue)
 	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrPid)
 	connAttrsBuf = appendLengthEncodedString(connAttrsBuf, strconv.Itoa(os.Getpid()))
+	serverHost, _, _ := net.SplitHostPort(cfg.Addr)
+	if serverHost != "" {
+		connAttrsBuf = appendLengthEncodedString(connAttrsBuf, connAttrServerHost)
+		connAttrsBuf = appendLengthEncodedString(connAttrsBuf, serverHost)
+	}
 
 	// user-defined connection attributes
-	for _, connAttr := range strings.Split(textAttributes, ",") {
+	for _, connAttr := range strings.Split(cfg.ConnectionAttributes, ",") {
 		k, v, found := strings.Cut(connAttr, ":")
 		if !found {
 			continue
@@ -49,15 +53,12 @@ func encodeConnectionAttributes(textAttributes string) string {
 	return string(connAttrsBuf)
 }
 
-func newConnector(cfg *Config) (*connector, error) {
-	encodedAttributes := encodeConnectionAttributes(cfg.ConnectionAttributes)
-	if len(encodedAttributes) > 250 {
-		return nil, fmt.Errorf("connection attributes are longer than 250 bytes: %dbytes (%q)", len(encodedAttributes), cfg.ConnectionAttributes)
-	}
+func newConnector(cfg *Config) *connector {
+	encodedAttributes := encodeConnectionAttributes(cfg)
 	return &connector{
 		cfg:               cfg,
 		encodedAttributes: encodedAttributes,
-	}, nil
+	}
 }
 
 // Connect implements driver.Connector interface.

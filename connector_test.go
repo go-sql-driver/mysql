@@ -8,16 +8,13 @@ import (
 )
 
 func TestConnectorReturnsTimeout(t *testing.T) {
-	connector, err := newConnector(&Config{
+	connector := newConnector(&Config{
 		Net:     "tcp",
 		Addr:    "1.1.1.1:1234",
 		Timeout: 10 * time.Millisecond,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	_, err = connector.Connect(context.Background())
+	_, err := connector.Connect(context.Background())
 	if err == nil {
 		t.Fatal("error expected")
 	}
