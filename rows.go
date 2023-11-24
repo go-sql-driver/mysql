@@ -10,13 +10,14 @@ package mysql
 
 import (
 	"database/sql/driver"
+	"github.com/senhe-tech/go-utils/utils"
 	"io"
 	"math"
 	"reflect"
 )
 
 type resultSet struct {
-	columns     []mysqlField
+	columns     []MysqlField
 	columnNames []string
 	done        bool
 }
@@ -41,20 +42,18 @@ func (rows *mysqlRows) Columns() []string {
 	}
 
 	columns := make([]string, len(rows.rs.columns))
-	if rows.mc != nil && rows.mc.cfg.ColumnsWithAlias {
-		for i := range columns {
-			if tableName := rows.rs.columns[i].tableName; len(tableName) > 0 {
-				columns[i] = tableName + "." + rows.rs.columns[i].name
-			} else {
-				columns[i] = rows.rs.columns[i].name
-			}
+	for i := range columns {
+		fieldInfo := map[string]any{
+			"table_name": rows.rs.columns[i].TableName,
+			"name":       rows.rs.columns[i].Name,
+			"length":     rows.rs.columns[i].Length,
+			"Flags":      rows.rs.columns[i].Flags,
+			"field_type": rows.rs.columns[i].FieldType,
+			"Decimals":   rows.rs.columns[i].Decimals,
+			"charset":    rows.rs.columns[i].Charset,
 		}
-	} else {
-		for i := range columns {
-			columns[i] = rows.rs.columns[i].name
-		}
+		columns[i] = utils.MustJSON(fieldInfo)
 	}
-
 	rows.rs.columnNames = columns
 	return columns
 }
@@ -68,19 +67,19 @@ func (rows *mysqlRows) ColumnTypeDatabaseTypeName(i int) string {
 // }
 
 func (rows *mysqlRows) ColumnTypeNullable(i int) (nullable, ok bool) {
-	return rows.rs.columns[i].flags&flagNotNULL == 0, true
+	return rows.rs.columns[i].Flags&flagNotNULL == 0, true
 }
 
 func (rows *mysqlRows) ColumnTypePrecisionScale(i int) (int64, int64, bool) {
 	column := rows.rs.columns[i]
-	decimals := int64(column.decimals)
+	decimals := int64(column.Decimals)
 
-	switch column.fieldType {
+	switch column.FieldType {
 	case fieldTypeDecimal, fieldTypeNewDecimal:
 		if decimals > 0 {
-			return int64(column.length) - 2, decimals, true
+			return int64(column.Length) - 2, decimals, true
 		}
-		return int64(column.length) - 1, decimals, true
+		return int64(column.Length) - 1, decimals, true
 	case fieldTypeTimestamp, fieldTypeDateTime, fieldTypeTime:
 		return decimals, decimals, true
 	case fieldTypeFloat, fieldTypeDouble:

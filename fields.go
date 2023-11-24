@@ -13,12 +13,12 @@ import (
 	"reflect"
 )
 
-func (mf *mysqlField) typeDatabaseName() string {
-	switch mf.fieldType {
+func (mf *MysqlField) typeDatabaseName() string {
+	switch mf.FieldType {
 	case fieldTypeBit:
 		return "BIT"
 	case fieldTypeBLOB:
-		if mf.charSet != binaryCollationID {
+		if mf.Charset != binaryCollationID {
 			return "TEXT"
 		}
 		return "BLOB"
@@ -37,29 +37,29 @@ func (mf *mysqlField) typeDatabaseName() string {
 	case fieldTypeGeometry:
 		return "GEOMETRY"
 	case fieldTypeInt24:
-		if mf.flags&flagUnsigned != 0 {
+		if mf.Flags&flagUnsigned != 0 {
 			return "UNSIGNED MEDIUMINT"
 		}
 		return "MEDIUMINT"
 	case fieldTypeJSON:
 		return "JSON"
 	case fieldTypeLong:
-		if mf.flags&flagUnsigned != 0 {
+		if mf.Flags&flagUnsigned != 0 {
 			return "UNSIGNED INT"
 		}
 		return "INT"
 	case fieldTypeLongBLOB:
-		if mf.charSet != binaryCollationID {
+		if mf.Charset != binaryCollationID {
 			return "LONGTEXT"
 		}
 		return "LONGBLOB"
 	case fieldTypeLongLong:
-		if mf.flags&flagUnsigned != 0 {
+		if mf.Flags&flagUnsigned != 0 {
 			return "UNSIGNED BIGINT"
 		}
 		return "BIGINT"
 	case fieldTypeMediumBLOB:
-		if mf.charSet != binaryCollationID {
+		if mf.Charset != binaryCollationID {
 			return "MEDIUMTEXT"
 		}
 		return "MEDIUMBLOB"
@@ -72,7 +72,7 @@ func (mf *mysqlField) typeDatabaseName() string {
 	case fieldTypeSet:
 		return "SET"
 	case fieldTypeShort:
-		if mf.flags&flagUnsigned != 0 {
+		if mf.Flags&flagUnsigned != 0 {
 			return "UNSIGNED SMALLINT"
 		}
 		return "SMALLINT"
@@ -91,22 +91,22 @@ func (mf *mysqlField) typeDatabaseName() string {
 	case fieldTypeTimestamp:
 		return "TIMESTAMP"
 	case fieldTypeTiny:
-		if mf.flags&flagUnsigned != 0 {
+		if mf.Flags&flagUnsigned != 0 {
 			return "UNSIGNED TINYINT"
 		}
 		return "TINYINT"
 	case fieldTypeTinyBLOB:
-		if mf.charSet != binaryCollationID {
+		if mf.Charset != binaryCollationID {
 			return "TINYTEXT"
 		}
 		return "TINYBLOB"
 	case fieldTypeVarChar:
-		if mf.charSet == binaryCollationID {
+		if mf.Charset == binaryCollationID {
 			return "VARBINARY"
 		}
 		return "VARCHAR"
 	case fieldTypeVarString:
-		if mf.charSet == binaryCollationID {
+		if mf.Charset == binaryCollationID {
 			return "VARBINARY"
 		}
 		return "VARCHAR"
@@ -137,21 +137,21 @@ var (
 	scanTypeUnknown    = reflect.TypeOf(new(interface{}))
 )
 
-type mysqlField struct {
-	tableName string
-	name      string
-	length    uint32
-	flags     fieldFlag
-	fieldType fieldType
-	decimals  byte
-	charSet   uint8
+type MysqlField struct {
+	TableName string    `json:"table_name"`
+	Name      string    `json:"name"`
+	Length    uint32    `json:"length"`
+	Flags     fieldFlag `json:"flags"`
+	FieldType fieldType `json:"field_type"`
+	Decimals  byte      `json:"decimals"`
+	Charset   uint8     `json:"charset"`
 }
 
-func (mf *mysqlField) scanType() reflect.Type {
-	switch mf.fieldType {
+func (mf *MysqlField) scanType() reflect.Type {
+	switch mf.FieldType {
 	case fieldTypeTiny:
-		if mf.flags&flagNotNULL != 0 {
-			if mf.flags&flagUnsigned != 0 {
+		if mf.Flags&flagNotNULL != 0 {
+			if mf.Flags&flagUnsigned != 0 {
 				return scanTypeUint8
 			}
 			return scanTypeInt8
@@ -159,8 +159,8 @@ func (mf *mysqlField) scanType() reflect.Type {
 		return scanTypeNullInt
 
 	case fieldTypeShort, fieldTypeYear:
-		if mf.flags&flagNotNULL != 0 {
-			if mf.flags&flagUnsigned != 0 {
+		if mf.Flags&flagNotNULL != 0 {
+			if mf.Flags&flagUnsigned != 0 {
 				return scanTypeUint16
 			}
 			return scanTypeInt16
@@ -168,8 +168,8 @@ func (mf *mysqlField) scanType() reflect.Type {
 		return scanTypeNullInt
 
 	case fieldTypeInt24, fieldTypeLong:
-		if mf.flags&flagNotNULL != 0 {
-			if mf.flags&flagUnsigned != 0 {
+		if mf.Flags&flagNotNULL != 0 {
+			if mf.Flags&flagUnsigned != 0 {
 				return scanTypeUint32
 			}
 			return scanTypeInt32
@@ -177,8 +177,8 @@ func (mf *mysqlField) scanType() reflect.Type {
 		return scanTypeNullInt
 
 	case fieldTypeLongLong:
-		if mf.flags&flagNotNULL != 0 {
-			if mf.flags&flagUnsigned != 0 {
+		if mf.Flags&flagNotNULL != 0 {
+			if mf.Flags&flagUnsigned != 0 {
 				return scanTypeUint64
 			}
 			return scanTypeInt64
@@ -186,26 +186,26 @@ func (mf *mysqlField) scanType() reflect.Type {
 		return scanTypeNullInt
 
 	case fieldTypeFloat:
-		if mf.flags&flagNotNULL != 0 {
+		if mf.Flags&flagNotNULL != 0 {
 			return scanTypeFloat32
 		}
 		return scanTypeNullFloat
 
 	case fieldTypeDouble:
-		if mf.flags&flagNotNULL != 0 {
+		if mf.Flags&flagNotNULL != 0 {
 			return scanTypeFloat64
 		}
 		return scanTypeNullFloat
 
 	case fieldTypeBit, fieldTypeTinyBLOB, fieldTypeMediumBLOB, fieldTypeLongBLOB,
 		fieldTypeBLOB, fieldTypeVarString, fieldTypeString, fieldTypeGeometry:
-		if mf.charSet == binaryCollationID {
+		if mf.Charset == binaryCollationID {
 			return scanTypeBytes
 		}
 		fallthrough
 	case fieldTypeDecimal, fieldTypeNewDecimal, fieldTypeVarChar,
 		fieldTypeEnum, fieldTypeSet, fieldTypeJSON, fieldTypeTime:
-		if mf.flags&flagNotNULL != 0 {
+		if mf.Flags&flagNotNULL != 0 {
 			return scanTypeString
 		}
 		return scanTypeNullString

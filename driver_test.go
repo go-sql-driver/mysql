@@ -2202,14 +2202,14 @@ func TestInterruptBySignal(t *testing.T) {
 func TestColumnsReusesSlice(t *testing.T) {
 	rows := mysqlRows{
 		rs: resultSet{
-			columns: []mysqlField{
+			columns: []MysqlField{
 				{
-					tableName: "test",
-					name:      "A",
+					TableName: "test",
+					Name:      "A",
 				},
 				{
-					tableName: "test",
-					name:      "B",
+					TableName: "test",
+					Name:      "B",
 				},
 			},
 		},

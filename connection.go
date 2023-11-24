@@ -418,7 +418,7 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 	if err == nil {
 		rows := new(textRows)
 		rows.mc = mc
-		rows.rs.columns = []mysqlField{{fieldType: fieldTypeVarChar}}
+		rows.rs.columns = []MysqlField{{FieldType: fieldTypeVarChar}}
 
 		if resLen > 0 {
 			// Columns
