@@ -13,7 +13,7 @@ import (
 	"reflect"
 )
 
-func (mf *MysqlField) typeDatabaseName() string {
+func (mf *MysqlField) TypeDatabaseName() string {
 	switch mf.FieldType {
 	case fieldTypeBit:
 		return "BIT"

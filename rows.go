@@ -47,9 +47,9 @@ func (rows *mysqlRows) Columns() []string {
 			"table_name": rows.rs.columns[i].TableName,
 			"name":       rows.rs.columns[i].Name,
 			"length":     rows.rs.columns[i].Length,
-			"Flags":      rows.rs.columns[i].Flags,
+			"flags":      rows.rs.columns[i].Flags,
 			"field_type": rows.rs.columns[i].FieldType,
-			"Decimals":   rows.rs.columns[i].Decimals,
+			"decimals":   rows.rs.columns[i].Decimals,
 			"charset":    rows.rs.columns[i].Charset,
 		}
 		columns[i] = utils.MustJSON(fieldInfo)
@@ -59,7 +59,7 @@ func (rows *mysqlRows) Columns() []string {
 }
 
 func (rows *mysqlRows) ColumnTypeDatabaseTypeName(i int) string {
-	return rows.rs.columns[i].typeDatabaseName()
+	return rows.rs.columns[i].TypeDatabaseName()
 }
 
 // func (rows *mysqlRows) ColumnTypeLength(i int) (length int64, ok bool) {
