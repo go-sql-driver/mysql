@@ -13,10 +13,13 @@ import (
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"sync"
+
+	"filippo.io/edwards25519"
 )
 
 // server pub keys registry
@@ -225,6 +228,44 @@ func encryptPassword(password string, seed []byte, pub *rsa.PublicKey) ([]byte, 
 	return rsa.EncryptOAEP(sha1, rand.Reader, pub, plain, nil)
 }
 
+// Derived from https://github.com/MariaDB/server/blob/d8e6bb00888b1f82c031938f4c8ac5d97f6874c3/plugin/auth_ed25519/ref10/sign.c
+func doEd25519Auth(scramble []byte, password string) ([]byte, error) {
+	h := sha512.Sum512([]byte(password))
+
+	s, err := edwards25519.NewScalar().SetBytesWithClamping(h[:32])
+	if err != nil {
+		return nil, err
+	}
+
+	nonceHash := sha512.New()
+	nonceHash.Write(h[32:])
+	nonceHash.Write(scramble)
+	nonce := nonceHash.Sum(nil)
+
+	r, err := edwards25519.NewScalar().SetUniformBytes(nonce)
+	if err != nil {
+		return nil, err
+	}
+	R := (&edwards25519.Point{}).ScalarBaseMult(r)
+
+	A := (&edwards25519.Point{}).ScalarBaseMult(s)
+
+	kHash := sha512.New()
+	kHash.Write(R.Bytes())
+	kHash.Write(A.Bytes())
+	kHash.Write(scramble)
+	k := kHash.Sum(nil)
+
+	K, err := edwards25519.NewScalar().SetUniformBytes(k)
+	if err != nil {
+		return nil, err
+	}
+
+	S := K.MultiplyAdd(K, s, r)
+
+	return append(R.Bytes(), S.Bytes()...), nil
+}
+
 func (mc *mysqlConn) sendEncryptedPassword(seed []byte, pub *rsa.PublicKey) error {
 	enc, err := encryptPassword(mc.cfg.Passwd, seed, pub)
 	if err != nil {
@@ -289,6 +330,13 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		// encrypted password
 		enc, err := encryptPassword(mc.cfg.Passwd, authData, pubKey)
 		return enc, err
+
+	case "client_ed25519":
+		if len(authData) != 32 {
+			return nil, ErrMalformPkt
+		}
+
+		return doEd25519Auth(authData, mc.cfg.Passwd)
 
 	default:
 		mc.cfg.Logger.Print("unknown auth plugin:", plugin)
