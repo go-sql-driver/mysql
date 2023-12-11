@@ -117,6 +117,8 @@ func runTestsWithMultiStatement(t *testing.T, dsn string, tests ...func(dbt *DBT
 		}
 		defer db.Close()
 	}
+	// Previous test may be skipped without dropping the test table
+	db.Exec("DROP TABLE IF EXISTS test")
 
 	dbt := &DBTest{t, db}
 	for _, test := range tests {
@@ -136,6 +138,7 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	}
 	defer db.Close()
 
+	// Previous test may be skipped without dropping the test table
 	db.Exec("DROP TABLE IF EXISTS test")
 
 	dsn2 := dsn + "&interpolateParams=true"
