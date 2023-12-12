@@ -520,15 +520,15 @@ func TestInt(t *testing.T) {
 }
 
 func TestFloat32(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
 		types := [2]string{"FLOAT", "DOUBLE"}
 		in := float32(42.23)
 		var out float32
 		var rows *sql.Rows
 		for _, v := range types {
-			dbt.mustExec("CREATE TABLE test (value " + v + ")")
-			dbt.mustExec("INSERT INTO test VALUES (?)", in)
-			rows = dbt.mustQuery("SELECT value FROM test")
+			dbt.mustExec("CREATE TABLE " + tbl + " (value " + v + ")")
+			dbt.mustExec("INSERT INTO "+tbl+" VALUES (?)", in)
+			rows = dbt.mustQuery("SELECT value FROM " + tbl)
 			if rows.Next() {
 				rows.Scan(&out)
 				if in != out {
@@ -538,7 +538,7 @@ func TestFloat32(t *testing.T) {
 				dbt.Errorf("%s: no data", v)
 			}
 			rows.Close()
-			dbt.mustExec("DROP TABLE IF EXISTS test")
+			dbt.mustExec("DROP TABLE IF EXISTS " + tbl)
 		}
 	})
 }
