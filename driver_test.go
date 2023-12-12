@@ -2567,7 +2567,7 @@ func TestExecMultipleResults(t *testing.T) {
 // tests if rows are set in a proper state if some results were ignored before
 // calling rows.NextResultSet.
 func TestSkipResults(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, _ string) {
 		rows := dbt.mustQuery("SELECT 1, 2")
 		defer rows.Close()
 
