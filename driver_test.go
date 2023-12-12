@@ -2619,7 +2619,7 @@ func TestQueryMultipleResults(t *testing.T) {
 }
 
 func TestPingContext(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, _ string) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		if err := dbt.db.PingContext(ctx); err != context.Canceled {
