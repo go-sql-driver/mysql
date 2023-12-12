@@ -3183,25 +3183,26 @@ func TestRawBytesAreNotModified(t *testing.T) {
 				if err != nil {
 					dbt.Fatal(err)
 				}
+				defer rows.Close()
 
 				var b int
 				var raw sql.RawBytes
-				for rows.Next() {
-					if err := rows.Scan(&b, &raw); err != nil {
-						dbt.Fatal(err)
-					}
-
-					before := string(raw)
-					// Ensure cancelling the query does not corrupt the contents of `raw`
-					cancel()
-					time.Sleep(time.Microsecond * 100)
-					after := string(raw)
-
-					if before != after {
-						dbt.Fatalf("the backing storage for sql.RawBytes has been modified (i=%v)", i)
-					}
+				if !rows.Next() {
+					dbt.Fatal("expected at least one row")
 				}
-				rows.Close()
+				if err := rows.Scan(&b, &raw); err != nil {
+					dbt.Fatal(err)
+				}
+
+				before := string(raw)
+				// Ensure cancelling the query does not corrupt the contents of `raw`
+				cancel()
+				time.Sleep(time.Microsecond * 100)
+				after := string(raw)
+
+				if before != after {
+					dbt.Fatalf("the backing storage for sql.RawBytes has been modified (i=%v)", i)
+				}
 			}()
 		}
 	})
