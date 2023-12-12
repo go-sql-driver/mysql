@@ -37,8 +37,8 @@ var (
 type Config struct {
 	User                 string            // Username
 	Passwd               string            // Password (requires User)
-	Net                  string            // Network type
-	Addr                 string            // Network address (requires Net)
+	Net                  string            // Network (e.g. "tcp", "tcp6", "unix". default: "tcp")
+	Addr                 string            // Address (default: "127.0.0.1:3306" for "tcp" and "/tmp/mysql.sock" for "unix")
 	DBName               string            // Database name
 	Params               map[string]string // Connection parameters
 	ConnectionAttributes string            // Connection Attributes, comma-delimited string of user-defined "key:value" pairs
@@ -393,13 +393,13 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 // Values must be url.QueryEscape'ed
 func parseDSNParams(cfg *Config, params string) (err error) {
 	for _, v := range strings.Split(params, "&") {
-		param := strings.SplitN(v, "=", 2)
-		if len(param) != 2 {
+		key, value, found := strings.Cut(v, "=")
+		if !found {
 			continue
 		}
 
 		// cfg params
-		switch value := param[1]; param[0] {
+		switch key {
 		// Disable INFILE allowlist / enable all files
 		case "allowAllFiles":
 			var isBool bool
@@ -572,7 +572,11 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// Connection attributes
 		case "connectionAttributes":
-			cfg.ConnectionAttributes = value
+			connectionAttributes, err := url.QueryUnescape(value)
+			if err != nil {
+				return fmt.Errorf("invalid connectionAttributes value: %v", err)
+			}
+			cfg.ConnectionAttributes = connectionAttributes
 
 		default:
 			// lazy init
@@ -580,7 +584,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				cfg.Params = make(map[string]string)
 			}
 
-			if cfg.Params[param[0]], err = url.QueryUnescape(value); err != nil {
+			if cfg.Params[key], err = url.QueryUnescape(value); err != nil {
 				return
 			}
 		}

@@ -1328,3 +1328,54 @@ func TestAuthSwitchSHA256PasswordSecure(t *testing.T) {
 		t.Errorf("got unexpected data: %v", conn.written)
 	}
 }
+
+// Derived from https://github.com/MariaDB/server/blob/6b2287fff23fbdc362499501c562f01d0d2db52e/plugin/auth_ed25519/ed25519-t.c
+func TestEd25519Auth(t *testing.T) {
+	conn, mc := newRWMockConn(1)
+	mc.cfg.User = "root"
+	mc.cfg.Passwd = "foobar"
+
+	authData := []byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+	plugin := "client_ed25519"
+
+	// Send Client Authentication Packet
+	authResp, err := mc.auth(authData, plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check written auth response
+	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1
+	authRespEnd := authRespStart + 1 + len(authResp)
+	writtenAuthRespLen := conn.written[authRespStart]
+	writtenAuthResp := conn.written[authRespStart+1 : authRespEnd]
+	expectedAuthResp := []byte{
+		232, 61, 201, 63, 67, 63, 51, 53, 86, 73, 238, 35, 170, 117, 146,
+		214, 26, 17, 35, 9, 8, 132, 245, 141, 48, 99, 66, 58, 36, 228, 48,
+		84, 115, 254, 187, 168, 88, 162, 249, 57, 35, 85, 79, 238, 167, 106,
+		68, 117, 56, 135, 171, 47, 20, 14, 133, 79, 15, 229, 124, 160, 176,
+		100, 138, 14,
+	}
+	if writtenAuthRespLen != 64 {
+		t.Fatalf("expected 64 bytes from client, got %d", writtenAuthRespLen)
+	}
+	if !bytes.Equal(writtenAuthResp, expectedAuthResp) {
+		t.Fatalf("auth response did not match expected value:\n%v\n%v", writtenAuthResp, expectedAuthResp)
+	}
+	conn.written = nil
+
+	// auth response
+	conn.data = []byte{
+		7, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, // OK
+	}
+	conn.maxReads = 1
+
+	// Handle response to auth packet
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+}

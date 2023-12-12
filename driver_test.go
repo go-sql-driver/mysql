@@ -24,12 +24,23 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 )
+
+// This variable can be replaced with -ldflags like below:
+// go test "-ldflags=-X github.com/go-sql-driver/mysql.driverNameTest=custom"
+var driverNameTest string
+
+func init() {
+	if driverNameTest == "" {
+		driverNameTest = driverName
+	}
+}
 
 // Ensure that all the driver interfaces are implemented
 var (
@@ -82,7 +93,7 @@ func init() {
 }
 
 type DBTest struct {
-	*testing.T
+	testing.TB
 	db *sql.DB
 }
 
@@ -111,12 +122,14 @@ func runTestsWithMultiStatement(t *testing.T, dsn string, tests ...func(dbt *DBT
 	dsn += "&multiStatements=true"
 	var db *sql.DB
 	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
-		db, err = sql.Open("mysql", dsn)
+		db, err = sql.Open(driverNameTest, dsn)
 		if err != nil {
 			t.Fatalf("error connecting: %s", err.Error())
 		}
 		defer db.Close()
 	}
+	// Previous test may be skipped without dropping the test table
+	db.Exec("DROP TABLE IF EXISTS test")
 
 	dbt := &DBTest{t, db}
 	for _, test := range tests {
@@ -130,18 +143,19 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	db, err := sql.Open("mysql", dsn)
+	db, err := sql.Open(driverNameTest, dsn)
 	if err != nil {
 		t.Fatalf("error connecting: %s", err.Error())
 	}
 	defer db.Close()
 
+	// Previous test may be skipped without dropping the test table
 	db.Exec("DROP TABLE IF EXISTS test")
 
 	dsn2 := dsn + "&interpolateParams=true"
 	var db2 *sql.DB
 	if _, err := ParseDSN(dsn2); err != errInvalidDSNUnsafeCollation {
-		db2, err = sql.Open("mysql", dsn2)
+		db2, err = sql.Open(driverNameTest, dsn2)
 		if err != nil {
 			t.Fatalf("error connecting: %s", err.Error())
 		}
@@ -151,20 +165,21 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	for _, test := range tests {
 		t.Run("default", func(t *testing.T) {
 			dbt := &DBTest{t, db}
+			defer dbt.db.Exec("DROP TABLE IF EXISTS test")
 			test(dbt)
-			dbt.db.Exec("DROP TABLE IF EXISTS test")
 		})
 		if db2 != nil {
 			t.Run("interpolateParams", func(t *testing.T) {
 				dbt2 := &DBTest{t, db2}
+				defer dbt2.db.Exec("DROP TABLE IF EXISTS test")
 				test(dbt2)
-				dbt2.db.Exec("DROP TABLE IF EXISTS test")
 			})
 		}
 	}
 }
 
 func (dbt *DBTest) fail(method, query string, err error) {
+	dbt.Helper()
 	if len(query) > 300 {
 		query = "[query too large to print]"
 	}
@@ -172,6 +187,7 @@ func (dbt *DBTest) fail(method, query string, err error) {
 }
 
 func (dbt *DBTest) mustExec(query string, args ...interface{}) (res sql.Result) {
+	dbt.Helper()
 	res, err := dbt.db.Exec(query, args...)
 	if err != nil {
 		dbt.fail("exec", query, err)
@@ -180,6 +196,7 @@ func (dbt *DBTest) mustExec(query string, args ...interface{}) (res sql.Result) 
 }
 
 func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows) {
+	dbt.Helper()
 	rows, err := dbt.db.Query(query, args...)
 	if err != nil {
 		dbt.fail("query", query, err)
@@ -1198,7 +1215,7 @@ func TestLongData(t *testing.T) {
 				dbt.Fatalf("LONGBLOB: length in: %d, length out: %d", len(inS), len(out))
 			}
 			if rows.Next() {
-				dbt.Error("LONGBLOB: unexpexted row")
+				dbt.Error("LONGBLOB: unexpected row")
 			}
 		} else {
 			dbt.Fatalf("LONGBLOB: no data")
@@ -1217,7 +1234,7 @@ func TestLongData(t *testing.T) {
 				dbt.Fatalf("LONGBLOB: length in: %d, length out: %d", len(in), len(out))
 			}
 			if rows.Next() {
-				dbt.Error("LONGBLOB: unexpexted row")
+				dbt.Error("LONGBLOB: unexpected row")
 			}
 		} else {
 			if err = rows.Err(); err != nil {
@@ -1293,7 +1310,7 @@ func TestLoadData(t *testing.T) {
 			dbt.Fatalf("unexpected row count: got %d, want 0", count)
 		}
 
-		// Then fille File with data and try to load it
+		// Then fill File with data and try to load it
 		file.WriteString("1\ta string\n2\ta string containing a \\t\n3\ta string containing a \\n\n4\ta string containing both \\t\\n\n")
 		file.Close()
 		dbt.mustExec(fmt.Sprintf("LOAD DATA LOCAL INFILE %q INTO TABLE test", file.Name()))
@@ -1872,7 +1889,6 @@ func TestConcurrent(t *testing.T) {
 				defer wg.Done()
 
 				tx, err := dbt.db.Begin()
-				atomic.AddInt32(&remaining, -1)
 
 				if err != nil {
 					if err.Error() != "Error 1040: Too many connections" {
@@ -1882,7 +1898,7 @@ func TestConcurrent(t *testing.T) {
 				}
 
 				// keep the connection busy until all connections are open
-				for remaining > 0 {
+				for atomic.AddInt32(&remaining, -1) > 0 {
 					if _, err = tx.Exec("DO 1"); err != nil {
 						fatalf("error on conn %d: %s", id, err.Error())
 						return
@@ -1899,7 +1915,7 @@ func TestConcurrent(t *testing.T) {
 			}(i)
 		}
 
-		// wait until all conections are open
+		// wait until all connections are open
 		wg.Wait()
 
 		if fatalError != "" {
@@ -1915,7 +1931,7 @@ func testDialError(t *testing.T, dialErr error, expectErr error) {
 		return nil, dialErr
 	})
 
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@mydial(%s)/%s?timeout=30s", user, pass, addr, dbname))
+	db, err := sql.Open(driverNameTest, fmt.Sprintf("%s:%s@mydial(%s)/%s?timeout=30s", user, pass, addr, dbname))
 	if err != nil {
 		t.Fatalf("error connecting: %s", err.Error())
 	}
@@ -1948,13 +1964,13 @@ func TestCustomDial(t *testing.T) {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	// our custom dial function which justs wraps net.Dial here
+	// our custom dial function which just wraps net.Dial here
 	RegisterDialContext("mydial", func(ctx context.Context, addr string) (net.Conn, error) {
 		var d net.Dialer
 		return d.DialContext(ctx, prot, addr)
 	})
 
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@mydial(%s)/%s?timeout=30s", user, pass, addr, dbname))
+	db, err := sql.Open(driverNameTest, fmt.Sprintf("%s:%s@mydial(%s)/%s?timeout=30s", user, pass, addr, dbname))
 	if err != nil {
 		t.Fatalf("error connecting: %s", err.Error())
 	}
@@ -2086,7 +2102,7 @@ func TestUnixSocketAuthFail(t *testing.T) {
 		}
 		t.Logf("socket: %s", socket)
 		badDSN := fmt.Sprintf("%s:%s@unix(%s)/%s?timeout=30s", user, badPass, socket, dbname)
-		db, err := sql.Open("mysql", badDSN)
+		db, err := sql.Open(driverNameTest, badDSN)
 		if err != nil {
 			t.Fatalf("error connecting: %s", err.Error())
 		}
@@ -2275,7 +2291,7 @@ func TestEmptyPassword(t *testing.T) {
 	}
 
 	dsn := fmt.Sprintf("%s:%s@%s/%s?timeout=30s", user, "", netAddr, dbname)
-	db, err := sql.Open("mysql", dsn)
+	db, err := sql.Open(driverNameTest, dsn)
 	if err == nil {
 		defer db.Close()
 		err = db.Ping()
@@ -3199,14 +3215,14 @@ func TestRawBytesAreNotModified(t *testing.T) {
 
 				rows, err := dbt.db.QueryContext(ctx, `SELECT id, value FROM test`)
 				if err != nil {
-					t.Fatal(err)
+					dbt.Fatal(err)
 				}
 
 				var b int
 				var raw sql.RawBytes
 				for rows.Next() {
 					if err := rows.Scan(&b, &raw); err != nil {
-						t.Fatal(err)
+						dbt.Fatal(err)
 					}
 
 					before := string(raw)
@@ -3216,7 +3232,7 @@ func TestRawBytesAreNotModified(t *testing.T) {
 					after := string(raw)
 
 					if before != after {
-						t.Fatalf("the backing storage for sql.RawBytes has been modified (i=%v)", i)
+						dbt.Fatalf("the backing storage for sql.RawBytes has been modified (i=%v)", i)
 					}
 				}
 				rows.Close()
@@ -3242,7 +3258,7 @@ func TestConnectorObeysDialTimeouts(t *testing.T) {
 		return d.DialContext(ctx, prot, addr)
 	})
 
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@dialctxtest(%s)/%s?timeout=30s", user, pass, addr, dbname))
+	db, err := sql.Open(driverNameTest, fmt.Sprintf("%s:%s@dialctxtest(%s)/%s?timeout=30s", user, pass, addr, dbname))
 	if err != nil {
 		t.Fatalf("error connecting: %s", err.Error())
 	}
@@ -3399,12 +3415,64 @@ func TestConnectionAttributes(t *testing.T) {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	attr1 := "attr1"
-	value1 := "value1"
-	attr2 := "foo"
-	value2 := "boo"
-	dsn += fmt.Sprintf("&connectionAttributes=%s:%s,%s:%s", attr1, value1, attr2, value2)
+	defaultAttrs := []string{
+		connAttrClientName,
+		connAttrOS,
+		connAttrPlatform,
+		connAttrPid,
+		connAttrServerHost,
+	}
+	host, _, _ := net.SplitHostPort(addr)
+	defaultAttrValues := []string{
+		connAttrClientNameValue,
+		connAttrOSValue,
+		connAttrPlatformValue,
+		strconv.Itoa(os.Getpid()),
+		host,
+	}
 
+	customAttrs := []string{"attr1", "fo/o"}
+	customAttrValues := []string{"value1", "bo/o"}
+
+	customAttrStrs := make([]string, len(customAttrs))
+	for i := range customAttrs {
+		customAttrStrs[i] = fmt.Sprintf("%s:%s", customAttrs[i], customAttrValues[i])
+	}
+	dsn += "&connectionAttributes=" + url.QueryEscape(strings.Join(customAttrStrs, ","))
+
+	var db *sql.DB
+	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
+		db, err = sql.Open(driverNameTest, dsn)
+		if err != nil {
+			t.Fatalf("error connecting: %s", err.Error())
+		}
+		defer db.Close()
+	}
+
+	dbt := &DBTest{t, db}
+
+	queryString := "SELECT ATTR_NAME, ATTR_VALUE FROM performance_schema.session_account_connect_attrs WHERE PROCESSLIST_ID = CONNECTION_ID()"
+	rows := dbt.mustQuery(queryString)
+	defer rows.Close()
+
+	rowsMap := make(map[string]string)
+	for rows.Next() {
+		var attrName, attrValue string
+		rows.Scan(&attrName, &attrValue)
+		rowsMap[attrName] = attrValue
+	}
+
+	connAttrs := append(append([]string{}, defaultAttrs...), customAttrs...)
+	expectedAttrValues := append(append([]string{}, defaultAttrValues...), customAttrValues...)
+	for i := range connAttrs {
+		if gotValue := rowsMap[connAttrs[i]]; gotValue != expectedAttrValues[i] {
+			dbt.Errorf("expected %q, got %q", expectedAttrValues[i], gotValue)
+		}
+	}
+}
+
+func TestErrorInMultiResult(t *testing.T) {
+	// https://github.com/go-sql-driver/mysql/issues/1361
 	var db *sql.DB
 	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
 		db, err = sql.Open("mysql", dsn)
@@ -3415,28 +3483,31 @@ func TestConnectionAttributes(t *testing.T) {
 	}
 
 	dbt := &DBTest{t, db}
+	query := `
+CREATE PROCEDURE test_proc1()
+BEGIN
+	SELECT 1,2;
+	SELECT 3,4;
+	SIGNAL SQLSTATE '10000' SET MESSAGE_TEXT = "some error",  MYSQL_ERRNO = 10000;
+END;
+`
+	runCallCommand(dbt, query, "test_proc1")
+}
 
-	var attrValue string
-	queryString := "SELECT ATTR_VALUE FROM performance_schema.session_account_connect_attrs WHERE PROCESSLIST_ID = CONNECTION_ID() and ATTR_NAME = ?"
-	rows := dbt.mustQuery(queryString, connAttrClientName)
-	if rows.Next() {
-		rows.Scan(&attrValue)
-		if attrValue != connAttrClientNameValue {
-			dbt.Errorf("expected %q, got %q", connAttrClientNameValue, attrValue)
-		}
-	} else {
-		dbt.Errorf("no data")
+func runCallCommand(dbt *DBTest, query, name string) {
+	dbt.mustExec(fmt.Sprintf("DROP PROCEDURE IF EXISTS %s", name))
+	dbt.mustExec(query)
+	defer dbt.mustExec("DROP PROCEDURE " + name)
+	rows, err := dbt.db.Query(fmt.Sprintf("CALL %s", name))
+	if err != nil {
+		return
 	}
-	rows.Close()
+	defer rows.Close()
 
-	rows = dbt.mustQuery(queryString, attr2)
-	if rows.Next() {
-		rows.Scan(&attrValue)
-		if attrValue != value2 {
-			dbt.Errorf("expected %q, got %q", value2, attrValue)
-		}
-	} else {
-		dbt.Errorf("no data")
+	for rows.Next() {
 	}
-	rows.Close()
+	for rows.NextResultSet() {
+		for rows.Next() {
+		}
+	}
 }

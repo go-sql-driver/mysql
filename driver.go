@@ -83,15 +83,18 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	c, err := newConnector(cfg)
-	if err != nil {
-		return nil, err
-	}
+	c := newConnector(cfg)
 	return c.Connect(context.Background())
 }
 
+// This variable can be replaced with -ldflags like below:
+// go build "-ldflags=-X github.com/go-sql-driver/mysql.driverName=custom"
+var driverName = "mysql"
+
 func init() {
-	sql.Register("mysql", &MySQLDriver{})
+	if driverName != "" {
+		sql.Register(driverName, &MySQLDriver{})
+	}
 }
 
 // NewConnector returns new driver.Connector.
@@ -102,7 +105,7 @@ func NewConnector(cfg *Config) (driver.Connector, error) {
 	if err := cfg.normalize(); err != nil {
 		return nil, err
 	}
-	return newConnector(cfg)
+	return newConnector(cfg), nil
 }
 
 // OpenConnector implements driver.DriverContext.
@@ -111,5 +114,5 @@ func (d MySQLDriver) OpenConnector(dsn string) (driver.Connector, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newConnector(cfg)
+	return newConnector(cfg), nil
 }

@@ -48,7 +48,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
 ## Installation
 Simple install the package to your [$GOPATH](https://github.com/golang/go/wiki/GOPATH "GOPATH") with the [go tool](https://golang.org/cmd/go/ "go command") from shell:
 ```bash
-$ go get -u github.com/go-sql-driver/mysql
+go get -u github.com/go-sql-driver/mysql
 ```
 Make sure [Git is installed](https://git-scm.com/downloads) on your machine and in your system's `PATH`.
 
@@ -114,7 +114,7 @@ This has the same effect as an empty DSN string:
 
 ```
 
-`dbname` is escaped by [PathEscape()]()https://pkg.go.dev/net/url#PathEscape) since v1.8.0. If your database name is `dbname/withslash`, it becomes:
+`dbname` is escaped by [PathEscape()](https://pkg.go.dev/net/url#PathEscape) since v1.8.0. If your database name is `dbname/withslash`, it becomes:
 
 ```
 /dbname%2Fwithslash
@@ -127,7 +127,7 @@ Passwords can consist of any character. Escaping is **not** necessary.
 
 #### Protocol
 See [net.Dial](https://golang.org/pkg/net/#Dial) for more information which networks are available.
-In general you should use an Unix domain socket if available and TCP otherwise for best performance.
+In general you should use a Unix domain socket if available and TCP otherwise for best performance.
 
 #### Address
 For TCP and UDP networks, addresses have the form `host[:port]`.
@@ -151,7 +151,7 @@ Default:        false
 ```
 
 `allowAllFiles=true` disables the file allowlist for `LOAD DATA LOCAL INFILE` and allows *all* files.
-[*Might be insecure!*](http://dev.mysql.com/doc/refman/5.7/en/load-data-local.html)
+[*Might be insecure!*](https://dev.mysql.com/doc/refman/8.0/en/load-data.html#load-data-local)
 
 ##### `allowCleartextPasswords`
 
@@ -200,7 +200,7 @@ Valid Values:   <name>
 Default:        none
 ```
 
-Sets the charset used for client-server interaction (`"SET NAMES <value>"`). If multiple charsets are set (separated by a comma), the following charset is used if setting the charset failes. This enables for example support for `utf8mb4` ([introduced in MySQL 5.5.3](http://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)) with fallback to `utf8` for older servers (`charset=utf8mb4,utf8`).
+Sets the charset used for client-server interaction (`"SET NAMES <value>"`). If multiple charsets are set (separated by a comma), the following charset is used if setting the charset fails. This enables for example support for `utf8mb4` ([introduced in MySQL 5.5.3](http://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)) with fallback to `utf8` for older servers (`charset=utf8mb4,utf8`).
 
 See also [Unicode Support](#unicode-support).
 
@@ -509,7 +509,7 @@ For this feature you need direct access to the package. Therefore you must chang
 import "github.com/go-sql-driver/mysql"
 ```
 
-Files must be explicitly allowed by registering them with `mysql.RegisterLocalFile(filepath)` (recommended) or the allowlist check must be deactivated by using the DSN parameter `allowAllFiles=true` ([*Might be insecure!*](http://dev.mysql.com/doc/refman/5.7/en/load-data-local.html)).
+Files must be explicitly allowed by registering them with `mysql.RegisterLocalFile(filepath)` (recommended) or the allowlist check must be deactivated by using the DSN parameter `allowAllFiles=true` ([*Might be insecure!*](https://dev.mysql.com/doc/refman/8.0/en/load-data.html#load-data-local)).
 
 To use a `io.Reader` a handler function must be registered with `mysql.RegisterReaderHandler(name, handler)` which returns a `io.Reader` or `io.ReadCloser`. The Reader is available with the filepath `Reader::<name>` then. Choose different names for different handlers and `DeregisterReaderHandler` when you don't need it anymore.
 

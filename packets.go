@@ -44,6 +44,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 
 		// check packet sync [8 bit]
 		if data[3] != mc.sequence {
+			mc.Close()
 			if data[3] > mc.sequence {
 				return nil, ErrPktSyncMul
 			}
@@ -95,34 +96,6 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 
 	if pktLen > mc.maxAllowedPacket {
 		return ErrPktTooLarge
-	}
-
-	// Perform a stale connection check. We only perform this check for
-	// the first query on a connection that has been checked out of the
-	// connection pool: a fresh connection from the pool is more likely
-	// to be stale, and it has not performed any previous writes that
-	// could cause data corruption, so it's safe to return ErrBadConn
-	// if the check fails.
-	if mc.reset {
-		mc.reset = false
-		conn := mc.netConn
-		if mc.rawConn != nil {
-			conn = mc.rawConn
-		}
-		var err error
-		if mc.cfg.CheckConnLiveness {
-			if mc.cfg.ReadTimeout != 0 {
-				err = conn.SetReadDeadline(time.Now().Add(mc.cfg.ReadTimeout))
-			}
-			if err == nil {
-				err = connCheck(conn)
-			}
-		}
-		if err != nil {
-			mc.cfg.Logger.Print("closing bad idle connection: ", err)
-			mc.Close()
-			return driver.ErrBadConn
-		}
 	}
 
 	for {
@@ -239,7 +212,7 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 		// reserved (all [00]) [10 bytes]
 		pos += 1 + 2 + 2 + 1 + 10
 
-		// second part of the password cipher [mininum 13 bytes],
+		// second part of the password cipher [minimum 13 bytes],
 		// where len=MAX(13, length of auth-plugin-data - 8)
 		//
 		// The web documentation is ambiguous about the length. However,
@@ -319,15 +292,14 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		pktLen += n + 1
 	}
 
-	// 1 byte to store length of all key-values
-	// NOTE: Actually, this is length encoded integer.
-	// But we support only len(connAttrBuf) < 251 for now because takeSmallBuffer
-	// doesn't support buffer size more than 4096 bytes.
-	// TODO(methane): Rewrite buffer management.
-	pktLen += 1 + len(mc.connector.encodedAttributes)
+	// encode length of the connection attributes
+	var connAttrsLEIBuf [9]byte
+	connAttrsLen := len(mc.connector.encodedAttributes)
+	connAttrsLEI := appendLengthEncodedInteger(connAttrsLEIBuf[:0], uint64(connAttrsLen))
+	pktLen += len(connAttrsLEI) + len(mc.connector.encodedAttributes)
 
 	// Calculate packet length and get buffer with that size
-	data, err := mc.buf.takeSmallBuffer(pktLen + 4)
+	data, err := mc.buf.takeBuffer(pktLen + 4)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
 		mc.cfg.Logger.Print(err)
@@ -407,8 +379,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	pos++
 
 	// Connection Attributes
-	data[pos] = byte(len(mc.connector.encodedAttributes))
-	pos++
+	pos += copy(data[pos:], connAttrsLEI)
 	pos += copy(data[pos:], []byte(mc.connector.encodedAttributes))
 
 	// Send Auth packet
@@ -537,7 +508,7 @@ func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
 	}
 }
 
-// Returns error if Packet is not an 'Result OK'-Packet
+// Returns error if Packet is not a 'Result OK'-Packet
 func (mc *okHandler) readResultOK() error {
 	data, err := mc.conn().readPacket()
 	if err != nil {
@@ -572,12 +543,9 @@ func (mc *okHandler) readResultSetHeaderPacket() (int, error) {
 		}
 
 		// column count
-		num, _, n := readLengthEncodedInteger(data)
-		if n-len(data) == 0 {
-			return int(num), nil
-		}
-
-		return 0, ErrMalformPkt
+		num, _, _ := readLengthEncodedInteger(data)
+		// ignore remaining data in the packet. see #1478.
+		return int(num), nil
 	}
 	return 0, err
 }
@@ -649,7 +617,7 @@ func (mc *mysqlConn) resultUnchanged() *okHandler {
 // Both return an instance of type *okHandler.
 type okHandler mysqlConn
 
-// Exposees the underlying type's methods.
+// Exposes the underlying type's methods.
 func (mc *okHandler) conn() *mysqlConn {
 	return (*mysqlConn)(mc)
 }
