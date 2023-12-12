@@ -1208,7 +1208,7 @@ func TestUint64(t *testing.T) {
 		shigh = int64(uhigh)
 		stop  = ^shigh
 	)
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, _ string) {
 		stmt, err := dbt.db.Prepare(`SELECT ?, ?, ? ,?, ?, ?, ?, ?`)
 		if err != nil {
 			dbt.Fatal(err)
