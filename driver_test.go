@@ -2752,7 +2752,7 @@ func TestContextCancelQueryRow(t *testing.T) {
 }
 
 func TestContextCancelPrepare(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, _ string) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		if _, err := dbt.db.PrepareContext(ctx, "SELECT 1"); err != context.Canceled {
