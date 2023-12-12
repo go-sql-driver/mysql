@@ -2944,8 +2944,8 @@ func TestContextBeginIsolationLevel(t *testing.T) {
 }
 
 func TestContextBeginReadOnly(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
-		dbt.mustExec("CREATE TABLE test (v INTEGER)")
+	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
+		dbt.mustExec("CREATE TABLE " + tbl + " (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -2960,14 +2960,14 @@ func TestContextBeginReadOnly(t *testing.T) {
 		}
 
 		// INSERT queries fail in a READ ONLY transaction.
-		_, err = tx.ExecContext(ctx, "INSERT INTO test VALUES (1)")
+		_, err = tx.ExecContext(ctx, "INSERT INTO "+tbl+" VALUES (1)")
 		if _, ok := err.(*MySQLError); !ok {
 			dbt.Errorf("expected MySQLError, got %v", err)
 		}
 
 		// SELECT queries can be executed.
 		var v int
-		row := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM test")
+		row := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+tbl)
 		if err := row.Scan(&v); err != nil {
 			dbt.Fatal(err)
 		}
