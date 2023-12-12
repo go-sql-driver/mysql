@@ -3228,10 +3228,10 @@ func TestRawBytesAreNotModified(t *testing.T) {
 		strings.Repeat(strings.ToUpper(blob), blobSize/len(blob)),
 	}
 
-	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
-		dbt.mustExec("CREATE TABLE " + tbl + " (id int, value BLOB) CHARACTER SET utf8")
+	runTests(t, dsn, func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (id int, value BLOB) CHARACTER SET utf8")
 		for i := 0; i < insertRows; i++ {
-			dbt.mustExec("INSERT INTO "+tbl+" VALUES (?, ?)", i+1, sqlBlobs[i&1])
+			dbt.mustExec("INSERT INTO test VALUES (?, ?)", i+1, sqlBlobs[i&1])
 		}
 
 		for i := 0; i < contextRaceIterations; i++ {
@@ -3239,7 +3239,7 @@ func TestRawBytesAreNotModified(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 
-				rows, err := dbt.db.QueryContext(ctx, `SELECT id, value FROM `+tbl)
+				rows, err := dbt.db.QueryContext(ctx, `SELECT id, value FROM test`)
 				if err != nil {
 					dbt.Fatal(err)
 				}
