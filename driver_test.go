@@ -1404,12 +1404,12 @@ func TestLoadData(t *testing.T) {
 	})
 }
 
-func TestFoundRows(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
-		dbt.mustExec("CREATE TABLE test (id INT NOT NULL ,data INT NOT NULL)")
-		dbt.mustExec("INSERT INTO test (id, data) VALUES (0, 0),(0, 0),(1, 0),(1, 0),(1, 1)")
+func TestFoundRows1(t *testing.T) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
+		dbt.mustExec("CREATE TABLE " + tbl + " (id INT NOT NULL ,data INT NOT NULL)")
+		dbt.mustExec("INSERT INTO " + tbl + " (id, data) VALUES (0, 0),(0, 0),(1, 0),(1, 0),(1, 1)")
 
-		res := dbt.mustExec("UPDATE test SET data = 1 WHERE id = 0")
+		res := dbt.mustExec("UPDATE " + tbl + " SET data = 1 WHERE id = 0")
 		count, err := res.RowsAffected()
 		if err != nil {
 			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
@@ -1417,7 +1417,7 @@ func TestFoundRows(t *testing.T) {
 		if count != 2 {
 			dbt.Fatalf("Expected 2 affected rows, got %d", count)
 		}
-		res = dbt.mustExec("UPDATE test SET data = 1 WHERE id = 1")
+		res = dbt.mustExec("UPDATE " + tbl + " SET data = 1 WHERE id = 1")
 		count, err = res.RowsAffected()
 		if err != nil {
 			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
@@ -1426,11 +1426,14 @@ func TestFoundRows(t *testing.T) {
 			dbt.Fatalf("Expected 2 affected rows, got %d", count)
 		}
 	})
-	runTests(t, dsn+"&clientFoundRows=true", func(dbt *DBTest) {
-		dbt.mustExec("CREATE TABLE test (id INT NOT NULL ,data INT NOT NULL)")
-		dbt.mustExec("INSERT INTO test (id, data) VALUES (0, 0),(0, 0),(1, 0),(1, 0),(1, 1)")
+}
 
-		res := dbt.mustExec("UPDATE test SET data = 1 WHERE id = 0")
+func TestFoundRows2(t *testing.T) {
+	runTestsParallel(t, dsn+"&clientFoundRows=true", func(dbt *DBTest, tbl string) {
+		dbt.mustExec("CREATE TABLE " + tbl + " (id INT NOT NULL ,data INT NOT NULL)")
+		dbt.mustExec("INSERT INTO " + tbl + " (id, data) VALUES (0, 0),(0, 0),(1, 0),(1, 0),(1, 1)")
+
+		res := dbt.mustExec("UPDATE " + tbl + " SET data = 1 WHERE id = 0")
 		count, err := res.RowsAffected()
 		if err != nil {
 			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
@@ -1438,7 +1441,7 @@ func TestFoundRows(t *testing.T) {
 		if count != 2 {
 			dbt.Fatalf("Expected 2 matched rows, got %d", count)
 		}
-		res = dbt.mustExec("UPDATE test SET data = 1 WHERE id = 1")
+		res = dbt.mustExec("UPDATE " + tbl + " SET data = 1 WHERE id = 1")
 		count, err = res.RowsAffected()
 		if err != nil {
 			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
