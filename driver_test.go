@@ -1699,7 +1699,7 @@ func TestTimezoneConversion(t *testing.T) {
 // Special cases
 
 func TestRowsClose(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, _ string) {
 		rows, err := dbt.db.Query("SELECT 1")
 		if err != nil {
 			dbt.Fatal(err)
