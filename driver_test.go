@@ -165,14 +165,14 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	for _, test := range tests {
 		t.Run("default", func(t *testing.T) {
 			dbt := &DBTest{t, db}
+			defer dbt.db.Exec("DROP TABLE IF EXISTS test")
 			test(dbt)
-			dbt.db.Exec("DROP TABLE IF EXISTS test")
 		})
 		if db2 != nil {
 			t.Run("interpolateParams", func(t *testing.T) {
 				dbt2 := &DBTest{t, db2}
+				defer dbt2.db.Exec("DROP TABLE IF EXISTS test")
 				test(dbt2)
-				dbt2.db.Exec("DROP TABLE IF EXISTS test")
 			})
 		}
 	}
@@ -3181,14 +3181,14 @@ func TestRawBytesAreNotModified(t *testing.T) {
 
 				rows, err := dbt.db.QueryContext(ctx, `SELECT id, value FROM test`)
 				if err != nil {
-					t.Fatal(err)
+					dbt.Fatal(err)
 				}
 
 				var b int
 				var raw sql.RawBytes
 				for rows.Next() {
 					if err := rows.Scan(&b, &raw); err != nil {
-						t.Fatal(err)
+						dbt.Fatal(err)
 					}
 
 					before := string(raw)
@@ -3198,7 +3198,7 @@ func TestRawBytesAreNotModified(t *testing.T) {
 					after := string(raw)
 
 					if before != after {
-						t.Fatalf("the backing storage for sql.RawBytes has been modified (i=%v)", i)
+						dbt.Fatalf("the backing storage for sql.RawBytes has been modified (i=%v)", i)
 					}
 				}
 				rows.Close()
