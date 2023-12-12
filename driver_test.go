@@ -11,6 +11,7 @@ package mysql
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"database/sql"
 	"database/sql/driver"
@@ -180,6 +181,64 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	}
 }
 
+// runTestsParallel runs the tests in parallel with a separate database connection for each test.
+func runTestsParallel(t *testing.T, dsn string, tests ...func(dbt *DBTest, tableName string)) {
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	newTableName := func(t *testing.T) string {
+		t.Helper()
+		var buf [8]byte
+		if _, err := rand.Read(buf[:]); err != nil {
+			t.Fatal(err)
+		}
+		return fmt.Sprintf("test_%x", buf[:])
+	}
+
+	t.Parallel()
+	for _, test := range tests {
+		test := test
+
+		t.Run("default", func(t *testing.T) {
+			t.Parallel()
+
+			tableName := newTableName(t)
+			db, err := sql.Open("mysql", dsn)
+			if err != nil {
+				t.Fatalf("error connecting: %s", err.Error())
+			}
+			t.Cleanup(func() {
+				db.Exec("DROP TABLE IF EXISTS " + tableName)
+				db.Close()
+			})
+
+			dbt := &DBTest{t, db}
+			test(dbt, tableName)
+		})
+
+		dsn2 := dsn + "&interpolateParams=true"
+		if _, err := ParseDSN(dsn2); err == errInvalidDSNUnsafeCollation {
+			t.Run("interpolateParams", func(t *testing.T) {
+				t.Parallel()
+
+				tableName := newTableName(t)
+				db, err := sql.Open("mysql", dsn2)
+				if err != nil {
+					t.Fatalf("error connecting: %s", err.Error())
+				}
+				t.Cleanup(func() {
+					db.Exec("DROP TABLE IF EXISTS " + tableName)
+					db.Close()
+				})
+
+				dbt := &DBTest{t, db}
+				test(dbt, tableName)
+			})
+		}
+	}
+}
+
 func (dbt *DBTest) fail(method, query string, err error) {
 	dbt.Helper()
 	if len(query) > 300 {
@@ -218,7 +277,7 @@ func maybeSkip(t *testing.T, err error, skipErrno uint16) {
 }
 
 func TestEmptyQuery(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, _ string) {
 		// just a comment, no query
 		rows := dbt.mustQuery("--")
 		defer rows.Close()
@@ -230,20 +289,20 @@ func TestEmptyQuery(t *testing.T) {
 }
 
 func TestCRUD(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
 		// Create Table
-		dbt.mustExec("CREATE TABLE test (value BOOL)")
+		dbt.mustExec("CREATE TABLE " + tbl + " (value BOOL)")
 
 		// Test for unexpected data
 		var out bool
-		rows := dbt.mustQuery("SELECT * FROM test")
+		rows := dbt.mustQuery("SELECT * FROM " + tbl)
 		if rows.Next() {
 			dbt.Error("unexpected data in empty table")
 		}
 		rows.Close()
 
 		// Create Data
-		res := dbt.mustExec("INSERT INTO test VALUES (1)")
+		res := dbt.mustExec("INSERT INTO " + tbl + " VALUES (1)")
 		count, err := res.RowsAffected()
 		if err != nil {
 			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
@@ -261,7 +320,7 @@ func TestCRUD(t *testing.T) {
 		}
 
 		// Read
-		rows = dbt.mustQuery("SELECT value FROM test")
+		rows = dbt.mustQuery("SELECT value FROM " + tbl)
 		if rows.Next() {
 			rows.Scan(&out)
 			if true != out {
@@ -277,7 +336,7 @@ func TestCRUD(t *testing.T) {
 		rows.Close()
 
 		// Update
-		res = dbt.mustExec("UPDATE test SET value = ? WHERE value = ?", false, true)
+		res = dbt.mustExec("UPDATE "+tbl+" SET value = ? WHERE value = ?", false, true)
 		count, err = res.RowsAffected()
 		if err != nil {
 			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
@@ -287,7 +346,7 @@ func TestCRUD(t *testing.T) {
 		}
 
 		// Check Update
-		rows = dbt.mustQuery("SELECT value FROM test")
+		rows = dbt.mustQuery("SELECT value FROM " + tbl)
 		if rows.Next() {
 			rows.Scan(&out)
 			if false != out {
@@ -303,7 +362,7 @@ func TestCRUD(t *testing.T) {
 		rows.Close()
 
 		// Delete
-		res = dbt.mustExec("DELETE FROM test WHERE value = ?", false)
+		res = dbt.mustExec("DELETE FROM "+tbl+" WHERE value = ?", false)
 		count, err = res.RowsAffected()
 		if err != nil {
 			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
@@ -313,7 +372,7 @@ func TestCRUD(t *testing.T) {
 		}
 
 		// Check for unexpected rows
-		res = dbt.mustExec("DELETE FROM test")
+		res = dbt.mustExec("DELETE FROM " + tbl)
 		count, err = res.RowsAffected()
 		if err != nil {
 			dbt.Fatalf("res.RowsAffected() returned error: %s", err.Error())
