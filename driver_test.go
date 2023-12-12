@@ -670,7 +670,7 @@ func TestRawBytes(t *testing.T) {
 }
 
 func TestRawMessage(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, _ string) {
 		v1 := json.RawMessage("{}")
 		v2 := json.RawMessage("[]")
 		rows := dbt.mustQuery("SELECT ?, ?", v1, v2)
