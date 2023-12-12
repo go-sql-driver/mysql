@@ -1616,7 +1616,7 @@ func TestCollation(t *testing.T) {
 }
 
 func TestColumnsWithAlias(t *testing.T) {
-	runTests(t, dsn+"&columnsWithAlias=true", func(dbt *DBTest) {
+	runTestsParallel(t, dsn+"&columnsWithAlias=true", func(dbt *DBTest, _ string) {
 		rows := dbt.mustQuery("SELECT 1 AS A")
 		defer rows.Close()
 		cols, _ := rows.Columns()
