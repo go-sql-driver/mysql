@@ -149,8 +149,9 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	}
 	defer db.Close()
 
-	// Previous test may be skipped without dropping the test table
-	db.Exec("DROP TABLE IF EXISTS test")
+	cleanup := func() {
+		db.Exec("DROP TABLE IF EXISTS test")
+	}
 
 	dsn2 := dsn + "&interpolateParams=true"
 	var db2 *sql.DB
@@ -163,15 +164,16 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run("default", func(t *testing.T) {
 			dbt := &DBTest{t, db}
-			defer dbt.db.Exec("DROP TABLE IF EXISTS test")
+			t.Cleanup(cleanup)
 			test(dbt)
 		})
 		if db2 != nil {
 			t.Run("interpolateParams", func(t *testing.T) {
 				dbt2 := &DBTest{t, db2}
-				defer dbt2.db.Exec("DROP TABLE IF EXISTS test")
+				t.Cleanup(cleanup)
 				test(dbt2)
 			})
 		}
