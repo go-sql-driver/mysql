@@ -1241,7 +1241,7 @@ func TestUint64(t *testing.T) {
 }
 
 func TestLongData(t *testing.T) {
-	runTestsParallel(t, dsn+"&maxAllowedPacket=0", func(dbt *DBTest, tbl string) {
+	runTests(t, dsn+"&maxAllowedPacket=0", func(dbt *DBTest) {
 		var maxAllowedPacketSize int
 		err := dbt.db.QueryRow("select @@max_allowed_packet").Scan(&maxAllowedPacketSize)
 		if err != nil {
@@ -1254,7 +1254,7 @@ func TestLongData(t *testing.T) {
 			maxAllowedPacketSize = 1 << 25
 		}
 
-		dbt.mustExec("CREATE TABLE " + tbl + " (value LONGBLOB)")
+		dbt.mustExec("CREATE TABLE test (value LONGBLOB)")
 
 		in := strings.Repeat(`a`, maxAllowedPacketSize+1)
 		var out string
@@ -1263,8 +1263,8 @@ func TestLongData(t *testing.T) {
 		// Long text data
 		const nonDataQueryLen = 28 // length query w/o value
 		inS := in[:maxAllowedPacketSize-nonDataQueryLen]
-		dbt.mustExec("INSERT INTO " + tbl + " VALUES('" + inS + "')")
-		rows = dbt.mustQuery("SELECT value FROM " + tbl)
+		dbt.mustExec("INSERT INTO test VALUES('" + inS + "')")
+		rows = dbt.mustQuery("SELECT value FROM test")
 		defer rows.Close()
 		if rows.Next() {
 			rows.Scan(&out)
@@ -1279,11 +1279,11 @@ func TestLongData(t *testing.T) {
 		}
 
 		// Empty table
-		dbt.mustExec("TRUNCATE TABLE " + tbl)
+		dbt.mustExec("TRUNCATE TABLE test")
 
 		// Long binary data
-		dbt.mustExec("INSERT INTO "+tbl+" VALUES(?)", in)
-		rows = dbt.mustQuery("SELECT value FROM "+tbl+" WHERE 1=?", 1)
+		dbt.mustExec("INSERT INTO test VALUES(?)", in)
+		rows = dbt.mustQuery("SELECT value FROM test WHERE 1=?", 1)
 		defer rows.Close()
 		if rows.Next() {
 			rows.Scan(&out)
