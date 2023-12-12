@@ -1047,7 +1047,7 @@ func TestTimestampMicros(t *testing.T) {
 }
 
 func TestNULL(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
 		nullStmt, err := dbt.db.Prepare("SELECT NULL")
 		if err != nil {
 			dbt.Fatal(err)
@@ -1179,12 +1179,12 @@ func TestNULL(t *testing.T) {
 		}
 
 		// Insert NULL
-		dbt.mustExec("CREATE TABLE test (dummmy1 int, value int, dummy2 int)")
+		dbt.mustExec("CREATE TABLE " + tbl + " (dummmy1 int, value int, dummy2 int)")
 
-		dbt.mustExec("INSERT INTO test VALUES (?, ?, ?)", 1, nil, 2)
+		dbt.mustExec("INSERT INTO "+tbl+" VALUES (?, ?, ?)", 1, nil, 2)
 
 		var out interface{}
-		rows := dbt.mustQuery("SELECT * FROM test")
+		rows := dbt.mustQuery("SELECT * FROM " + tbl)
 		defer rows.Close()
 		if rows.Next() {
 			rows.Scan(&out)
