@@ -3202,9 +3202,9 @@ func TestRowsColumnTypes(t *testing.T) {
 }
 
 func TestValuerWithValueReceiverGivenNilValue(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
-		dbt.mustExec("CREATE TABLE test (value VARCHAR(255))")
-		dbt.db.Exec("INSERT INTO test VALUES (?)", (*testValuer)(nil))
+	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
+		dbt.mustExec("CREATE TABLE " + tbl + " (value VARCHAR(255))")
+		dbt.db.Exec("INSERT INTO "+tbl+" VALUES (?)", (*testValuer)(nil))
 		// This test will panic on the INSERT if ConvertValue() does not check for typed nil before calling Value()
 	})
 }
