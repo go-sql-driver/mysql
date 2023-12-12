@@ -3181,14 +3181,14 @@ func TestRawBytesAreNotModified(t *testing.T) {
 
 				rows, err := dbt.db.QueryContext(ctx, `SELECT id, value FROM test`)
 				if err != nil {
-					t.Fatal(err)
+					dbt.Fatal(err)
 				}
 
 				var b int
 				var raw sql.RawBytes
 				for rows.Next() {
 					if err := rows.Scan(&b, &raw); err != nil {
-						t.Fatal(err)
+						dbt.Fatal(err)
 					}
 
 					before := string(raw)
@@ -3198,7 +3198,7 @@ func TestRawBytesAreNotModified(t *testing.T) {
 					after := string(raw)
 
 					if before != after {
-						t.Fatalf("the backing storage for sql.RawBytes has been modified (i=%v)", i)
+						dbt.Fatalf("the backing storage for sql.RawBytes has been modified (i=%v)", i)
 					}
 				}
 				rows.Close()
