@@ -2101,7 +2101,7 @@ func TestInsertRetrieveEscapedData(t *testing.T) {
 }
 
 func TestUnixSocketAuthFail(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, _ string) {
 		// Save the current logger so we can restore it.
 		oldLogger := defaultLogger
 
