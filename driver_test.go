@@ -2836,8 +2836,8 @@ func TestContextCancelBegin(t *testing.T) {
 		t.Skip(`FIXME: it sometime fails with "expected driver.ErrBadConn, got sql: connection is already closed" on windows and macOS`)
 	}
 
-	runTests(t, dsn, func(dbt *DBTest) {
-		dbt.mustExec("CREATE TABLE test (v INTEGER)")
+	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
+		dbt.mustExec("CREATE TABLE " + tbl + " (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 		conn, err := dbt.db.Conn(ctx)
 		if err != nil {
@@ -2854,7 +2854,7 @@ func TestContextCancelBegin(t *testing.T) {
 
 		// This query will be canceled.
 		startTime := time.Now()
-		if _, err := tx.ExecContext(ctx, "INSERT INTO test VALUES (SLEEP(1))"); err != context.Canceled {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO "+tbl+" VALUES (SLEEP(1))"); err != context.Canceled {
 			dbt.Errorf("expected context.Canceled, got %v", err)
 		}
 		if d := time.Since(startTime); d > 500*time.Millisecond {
