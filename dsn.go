@@ -35,24 +35,25 @@ var (
 // If a new Config is created instead of being parsed from a DSN string,
 // the NewConfig function should be used, which sets default values.
 type Config struct {
-	User                 string            // Username
-	Passwd               string            // Password (requires User)
-	Net                  string            // Network (e.g. "tcp", "tcp6", "unix". default: "tcp")
-	Addr                 string            // Address (default: "127.0.0.1:3306" for "tcp" and "/tmp/mysql.sock" for "unix")
-	DBName               string            // Database name
-	Params               map[string]string // Connection parameters
-	ConnectionAttributes string            // Connection Attributes, comma-delimited string of user-defined "key:value" pairs
-	Collation            string            // Connection collation
-	Loc                  *time.Location    // Location for time.Time values
-	MaxAllowedPacket     int               // Max packet size allowed
-	ServerPubKey         string            // Server public key name
-	pubKey               *rsa.PublicKey    // Server public key
-	TLSConfig            string            // TLS configuration name
-	TLS                  *tls.Config       // TLS configuration, its priority is higher than TLSConfig
-	Timeout              time.Duration     // Dial timeout
-	ReadTimeout          time.Duration     // I/O read timeout
-	WriteTimeout         time.Duration     // I/O write timeout
-	Logger               Logger            // Logger
+	User                 string                               // Username
+	Passwd               string                               // Password (requires User)
+	Net                  string                               // Network (e.g. "tcp", "tcp6", "unix". default: "tcp")
+	Addr                 string                               // Address (default: "127.0.0.1:3306" for "tcp" and "/tmp/mysql.sock" for "unix")
+	DBName               string                               // Database name
+	Params               map[string]string                    // Connection parameters
+	ConnectionAttributes string                               // Connection Attributes, comma-delimited string of user-defined "key:value" pairs
+	Collation            string                               // Connection collation
+	Loc                  *time.Location                       // Location for time.Time values
+	MaxAllowedPacket     int                                  // Max packet size allowed
+	ServerPubKey         string                               // Server public key name
+	pubKey               *rsa.PublicKey                       // Server public key
+	TLSConfig            string                               // TLS configuration name
+	TLS                  *tls.Config                          // TLS configuration, its priority is higher than TLSConfig
+	Timeout              time.Duration                        // Dial timeout
+	ReadTimeout          time.Duration                        // I/O read timeout
+	WriteTimeout         time.Duration                        // I/O write timeout
+	Logger               Logger                               // Logger
+	BeforeConnect        func(context.Context, *Config) error // Invoked before a connection is established
 
 	AllowAllFiles            bool // Allow all files to be used with LOAD DATA LOCAL INFILE
 	AllowCleartextPasswords  bool // Allows the cleartext client side plugin
@@ -66,8 +67,6 @@ type Config struct {
 	MultiStatements          bool // Allow multiple statements in one query
 	ParseTime                bool // Parse time values to time.Time
 	RejectReadOnly           bool // Reject read-only connections
-
-	BeforeConnect func(context.Context, *Config) error // Invoked before a connection is established
 }
 
 // NewConfig creates a new Config and sets default values.
