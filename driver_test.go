@@ -734,15 +734,15 @@ func (tv testValuerWithValidation) Value() (driver.Value, error) {
 }
 
 func TestValuerWithValidation(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
+	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
 		in := testValuerWithValidation{"a_value"}
 		var out string
 		var rows *sql.Rows
 
-		dbt.mustExec("CREATE TABLE testValuer (value VARCHAR(255)) CHARACTER SET utf8")
-		dbt.mustExec("INSERT INTO testValuer VALUES (?)", in)
+		dbt.mustExec("CREATE TABLE " + tbl + " (value VARCHAR(255)) CHARACTER SET utf8")
+		dbt.mustExec("INSERT INTO "+tbl+" VALUES (?)", in)
 
-		rows = dbt.mustQuery("SELECT value FROM testValuer")
+		rows = dbt.mustQuery("SELECT value FROM " + tbl)
 		defer rows.Close()
 
 		if rows.Next() {
@@ -754,19 +754,17 @@ func TestValuerWithValidation(t *testing.T) {
 			dbt.Errorf("Valuer: no data")
 		}
 
-		if _, err := dbt.db.Exec("INSERT INTO testValuer VALUES (?)", testValuerWithValidation{""}); err == nil {
+		if _, err := dbt.db.Exec("INSERT INTO "+tbl+" VALUES (?)", testValuerWithValidation{""}); err == nil {
 			dbt.Errorf("Failed to check valuer error")
 		}
 
-		if _, err := dbt.db.Exec("INSERT INTO testValuer VALUES (?)", nil); err != nil {
+		if _, err := dbt.db.Exec("INSERT INTO "+tbl+" VALUES (?)", nil); err != nil {
 			dbt.Errorf("Failed to check nil")
 		}
 
-		if _, err := dbt.db.Exec("INSERT INTO testValuer VALUES (?)", map[string]bool{}); err == nil {
+		if _, err := dbt.db.Exec("INSERT INTO "+tbl+" VALUES (?)", map[string]bool{}); err == nil {
 			dbt.Errorf("Failed to check not valuer")
 		}
-
-		dbt.mustExec("DROP TABLE IF EXISTS testValuer")
 	})
 }
 
