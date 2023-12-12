@@ -2892,8 +2892,8 @@ func TestContextCancelBegin(t *testing.T) {
 }
 
 func TestContextBeginIsolationLevel(t *testing.T) {
-	runTests(t, dsn, func(dbt *DBTest) {
-		dbt.mustExec("CREATE TABLE test (v INTEGER)")
+	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
+		dbt.mustExec("CREATE TABLE " + tbl + " (v INTEGER)")
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -2911,13 +2911,13 @@ func TestContextBeginIsolationLevel(t *testing.T) {
 			dbt.Fatal(err)
 		}
 
-		_, err = tx1.ExecContext(ctx, "INSERT INTO test VALUES (1)")
+		_, err = tx1.ExecContext(ctx, "INSERT INTO "+tbl+" VALUES (1)")
 		if err != nil {
 			dbt.Fatal(err)
 		}
 
 		var v int
-		row := tx2.QueryRowContext(ctx, "SELECT COUNT(*) FROM test")
+		row := tx2.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+tbl)
 		if err := row.Scan(&v); err != nil {
 			dbt.Fatal(err)
 		}
@@ -2931,7 +2931,7 @@ func TestContextBeginIsolationLevel(t *testing.T) {
 			dbt.Fatal(err)
 		}
 
-		row = tx2.QueryRowContext(ctx, "SELECT COUNT(*) FROM test")
+		row = tx2.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+tbl)
 		if err := row.Scan(&v); err != nil {
 			dbt.Fatal(err)
 		}
