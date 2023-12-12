@@ -1567,7 +1567,7 @@ func TestCharset(t *testing.T) {
 }
 
 func TestFailingCharset(t *testing.T) {
-	runTests(t, dsn+"&charset=none", func(dbt *DBTest) {
+	runTestsParallel(t, dsn+"&charset=none", func(dbt *DBTest, _ string) {
 		// run query to really establish connection...
 		_, err := dbt.db.Exec("SELECT 1")
 		if err == nil {
