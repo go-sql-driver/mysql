@@ -96,7 +96,7 @@ jobs:
 
       - name: test
         run: |
-          go test -v '-race' '-covermode=atomic' '-coverprofile=coverage.out'
+          go test -v '-race' '-covermode=atomic' '-coverprofile=coverage.out' -parallel 10
 
       - name: Send coverage
         uses: shogo82148/actions-goveralls@v1
