@@ -827,17 +827,8 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 				dest[i] = buf
 			}
 
-		case fieldTypeTiny, fieldTypeShort, fieldTypeInt24, fieldTypeYear:
-			dest[i], err = strconv.ParseInt(string(buf), 10, 32)
-
-		case fieldTypeLong:
-			if rows.rs.columns[i].flags&flagUnsigned != 0 {
-				var d uint64
-				d, err = strconv.ParseUint(string(buf), 10, 32)
-				dest[i] = int64(d)
-			} else {
-				dest[i], err = strconv.ParseInt(string(buf), 10, 32)
-			}
+		case fieldTypeTiny, fieldTypeShort, fieldTypeInt24, fieldTypeYear, fieldTypeLong:
+			dest[i], err = strconv.ParseInt(string(buf), 10, 64)
 
 		case fieldTypeLongLong:
 			if rows.rs.columns[i].flags&flagUnsigned != 0 {
