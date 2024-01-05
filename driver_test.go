@@ -388,16 +388,16 @@ func TestCRUD(t *testing.T) {
 func TestNumbersToAny(t *testing.T) {
 	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
 		dbt.mustExec("CREATE TABLE " + tbl + " (id INT PRIMARY KEY, b BOOL, i8 TINYINT, " +
-			"i16 SMALLINT, i32 INT, i64 BIGINT, f32 FLOAT, f64 DOUBLE)")
-		dbt.mustExec("INSERT INTO " + tbl + " VALUES (1, true, 127, 32767, 2147483647, 9223372036854775807, 1.25, 2.5)")
+			"i16 SMALLINT, i32 INT, i64 BIGINT, f32 FLOAT, f64 DOUBLE, iu32 INT UNSIGNED)")
+		dbt.mustExec("INSERT INTO " + tbl + " VALUES (1, true, 127, 32767, 2147483647, 9223372036854775807, 1.25, 2.5, 4294967295)")
 
-		// Use binaryRows for intarpolateParams=false and textRows for intarpolateParams=true.
-		rows := dbt.mustQuery("SELECT b, i8, i16, i32, i64, f32, f64 FROM "+tbl+" WHERE id=?", 1)
+		// Use binaryRows for interpolateParams=false and textRows for interpolateParams=true.
+		rows := dbt.mustQuery("SELECT b, i8, i16, i32, i64, f32, f64, iu32 FROM "+tbl+" WHERE id=?", 1)
 		if !rows.Next() {
 			dbt.Fatal("no data")
 		}
-		var b, i8, i16, i32, i64, f32, f64 any
-		err := rows.Scan(&b, &i8, &i16, &i32, &i64, &f32, &f64)
+		var b, i8, i16, i32, i64, f32, f64, iu32 any
+		err := rows.Scan(&b, &i8, &i16, &i32, &i64, &f32, &f64, &iu32)
 		if err != nil {
 			dbt.Fatal(err)
 		}
@@ -421,6 +421,9 @@ func TestNumbersToAny(t *testing.T) {
 		}
 		if f64.(float64) != 2.5 {
 			dbt.Errorf("f64 != 2.5")
+		}
+		if iu32.(int64) != 4294967295 {
+			dbt.Errorf("iu32 != 4294967295")
 		}
 	})
 }
