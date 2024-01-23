@@ -48,6 +48,7 @@ type Config struct {
 	pubKey               *rsa.PublicKey    // Server public key
 	TLSConfig            string            // TLS configuration name
 	TLS                  *tls.Config       // TLS configuration, its priority is higher than TLSConfig
+	TimeTruncate         time.Duration     // Truncate time.Time values to the specified duration
 	Timeout              time.Duration     // Dial timeout
 	ReadTimeout          time.Duration     // I/O read timeout
 	WriteTimeout         time.Duration     // I/O write timeout
@@ -260,6 +261,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.ParseTime {
 		writeDSNParam(&buf, &hasParam, "parseTime", "true")
+	}
+
+	if cfg.TimeTruncate > 0 {
+		writeDSNParam(&buf, &hasParam, "timeTruncate", cfg.TimeTruncate.String())
 	}
 
 	if cfg.ReadTimeout > 0 {
@@ -500,6 +505,13 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			cfg.ParseTime, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
+			}
+
+		// time.Time truncation
+		case "timeTruncate":
+			cfg.TimeTruncate, err = time.ParseDuration(value)
+			if err != nil {
+				return
 			}
 
 		// I/O read Timeout
