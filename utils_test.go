@@ -240,6 +240,7 @@ func TestAppendDateTime(t *testing.T) {
 		t            time.Time
 		str          string
 		timeTruncate time.Duration
+		expectedErr  bool
 	}{
 		{
 			t:   time.Date(1234, 5, 6, 0, 0, 0, 0, time.UTC),
@@ -323,32 +324,27 @@ func TestAppendDateTime(t *testing.T) {
 			str:          "0001-01-01",
 			timeTruncate: 365 * 24 * time.Hour,
 		},
+		// year out of range
+		{
+			t:           time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC),
+			expectedErr: true,
+		},
+		{
+			t:           time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC),
+			expectedErr: true,
+		},
 	}
 	for _, v := range tests {
 		buf := make([]byte, 0, 32)
-		buf, _ = appendDateTime(buf, v.t, v.timeTruncate)
+		buf, err := appendDateTime(buf, v.t, v.timeTruncate)
+		if err != nil {
+			if !v.expectedErr {
+				t.Errorf("appendDateTime(%v) returned an errror: %v", v.t, err)
+			}
+			continue
+		}
 		if str := string(buf); str != v.str {
 			t.Errorf("appendDateTime(%v), have: %s, want: %s", v.t, str, v.str)
-		}
-	}
-
-	// year out of range
-	{
-		v := time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC)
-		buf := make([]byte, 0, 32)
-		_, err := appendDateTime(buf, v, 0)
-		if err == nil {
-			t.Error("want an error")
-			return
-		}
-	}
-	{
-		v := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
-		buf := make([]byte, 0, 32)
-		_, err := appendDateTime(buf, v, 0)
-		if err == nil {
-			t.Error("want an error")
-			return
 		}
 	}
 }
