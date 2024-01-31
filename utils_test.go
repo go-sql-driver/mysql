@@ -237,8 +237,10 @@ func TestIsolationLevelMapping(t *testing.T) {
 
 func TestAppendDateTime(t *testing.T) {
 	tests := []struct {
-		t   time.Time
-		str string
+		t            time.Time
+		str          string
+		timeTruncate time.Duration
+		expectedErr  bool
 	}{
 		{
 			t:   time.Date(1234, 5, 6, 0, 0, 0, 0, time.UTC),
@@ -276,32 +278,73 @@ func TestAppendDateTime(t *testing.T) {
 			t:   time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC),
 			str: "0001-01-01",
 		},
+		// Truncated time
+		{
+			t:            time.Date(1234, 5, 6, 0, 0, 0, 0, time.UTC),
+			str:          "1234-05-06",
+			timeTruncate: time.Second,
+		},
+		{
+			t:            time.Date(4567, 12, 31, 12, 0, 0, 0, time.UTC),
+			str:          "4567-12-31 12:00:00",
+			timeTruncate: time.Minute,
+		},
+		{
+			t:            time.Date(2020, 5, 30, 12, 34, 0, 0, time.UTC),
+			str:          "2020-05-30 12:34:00",
+			timeTruncate: 0,
+		},
+		{
+			t:            time.Date(2020, 5, 30, 12, 34, 56, 0, time.UTC),
+			str:          "2020-05-30 12:34:56",
+			timeTruncate: time.Second,
+		},
+		{
+			t:            time.Date(2020, 5, 30, 22, 33, 44, 123000000, time.UTC),
+			str:          "2020-05-30 22:33:44",
+			timeTruncate: time.Second,
+		},
+		{
+			t:            time.Date(2020, 5, 30, 22, 33, 44, 123456000, time.UTC),
+			str:          "2020-05-30 22:33:44.123",
+			timeTruncate: time.Millisecond,
+		},
+		{
+			t:            time.Date(2020, 5, 30, 22, 33, 44, 123456789, time.UTC),
+			str:          "2020-05-30 22:33:44",
+			timeTruncate: time.Second,
+		},
+		{
+			t:            time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.UTC),
+			str:          "9999-12-31 23:59:59.999999999",
+			timeTruncate: 0,
+		},
+		{
+			t:            time.Date(1, 1, 1, 1, 1, 1, 1, time.UTC),
+			str:          "0001-01-01",
+			timeTruncate: 365 * 24 * time.Hour,
+		},
+		// year out of range
+		{
+			t:           time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC),
+			expectedErr: true,
+		},
+		{
+			t:           time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC),
+			expectedErr: true,
+		},
 	}
 	for _, v := range tests {
 		buf := make([]byte, 0, 32)
-		buf, _ = appendDateTime(buf, v.t)
+		buf, err := appendDateTime(buf, v.t, v.timeTruncate)
+		if err != nil {
+			if !v.expectedErr {
+				t.Errorf("appendDateTime(%v) returned an errror: %v", v.t, err)
+			}
+			continue
+		}
 		if str := string(buf); str != v.str {
 			t.Errorf("appendDateTime(%v), have: %s, want: %s", v.t, str, v.str)
-		}
-	}
-
-	// year out of range
-	{
-		v := time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC)
-		buf := make([]byte, 0, 32)
-		_, err := appendDateTime(buf, v)
-		if err == nil {
-			t.Error("want an error")
-			return
-		}
-	}
-	{
-		v := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
-		buf := make([]byte, 0, 32)
-		_, err := appendDateTime(buf, v)
-		if err == nil {
-			t.Error("want an error")
-			return
 		}
 	}
 }

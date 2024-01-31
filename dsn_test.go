@@ -74,6 +74,9 @@ var testDSNs = []struct {
 }, {
 	"tcp(de:ad:be:ef::ca:fe)/dbname",
 	&Config{Net: "tcp", Addr: "[de:ad:be:ef::ca:fe]:3306", DBName: "dbname", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
+}, {
+	"user:password@/dbname?loc=UTC&timeout=30s&parseTime=true&timeTruncate=1h",
+	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Loc: time.UTC, Timeout: 30 * time.Second, ParseTime: true, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, TimeTruncate: time.Hour},
 },
 }
 

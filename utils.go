@@ -265,7 +265,11 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 	return nil, fmt.Errorf("invalid DATETIME packet length %d", num)
 }
 
-func appendDateTime(buf []byte, t time.Time) ([]byte, error) {
+func appendDateTime(buf []byte, t time.Time, timeTruncate time.Duration) ([]byte, error) {
+	if timeTruncate > 0 {
+		t = t.Truncate(timeTruncate)
+	}
+
 	year, month, day := t.Date()
 	hour, min, sec := t.Clock()
 	nsec := t.Nanosecond()
