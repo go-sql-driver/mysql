@@ -209,8 +209,9 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 	buf, err := mc.buf.takeCompleteBuffer()
 	if err != nil {
 		// can not take the buffer. Something must be wrong with the connection
+		// is safe to retry and will help to recycle the TCP. So we can return ErrBadConn here
 		mc.cfg.Logger.Print(err)
-		return "", ErrInvalidConn
+		return "", driver.ErrBadConn
 	}
 	buf = buf[:0]
 	argPos := 0
