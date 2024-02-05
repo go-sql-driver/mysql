@@ -40,8 +40,16 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
   * Optional placeholder interpolation
 
 ## Requirements
-  * Go 1.18 or higher. We aim to support the 3 latest versions of Go.
-  * MySQL (5.6+), MariaDB, Percona Server, Google CloudSQL or Sphinx (2.2.3+)
+
+* Go 1.19 or higher. We aim to support the 3 latest versions of Go.
+* MySQL (5.7+) and MariaDB (10.3+) are supported.
+* [TiDB](https://github.com/pingcap/tidb) is supported by PingCAP.
+  * Do not ask questions about TiDB in our issue tracker or forum.
+  * [Document](https://docs.pingcap.com/tidb/v6.1/dev-guide-sample-application-golang)
+  * [Forum](https://ask.pingcap.com/)
+* go-mysql would work with Percona Server, Google CloudSQL or Sphinx (2.2.3+).
+  * Maintainers won't support them. Do not expect issues are investigated and resolved by maintainers.
+  * Investigate issues yourself and please send a pull request to fix it.
 
 ---------------------------------------
 
