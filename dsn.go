@@ -71,18 +71,43 @@ type Config struct {
 
 	// private fields. new options should be come here
 
-	pubKey               *rsa.PublicKey    // Server public key
-	timeTruncate         time.Duration     // Truncate time.Time values to the specified duration
+	pubKey       *rsa.PublicKey // Server public key
+	timeTruncate time.Duration  // Truncate time.Time values to the specified duration
 }
 
+// Functional Options Pattern
+// https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
+type option func(*Config) error
+
 // NewConfig creates a new Config and sets default values.
-func NewConfig() *Config {
-	return &Config{
+func NewConfig(opts ...option) *Config {
+	cfg := &Config{
 		Loc:                  time.UTC,
 		MaxAllowedPacket:     defaultMaxAllowedPacket,
 		Logger:               defaultLogger,
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
+	}
+
+	cfg.SetOptions(opts...)
+	return cfg
+}
+
+func (c *Config) SetOptions(opts ...option) error {
+	for _, opt := range opts {
+		err := opt(c)
+		if err != nil {
+			return err
+		}
+	}
+}
+
+// TimeTruncate sets the time duration to truncate time.Time values in
+// query parameters.
+func TimeTruncate(d time.Duration) option {
+	return func(cfg *Config) error {
+		cfg.timeTruncate = d
+		return nil
 	}
 }
 
