@@ -1172,7 +1172,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				if v.IsZero() {
 					b = append(b, "0000-00-00"...)
 				} else {
-					b, err = appendDateTime(b, v.In(mc.cfg.Loc), mc.cfg.TimeTruncate)
+					b, err = appendDateTime(b, v.In(mc.cfg.Loc), mc.cfg.timeTruncate)
 					if err != nil {
 						return err
 					}
