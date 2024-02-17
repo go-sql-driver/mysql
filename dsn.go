@@ -100,6 +100,7 @@ func (c *Config) SetOptions(opts ...option) error {
 			return err
 		}
 	}
+	return nil
 }
 
 // TimeTruncate sets the time duration to truncate time.Time values in
@@ -543,7 +544,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		case "timeTruncate":
 			cfg.timeTruncate, err = time.ParseDuration(value)
 			if err != nil {
-				return
+				return fmt.Errorf("invalid timeTruncate value: %v, error: %w", value, err)
 			}
 
 		// I/O read Timeout
