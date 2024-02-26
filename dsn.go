@@ -80,7 +80,7 @@ type Config struct {
 type option func(*Config) error
 
 // NewConfig creates a new Config and sets default values.
-func NewConfig(opts ...option) *Config {
+func NewConfig() *Config {
 	cfg := &Config{
 		Loc:                  time.UTC,
 		MaxAllowedPacket:     defaultMaxAllowedPacket,
@@ -89,7 +89,6 @@ func NewConfig(opts ...option) *Config {
 		CheckConnLiveness:    true,
 	}
 
-	cfg.SetOptions(opts...)
 	return cfg
 }
 
