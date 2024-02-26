@@ -77,7 +77,7 @@ type Config struct {
 
 // Functional Options Pattern
 // https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
-type option func(*Config) error
+type Option func(*Config) error
 
 // NewConfig creates a new Config and sets default values.
 func NewConfig() *Config {
@@ -92,7 +92,7 @@ func NewConfig() *Config {
 	return cfg
 }
 
-func (c *Config) SetOptions(opts ...option) error {
+func (c *Config) Apply(opts ...Option) error {
 	for _, opt := range opts {
 		err := opt(c)
 		if err != nil {
@@ -104,7 +104,7 @@ func (c *Config) SetOptions(opts ...option) error {
 
 // TimeTruncate sets the time duration to truncate time.Time values in
 // query parameters.
-func TimeTruncate(d time.Duration) option {
+func TimeTruncate(d time.Duration) Option {
 	return func(cfg *Config) error {
 		cfg.timeTruncate = d
 		return nil
