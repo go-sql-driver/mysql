@@ -69,7 +69,7 @@ type Config struct {
 	ParseTime                bool // Parse time values to time.Time
 	RejectReadOnly           bool // Reject read-only connections
 
-	// private fields. new options should be come here
+	// unexported fields. new options should be come here
 
 	pubKey       *rsa.PublicKey // Server public key
 	timeTruncate time.Duration  // Truncate time.Time values to the specified duration
