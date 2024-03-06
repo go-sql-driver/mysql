@@ -34,6 +34,8 @@ var (
 // If a new Config is created instead of being parsed from a DSN string,
 // the NewConfig function should be used, which sets default values.
 type Config struct {
+	// non boolean fields
+
 	User                 string            // Username
 	Passwd               string            // Password (requires User)
 	Net                  string            // Network (e.g. "tcp", "tcp6", "unix". default: "tcp")
@@ -45,14 +47,14 @@ type Config struct {
 	Loc                  *time.Location    // Location for time.Time values
 	MaxAllowedPacket     int               // Max packet size allowed
 	ServerPubKey         string            // Server public key name
-	pubKey               *rsa.PublicKey    // Server public key
 	TLSConfig            string            // TLS configuration name
 	TLS                  *tls.Config       // TLS configuration, its priority is higher than TLSConfig
-	TimeTruncate         time.Duration     // Truncate time.Time values to the specified duration
 	Timeout              time.Duration     // Dial timeout
 	ReadTimeout          time.Duration     // I/O read timeout
 	WriteTimeout         time.Duration     // I/O write timeout
 	Logger               Logger            // Logger
+
+	// boolean fields
 
 	AllowAllFiles            bool // Allow all files to be used with LOAD DATA LOCAL INFILE
 	AllowCleartextPasswords  bool // Allows the cleartext client side plugin
@@ -66,16 +68,47 @@ type Config struct {
 	MultiStatements          bool // Allow multiple statements in one query
 	ParseTime                bool // Parse time values to time.Time
 	RejectReadOnly           bool // Reject read-only connections
+
+	// unexported fields. new options should be come here
+
+	pubKey       *rsa.PublicKey // Server public key
+	timeTruncate time.Duration  // Truncate time.Time values to the specified duration
 }
+
+// Functional Options Pattern
+// https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
+type Option func(*Config) error
 
 // NewConfig creates a new Config and sets default values.
 func NewConfig() *Config {
-	return &Config{
+	cfg := &Config{
 		Loc:                  time.UTC,
 		MaxAllowedPacket:     defaultMaxAllowedPacket,
 		Logger:               defaultLogger,
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
+	}
+
+	return cfg
+}
+
+// Apply applies the given options to the Config object.
+func (c *Config) Apply(opts ...Option) error {
+	for _, opt := range opts {
+		err := opt(c)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// TimeTruncate sets the time duration to truncate time.Time values in
+// query parameters.
+func TimeTruncate(d time.Duration) Option {
+	return func(cfg *Config) error {
+		cfg.timeTruncate = d
+		return nil
 	}
 }
 
@@ -263,8 +296,8 @@ func (cfg *Config) FormatDSN() string {
 		writeDSNParam(&buf, &hasParam, "parseTime", "true")
 	}
 
-	if cfg.TimeTruncate > 0 {
-		writeDSNParam(&buf, &hasParam, "timeTruncate", cfg.TimeTruncate.String())
+	if cfg.timeTruncate > 0 {
+		writeDSNParam(&buf, &hasParam, "timeTruncate", cfg.timeTruncate.String())
 	}
 
 	if cfg.ReadTimeout > 0 {
@@ -509,9 +542,9 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// time.Time truncation
 		case "timeTruncate":
-			cfg.TimeTruncate, err = time.ParseDuration(value)
+			cfg.timeTruncate, err = time.ParseDuration(value)
 			if err != nil {
-				return
+				return fmt.Errorf("invalid timeTruncate value: %v, error: %w", value, err)
 			}
 
 		// I/O read Timeout
