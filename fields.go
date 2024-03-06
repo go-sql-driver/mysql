@@ -77,6 +77,11 @@ func (mf *mysqlField) typeDatabaseName() string {
 		}
 		return "SMALLINT"
 	case fieldTypeString:
+		if mf.flags&flagEnum != 0 {
+			return "ENUM"
+		} else if mf.flags&flagSet != 0 {
+			return "SET"
+		}
 		if mf.charSet == binaryCollationID {
 			return "BINARY"
 		}

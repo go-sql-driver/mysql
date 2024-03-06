@@ -828,7 +828,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 			}
 
 		case fieldTypeTiny, fieldTypeShort, fieldTypeInt24, fieldTypeYear, fieldTypeLong:
-			dest[i], err = strconv.ParseInt(string(buf), 10, 32)
+			dest[i], err = strconv.ParseInt(string(buf), 10, 64)
 
 		case fieldTypeLongLong:
 			if rows.rs.columns[i].flags&flagUnsigned != 0 {
@@ -1172,7 +1172,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				if v.IsZero() {
 					b = append(b, "0000-00-00"...)
 				} else {
-					b, err = appendDateTime(b, v.In(mc.cfg.Loc))
+					b, err = appendDateTime(b, v.In(mc.cfg.Loc), mc.cfg.timeTruncate)
 					if err != nil {
 						return err
 					}
