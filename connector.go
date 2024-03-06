@@ -66,11 +66,11 @@ func newConnector(cfg *Config) *connector {
 func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	var err error
 
-	// Invoke BeforeConnect if present, with a copy of the configuration
+	// Invoke beforeConnect if present, with a copy of the configuration
 	cfg := c.cfg
-	if c.cfg.BeforeConnect != nil {
+	if c.cfg.beforeConnect != nil {
 		cfg = c.cfg.Clone()
-		err = c.cfg.BeforeConnect(ctx, cfg)
+		err = c.cfg.beforeConnect(ctx, cfg)
 		if err != nil {
 			return nil, err
 		}

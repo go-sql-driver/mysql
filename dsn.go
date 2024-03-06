@@ -37,24 +37,23 @@ var (
 type Config struct {
 	// non boolean fields
 
-	User                 string                               // Username
-	Passwd               string                               // Password (requires User)
-	Net                  string                               // Network (e.g. "tcp", "tcp6", "unix". default: "tcp")
-	Addr                 string                               // Address (default: "127.0.0.1:3306" for "tcp" and "/tmp/mysql.sock" for "unix")
-	DBName               string                               // Database name
-	Params               map[string]string                    // Connection parameters
-	ConnectionAttributes string                               // Connection Attributes, comma-delimited string of user-defined "key:value" pairs
-	Collation            string                               // Connection collation
-	Loc                  *time.Location                       // Location for time.Time values
-	MaxAllowedPacket     int                                  // Max packet size allowed
-	ServerPubKey         string                               // Server public key name
-	TLSConfig            string                               // TLS configuration name
-	TLS                  *tls.Config                          // TLS configuration, its priority is higher than TLSConfig
-	Timeout              time.Duration                        // Dial timeout
-	ReadTimeout          time.Duration                        // I/O read timeout
-	WriteTimeout         time.Duration                        // I/O write timeout
-	Logger               Logger                               // Logger
-	BeforeConnect        func(context.Context, *Config) error // Invoked before a connection is established
+	User                 string            // Username
+	Passwd               string            // Password (requires User)
+	Net                  string            // Network (e.g. "tcp", "tcp6", "unix". default: "tcp")
+	Addr                 string            // Address (default: "127.0.0.1:3306" for "tcp" and "/tmp/mysql.sock" for "unix")
+	DBName               string            // Database name
+	Params               map[string]string // Connection parameters
+	ConnectionAttributes string            // Connection Attributes, comma-delimited string of user-defined "key:value" pairs
+	Collation            string            // Connection collation
+	Loc                  *time.Location    // Location for time.Time values
+	MaxAllowedPacket     int               // Max packet size allowed
+	ServerPubKey         string            // Server public key name
+	TLSConfig            string            // TLS configuration name
+	TLS                  *tls.Config       // TLS configuration, its priority is higher than TLSConfig
+	Timeout              time.Duration     // Dial timeout
+	ReadTimeout          time.Duration     // I/O read timeout
+	WriteTimeout         time.Duration     // I/O write timeout
+	Logger               Logger            // Logger
 
 	// boolean fields
 
@@ -73,8 +72,9 @@ type Config struct {
 
 	// unexported fields. new options should be come here
 
-	pubKey       *rsa.PublicKey // Server public key
-	timeTruncate time.Duration  // Truncate time.Time values to the specified duration
+	beforeConnect func(context.Context, *Config) error // Invoked before a connection is established
+	pubKey        *rsa.PublicKey                       // Server public key
+	timeTruncate  time.Duration                        // Truncate time.Time values to the specified duration
 }
 
 // Functional Options Pattern
@@ -110,6 +110,14 @@ func (c *Config) Apply(opts ...Option) error {
 func TimeTruncate(d time.Duration) Option {
 	return func(cfg *Config) error {
 		cfg.timeTruncate = d
+		return nil
+	}
+}
+
+// BeforeConnect sets the function to be invoked before a connection is established.
+func BeforeConnect(fn func(context.Context, *Config) error) Option {
+	return func(cfg *Config) error {
+		cfg.beforeConnect = fn
 		return nil
 	}
 }

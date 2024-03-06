@@ -2055,10 +2055,10 @@ func TestBeforeConnect(t *testing.T) {
 		t.Fatalf("error parsing DSN: %v", err)
 	}
 
-	cfg.BeforeConnect = func(ctx context.Context, c *Config) error {
+	cfg.Apply(BeforeConnect(func(ctx context.Context, c *Config) error {
 		c.DBName = dbname
 		return nil
-	}
+	}))
 
 	connector, err := NewConnector(cfg)
 	if err != nil {
