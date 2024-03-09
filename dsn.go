@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"bytes"
+	"context"
 	"crypto/rsa"
 	"crypto/tls"
 	"errors"
@@ -71,8 +72,9 @@ type Config struct {
 
 	// unexported fields. new options should be come here
 
-	pubKey       *rsa.PublicKey // Server public key
-	timeTruncate time.Duration  // Truncate time.Time values to the specified duration
+	beforeConnect func(context.Context, *Config) error // Invoked before a connection is established
+	pubKey        *rsa.PublicKey                       // Server public key
+	timeTruncate  time.Duration                        // Truncate time.Time values to the specified duration
 }
 
 // Functional Options Pattern
@@ -108,6 +110,14 @@ func (c *Config) Apply(opts ...Option) error {
 func TimeTruncate(d time.Duration) Option {
 	return func(cfg *Config) error {
 		cfg.timeTruncate = d
+		return nil
+	}
+}
+
+// BeforeConnect sets the function to be invoked before a connection is established.
+func BeforeConnect(fn func(context.Context, *Config) error) Option {
+	return func(cfg *Config) error {
+		cfg.beforeConnect = fn
 		return nil
 	}
 }
