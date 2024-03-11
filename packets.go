@@ -204,14 +204,6 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 		}
 	}
 
-	if mc.flags&clientCompress == 0 {
-		if mc.cfg.Compress != CompressionModeRequired {
-			mc.cfg.Compress = CompressionModeDisabled
-		} else {
-			return nil, "", ErrNoCompression
-		}
-	}
-
 	pos += 2
 
 	if len(data) > pos {
@@ -275,7 +267,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		clientFlags |= clientFoundRows
 	}
 
-	if mc.cfg.Compress != CompressionModeDisabled {
+	if mc.cfg.compress {
 		clientFlags |= clientCompress
 	}
 

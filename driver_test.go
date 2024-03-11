@@ -3539,6 +3539,10 @@ func TestConnectionAttributes(t *testing.T) {
 
 func TestErrorInMultiResult(t *testing.T) {
 	// https://github.com/go-sql-driver/mysql/issues/1361
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
 	var db *sql.DB
 	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
 		db, err = sql.Open("mysql", dsn)

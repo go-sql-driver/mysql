@@ -15,7 +15,7 @@ func makeRandByteSlice(size int) []byte {
 }
 
 func newMockConn() *mysqlConn {
-	newConn := &mysqlConn{}
+	newConn := &mysqlConn{cfg: NewConfig()}
 	return newConn
 }
 
@@ -30,7 +30,6 @@ func newMockBuf(reader io.Reader) *mockBuf {
 }
 
 func (mb *mockBuf) readNext(need int) ([]byte, error) {
-
 	data := make([]byte, need)
 	_, err := mb.reader.Read(data)
 	if err != nil {
@@ -74,12 +73,6 @@ func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []by
 	return b.Bytes()
 }
 
-// roundtripHelper compresses then uncompresses uncompressedPacket and checks state variables
-func roundtripHelper(t *testing.T, cSend *mysqlConn, cReceive *mysqlConn, uncompressedPacket []byte) []byte {
-	compressed := compressHelper(t, cSend, uncompressedPacket)
-	return uncompressHelper(t, cReceive, compressed, len(uncompressedPacket))
-}
-
 // uncompressHelper uncompresses compressedPacket and checks state variables
 func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expSize int) []byte {
 	// get status variables
@@ -110,21 +103,24 @@ func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expS
 	return uncompressedPacket
 }
 
+// roundtripHelper compresses then uncompresses uncompressedPacket and checks state variables
+func roundtripHelper(t *testing.T, cSend *mysqlConn, cReceive *mysqlConn, uncompressedPacket []byte) []byte {
+	compressed := compressHelper(t, cSend, uncompressedPacket)
+	return uncompressHelper(t, cReceive, compressed, len(uncompressedPacket))
+}
+
 // TestCompressedReaderThenWriter tests reader and writer seperately.
 func TestCompressedReaderThenWriter(t *testing.T) {
-	makeTestUncompressedPacket := func(size int) []byte {
-		uncompressedHeader := make([]byte, 4)
-		uncompressedHeader[0] = byte(size)
-		uncompressedHeader[1] = byte(size >> 8)
-		uncompressedHeader[2] = byte(size >> 16)
+	makeUncompressedPacket := func(size int) []byte {
+		packet := make([]byte, 4+size)
+		packet[0] = byte(size)
+		packet[1] = byte(size >> 8)
+		packet[2] = byte(size >> 16)
 
-		payload := make([]byte, size)
-		for i := range payload {
-			payload[i] = 'b'
+		for i := 0; i < size; i++ {
+			packet[4+i] = 'b'
 		}
-
-		uncompressedPacket := append(uncompressedHeader, payload...)
-		return uncompressedPacket
+		return packet
 	}
 
 	tests := []struct {
@@ -139,10 +135,10 @@ func TestCompressedReaderThenWriter(t *testing.T) {
 			uncompressed: []byte{6, 0, 0, 0, 'g', 'o', 'l', 'a', 'n', 'g'},
 			desc:         "golang"},
 		{compressed: []byte{19, 0, 0, 0, 104, 0, 0, 120, 156, 74, 97, 96, 96, 72, 162, 3, 0, 4, 0, 0, 255, 255, 182, 165, 38, 173},
-			uncompressed: makeTestUncompressedPacket(100),
+			uncompressed: makeUncompressedPacket(100),
 			desc:         "100 bytes letter b"},
 		{compressed: []byte{63, 0, 0, 0, 236, 128, 0, 120, 156, 236, 192, 129, 0, 0, 0, 8, 3, 176, 179, 70, 18, 110, 24, 129, 124, 187, 77, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 168, 241, 1, 0, 0, 255, 255, 42, 107, 93, 24},
-			uncompressed: makeTestUncompressedPacket(33000),
+			uncompressed: makeUncompressedPacket(33000),
 			desc:         "33000 bytes letter b"},
 	}
 
@@ -200,7 +196,6 @@ func TestRoundtrip(t *testing.T) {
 	}
 
 	cSend := newMockConn()
-
 	cReceive := newMockConn()
 
 	for _, test := range tests {

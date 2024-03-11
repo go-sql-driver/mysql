@@ -70,22 +70,15 @@ type Config struct {
 	ParseTime                bool // Parse time values to time.Time
 	RejectReadOnly           bool // Reject read-only connections
 
-	// unexported fields. new options should be come here
+	// unexported fields. new options should be come here.
+	// boolean first. alphabetical order.
 
-	beforeConnect     func(context.Context, *Config) error // Invoked before a connection is established
-	pubKey            *rsa.PublicKey                       // Server public key
-	timeTruncate      time.Duration                        // Truncate time.Time values to the specified duration
-	Compress          CompressionMode                      // Compress packets
-	MinCompressLength int                                  // Don't compress packets less than this number of bytes
+	compress bool // Enable zlib compression
+
+	beforeConnect func(context.Context, *Config) error // Invoked before a connection is established
+	pubKey        *rsa.PublicKey                       // Server public key
+	timeTruncate  time.Duration                        // Truncate time.Time values to the specified duration
 }
-
-type CompressionMode string
-
-const (
-	CompressionModeDisabled  CompressionMode = "disabled"
-	CompressionModePreferred CompressionMode = "preferred"
-	CompressionModeRequired  CompressionMode = "required"
-)
 
 // Functional Options Pattern
 // https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
@@ -99,10 +92,7 @@ func NewConfig() *Config {
 		Logger:               defaultLogger,
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
-		Compress:             CompressionModeDisabled,
-		MinCompressLength:    defaultMinCompressLength,
 	}
-
 	return cfg
 }
 
@@ -130,6 +120,14 @@ func TimeTruncate(d time.Duration) Option {
 func BeforeConnect(fn func(context.Context, *Config) error) Option {
 	return func(cfg *Config) error {
 		cfg.beforeConnect = fn
+		return nil
+	}
+}
+
+// EnableCompress sets the compression mode.
+func EnableCompression(yes bool) Option {
+	return func(cfg *Config) error {
+		cfg.compress = yes
 		return nil
 	}
 }
@@ -302,12 +300,8 @@ func (cfg *Config) FormatDSN() string {
 		writeDSNParam(&buf, &hasParam, "columnsWithAlias", "true")
 	}
 
-	if cfg.Compress != CompressionModeDisabled {
-		writeDSNParam(&buf, &hasParam, "compress", url.QueryEscape(string(cfg.Compress)))
-	}
-
-	if cfg.MinCompressLength != defaultMinCompressLength {
-		writeDSNParam(&buf, &hasParam, "minCompressLength", strconv.Itoa(cfg.MinCompressLength))
+	if cfg.compress {
+		writeDSNParam(&buf, &hasParam, "compress", "true")
 	}
 
 	if cfg.InterpolateParams {
@@ -534,29 +528,10 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// Compression
 		case "compress":
-			boolValue, isBool := readBool(value)
-			if isBool {
-				if boolValue {
-					cfg.Compress = CompressionModePreferred
-				} else {
-					cfg.Compress = CompressionModeDisabled
-				}
-			} else {
-				switch strings.ToLower(value) {
-				case string(CompressionModeDisabled):
-					cfg.Compress = CompressionModeDisabled
-				case string(CompressionModePreferred):
-					cfg.Compress = CompressionModePreferred
-				case string(CompressionModeRequired):
-					cfg.Compress = CompressionModeRequired
-				default:
-					return fmt.Errorf("invalid value for compression mode")
-				}
-			}
-		case "minCompressLength":
-			cfg.MinCompressLength, err = strconv.Atoi(value)
-			if err != nil {
-				return
+			var isBool bool
+			cfg.compress, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
 			}
 
 		// Enable client side placeholder substitution

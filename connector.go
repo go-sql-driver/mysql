@@ -170,7 +170,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 
-	if mc.cfg.Compress != CompressionModeDisabled {
+	if mc.cfg.compress {
 		mc.packetReader = newCompressedReader(&mc.buf, mc)
 		mc.packetWriter = newCompressedWriter(mc.packetWriter, mc)
 	}

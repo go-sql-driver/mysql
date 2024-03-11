@@ -271,12 +271,12 @@ will return `u.id` instead of just `id` if `columnsWithAlias=true`.
 ##### `compress`
 
 ```
-Type:           string
-Valid Values:   disabled, preferred, required
-Default:        disabled
+Type:           bool
+Valid Values:   true, false
+Default:        false
 ```
 
-Toggles zlib compression. `compress=disabled` is the default value and disables compression even if offered by the server. `compress=preferred` uses compression if offered by the server, and `compress=required` will cause connection to fail if not offered by the server. In both of these cases, compression is also controlled by the `minCompressLength` parameter.
+Toggles zlib compression. false by default.
 
 ##### `interpolateParams`
 
