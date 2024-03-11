@@ -148,7 +148,7 @@ func (w *compressedWriter) Write(data []byte) (int, error) {
 		}
 
 		// If payload is less than minCompressLength, don't compress.
-		if uncompressedLen < defaultMinCompressLength {
+		if uncompressedLen < minCompressLength {
 			if _, err := buf.Write(payload); err != nil {
 				return 0, err
 			}
