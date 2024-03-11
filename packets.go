@@ -196,12 +196,16 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 		return nil, "", ErrOldProtocol
 	}
 
+	// TODO(methane): writing to mc.cfg.XXX is bad idea. Fix it later.
 	if mc.flags&clientSSL == 0 && mc.cfg.TLS != nil {
 		if mc.cfg.AllowFallbackToPlaintext {
 			mc.cfg.TLS = nil
 		} else {
 			return nil, "", ErrNoTLS
 		}
+	}
+	if mc.flags&clientCompress == 0 {
+		mc.cfg.compress = false
 	}
 
 	pos += 2
