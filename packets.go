@@ -306,15 +306,14 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		pktLen += n + 1
 	}
 
-	// 1 byte to store length of all key-values
-	// NOTE: Actually, this is length encoded integer.
-	// But we support only len(connAttrBuf) < 251 for now because takeSmallBuffer
-	// doesn't support buffer size more than 4096 bytes.
-	// TODO(methane): Rewrite buffer management.
-	pktLen += 1 + len(mc.connector.encodedAttributes)
+	// encode length of the connection attributes
+	var connAttrsLEIBuf [9]byte
+	connAttrsLen := len(mc.connector.encodedAttributes)
+	connAttrsLEI := appendLengthEncodedInteger(connAttrsLEIBuf[:0], uint64(connAttrsLen))
+	pktLen += len(connAttrsLEI) + len(mc.connector.encodedAttributes)
 
 	// Calculate packet length and get buffer with that size
-	data, err := mc.buf.takeSmallBuffer(pktLen + 4)
+	data, err := mc.buf.takeBuffer(pktLen + 4)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
 		mc.cfg.Logger.Print(err)
@@ -396,8 +395,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	pos++
 
 	// Connection Attributes
-	data[pos] = byte(len(mc.connector.encodedAttributes))
-	pos++
+	pos += copy(data[pos:], connAttrsLEI)
 	pos += copy(data[pos:], []byte(mc.connector.encodedAttributes))
 
 	// Send Auth packet
@@ -849,7 +847,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 			}
 
 		case fieldTypeTiny, fieldTypeShort, fieldTypeInt24, fieldTypeYear, fieldTypeLong:
-			dest[i], err = strconv.ParseInt(string(buf), 10, 32)
+			dest[i], err = strconv.ParseInt(string(buf), 10, 64)
 
 		case fieldTypeLongLong:
 			if rows.rs.columns[i].flags&flagUnsigned != 0 {
@@ -1196,7 +1194,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				if v.IsZero() {
 					b = append(b, "0000-00-00"...)
 				} else {
-					b, err = appendDateTime(b, v.In(mc.cfg.Loc))
+					b, err = appendDateTime(b, v.In(mc.cfg.Loc), mc.cfg.timeTruncate)
 					if err != nil {
 						return err
 					}

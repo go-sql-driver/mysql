@@ -15,9 +15,8 @@ import "database/sql/driver"
 // This is accessible by executing statements using sql.Conn.Raw() and
 // downcasting the returned result:
 //
-//    res, err := rawConn.Exec(...)
-//    res.(mysql.Result).AllRowsAffected()
-//
+//	res, err := rawConn.Exec(...)
+//	res.(mysql.Result).AllRowsAffected()
 type Result interface {
 	driver.Result
 	// AllRowsAffected returns a slice containing the affected rows for each

@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"bytes"
+	"context"
 	"crypto/rsa"
 	"crypto/tls"
 	"errors"
@@ -34,6 +35,8 @@ var (
 // If a new Config is created instead of being parsed from a DSN string,
 // the NewConfig function should be used, which sets default values.
 type Config struct {
+	// non boolean fields
+
 	User                 string            // Username
 	Passwd               string            // Password (requires User)
 	Net                  string            // Network (e.g. "tcp", "tcp6", "unix". default: "tcp")
@@ -45,13 +48,14 @@ type Config struct {
 	Loc                  *time.Location    // Location for time.Time values
 	MaxAllowedPacket     int               // Max packet size allowed
 	ServerPubKey         string            // Server public key name
-	pubKey               *rsa.PublicKey    // Server public key
 	TLSConfig            string            // TLS configuration name
 	TLS                  *tls.Config       // TLS configuration, its priority is higher than TLSConfig
 	Timeout              time.Duration     // Dial timeout
 	ReadTimeout          time.Duration     // I/O read timeout
 	WriteTimeout         time.Duration     // I/O write timeout
 	Logger               Logger            // Logger
+
+	// boolean fields
 
 	AllowAllFiles            bool // Allow all files to be used with LOAD DATA LOCAL INFILE
 	AllowCleartextPasswords  bool // Allows the cleartext client side plugin
@@ -66,8 +70,13 @@ type Config struct {
 	ParseTime                bool // Parse time values to time.Time
 	RejectReadOnly           bool // Reject read-only connections
 
-	Compress          CompressionMode // Compress packets
-	MinCompressLength int             // Don't compress packets less than this number of bytes
+	// unexported fields. new options should be come here
+
+	beforeConnect     func(context.Context, *Config) error // Invoked before a connection is established
+	pubKey            *rsa.PublicKey                       // Server public key
+	timeTruncate      time.Duration                        // Truncate time.Time values to the specified duration
+	Compress          CompressionMode                      // Compress packets
+	MinCompressLength int                                  // Don't compress packets less than this number of bytes
 }
 
 type CompressionMode string
@@ -78,9 +87,13 @@ const (
 	CompressionModeRequired  CompressionMode = "required"
 )
 
+// Functional Options Pattern
+// https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
+type Option func(*Config) error
+
 // NewConfig creates a new Config and sets default values.
 func NewConfig() *Config {
-	return &Config{
+	cfg := &Config{
 		Loc:                  time.UTC,
 		MaxAllowedPacket:     defaultMaxAllowedPacket,
 		Logger:               defaultLogger,
@@ -88,6 +101,36 @@ func NewConfig() *Config {
 		CheckConnLiveness:    true,
 		Compress:             CompressionModeDisabled,
 		MinCompressLength:    defaultMinCompressLength,
+	}
+
+	return cfg
+}
+
+// Apply applies the given options to the Config object.
+func (c *Config) Apply(opts ...Option) error {
+	for _, opt := range opts {
+		err := opt(c)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// TimeTruncate sets the time duration to truncate time.Time values in
+// query parameters.
+func TimeTruncate(d time.Duration) Option {
+	return func(cfg *Config) error {
+		cfg.timeTruncate = d
+		return nil
+	}
+}
+
+// BeforeConnect sets the function to be invoked before a connection is established.
+func BeforeConnect(fn func(context.Context, *Config) error) Option {
+	return func(cfg *Config) error {
+		cfg.beforeConnect = fn
+		return nil
 	}
 }
 
@@ -281,6 +324,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.ParseTime {
 		writeDSNParam(&buf, &hasParam, "parseTime", "true")
+	}
+
+	if cfg.timeTruncate > 0 {
+		writeDSNParam(&buf, &hasParam, "timeTruncate", cfg.timeTruncate.String())
 	}
 
 	if cfg.ReadTimeout > 0 {
@@ -546,6 +593,13 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				return errors.New("invalid bool value: " + value)
 			}
 
+		// time.Time truncation
+		case "timeTruncate":
+			cfg.timeTruncate, err = time.ParseDuration(value)
+			if err != nil {
+				return fmt.Errorf("invalid timeTruncate value: %v, error: %w", value, err)
+			}
+
 		// I/O read Timeout
 		case "readTimeout":
 			cfg.ReadTimeout, err = time.ParseDuration(value)
@@ -613,7 +667,11 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// Connection attributes
 		case "connectionAttributes":
-			cfg.ConnectionAttributes = value
+			connectionAttributes, err := url.QueryUnescape(value)
+			if err != nil {
+				return fmt.Errorf("invalid connectionAttributes value: %v", err)
+			}
+			cfg.ConnectionAttributes = connectionAttributes
 
 		default:
 			// lazy init
