@@ -41,8 +41,8 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
 
 ## Requirements
 
-* Go 1.19 or higher. We aim to support the 3 latest versions of Go.
-* MySQL (5.7+) and MariaDB (10.3+) are supported.
+* Go 1.20 or higher. We aim to support the 3 latest versions of Go.
+* MySQL (5.7+) and MariaDB (10.5+) are supported.
 * [TiDB](https://github.com/pingcap/tidb) is supported by PingCAP.
   * Do not ask questions about TiDB in our issue tracker or forum.
   * [Document](https://docs.pingcap.com/tidb/v6.1/dev-guide-sample-application-golang)

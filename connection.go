@@ -17,6 +17,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -41,7 +42,7 @@ type mysqlConn struct {
 	closech  chan struct{}
 	finished chan<- struct{}
 	canceled atomicError // set non-nil if conn is canceled
-	closed   atomicBool  // set when conn is closed, before closech is closed
+	closed   atomic.Bool // set when conn is closed, before closech is closed
 }
 
 // Handles parameters set in DSN after the connection is established
