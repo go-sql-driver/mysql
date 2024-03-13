@@ -3,6 +3,7 @@ package mysql
 import (
 	"bytes"
 	"compress/zlib"
+	"fmt"
 	"io"
 )
 
@@ -28,10 +29,15 @@ func newCompressedReader(buf packetReader, mc *mysqlConn) *compressedReader {
 }
 
 func newCompressedWriter(connWriter io.Writer, mc *mysqlConn) *compressedWriter {
+	// level 1 or 2 is the best trade-off between speed and compression ratio
+	zw, err := zlib.NewWriterLevel(new(bytes.Buffer), 2)
+	if err != nil {
+		panic(err) // compress/zlib return non-nil error only if level is invalid
+	}
 	return &compressedWriter{
 		connWriter: connWriter,
 		mc:         mc,
-		zw:         zlib.NewWriter(new(bytes.Buffer)),
+		zw:         zw,
 	}
 }
 
@@ -42,7 +48,7 @@ func (r *compressedReader) readNext(need int) ([]byte, error) {
 		}
 	}
 
-	data := r.bytesBuf[:need]
+	data := r.bytesBuf[:need:need] // prevent caller writes into r.bytesBuf
 	r.bytesBuf = r.bytesBuf[need:]
 	return data, nil
 }
@@ -60,7 +66,6 @@ func (r *compressedReader) uncompressPacket() error {
 	if compressionSequence != r.mc.compressionSequence {
 		return ErrPktSync
 	}
-
 	r.mc.compressionSequence++
 
 	comprData, err := r.buf.readNext(comprLength)
@@ -97,7 +102,6 @@ func (r *compressedReader) uncompressPacket() error {
 	}
 
 	data := r.bytesBuf[offset : offset+uncompressedLength]
-
 	lenRead := 0
 
 	// http://grokbase.com/t/gg/golang-nuts/146y9ppn6b/go-nuts-stream-compression-with-compress-flate
@@ -114,9 +118,11 @@ func (r *compressedReader) uncompressPacket() error {
 			return err
 		}
 	}
-
-	r.bytesBuf = append(r.bytesBuf, data...)
-
+	if lenRead != uncompressedLength {
+		return fmt.Errorf("invalid compressed packet: uncompressed length in header is %d, actual %d",
+			uncompressedLength, lenRead)
+	}
+	r.bytesBuf = r.bytesBuf[:offset+uncompressedLength]
 	return nil
 }
 
@@ -125,13 +131,7 @@ const maxPayloadLen = maxPacketSize - 4
 var blankHeader = make([]byte, 7)
 
 func (w *compressedWriter) Write(data []byte) (int, error) {
-	// when asked to write an empty packet, do nothing
-	if len(data) == 0 {
-		return 0, nil
-	}
-
 	totalBytes := len(data)
-
 	dataLen := len(data)
 	for dataLen != 0 {
 		payloadLen := dataLen
@@ -139,7 +139,6 @@ func (w *compressedWriter) Write(data []byte) (int, error) {
 			payloadLen = maxPayloadLen
 		}
 		payload := data[:payloadLen]
-
 		uncompressedLen := payloadLen
 
 		var buf bytes.Buffer
@@ -161,7 +160,7 @@ func (w *compressedWriter) Write(data []byte) (int, error) {
 			w.zw.Close()
 		}
 
-		if err := w.writeToNetwork(buf.Bytes(), uncompressedLen); err != nil {
+		if err := w.writeCompressedPacket(buf.Bytes(), uncompressedLen); err != nil {
 			return 0, err
 		}
 
@@ -172,7 +171,9 @@ func (w *compressedWriter) Write(data []byte) (int, error) {
 	return totalBytes, nil
 }
 
-func (w *compressedWriter) writeToNetwork(data []byte, uncompressedLen int) error {
+// writeCompressedPacket writes a compressed packet with header.
+// data should start with 7 size space for header followed by payload.
+func (w *compressedWriter) writeCompressedPacket(data []byte, uncompressedLen int) error {
 	comprLength := len(data) - 7
 
 	// compression header
