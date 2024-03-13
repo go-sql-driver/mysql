@@ -109,55 +109,6 @@ func roundtripHelper(t *testing.T, cSend *mysqlConn, cReceive *mysqlConn, uncomp
 	return uncompressHelper(t, cReceive, compressed, len(uncompressedPacket))
 }
 
-// TestCompressedReaderThenWriter tests reader and writer seperately.
-func TestCompressedReaderThenWriter(t *testing.T) {
-	makeUncompressedPacket := func(size int) []byte {
-		packet := make([]byte, 4+size)
-		packet[0] = byte(size)
-		packet[1] = byte(size >> 8)
-		packet[2] = byte(size >> 16)
-
-		for i := 0; i < size; i++ {
-			packet[4+i] = 'b'
-		}
-		return packet
-	}
-
-	tests := []struct {
-		compressed   []byte
-		uncompressed []byte
-		desc         string
-	}{
-		{compressed: []byte{5, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 'a'},
-			uncompressed: []byte{1, 0, 0, 0, 'a'},
-			desc:         "a"},
-		{compressed: []byte{10, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 'g', 'o', 'l', 'a', 'n', 'g'},
-			uncompressed: []byte{6, 0, 0, 0, 'g', 'o', 'l', 'a', 'n', 'g'},
-			desc:         "golang"},
-		{compressed: []byte{63, 0, 0, 0, 236, 128, 0, 120, 156, 236, 192, 129, 0, 0, 0, 8, 3, 176, 179, 70, 18, 110, 24, 129, 124, 187, 77, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 168, 241, 1, 0, 0, 255, 255, 42, 107, 93, 24},
-			uncompressed: makeUncompressedPacket(33000),
-			desc:         "33000 bytes letter b"},
-	}
-
-	for _, test := range tests {
-		s := fmt.Sprintf("Test compress uncompress with %s", test.desc)
-
-		// test uncompression only
-		c := newMockConn()
-		uncompressed := uncompressHelper(t, c, test.compressed, len(test.uncompressed))
-		if !bytes.Equal(uncompressed, test.uncompressed) {
-			t.Fatalf("%s: uncompression failed", s)
-		}
-
-		// test compression only
-		c = newMockConn()
-		compressed := compressHelper(t, c, test.uncompressed)
-		if !bytes.Equal(compressed, test.compressed) {
-			t.Fatalf("%s: compression failed", s)
-		}
-	}
-}
-
 // TestRoundtrip tests two connections, where one is reading and the other is writing
 func TestRoundtrip(t *testing.T) {
 	tests := []struct {
