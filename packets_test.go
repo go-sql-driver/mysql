@@ -147,7 +147,7 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 		{
 			ClientSequenceID: 0,
 			ServerSequenceID: 0x42,
-			ExpectedErr:      ErrPktSyncMul,
+			ExpectedErr:      ErrPktSync,
 		},
 	} {
 		conn, mc := newRWMockConn(testCase.ClientSequenceID)
