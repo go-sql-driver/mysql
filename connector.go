@@ -123,7 +123,6 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	defer mc.finish()
 
 	mc.buf = newBuffer(mc.netConn)
-
 	// packet reader and writer in handshake are never compressed
 	mc.packetReader = &mc.buf
 	mc.packetWriter = mc.netConn
@@ -155,7 +154,6 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 			return nil, err
 		}
 	}
-
 	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
 		mc.cleanup()
 		return nil, err
@@ -174,7 +172,6 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		mc.packetReader = newCompressedReader(&mc.buf, mc)
 		mc.packetWriter = newCompressedWriter(mc.packetWriter, mc)
 	}
-
 	if mc.cfg.MaxAllowedPacket > 0 {
 		mc.maxAllowedPacket = mc.cfg.MaxAllowedPacket
 	} else {

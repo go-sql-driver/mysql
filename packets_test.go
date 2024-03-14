@@ -97,13 +97,10 @@ var _ net.Conn = new(mockConn)
 func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
 	conn := new(mockConn)
 	connector := newConnector(NewConfig())
-
 	buf := newBuffer(conn)
-	reader := newBuffer(conn)
-
 	mc := &mysqlConn{
 		buf:              buf,
-		packetReader:     &reader,
+		packetReader:     &buf,
 		packetWriter:     conn,
 		cfg:              connector.cfg,
 		connector:        connector,
@@ -120,7 +117,6 @@ func TestReadPacketSingleByte(t *testing.T) {
 	mc := &mysqlConn{
 		buf: newBuffer(conn),
 	}
-
 	mc.packetReader = &mc.buf
 
 	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
@@ -174,7 +170,6 @@ func TestReadPacketSplit(t *testing.T) {
 	mc := &mysqlConn{
 		buf: newBuffer(conn),
 	}
-
 	mc.packetReader = &mc.buf
 
 	data := make([]byte, maxPacketSize*2+4*3)

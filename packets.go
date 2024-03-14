@@ -270,16 +270,13 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	if mc.cfg.ClientFoundRows {
 		clientFlags |= clientFoundRows
 	}
-
 	if mc.cfg.compress {
 		clientFlags |= clientCompress
 	}
-
 	// To enable TLS / SSL
 	if mc.cfg.TLS != nil {
 		clientFlags |= clientSSL
 	}
-
 	if mc.cfg.MultiStatements {
 		clientFlags |= clientMultiStatements
 	}
@@ -364,7 +361,6 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		mc.rawConn = mc.netConn
 		mc.netConn = tlsConn
 		mc.buf.nc = tlsConn
-
 		mc.packetWriter = mc.netConn
 	}
 
