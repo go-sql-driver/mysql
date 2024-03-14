@@ -168,7 +168,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 
-	if mc.cfg.compress {
+	if mc.compress {
 		mc.packetReader = newCompressedReader(&mc.buf, mc)
 		mc.packetWriter = newCompressedWriter(mc.packetWriter, mc)
 	}

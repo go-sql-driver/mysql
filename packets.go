@@ -215,9 +215,6 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 			return nil, "", ErrNoTLS
 		}
 	}
-	if mc.flags&clientCompress == 0 {
-		mc.cfg.compress = false
-	}
 
 	pos += 2
 
@@ -281,8 +278,9 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	if mc.cfg.ClientFoundRows {
 		clientFlags |= clientFoundRows
 	}
-	if mc.cfg.compress {
+	if mc.cfg.compress && mc.flags&clientCompress == clientCompress {
 		clientFlags |= clientCompress
+		mc.compress = true
 	}
 	// To enable TLS / SSL
 	if mc.cfg.TLS != nil {
