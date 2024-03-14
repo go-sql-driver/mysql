@@ -51,6 +51,24 @@ type packetReader interface {
 	readNext(need int) ([]byte, error)
 }
 
+func (mc *mysqlConn) resetSeqNo() {
+	mc.sequence = 0
+	mc.compressionSequence = 0
+}
+
+// syncSeqNo must be called when:
+// - at least one large packet is sent (split packet happend), and
+// - finished writing, before start reading.
+func (mc *mysqlConn) syncSeqNo() {
+	// This syncs compressionSequence to sequence.
+	// This is done in `net_flush()` in MySQL and MariaDB.
+	// https://github.com/mariadb-corporation/mariadb-connector-c/blob/8228164f850b12353da24df1b93a1e53cc5e85e9/libmariadb/ma_net.c#L170-L171
+	// https://github.com/mysql/mysql-server/blob/824e2b4064053f7daf17d7f3f84b7a3ed92e5fb4/sql-common/net_serv.cc#L293
+	if mc.cfg.compress {
+		mc.sequence = mc.compressionSequence
+	}
+}
+
 // Handles parameters set in DSN after the connection is established
 func (mc *mysqlConn) handleParams() (err error) {
 	var cmdSet strings.Builder
@@ -139,7 +157,6 @@ func (mc *mysqlConn) Close() (err error) {
 	}
 
 	mc.cleanup()
-
 	return
 }
 

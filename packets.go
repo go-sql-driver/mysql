@@ -34,6 +34,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
 			}
+			// debug.PrintStack()
 			mc.cfg.Logger.Print(err)
 			mc.Close()
 			return nil, ErrInvalidConn
@@ -41,9 +42,13 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 
 		// packet length [24 bit]
 		pktLen := int(uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16)
+		if debugTrace {
+			mc.cfg.Logger.Print(fmt.Sprintf("readPacket: packet seq = %d, mc.sequence = %d", data[3], mc.sequence))
+		}
 
 		// check packet sync [8 bit]
 		if data[3] != mc.sequence {
+			// debug.PrintStack()
 			mc.Close()
 			if data[3] > mc.sequence {
 				return nil, ErrPktSyncMul
@@ -112,6 +117,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			size = pktLen
 		}
 		data[3] = mc.sequence
+		// fmt.Fprintf(os.Stderr, "writePacket: seq=%v len=%v\n", mc.sequence, pktLen)
 
 		// Write packet
 		if mc.writeTimeout > 0 {
@@ -415,12 +421,12 @@ func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
 
 func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	// Reset Packet Sequence
-	mc.sequence = 0
-	mc.compressionSequence = 0
+	mc.resetSeqNo()
 
 	data, err := mc.buf.takeSmallBuffer(4 + 1)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
+		// debug.PrintStack()
 		mc.cfg.Logger.Print(err)
 		return errBadConnNoWrite
 	}
@@ -434,8 +440,7 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 
 func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	// Reset Packet Sequence
-	mc.sequence = 0
-	mc.compressionSequence = 0
+	mc.resetSeqNo()
 
 	pktLen := 1 + len(arg)
 	data, err := mc.buf.takeBuffer(pktLen + 4)
@@ -452,13 +457,14 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	copy(data[5:], arg)
 
 	// Send CMD packet
-	return mc.writePacket(data)
+	err = mc.writePacket(data)
+	mc.syncSeqNo()
+	return err
 }
 
 func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	// Reset Packet Sequence
-	mc.sequence = 0
-	mc.compressionSequence = 0
+	mc.resetSeqNo()
 
 	data, err := mc.buf.takeSmallBuffer(4 + 1 + 4)
 	if err != nil {
@@ -942,8 +948,7 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 			pktLen = dataOffset + argLen
 		}
 
-		stmt.mc.sequence = 0
-		stmt.mc.compressionSequence = 0
+		stmt.mc.resetSeqNo()
 		// Add command byte [1 byte]
 		data[4] = comStmtSendLongData
 
@@ -964,12 +969,10 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 			continue
 		}
 		return err
-
 	}
 
 	// Reset Packet Sequence
-	stmt.mc.sequence = 0
-	stmt.mc.compressionSequence = 0
+	stmt.mc.resetSeqNo()
 	return nil
 }
 
@@ -994,8 +997,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	}
 
 	// Reset packet-sequence
-	mc.sequence = 0
-	mc.compressionSequence = 0
+	mc.resetSeqNo()
 
 	var data []byte
 	var err error
@@ -1216,7 +1218,9 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		data = data[:pos]
 	}
 
-	return mc.writePacket(data)
+	err = mc.writePacket(data)
+	mc.resetSeqNo()
+	return err
 }
 
 // For each remaining resultset in the stream, discards its rows and updates

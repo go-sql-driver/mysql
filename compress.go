@@ -5,7 +5,11 @@ import (
 	"compress/zlib"
 	"fmt"
 	"io"
+	"os"
 )
+
+// for debugging wire protocol.
+const debugTrace = false
 
 type compressedReader struct {
 	buf      packetReader
@@ -63,6 +67,10 @@ func (r *compressedReader) uncompressPacket() error {
 	comprLength := int(uint32(header[0]) | uint32(header[1])<<8 | uint32(header[2])<<16)
 	uncompressedLength := int(uint32(header[4]) | uint32(header[5])<<8 | uint32(header[6])<<16)
 	compressionSequence := uint8(header[3])
+	if debugTrace {
+		fmt.Fprintf(os.Stderr, "uncompress cmplen=%v uncomplen=%v seq=%v\n",
+			comprLength, uncompressedLength, compressionSequence)
+	}
 	if compressionSequence != r.mc.compressionSequence {
 		return ErrPktSync
 	}
@@ -133,7 +141,9 @@ var blankHeader = make([]byte, 7)
 func (w *compressedWriter) Write(data []byte) (int, error) {
 	totalBytes := len(data)
 	dataLen := len(data)
-	for dataLen != 0 {
+	var buf bytes.Buffer
+
+	for dataLen > 0 {
 		payloadLen := dataLen
 		if payloadLen > maxPayloadLen {
 			payloadLen = maxPayloadLen
@@ -141,7 +151,6 @@ func (w *compressedWriter) Write(data []byte) (int, error) {
 		payload := data[:payloadLen]
 		uncompressedLen := payloadLen
 
-		var buf bytes.Buffer
 		if _, err := buf.Write(blankHeader); err != nil {
 			return 0, err
 		}
@@ -166,6 +175,7 @@ func (w *compressedWriter) Write(data []byte) (int, error) {
 
 		dataLen -= payloadLen
 		data = data[payloadLen:]
+		buf.Reset()
 	}
 
 	return totalBytes, nil
@@ -188,7 +198,15 @@ func (w *compressedWriter) writeCompressedPacket(data []byte, uncompressedLen in
 	data[5] = byte(0xff & (uncompressedLen >> 8))
 	data[6] = byte(0xff & (uncompressedLen >> 16))
 
+	if debugTrace {
+		w.mc.cfg.Logger.Print(
+			fmt.Sprintf(
+				"writeCompressedPacket: comprLength=%v, uncompressedLen=%v, seq=%v",
+				comprLength, uncompressedLen, int(data[3])))
+	}
+
 	if _, err := w.connWriter.Write(data); err != nil {
+		w.mc.cfg.Logger.Print(err)
 		return err
 	}
 
