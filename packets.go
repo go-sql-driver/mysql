@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"runtime/debug"
 	"strconv"
 	"time"
 )
@@ -48,7 +49,9 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 
 		// check packet sync [8 bit]
 		if data[3] != mc.sequence {
-			// debug.PrintStack()
+			if debugTrace {
+				debug.PrintStack()
+			}
 			mc.Close()
 			if data[3] > mc.sequence {
 				return nil, ErrPktSyncMul
@@ -117,9 +120,11 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			size = pktLen
 		}
 		data[3] = mc.sequence
-		// fmt.Fprintf(os.Stderr, "writePacket: seq=%v len=%v\n", mc.sequence, pktLen)
 
 		// Write packet
+		if debugTrace {
+			mc.cfg.Logger.Print(fmt.Sprintf("writePacket: size=%v seq=%v", size, mc.sequence))
+		}
 		if mc.writeTimeout > 0 {
 			if err := mc.netConn.SetWriteDeadline(time.Now().Add(mc.writeTimeout)); err != nil {
 				return err
@@ -426,7 +431,6 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	data, err := mc.buf.takeSmallBuffer(4 + 1)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		// debug.PrintStack()
 		mc.cfg.Logger.Print(err)
 		return errBadConnNoWrite
 	}
@@ -1219,7 +1223,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	}
 
 	err = mc.writePacket(data)
-	mc.resetSeqNo()
+	mc.syncSeqNo()
 	return err
 }
 
