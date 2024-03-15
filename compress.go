@@ -6,47 +6,108 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 )
+
+var (
+	zrPool *sync.Pool // Do not use directly. Use zDecompress() instead.
+	zwPool *sync.Pool // Do not use directly. Use zCompress() instead.
+)
+
+func init() {
+	zrPool = &sync.Pool{
+		New: func() any { return nil },
+	}
+	zwPool = &sync.Pool{
+		New: func() any {
+			zw, err := zlib.NewWriterLevel(new(bytes.Buffer), 2)
+			if err != nil {
+				panic(err) // compress/zlib return non-nil error only if level is invalid
+			}
+			return zw
+		},
+	}
+}
+
+func zDecompress(src, dst []byte) (int, error) {
+	br := bytes.NewReader(src)
+	var zr io.ReadCloser
+	var err error
+
+	if a := zrPool.Get(); a == nil {
+		if zr, err = zlib.NewReader(br); err != nil {
+			return 0, err
+		}
+	} else {
+		zr = a.(io.ReadCloser)
+		if zr.(zlib.Resetter).Reset(br, nil); err != nil {
+			return 0, err
+		}
+	}
+	defer func() {
+		zr.Close()
+		zrPool.Put(zr)
+	}()
+
+	lenRead := 0
+	size := len(dst)
+
+	for lenRead < size {
+		n, err := zr.Read(dst[lenRead:])
+		lenRead += n
+
+		if err == io.EOF {
+			if lenRead < size {
+				return lenRead, io.ErrUnexpectedEOF
+			}
+		} else if err != nil {
+			return lenRead, err
+		}
+	}
+	return lenRead, nil
+}
+
+func zCompress(src []byte, dst io.Writer) error {
+	zw := zwPool.Get().(*zlib.Writer)
+	zw.Reset(dst)
+	if _, err := zw.Write(src); err != nil {
+		return err
+	}
+	zw.Close()
+	zwPool.Put(zw)
+	return nil
+}
 
 // for debugging wire protocol.
 const debugTrace = false
 
 type compressor struct {
-	mc *mysqlConn
-	// for reader
-	bytesBuf []byte
-	zr       io.ReadCloser
-	// for writer
+	mc         *mysqlConn
+	bytesBuf   []byte // read buffer (FIFO)
 	connWriter io.Writer
-	zw         *zlib.Writer
 }
 
 func newCompressor(mc *mysqlConn, w io.Writer) *compressor {
-	zw, err := zlib.NewWriterLevel(new(bytes.Buffer), 2)
-	if err != nil {
-		panic(err) // compress/zlib return non-nil error only if level is invalid
-	}
 	return &compressor{
 		mc:         mc,
 		connWriter: w,
-		zw:         zw,
 	}
 }
 
-func (r *compressor) readNext(need int) ([]byte, error) {
-	for len(r.bytesBuf) < need {
-		if err := r.uncompressPacket(); err != nil {
+func (c *compressor) readNext(need int) ([]byte, error) {
+	for len(c.bytesBuf) < need {
+		if err := c.uncompressPacket(); err != nil {
 			return nil, err
 		}
 	}
 
-	data := r.bytesBuf[:need:need] // prevent caller writes into r.bytesBuf
-	r.bytesBuf = r.bytesBuf[need:]
+	data := c.bytesBuf[:need:need] // prevent caller writes into r.bytesBuf
+	c.bytesBuf = c.bytesBuf[need:]
 	return data, nil
 }
 
-func (r *compressor) uncompressPacket() error {
-	header, err := r.mc.buf.readNext(7) // size of compressed header
+func (c *compressor) uncompressPacket() error {
+	header, err := c.mc.buf.readNext(7) // size of compressed header
 	if err != nil {
 		return err
 	}
@@ -59,12 +120,12 @@ func (r *compressor) uncompressPacket() error {
 		fmt.Fprintf(os.Stderr, "uncompress cmplen=%v uncomplen=%v seq=%v\n",
 			comprLength, uncompressedLength, compressionSequence)
 	}
-	if compressionSequence != r.mc.compressionSequence {
+	if compressionSequence != c.mc.compressionSequence {
 		return ErrPktSync
 	}
-	r.mc.compressionSequence++
+	c.mc.compressionSequence++
 
-	comprData, err := r.mc.buf.readNext(comprLength)
+	comprData, err := c.mc.buf.readNext(comprLength)
 	if err != nil {
 		return err
 	}
@@ -72,53 +133,27 @@ func (r *compressor) uncompressPacket() error {
 	// if payload is uncompressed, its length will be specified as zero, and its
 	// true length is contained in comprLength
 	if uncompressedLength == 0 {
-		r.bytesBuf = append(r.bytesBuf, comprData...)
+		c.bytesBuf = append(c.bytesBuf, comprData...)
 		return nil
 	}
 
-	// write comprData to a bytes.buffer, then read it using zlib into data
-	br := bytes.NewReader(comprData)
-	if r.zr == nil {
-		if r.zr, err = zlib.NewReader(br); err != nil {
-			return err
-		}
-	} else {
-		if err = r.zr.(zlib.Resetter).Reset(br, nil); err != nil {
-			return err
-		}
-	}
-	defer r.zr.Close()
-
 	// use existing capacity in bytesBuf if possible
-	offset := len(r.bytesBuf)
-	if cap(r.bytesBuf)-offset < uncompressedLength {
-		old := r.bytesBuf
-		r.bytesBuf = make([]byte, offset, offset+uncompressedLength)
-		copy(r.bytesBuf, old)
+	offset := len(c.bytesBuf)
+	if cap(c.bytesBuf)-offset < uncompressedLength {
+		old := c.bytesBuf
+		c.bytesBuf = make([]byte, offset, offset+uncompressedLength)
+		copy(c.bytesBuf, old)
 	}
 
-	data := r.bytesBuf[offset : offset+uncompressedLength]
-	lenRead := 0
-
-	// http://grokbase.com/t/gg/golang-nuts/146y9ppn6b/go-nuts-stream-compression-with-compress-flate
-	for lenRead < uncompressedLength {
-		n, err := r.zr.Read(data[lenRead:])
-		lenRead += n
-
-		if err == io.EOF {
-			if lenRead < uncompressedLength {
-				return io.ErrUnexpectedEOF
-			}
-			break
-		} else if err != nil {
-			return err
-		}
+	lenRead, err := zDecompress(comprData, c.bytesBuf[offset:offset+uncompressedLength])
+	if err != nil {
+		return err
 	}
 	if lenRead != uncompressedLength {
 		return fmt.Errorf("invalid compressed packet: uncompressed length in header is %d, actual %d",
 			uncompressedLength, lenRead)
 	}
-	r.bytesBuf = r.bytesBuf[:offset+uncompressedLength]
+	c.bytesBuf = c.bytesBuf[:offset+uncompressedLength]
 	return nil
 }
 
@@ -126,7 +161,7 @@ const maxPayloadLen = maxPacketSize - 4
 
 var blankHeader = make([]byte, 7)
 
-func (w *compressor) Write(data []byte) (int, error) {
+func (c *compressor) Write(data []byte) (int, error) {
 	totalBytes := len(data)
 	dataLen := len(data)
 	var buf bytes.Buffer
@@ -150,17 +185,12 @@ func (w *compressor) Write(data []byte) (int, error) {
 			}
 			uncompressedLen = 0
 		} else {
-			w.zw.Reset(&buf)
-			if _, err := w.zw.Write(payload); err != nil {
-				return 0, err
-			}
-			w.zw.Close()
+			zCompress(payload, &buf)
 		}
 
-		if err := w.writeCompressedPacket(buf.Bytes(), uncompressedLen); err != nil {
+		if err := c.writeCompressedPacket(buf.Bytes(), uncompressedLen); err != nil {
 			return 0, err
 		}
-
 		dataLen -= payloadLen
 		data = data[payloadLen:]
 		buf.Reset()
@@ -171,33 +201,32 @@ func (w *compressor) Write(data []byte) (int, error) {
 
 // writeCompressedPacket writes a compressed packet with header.
 // data should start with 7 size space for header followed by payload.
-func (w *compressor) writeCompressedPacket(data []byte, uncompressedLen int) error {
+func (c *compressor) writeCompressedPacket(data []byte, uncompressedLen int) error {
 	comprLength := len(data) - 7
+	if debugTrace {
+		c.mc.cfg.Logger.Print(
+			fmt.Sprintf(
+				"writeCompressedPacket: comprLength=%v, uncompressedLen=%v, seq=%v",
+				comprLength, uncompressedLen, c.mc.compressionSequence))
+	}
 
 	// compression header
 	data[0] = byte(0xff & comprLength)
 	data[1] = byte(0xff & (comprLength >> 8))
 	data[2] = byte(0xff & (comprLength >> 16))
 
-	data[3] = w.mc.compressionSequence
+	data[3] = c.mc.compressionSequence
 
 	// this value is never greater than maxPayloadLength
 	data[4] = byte(0xff & uncompressedLen)
 	data[5] = byte(0xff & (uncompressedLen >> 8))
 	data[6] = byte(0xff & (uncompressedLen >> 16))
 
-	if debugTrace {
-		w.mc.cfg.Logger.Print(
-			fmt.Sprintf(
-				"writeCompressedPacket: comprLength=%v, uncompressedLen=%v, seq=%v",
-				comprLength, uncompressedLen, int(data[3])))
-	}
-
-	if _, err := w.connWriter.Write(data); err != nil {
-		w.mc.cfg.Logger.Print(err)
+	if _, err := c.connWriter.Write(data); err != nil {
+		c.mc.cfg.Logger.Print(err)
 		return err
 	}
 
-	w.mc.compressionSequence++
+	c.mc.compressionSequence++
 	return nil
 }
