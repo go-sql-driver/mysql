@@ -159,11 +159,10 @@ func (c *compressor) uncompressPacket() error {
 
 const maxPayloadLen = maxPacketSize - 4
 
-var blankHeader = make([]byte, 7)
-
 func (c *compressor) Write(data []byte) (int, error) {
 	totalBytes := len(data)
 	dataLen := len(data)
+	blankHeader := make([]byte, 7)
 	var buf bytes.Buffer
 
 	for dataLen > 0 {

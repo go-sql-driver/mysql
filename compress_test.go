@@ -33,9 +33,7 @@ func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []by
 	cs := mc.compressionSequence
 
 	var b bytes.Buffer
-	connWriter := &b
-
-	cw := newCompressor(mc, connWriter)
+	cw := newCompressor(mc, &b)
 
 	n, err := cw.Write(uncompressedPacket)
 
