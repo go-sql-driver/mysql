@@ -1,3 +1,11 @@
+// Go MySQL Driver - A MySQL-Driver for Go's database/sql package
+//
+// Copyright 2024 The Go-MySQL-Driver Authors. All rights reserved.
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this file,
+// You can obtain one at http://mozilla.org/MPL/2.0/.
+
 package mysql
 
 import (
@@ -120,10 +128,10 @@ func (c *compressor) uncompressPacket() error {
 		fmt.Fprintf(os.Stderr, "uncompress cmplen=%v uncomplen=%v seq=%v\n",
 			comprLength, uncompressedLength, compressionSequence)
 	}
-	if compressionSequence != c.mc.compressionSequence {
+	if compressionSequence != c.mc.compresSequence {
 		return ErrPktSync
 	}
-	c.mc.compressionSequence++
+	c.mc.compresSequence++
 
 	comprData, err := c.mc.buf.readNext(comprLength)
 	if err != nil {
@@ -206,7 +214,7 @@ func (c *compressor) writeCompressedPacket(data []byte, uncompressedLen int) err
 		c.mc.cfg.Logger.Print(
 			fmt.Sprintf(
 				"writeCompressedPacket: comprLength=%v, uncompressedLen=%v, seq=%v",
-				comprLength, uncompressedLen, c.mc.compressionSequence))
+				comprLength, uncompressedLen, c.mc.compresSequence))
 	}
 
 	// compression header
@@ -214,7 +222,7 @@ func (c *compressor) writeCompressedPacket(data []byte, uncompressedLen int) err
 	data[1] = byte(0xff & (comprLength >> 8))
 	data[2] = byte(0xff & (comprLength >> 16))
 
-	data[3] = c.mc.compressionSequence
+	data[3] = c.mc.compresSequence
 
 	// this value is never greater than maxPayloadLength
 	data[4] = byte(0xff & uncompressedLen)
@@ -226,6 +234,6 @@ func (c *compressor) writeCompressedPacket(data []byte, uncompressedLen int) err
 		return err
 	}
 
-	c.mc.compressionSequence++
+	c.mc.compresSequence++
 	return nil
 }

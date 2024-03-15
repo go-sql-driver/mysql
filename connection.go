@@ -21,23 +21,23 @@ import (
 )
 
 type mysqlConn struct {
-	buf                 buffer
-	netConn             net.Conn
-	rawConn             net.Conn    // underlying connection when netConn is TLS connection.
-	result              mysqlResult // managed by clearResult() and handleOkPacket().
-	packetReader        packetReader
-	packetWriter        io.Writer
-	cfg                 *Config
-	connector           *connector
-	maxAllowedPacket    int
-	maxWriteSize        int
-	writeTimeout        time.Duration
-	flags               clientFlag
-	status              statusFlag
-	sequence            uint8
-	compressionSequence uint8
-	parseTime           bool
-	compress            bool
+	buf              buffer
+	netConn          net.Conn
+	rawConn          net.Conn    // underlying connection when netConn is TLS connection.
+	result           mysqlResult // managed by clearResult() and handleOkPacket().
+	packetReader     packetReader
+	packetWriter     io.Writer
+	cfg              *Config
+	connector        *connector
+	maxAllowedPacket int
+	maxWriteSize     int
+	writeTimeout     time.Duration
+	flags            clientFlag
+	status           statusFlag
+	sequence         uint8
+	compresSequence  uint8
+	parseTime        bool
+	compress         bool
 
 	// for context support (Go 1.8+)
 	watching bool
@@ -52,21 +52,19 @@ type packetReader interface {
 	readNext(need int) ([]byte, error)
 }
 
-func (mc *mysqlConn) resetSeqNo() {
+func (mc *mysqlConn) resetSequenceNr() {
 	mc.sequence = 0
-	mc.compressionSequence = 0
+	mc.compresSequence = 0
 }
 
-// syncSeqNo must be called when:
-// - at least one large packet is sent (split packet happend), and
-// - finished writing, before start reading.
-func (mc *mysqlConn) syncSeqNo() {
-	// This syncs compressionSequence to sequence.
-	// This is done in `net_flush()` in MySQL and MariaDB.
+// syncSequenceNr must be called when finished writing some packet and before start reading.
+func (mc *mysqlConn) syncSequenceNr() {
+	// Syncs compressionSequence to sequence.
+	// This is not documented but done in `net_flush()` in MySQL and MariaDB.
 	// https://github.com/mariadb-corporation/mariadb-connector-c/blob/8228164f850b12353da24df1b93a1e53cc5e85e9/libmariadb/ma_net.c#L170-L171
 	// https://github.com/mysql/mysql-server/blob/824e2b4064053f7daf17d7f3f84b7a3ed92e5fb4/sql-common/net_serv.cc#L293
 	if mc.compress {
-		mc.sequence = mc.compressionSequence
+		mc.sequence = mc.compresSequence
 	}
 }
 
