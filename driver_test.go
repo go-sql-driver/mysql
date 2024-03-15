@@ -1277,7 +1277,8 @@ func TestLongData(t *testing.T) {
 		var rows *sql.Rows
 
 		// Long text data
-		const nonDataQueryLen = 28 // length query w/o value
+		// const nonDataQueryLen = 28 // length query w/o value + compress header
+		const nonDataQueryLen = 100
 		inS := in[:maxAllowedPacketSize-nonDataQueryLen]
 		dbt.mustExec("INSERT INTO test VALUES('" + inS + "')")
 		rows = dbt.mustQuery("SELECT value FROM test")

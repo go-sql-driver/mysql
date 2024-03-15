@@ -35,7 +35,9 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
 			}
-			// debug.PrintStack()
+			if debugTrace {
+				debug.PrintStack()
+			}
 			mc.cfg.Logger.Print(err)
 			mc.Close()
 			return nil, ErrInvalidConn
@@ -43,22 +45,14 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 
 		// packet length [24 bit]
 		pktLen := int(uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16)
-		if debugTrace {
-			mc.cfg.Logger.Print(fmt.Sprintf("readPacket: packet seq = %d, mc.sequence = %d", data[3], mc.sequence))
-		}
 
-		// check packet sync [8 bit]
-		if data[3] != mc.sequence {
-			if debugTrace {
-				debug.PrintStack()
+		if !mc.compress { // MySQL and MariaDB doesn't check packet nr in compressed packet.
+			// check packet sync [8 bit]
+			if data[3] != mc.sequence {
+				mc.cfg.Logger.Print(fmt.Sprintf("[warn] unexpected seq nr: expected %v, got %v", mc.sequence, data[3]))
 			}
-			mc.Close()
-			if data[3] > mc.sequence {
-				return nil, ErrPktSyncMul
-			}
-			return nil, ErrPktSync
+			mc.sequence++
 		}
-		mc.sequence++
 
 		// packets with length 0 terminate a previous packet which is a
 		// multiple of (2^24)-1 bytes long

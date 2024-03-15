@@ -13,7 +13,6 @@ import (
 	"compress/zlib"
 	"fmt"
 	"io"
-	"os"
 	"sync"
 )
 
@@ -124,13 +123,20 @@ func (c *decompressor) uncompressPacket() error {
 	uncompressedLength := int(uint32(header[4]) | uint32(header[5])<<8 | uint32(header[6])<<16)
 	compressionSequence := uint8(header[3])
 	if debugTrace {
-		fmt.Fprintf(os.Stderr, "uncompress cmplen=%v uncomplen=%v seq=%v\n",
-			comprLength, uncompressedLength, compressionSequence)
+		c.mc.cfg.Logger.Print(
+			fmt.Sprintf("uncompress cmplen=%v uncomplen=%v pkt_cmp_seq=%v expected_cmp_seq=%v\n",
+				comprLength, uncompressedLength, compressionSequence, c.mc.sequence))
 	}
-	if compressionSequence != c.mc.compressSequence {
-		return ErrPktSync
+	if compressionSequence != c.mc.sequence {
+		// return ErrPktSync
+		// server may return error packet (e.g. 1153 Got a packet bigger than 'max_allowed_packet' bytes)
+		// before receiving all packets from client. In this case, seqnr is younger than expected.
+		c.mc.cfg.Logger.Print(
+			fmt.Sprintf("[warn] unexpected cmpress seq nr: expected %v, got %v",
+				c.mc.sequence, compressionSequence))
 	}
-	c.mc.compressSequence++
+	c.mc.sequence = compressionSequence + 1
+	c.mc.compressSequence = c.mc.sequence
 
 	comprData, err := c.mc.buf.readNext(comprLength)
 	if err != nil {
