@@ -35,7 +35,7 @@ type mysqlConn struct {
 	flags            clientFlag
 	status           statusFlag
 	sequence         uint8
-	compresSequence  uint8
+	compressSequence uint8
 	parseTime        bool
 	compress         bool
 
@@ -54,7 +54,7 @@ type packetReader interface {
 
 func (mc *mysqlConn) resetSequenceNr() {
 	mc.sequence = 0
-	mc.compresSequence = 0
+	mc.compressSequence = 0
 }
 
 // syncSequenceNr must be called when finished writing some packet and before start reading.
@@ -64,7 +64,7 @@ func (mc *mysqlConn) syncSequenceNr() {
 	// https://github.com/mariadb-corporation/mariadb-connector-c/blob/8228164f850b12353da24df1b93a1e53cc5e85e9/libmariadb/ma_net.c#L170-L171
 	// https://github.com/mysql/mysql-server/blob/824e2b4064053f7daf17d7f3f84b7a3ed92e5fb4/sql-common/net_serv.cc#L293
 	if mc.compress {
-		mc.sequence = mc.compresSequence
+		mc.sequence = mc.compressSequence
 	}
 }
 

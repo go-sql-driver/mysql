@@ -38,7 +38,7 @@ func newMockBuf(data []byte) buffer {
 func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []byte {
 	// get status variables
 
-	cs := mc.compresSequence
+	cs := mc.compressSequence
 
 	var b bytes.Buffer
 	cw := newCompressor(mc, &b)
@@ -54,13 +54,13 @@ func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []by
 	}
 
 	if len(uncompressedPacket) > 0 {
-		if mc.compresSequence != (cs + 1) {
-			t.Fatalf("mc.compressionSequence updated incorrectly, expected %d and saw %d", (cs + 1), mc.compresSequence)
+		if mc.compressSequence != (cs + 1) {
+			t.Fatalf("mc.compressionSequence updated incorrectly, expected %d and saw %d", (cs + 1), mc.compressSequence)
 		}
 
 	} else {
-		if mc.compresSequence != cs {
-			t.Fatalf("mc.compressionSequence updated incorrectly for case of empty write, expected %d and saw %d", cs, mc.compresSequence)
+		if mc.compressSequence != cs {
+			t.Fatalf("mc.compressionSequence updated incorrectly for case of empty write, expected %d and saw %d", cs, mc.compressSequence)
 		}
 	}
 
@@ -70,7 +70,7 @@ func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []by
 // uncompressHelper uncompresses compressedPacket and checks state variables
 func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expSize int) []byte {
 	// get status variables
-	cs := mc.compresSequence
+	cs := mc.compressSequence
 
 	// mocking out buf variable
 	mc.buf = newMockBuf(compressedPacket)
@@ -84,12 +84,12 @@ func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expS
 	}
 
 	if expSize > 0 {
-		if mc.compresSequence != (cs + 1) {
-			t.Fatalf("mc.compressionSequence updated incorrectly, expected %d and saw %d", (cs + 1), mc.compresSequence)
+		if mc.compressSequence != (cs + 1) {
+			t.Fatalf("mc.compressionSequence updated incorrectly, expected %d and saw %d", (cs + 1), mc.compressSequence)
 		}
 	} else {
-		if mc.compresSequence != cs {
-			t.Fatalf("mc.compressionSequence updated incorrectly for case of empty read, expected %d and saw %d", cs, mc.compresSequence)
+		if mc.compressSequence != cs {
+			t.Fatalf("mc.compressionSequence updated incorrectly for case of empty read, expected %d and saw %d", cs, mc.compressSequence)
 		}
 	}
 	return uncompressedPacket

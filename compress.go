@@ -128,10 +128,10 @@ func (c *compressor) uncompressPacket() error {
 		fmt.Fprintf(os.Stderr, "uncompress cmplen=%v uncomplen=%v seq=%v\n",
 			comprLength, uncompressedLength, compressionSequence)
 	}
-	if compressionSequence != c.mc.compresSequence {
+	if compressionSequence != c.mc.compressSequence {
 		return ErrPktSync
 	}
-	c.mc.compresSequence++
+	c.mc.compressSequence++
 
 	comprData, err := c.mc.buf.readNext(comprLength)
 	if err != nil {
@@ -214,7 +214,7 @@ func (c *compressor) writeCompressedPacket(data []byte, uncompressedLen int) err
 		c.mc.cfg.Logger.Print(
 			fmt.Sprintf(
 				"writeCompressedPacket: comprLength=%v, uncompressedLen=%v, seq=%v",
-				comprLength, uncompressedLen, c.mc.compresSequence))
+				comprLength, uncompressedLen, c.mc.compressSequence))
 	}
 
 	// compression header
@@ -222,7 +222,7 @@ func (c *compressor) writeCompressedPacket(data []byte, uncompressedLen int) err
 	data[1] = byte(0xff & (comprLength >> 8))
 	data[2] = byte(0xff & (comprLength >> 16))
 
-	data[3] = c.mc.compresSequence
+	data[3] = c.mc.compressSequence
 
 	// this value is never greater than maxPayloadLength
 	data[4] = byte(0xff & uncompressedLen)
@@ -234,6 +234,6 @@ func (c *compressor) writeCompressedPacket(data []byte, uncompressedLen int) err
 		return err
 	}
 
-	c.mc.compresSequence++
+	c.mc.compressSequence++
 	return nil
 }
