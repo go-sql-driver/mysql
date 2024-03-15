@@ -131,7 +131,15 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			}
 		}
 
-		n, err := mc.packetWriter.Write(data[:4+size])
+		var (
+			n   int
+			err error
+		)
+		if mc.compress {
+			n, err = mc.writeCompressed(data[:4+size])
+		} else {
+			n, err = mc.netConn.Write(data[:4+size])
+		}
 		if err == nil && n == 4+size {
 			mc.sequence++
 			if size != maxPacketSize {
@@ -278,7 +286,6 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	}
 	if mc.cfg.compress && mc.flags&clientCompress == clientCompress {
 		clientFlags |= clientCompress
-		mc.compress = true
 	}
 	// To enable TLS / SSL
 	if mc.cfg.TLS != nil {
@@ -368,7 +375,6 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		mc.rawConn = mc.netConn
 		mc.netConn = tlsConn
 		mc.buf.nc = tlsConn
-		mc.packetWriter = mc.netConn
 	}
 
 	// User [null terminated string]

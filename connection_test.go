@@ -169,7 +169,6 @@ func TestPingMarkBadConnection(t *testing.T) {
 		netConn:          nc,
 		buf:              buf,
 		packetReader:     &buf,
-		packetWriter:     nc,
 		maxAllowedPacket: defaultMaxAllowedPacket,
 	}
 
@@ -188,7 +187,6 @@ func TestPingErrInvalidConn(t *testing.T) {
 		netConn:          nc,
 		buf:              buf,
 		packetReader:     &buf,
-		packetWriter:     nc,
 		maxAllowedPacket: defaultMaxAllowedPacket,
 		closech:          make(chan struct{}),
 		cfg:              NewConfig(),

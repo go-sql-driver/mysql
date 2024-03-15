@@ -86,7 +86,7 @@ func zCompress(src []byte, dst io.Writer) error {
 	return nil
 }
 
-type compressor struct {
+type decompressor struct {
 	mc *mysqlConn
 	// read buffer (FIFO).
 	// We can not reuse already-read buffer until dropping Go 1.20 support.
@@ -95,13 +95,13 @@ type compressor struct {
 	bytesBuf []byte
 }
 
-func newCompressor(mc *mysqlConn) *compressor {
-	return &compressor{
+func newDecompressor(mc *mysqlConn) *decompressor {
+	return &decompressor{
 		mc: mc,
 	}
 }
 
-func (c *compressor) readNext(need int) ([]byte, error) {
+func (c *decompressor) readNext(need int) ([]byte, error) {
 	for len(c.bytesBuf) < need {
 		if err := c.uncompressPacket(); err != nil {
 			return nil, err
@@ -113,7 +113,7 @@ func (c *compressor) readNext(need int) ([]byte, error) {
 	return data, nil
 }
 
-func (c *compressor) uncompressPacket() error {
+func (c *decompressor) uncompressPacket() error {
 	header, err := c.mc.buf.readNext(7) // size of compressed header
 	if err != nil {
 		return err
@@ -166,9 +166,11 @@ func (c *compressor) uncompressPacket() error {
 
 const maxPayloadLen = maxPacketSize - 4
 
-func (c *compressor) Write(data []byte) (int, error) {
-	totalBytes := len(data)
-	dataLen := len(data)
+// writeCompressed sends one or some packets with compression.
+// Use this instead of mc.netConn.Write() when mc.compress is true.
+func (mc *mysqlConn) writeCompressed(packets []byte) (int, error) {
+	totalBytes := len(packets)
+	dataLen := len(packets)
 	blankHeader := make([]byte, 7)
 	var buf bytes.Buffer
 
@@ -177,7 +179,7 @@ func (c *compressor) Write(data []byte) (int, error) {
 		if payloadLen > maxPayloadLen {
 			payloadLen = maxPayloadLen
 		}
-		payload := data[:payloadLen]
+		payload := packets[:payloadLen]
 		uncompressedLen := payloadLen
 
 		if _, err := buf.Write(blankHeader); err != nil {
@@ -194,11 +196,11 @@ func (c *compressor) Write(data []byte) (int, error) {
 			zCompress(payload, &buf)
 		}
 
-		if err := c.writeCompressedPacket(buf.Bytes(), uncompressedLen); err != nil {
+		if err := mc.writeCompressedPacket(buf.Bytes(), uncompressedLen); err != nil {
 			return 0, err
 		}
 		dataLen -= payloadLen
-		data = data[payloadLen:]
+		packets = packets[payloadLen:]
 		buf.Reset()
 	}
 
@@ -207,13 +209,13 @@ func (c *compressor) Write(data []byte) (int, error) {
 
 // writeCompressedPacket writes a compressed packet with header.
 // data should start with 7 size space for header followed by payload.
-func (c *compressor) writeCompressedPacket(data []byte, uncompressedLen int) error {
+func (mc *mysqlConn) writeCompressedPacket(data []byte, uncompressedLen int) error {
 	comprLength := len(data) - 7
 	if debugTrace {
-		c.mc.cfg.Logger.Print(
+		mc.cfg.Logger.Print(
 			fmt.Sprintf(
 				"writeCompressedPacket: comprLength=%v, uncompressedLen=%v, seq=%v",
-				comprLength, uncompressedLen, c.mc.compressSequence))
+				comprLength, uncompressedLen, mc.compressSequence))
 	}
 
 	// compression header
@@ -221,18 +223,18 @@ func (c *compressor) writeCompressedPacket(data []byte, uncompressedLen int) err
 	data[1] = byte(0xff & (comprLength >> 8))
 	data[2] = byte(0xff & (comprLength >> 16))
 
-	data[3] = c.mc.compressSequence
+	data[3] = mc.compressSequence
 
 	// this value is never greater than maxPayloadLength
 	data[4] = byte(0xff & uncompressedLen)
 	data[5] = byte(0xff & (uncompressedLen >> 8))
 	data[6] = byte(0xff & (uncompressedLen >> 16))
 
-	if _, err := c.mc.netConn.Write(data); err != nil {
-		c.mc.cfg.Logger.Print(err)
+	if _, err := mc.netConn.Write(data); err != nil {
+		mc.cfg.Logger.Print(err)
 		return err
 	}
 
-	c.mc.compressSequence++
+	mc.compressSequence++
 	return nil
 }

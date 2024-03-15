@@ -101,7 +101,6 @@ func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
 	mc := &mysqlConn{
 		buf:              buf,
 		packetReader:     &buf,
-		packetWriter:     conn,
 		cfg:              connector.cfg,
 		connector:        connector,
 		netConn:          conn,

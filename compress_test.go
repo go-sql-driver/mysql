@@ -13,7 +13,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
-	"net"
 	"testing"
 )
 
@@ -23,69 +22,28 @@ func makeRandByteSlice(size int) []byte {
 	return randBytes
 }
 
-func newMockConn() *mysqlConn {
-	newConn := &mysqlConn{cfg: NewConfig()}
-	return newConn
-}
-
-func newMockBuf(data []byte) buffer {
-	return buffer{
-		buf:    data,
-		length: len(data),
-	}
-}
-
-type dummyConn struct {
-	buf bytes.Buffer
-	net.Conn
-}
-
-func (c *dummyConn) Write(data []byte) (int, error) {
-	return c.buf.Write(data)
-}
-
 // compressHelper compresses uncompressedPacket and checks state variables
 func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []byte {
-	// get status variables
+	conn := new(mockConn)
+	mc.netConn = conn
 
-	cs := mc.compressSequence
-
-	var b dummyConn
-	mc.netConn = &b
-	cw := newCompressor(mc)
-
-	n, err := cw.Write(uncompressedPacket)
-
+	n, err := mc.writeCompressed(uncompressedPacket)
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
-
 	if n != len(uncompressedPacket) {
 		t.Fatalf("expected to write %d bytes, wrote %d bytes", len(uncompressedPacket), n)
 	}
-
-	if len(uncompressedPacket) > 0 {
-		if mc.compressSequence != (cs + 1) {
-			t.Fatalf("mc.compressionSequence updated incorrectly, expected %d and saw %d", (cs + 1), mc.compressSequence)
-		}
-
-	} else {
-		if mc.compressSequence != cs {
-			t.Fatalf("mc.compressionSequence updated incorrectly for case of empty write, expected %d and saw %d", cs, mc.compressSequence)
-		}
-	}
-
-	return b.buf.Bytes()
+	return conn.written
 }
 
 // uncompressHelper uncompresses compressedPacket and checks state variables
 func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expSize int) []byte {
-	// get status variables
-	cs := mc.compressSequence
-
 	// mocking out buf variable
-	mc.buf = newMockBuf(compressedPacket)
-	cr := newCompressor(mc)
+	conn := new(mockConn)
+	conn.data = compressedPacket
+	mc.buf.nc = conn
+	cr := newDecompressor(mc)
 
 	uncompressedPacket, err := cr.readNext(expSize)
 	if err != nil {
@@ -93,15 +51,8 @@ func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expS
 			t.Fatalf("non-nil/non-EOF error when reading contents: %s", err.Error())
 		}
 	}
-
-	if expSize > 0 {
-		if mc.compressSequence != (cs + 1) {
-			t.Fatalf("mc.compressionSequence updated incorrectly, expected %d and saw %d", (cs + 1), mc.compressSequence)
-		}
-	} else {
-		if mc.compressSequence != cs {
-			t.Fatalf("mc.compressionSequence updated incorrectly for case of empty read, expected %d and saw %d", cs, mc.compressSequence)
-		}
+	if len(uncompressedPacket) != expSize {
+		t.Errorf("uncompressed size is unexpected. expected %d but got %d", expSize, len(uncompressedPacket))
 	}
 	return uncompressedPacket
 }
@@ -141,20 +92,33 @@ func TestRoundtrip(t *testing.T) {
 		{uncompressed: makeRandByteSlice(32768),
 			desc: "32768 rand bytes",
 		},
-		{uncompressed: makeRandByteSlice(33000),
-			desc: "33000 rand bytes",
+		{uncompressed: bytes.Repeat(makeRandByteSlice(100), 10000),
+			desc: "100 rand * 10000 repeat bytes",
 		},
 	}
 
-	cSend := newMockConn()
-	cReceive := newMockConn()
+	_, cSend := newRWMockConn(0)
+	cSend.compress = true
+	_, cReceive := newRWMockConn(0)
+	cReceive.compress = true
 
 	for _, test := range tests {
 		s := fmt.Sprintf("Test roundtrip with %s", test.desc)
+		cSend.resetSequenceNr()
+		cReceive.resetSequenceNr()
 
 		uncompressed := roundtripHelper(t, cSend, cReceive, test.uncompressed)
 		if !bytes.Equal(uncompressed, test.uncompressed) {
 			t.Fatalf("%s: roundtrip failed", s)
+		}
+
+		if cSend.sequence != cReceive.sequence {
+			t.Errorf("inconsistent sequence number: send=%v recv=%v",
+				cSend.sequence, cReceive.sequence)
+		}
+		if cSend.compressSequence != cReceive.compressSequence {
+			t.Errorf("inconsistent compress sequence number: send=%v recv=%v",
+				cSend.compressSequence, cReceive.compressSequence)
 		}
 	}
 }
