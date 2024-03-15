@@ -86,9 +86,6 @@ func zCompress(src []byte, dst io.Writer) error {
 	return nil
 }
 
-// for debugging wire protocol.
-const debugTrace = false
-
 type compressor struct {
 	mc         *mysqlConn
 	bytesBuf   []byte // read buffer (FIFO)
