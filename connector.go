@@ -169,7 +169,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	if mc.compress {
-		cmpr := newCompressor(mc, mc.packetWriter)
+		cmpr := newCompressor(mc)
 		mc.packetReader = cmpr
 		mc.packetWriter = cmpr
 	}

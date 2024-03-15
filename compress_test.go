@@ -13,6 +13,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"net"
 	"testing"
 )
 
@@ -34,14 +35,24 @@ func newMockBuf(data []byte) buffer {
 	}
 }
 
+type dummyConn struct {
+	buf bytes.Buffer
+	net.Conn
+}
+
+func (c *dummyConn) Write(data []byte) (int, error) {
+	return c.buf.Write(data)
+}
+
 // compressHelper compresses uncompressedPacket and checks state variables
 func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []byte {
 	// get status variables
 
 	cs := mc.compressSequence
 
-	var b bytes.Buffer
-	cw := newCompressor(mc, &b)
+	var b dummyConn
+	mc.netConn = &b
+	cw := newCompressor(mc)
 
 	n, err := cw.Write(uncompressedPacket)
 
@@ -64,7 +75,7 @@ func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []by
 		}
 	}
 
-	return b.Bytes()
+	return b.buf.Bytes()
 }
 
 // uncompressHelper uncompresses compressedPacket and checks state variables
@@ -74,7 +85,7 @@ func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expS
 
 	// mocking out buf variable
 	mc.buf = newMockBuf(compressedPacket)
-	cr := newCompressor(mc, nil)
+	cr := newCompressor(mc)
 
 	uncompressedPacket, err := cr.readNext(expSize)
 	if err != nil {

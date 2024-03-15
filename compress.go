@@ -87,15 +87,17 @@ func zCompress(src []byte, dst io.Writer) error {
 }
 
 type compressor struct {
-	mc         *mysqlConn
-	bytesBuf   []byte // read buffer (FIFO)
-	connWriter io.Writer
+	mc *mysqlConn
+	// read buffer (FIFO).
+	// We can not reuse already-read buffer until dropping Go 1.20 support.
+	// It is because of database/mysql's weired behavior.
+	// See https://github.com/go-sql-driver/mysql/issues/1435
+	bytesBuf []byte
 }
 
-func newCompressor(mc *mysqlConn, w io.Writer) *compressor {
+func newCompressor(mc *mysqlConn) *compressor {
 	return &compressor{
-		mc:         mc,
-		connWriter: w,
+		mc: mc,
 	}
 }
 
@@ -226,7 +228,7 @@ func (c *compressor) writeCompressedPacket(data []byte, uncompressedLen int) err
 	data[5] = byte(0xff & (uncompressedLen >> 8))
 	data[6] = byte(0xff & (uncompressedLen >> 16))
 
-	if _, err := c.connWriter.Write(data); err != nil {
+	if _, err := c.mc.netConn.Write(data); err != nil {
 		c.mc.cfg.Logger.Print(err)
 		return err
 	}
