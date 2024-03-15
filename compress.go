@@ -11,41 +11,29 @@ import (
 // for debugging wire protocol.
 const debugTrace = false
 
-type compressedReader struct {
-	buf      packetReader
+type compressor struct {
+	mc *mysqlConn
+	// for reader
 	bytesBuf []byte
-	mc       *mysqlConn
 	zr       io.ReadCloser
-}
-
-type compressedWriter struct {
+	// for writer
 	connWriter io.Writer
-	mc         *mysqlConn
 	zw         *zlib.Writer
 }
 
-func newCompressedReader(buf packetReader, mc *mysqlConn) *compressedReader {
-	return &compressedReader{
-		buf:      buf,
-		bytesBuf: make([]byte, 0),
-		mc:       mc,
-	}
-}
-
-func newCompressedWriter(connWriter io.Writer, mc *mysqlConn) *compressedWriter {
-	// level 1 or 2 is the best trade-off between speed and compression ratio
+func newCompressor(mc *mysqlConn, w io.Writer) *compressor {
 	zw, err := zlib.NewWriterLevel(new(bytes.Buffer), 2)
 	if err != nil {
 		panic(err) // compress/zlib return non-nil error only if level is invalid
 	}
-	return &compressedWriter{
-		connWriter: connWriter,
+	return &compressor{
 		mc:         mc,
+		connWriter: w,
 		zw:         zw,
 	}
 }
 
-func (r *compressedReader) readNext(need int) ([]byte, error) {
+func (r *compressor) readNext(need int) ([]byte, error) {
 	for len(r.bytesBuf) < need {
 		if err := r.uncompressPacket(); err != nil {
 			return nil, err
@@ -57,8 +45,8 @@ func (r *compressedReader) readNext(need int) ([]byte, error) {
 	return data, nil
 }
 
-func (r *compressedReader) uncompressPacket() error {
-	header, err := r.buf.readNext(7) // size of compressed header
+func (r *compressor) uncompressPacket() error {
+	header, err := r.mc.buf.readNext(7) // size of compressed header
 	if err != nil {
 		return err
 	}
@@ -76,7 +64,7 @@ func (r *compressedReader) uncompressPacket() error {
 	}
 	r.mc.compressionSequence++
 
-	comprData, err := r.buf.readNext(comprLength)
+	comprData, err := r.mc.buf.readNext(comprLength)
 	if err != nil {
 		return err
 	}
@@ -138,7 +126,7 @@ const maxPayloadLen = maxPacketSize - 4
 
 var blankHeader = make([]byte, 7)
 
-func (w *compressedWriter) Write(data []byte) (int, error) {
+func (w *compressor) Write(data []byte) (int, error) {
 	totalBytes := len(data)
 	dataLen := len(data)
 	var buf bytes.Buffer
@@ -183,7 +171,7 @@ func (w *compressedWriter) Write(data []byte) (int, error) {
 
 // writeCompressedPacket writes a compressed packet with header.
 // data should start with 7 size space for header followed by payload.
-func (w *compressedWriter) writeCompressedPacket(data []byte, uncompressedLen int) error {
+func (w *compressor) writeCompressedPacket(data []byte, uncompressedLen int) error {
 	comprLength := len(data) - 7
 
 	// compression header

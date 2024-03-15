@@ -19,23 +19,11 @@ func newMockConn() *mysqlConn {
 	return newConn
 }
 
-type mockBuf struct {
-	reader io.Reader
-}
-
-func newMockBuf(reader io.Reader) *mockBuf {
-	return &mockBuf{
-		reader: reader,
+func newMockBuf(data []byte) buffer {
+	return buffer{
+		buf:    data,
+		length: len(data),
 	}
-}
-
-func (mb *mockBuf) readNext(need int) ([]byte, error) {
-	data := make([]byte, need)
-	_, err := mb.reader.Read(data)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
 }
 
 // compressHelper compresses uncompressedPacket and checks state variables
@@ -47,7 +35,7 @@ func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []by
 	var b bytes.Buffer
 	connWriter := &b
 
-	cw := newCompressedWriter(connWriter, mc)
+	cw := newCompressor(mc, connWriter)
 
 	n, err := cw.Write(uncompressedPacket)
 
@@ -79,10 +67,8 @@ func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expS
 	cs := mc.compressionSequence
 
 	// mocking out buf variable
-	mockConnReader := bytes.NewReader(compressedPacket)
-	mockBuf := newMockBuf(mockConnReader)
-
-	cr := newCompressedReader(mockBuf, mc)
+	mc.buf = newMockBuf(compressedPacket)
+	cr := newCompressor(mc, nil)
 
 	uncompressedPacket, err := cr.readNext(expSize)
 	if err != nil {
