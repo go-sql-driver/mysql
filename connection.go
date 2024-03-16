@@ -439,7 +439,13 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 // finish is called when the query has canceled.
 func (mc *mysqlConn) cancel(err error) {
 	mc.canceled.Set(err)
-	mc.cleanup()
+	nc := mc.netConn
+	if nc != nil {
+		_ = nc.SetDeadline(time.Now()) // wake up pending reads/writes
+		// Ignore error because:
+		// - If the connection is already closed, thats fine.
+		// - If the connection return error other reasons, we can not do anything about it.
+	}
 }
 
 // finish is called when the query has succeeded.
