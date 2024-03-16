@@ -247,7 +247,7 @@ func (dbt *DBTest) fail(method, query string, err error) {
 	dbt.Fatalf("error on %s %s: %s", method, query, err.Error())
 }
 
-func (dbt *DBTest) mustExec(query string, args ...interface{}) (res sql.Result) {
+func (dbt *DBTest) mustExec(query string, args ...any) (res sql.Result) {
 	dbt.Helper()
 	res, err := dbt.db.Exec(query, args...)
 	if err != nil {
@@ -256,7 +256,7 @@ func (dbt *DBTest) mustExec(query string, args ...interface{}) (res sql.Result) 
 	return res
 }
 
-func (dbt *DBTest) mustQuery(query string, args ...interface{}) (rows *sql.Rows) {
+func (dbt *DBTest) mustQuery(query string, args ...any) (rows *sql.Rows) {
 	dbt.Helper()
 	rows, err := dbt.db.Query(query, args...)
 	if err != nil {
@@ -844,7 +844,7 @@ func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, mode timeMode) {
 		dbt.Errorf("%s [%s]: %s", dbtype, mode, err)
 		return
 	}
-	var dst interface{}
+	var dst any
 	err = rows.Scan(&dst)
 	if err != nil {
 		dbt.Errorf("%s [%s]: %s", dbtype, mode, err)
@@ -875,7 +875,7 @@ func (t timeTest) run(dbt *DBTest, dbtype, tlayout string, mode timeMode) {
 			t.s, val.Format(tlayout),
 		)
 	default:
-		fmt.Printf("%#v\n", []interface{}{dbtype, tlayout, mode, t.s, t.t})
+		fmt.Printf("%#v\n", []any{dbtype, tlayout, mode, t.s, t.t})
 		dbt.Errorf("%s [%s]: unhandled type %T (is '%v')",
 			dbtype, mode,
 			val, val,
@@ -1186,7 +1186,7 @@ func TestNULL(t *testing.T) {
 
 		dbt.mustExec("INSERT INTO "+tbl+" VALUES (?, ?, ?)", 1, nil, 2)
 
-		var out interface{}
+		var out any
 		rows := dbt.mustQuery("SELECT * FROM " + tbl)
 		defer rows.Close()
 		if rows.Next() {
@@ -1894,7 +1894,7 @@ func TestPreparedManyCols(t *testing.T) {
 
 		// create more parameters than fit into the buffer
 		// which will take nil-values
-		params := make([]interface{}, numParams)
+		params := make([]any, numParams)
 		rows, err := stmt.Query(params...)
 		if err != nil {
 			dbt.Fatal(err)
@@ -1941,7 +1941,7 @@ func TestConcurrent(t *testing.T) {
 
 		var fatalError string
 		var once sync.Once
-		fatalf := func(s string, vals ...interface{}) {
+		fatalf := func(s string, vals ...any) {
 			once.Do(func() {
 				fatalError = fmt.Sprintf(s, vals...)
 			})
@@ -2314,7 +2314,7 @@ func TestPing(t *testing.T) {
 		}
 
 		// Check that affectedRows and insertIds are cleared after each call.
-		conn.Raw(func(conn interface{}) error {
+		conn.Raw(func(conn any) error {
 			c := conn.(*mysqlConn)
 
 			// Issue a query that sets affectedRows and insertIds.
@@ -2577,7 +2577,7 @@ func TestExecMultipleResults(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to connect: %v", err)
 		}
-		conn.Raw(func(conn interface{}) error {
+		conn.Raw(func(conn any) error {
 			//lint:ignore SA1019 this is a test
 			ex := conn.(driver.Execer)
 			res, err := ex.Exec(`
@@ -2635,7 +2635,7 @@ func TestQueryMultipleResults(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to connect: %v", err)
 		}
-		conn.Raw(func(conn interface{}) error {
+		conn.Raw(func(conn any) error {
 			//lint:ignore SA1019 this is a test
 			qr := conn.(driver.Queryer)
 			c := conn.(*mysqlConn)
@@ -3058,54 +3058,54 @@ func TestRowsColumnTypes(t *testing.T) {
 		precision        int64 // 0 if not ok
 		scale            int64
 		valuesIn         [3]string
-		valuesOut        [3]interface{}
+		valuesOut        [3]any
 	}{
-		{"bit8null", "BIT(8)", "BIT", scanTypeBytes, true, 0, 0, [3]string{"0x0", "NULL", "0x42"}, [3]interface{}{bx0, bNULL, bx42}},
-		{"boolnull", "BOOL", "TINYINT", scanTypeNullInt, true, 0, 0, [3]string{"NULL", "true", "0"}, [3]interface{}{niNULL, ni1, ni0}},
-		{"bool", "BOOL NOT NULL", "TINYINT", scanTypeInt8, false, 0, 0, [3]string{"1", "0", "FALSE"}, [3]interface{}{int8(1), int8(0), int8(0)}},
-		{"intnull", "INTEGER", "INT", scanTypeNullInt, true, 0, 0, [3]string{"0", "NULL", "42"}, [3]interface{}{ni0, niNULL, ni42}},
-		{"smallint", "SMALLINT NOT NULL", "SMALLINT", scanTypeInt16, false, 0, 0, [3]string{"0", "-32768", "32767"}, [3]interface{}{int16(0), int16(-32768), int16(32767)}},
-		{"smallintnull", "SMALLINT", "SMALLINT", scanTypeNullInt, true, 0, 0, [3]string{"0", "NULL", "42"}, [3]interface{}{ni0, niNULL, ni42}},
-		{"int3null", "INT(3)", "INT", scanTypeNullInt, true, 0, 0, [3]string{"0", "NULL", "42"}, [3]interface{}{ni0, niNULL, ni42}},
-		{"int7", "INT(7) NOT NULL", "INT", scanTypeInt32, false, 0, 0, [3]string{"0", "-1337", "42"}, [3]interface{}{int32(0), int32(-1337), int32(42)}},
-		{"mediumintnull", "MEDIUMINT", "MEDIUMINT", scanTypeNullInt, true, 0, 0, [3]string{"0", "42", "NULL"}, [3]interface{}{ni0, ni42, niNULL}},
-		{"bigint", "BIGINT NOT NULL", "BIGINT", scanTypeInt64, false, 0, 0, [3]string{"0", "65535", "-42"}, [3]interface{}{int64(0), int64(65535), int64(-42)}},
-		{"bigintnull", "BIGINT", "BIGINT", scanTypeNullInt, true, 0, 0, [3]string{"NULL", "1", "42"}, [3]interface{}{niNULL, ni1, ni42}},
-		{"tinyuint", "TINYINT UNSIGNED NOT NULL", "UNSIGNED TINYINT", scanTypeUint8, false, 0, 0, [3]string{"0", "255", "42"}, [3]interface{}{uint8(0), uint8(255), uint8(42)}},
-		{"smalluint", "SMALLINT UNSIGNED NOT NULL", "UNSIGNED SMALLINT", scanTypeUint16, false, 0, 0, [3]string{"0", "65535", "42"}, [3]interface{}{uint16(0), uint16(65535), uint16(42)}},
-		{"biguint", "BIGINT UNSIGNED NOT NULL", "UNSIGNED BIGINT", scanTypeUint64, false, 0, 0, [3]string{"0", "65535", "42"}, [3]interface{}{uint64(0), uint64(65535), uint64(42)}},
-		{"mediumuint", "MEDIUMINT UNSIGNED NOT NULL", "UNSIGNED MEDIUMINT", scanTypeUint32, false, 0, 0, [3]string{"0", "16777215", "42"}, [3]interface{}{uint32(0), uint32(16777215), uint32(42)}},
-		{"uint13", "INT(13) UNSIGNED NOT NULL", "UNSIGNED INT", scanTypeUint32, false, 0, 0, [3]string{"0", "1337", "42"}, [3]interface{}{uint32(0), uint32(1337), uint32(42)}},
-		{"float", "FLOAT NOT NULL", "FLOAT", scanTypeFloat32, false, math.MaxInt64, math.MaxInt64, [3]string{"0", "42", "13.37"}, [3]interface{}{float32(0), float32(42), float32(13.37)}},
-		{"floatnull", "FLOAT", "FLOAT", scanTypeNullFloat, true, math.MaxInt64, math.MaxInt64, [3]string{"0", "NULL", "13.37"}, [3]interface{}{nf0, nfNULL, nf1337}},
-		{"float74null", "FLOAT(7,4)", "FLOAT", scanTypeNullFloat, true, math.MaxInt64, 4, [3]string{"0", "NULL", "13.37"}, [3]interface{}{nf0, nfNULL, nf1337}},
-		{"double", "DOUBLE NOT NULL", "DOUBLE", scanTypeFloat64, false, math.MaxInt64, math.MaxInt64, [3]string{"0", "42", "13.37"}, [3]interface{}{float64(0), float64(42), float64(13.37)}},
-		{"doublenull", "DOUBLE", "DOUBLE", scanTypeNullFloat, true, math.MaxInt64, math.MaxInt64, [3]string{"0", "NULL", "13.37"}, [3]interface{}{nf0, nfNULL, nf1337}},
-		{"decimal1", "DECIMAL(10,6) NOT NULL", "DECIMAL", scanTypeString, false, 10, 6, [3]string{"0", "13.37", "1234.123456"}, [3]interface{}{"0.000000", "13.370000", "1234.123456"}},
-		{"decimal1null", "DECIMAL(10,6)", "DECIMAL", scanTypeNullString, true, 10, 6, [3]string{"0", "NULL", "1234.123456"}, [3]interface{}{ns("0.000000"), nsNULL, ns("1234.123456")}},
-		{"decimal2", "DECIMAL(8,4) NOT NULL", "DECIMAL", scanTypeString, false, 8, 4, [3]string{"0", "13.37", "1234.123456"}, [3]interface{}{"0.0000", "13.3700", "1234.1235"}},
-		{"decimal2null", "DECIMAL(8,4)", "DECIMAL", scanTypeNullString, true, 8, 4, [3]string{"0", "NULL", "1234.123456"}, [3]interface{}{ns("0.0000"), nsNULL, ns("1234.1235")}},
-		{"decimal3", "DECIMAL(5,0) NOT NULL", "DECIMAL", scanTypeString, false, 5, 0, [3]string{"0", "13.37", "-12345.123456"}, [3]interface{}{"0", "13", "-12345"}},
-		{"decimal3null", "DECIMAL(5,0)", "DECIMAL", scanTypeNullString, true, 5, 0, [3]string{"0", "NULL", "-12345.123456"}, [3]interface{}{ns0, nsNULL, ns("-12345")}},
-		{"char25null", "CHAR(25)", "CHAR", scanTypeNullString, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]interface{}{ns0, nsNULL, nsTest}},
-		{"varchar42", "VARCHAR(42) NOT NULL", "VARCHAR", scanTypeString, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{"0", "Test", "42"}},
-		{"binary4null", "BINARY(4)", "BINARY", scanTypeBytes, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]interface{}{b0pad4, bNULL, bTest}},
-		{"varbinary42", "VARBINARY(42) NOT NULL", "VARBINARY", scanTypeBytes, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{b0, bTest, b42}},
-		{"tinyblobnull", "TINYBLOB", "BLOB", scanTypeBytes, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]interface{}{b0, bNULL, bTest}},
-		{"tinytextnull", "TINYTEXT", "TEXT", scanTypeNullString, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]interface{}{ns0, nsNULL, nsTest}},
-		{"blobnull", "BLOB", "BLOB", scanTypeBytes, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]interface{}{b0, bNULL, bTest}},
-		{"textnull", "TEXT", "TEXT", scanTypeNullString, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]interface{}{ns0, nsNULL, nsTest}},
-		{"mediumblob", "MEDIUMBLOB NOT NULL", "BLOB", scanTypeBytes, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{b0, bTest, b42}},
-		{"mediumtext", "MEDIUMTEXT NOT NULL", "TEXT", scanTypeString, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{"0", "Test", "42"}},
-		{"longblob", "LONGBLOB NOT NULL", "BLOB", scanTypeBytes, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{b0, bTest, b42}},
-		{"longtext", "LONGTEXT NOT NULL", "TEXT", scanTypeString, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]interface{}{"0", "Test", "42"}},
-		{"datetime", "DATETIME", "DATETIME", scanTypeNullTime, true, 0, 0, [3]string{"'2006-01-02 15:04:05'", "'2006-01-02 15:04:05.1'", "'2006-01-02 15:04:05.111111'"}, [3]interface{}{nt0, nt0, nt0}},
-		{"datetime2", "DATETIME(2)", "DATETIME", scanTypeNullTime, true, 2, 2, [3]string{"'2006-01-02 15:04:05'", "'2006-01-02 15:04:05.1'", "'2006-01-02 15:04:05.111111'"}, [3]interface{}{nt0, nt1, nt2}},
-		{"datetime6", "DATETIME(6)", "DATETIME", scanTypeNullTime, true, 6, 6, [3]string{"'2006-01-02 15:04:05'", "'2006-01-02 15:04:05.1'", "'2006-01-02 15:04:05.111111'"}, [3]interface{}{nt0, nt1, nt6}},
-		{"date", "DATE", "DATE", scanTypeNullTime, true, 0, 0, [3]string{"'2006-01-02'", "NULL", "'2006-03-04'"}, [3]interface{}{nd1, ndNULL, nd2}},
-		{"year", "YEAR NOT NULL", "YEAR", scanTypeUint16, false, 0, 0, [3]string{"2006", "2000", "1994"}, [3]interface{}{uint16(2006), uint16(2000), uint16(1994)}},
-		{"enum", "ENUM('', 'v1', 'v2')", "ENUM", scanTypeNullString, true, 0, 0, [3]string{"''", "'v1'", "'v2'"}, [3]interface{}{ns(""), ns("v1"), ns("v2")}},
-		{"set", "set('', 'v1', 'v2')", "SET", scanTypeNullString, true, 0, 0, [3]string{"''", "'v1'", "'v1,v2'"}, [3]interface{}{ns(""), ns("v1"), ns("v1,v2")}},
+		{"bit8null", "BIT(8)", "BIT", scanTypeBytes, true, 0, 0, [3]string{"0x0", "NULL", "0x42"}, [3]any{bx0, bNULL, bx42}},
+		{"boolnull", "BOOL", "TINYINT", scanTypeNullInt, true, 0, 0, [3]string{"NULL", "true", "0"}, [3]any{niNULL, ni1, ni0}},
+		{"bool", "BOOL NOT NULL", "TINYINT", scanTypeInt8, false, 0, 0, [3]string{"1", "0", "FALSE"}, [3]any{int8(1), int8(0), int8(0)}},
+		{"intnull", "INTEGER", "INT", scanTypeNullInt, true, 0, 0, [3]string{"0", "NULL", "42"}, [3]any{ni0, niNULL, ni42}},
+		{"smallint", "SMALLINT NOT NULL", "SMALLINT", scanTypeInt16, false, 0, 0, [3]string{"0", "-32768", "32767"}, [3]any{int16(0), int16(-32768), int16(32767)}},
+		{"smallintnull", "SMALLINT", "SMALLINT", scanTypeNullInt, true, 0, 0, [3]string{"0", "NULL", "42"}, [3]any{ni0, niNULL, ni42}},
+		{"int3null", "INT(3)", "INT", scanTypeNullInt, true, 0, 0, [3]string{"0", "NULL", "42"}, [3]any{ni0, niNULL, ni42}},
+		{"int7", "INT(7) NOT NULL", "INT", scanTypeInt32, false, 0, 0, [3]string{"0", "-1337", "42"}, [3]any{int32(0), int32(-1337), int32(42)}},
+		{"mediumintnull", "MEDIUMINT", "MEDIUMINT", scanTypeNullInt, true, 0, 0, [3]string{"0", "42", "NULL"}, [3]any{ni0, ni42, niNULL}},
+		{"bigint", "BIGINT NOT NULL", "BIGINT", scanTypeInt64, false, 0, 0, [3]string{"0", "65535", "-42"}, [3]any{int64(0), int64(65535), int64(-42)}},
+		{"bigintnull", "BIGINT", "BIGINT", scanTypeNullInt, true, 0, 0, [3]string{"NULL", "1", "42"}, [3]any{niNULL, ni1, ni42}},
+		{"tinyuint", "TINYINT UNSIGNED NOT NULL", "UNSIGNED TINYINT", scanTypeUint8, false, 0, 0, [3]string{"0", "255", "42"}, [3]any{uint8(0), uint8(255), uint8(42)}},
+		{"smalluint", "SMALLINT UNSIGNED NOT NULL", "UNSIGNED SMALLINT", scanTypeUint16, false, 0, 0, [3]string{"0", "65535", "42"}, [3]any{uint16(0), uint16(65535), uint16(42)}},
+		{"biguint", "BIGINT UNSIGNED NOT NULL", "UNSIGNED BIGINT", scanTypeUint64, false, 0, 0, [3]string{"0", "65535", "42"}, [3]any{uint64(0), uint64(65535), uint64(42)}},
+		{"mediumuint", "MEDIUMINT UNSIGNED NOT NULL", "UNSIGNED MEDIUMINT", scanTypeUint32, false, 0, 0, [3]string{"0", "16777215", "42"}, [3]any{uint32(0), uint32(16777215), uint32(42)}},
+		{"uint13", "INT(13) UNSIGNED NOT NULL", "UNSIGNED INT", scanTypeUint32, false, 0, 0, [3]string{"0", "1337", "42"}, [3]any{uint32(0), uint32(1337), uint32(42)}},
+		{"float", "FLOAT NOT NULL", "FLOAT", scanTypeFloat32, false, math.MaxInt64, math.MaxInt64, [3]string{"0", "42", "13.37"}, [3]any{float32(0), float32(42), float32(13.37)}},
+		{"floatnull", "FLOAT", "FLOAT", scanTypeNullFloat, true, math.MaxInt64, math.MaxInt64, [3]string{"0", "NULL", "13.37"}, [3]any{nf0, nfNULL, nf1337}},
+		{"float74null", "FLOAT(7,4)", "FLOAT", scanTypeNullFloat, true, math.MaxInt64, 4, [3]string{"0", "NULL", "13.37"}, [3]any{nf0, nfNULL, nf1337}},
+		{"double", "DOUBLE NOT NULL", "DOUBLE", scanTypeFloat64, false, math.MaxInt64, math.MaxInt64, [3]string{"0", "42", "13.37"}, [3]any{float64(0), float64(42), float64(13.37)}},
+		{"doublenull", "DOUBLE", "DOUBLE", scanTypeNullFloat, true, math.MaxInt64, math.MaxInt64, [3]string{"0", "NULL", "13.37"}, [3]any{nf0, nfNULL, nf1337}},
+		{"decimal1", "DECIMAL(10,6) NOT NULL", "DECIMAL", scanTypeString, false, 10, 6, [3]string{"0", "13.37", "1234.123456"}, [3]any{"0.000000", "13.370000", "1234.123456"}},
+		{"decimal1null", "DECIMAL(10,6)", "DECIMAL", scanTypeNullString, true, 10, 6, [3]string{"0", "NULL", "1234.123456"}, [3]any{ns("0.000000"), nsNULL, ns("1234.123456")}},
+		{"decimal2", "DECIMAL(8,4) NOT NULL", "DECIMAL", scanTypeString, false, 8, 4, [3]string{"0", "13.37", "1234.123456"}, [3]any{"0.0000", "13.3700", "1234.1235"}},
+		{"decimal2null", "DECIMAL(8,4)", "DECIMAL", scanTypeNullString, true, 8, 4, [3]string{"0", "NULL", "1234.123456"}, [3]any{ns("0.0000"), nsNULL, ns("1234.1235")}},
+		{"decimal3", "DECIMAL(5,0) NOT NULL", "DECIMAL", scanTypeString, false, 5, 0, [3]string{"0", "13.37", "-12345.123456"}, [3]any{"0", "13", "-12345"}},
+		{"decimal3null", "DECIMAL(5,0)", "DECIMAL", scanTypeNullString, true, 5, 0, [3]string{"0", "NULL", "-12345.123456"}, [3]any{ns0, nsNULL, ns("-12345")}},
+		{"char25null", "CHAR(25)", "CHAR", scanTypeNullString, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]any{ns0, nsNULL, nsTest}},
+		{"varchar42", "VARCHAR(42) NOT NULL", "VARCHAR", scanTypeString, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]any{"0", "Test", "42"}},
+		{"binary4null", "BINARY(4)", "BINARY", scanTypeBytes, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]any{b0pad4, bNULL, bTest}},
+		{"varbinary42", "VARBINARY(42) NOT NULL", "VARBINARY", scanTypeBytes, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]any{b0, bTest, b42}},
+		{"tinyblobnull", "TINYBLOB", "BLOB", scanTypeBytes, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]any{b0, bNULL, bTest}},
+		{"tinytextnull", "TINYTEXT", "TEXT", scanTypeNullString, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]any{ns0, nsNULL, nsTest}},
+		{"blobnull", "BLOB", "BLOB", scanTypeBytes, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]any{b0, bNULL, bTest}},
+		{"textnull", "TEXT", "TEXT", scanTypeNullString, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]any{ns0, nsNULL, nsTest}},
+		{"mediumblob", "MEDIUMBLOB NOT NULL", "BLOB", scanTypeBytes, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]any{b0, bTest, b42}},
+		{"mediumtext", "MEDIUMTEXT NOT NULL", "TEXT", scanTypeString, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]any{"0", "Test", "42"}},
+		{"longblob", "LONGBLOB NOT NULL", "BLOB", scanTypeBytes, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]any{b0, bTest, b42}},
+		{"longtext", "LONGTEXT NOT NULL", "TEXT", scanTypeString, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]any{"0", "Test", "42"}},
+		{"datetime", "DATETIME", "DATETIME", scanTypeNullTime, true, 0, 0, [3]string{"'2006-01-02 15:04:05'", "'2006-01-02 15:04:05.1'", "'2006-01-02 15:04:05.111111'"}, [3]any{nt0, nt0, nt0}},
+		{"datetime2", "DATETIME(2)", "DATETIME", scanTypeNullTime, true, 2, 2, [3]string{"'2006-01-02 15:04:05'", "'2006-01-02 15:04:05.1'", "'2006-01-02 15:04:05.111111'"}, [3]any{nt0, nt1, nt2}},
+		{"datetime6", "DATETIME(6)", "DATETIME", scanTypeNullTime, true, 6, 6, [3]string{"'2006-01-02 15:04:05'", "'2006-01-02 15:04:05.1'", "'2006-01-02 15:04:05.111111'"}, [3]any{nt0, nt1, nt6}},
+		{"date", "DATE", "DATE", scanTypeNullTime, true, 0, 0, [3]string{"'2006-01-02'", "NULL", "'2006-03-04'"}, [3]any{nd1, ndNULL, nd2}},
+		{"year", "YEAR NOT NULL", "YEAR", scanTypeUint16, false, 0, 0, [3]string{"2006", "2000", "1994"}, [3]any{uint16(2006), uint16(2000), uint16(1994)}},
+		{"enum", "ENUM('', 'v1', 'v2')", "ENUM", scanTypeNullString, true, 0, 0, [3]string{"''", "'v1'", "'v2'"}, [3]any{ns(""), ns("v1"), ns("v2")}},
+		{"set", "set('', 'v1', 'v2')", "SET", scanTypeNullString, true, 0, 0, [3]string{"''", "'v1'", "'v1,v2'"}, [3]any{ns(""), ns("v1"), ns("v1,v2")}},
 	}
 
 	schema := ""
@@ -3215,7 +3215,7 @@ func TestRowsColumnTypes(t *testing.T) {
 		if t.Failed() {
 			return
 		}
-		values := make([]interface{}, len(tt))
+		values := make([]any, len(tt))
 		for i := range values {
 			values[i] = reflect.New(types[i]).Interface()
 		}
