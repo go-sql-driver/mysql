@@ -133,7 +133,7 @@ func (mc *mysqlConn) Close() (err error) {
 	}
 
 	mc.cleanup()
-
+	mc.clearResult()
 	return
 }
 
@@ -148,13 +148,16 @@ func (mc *mysqlConn) cleanup() {
 
 	// Makes cleanup idempotent
 	close(mc.closech)
-	if mc.netConn == nil {
+	nc := mc.netConn
+	if nc == nil {
 		return
 	}
-	if err := mc.netConn.Close(); err != nil {
+	if err := nc.Close(); err != nil {
 		mc.cfg.Logger.Print(err)
 	}
-	mc.clearResult()
+	// This function can be called from multiple goroutines.
+	// So we can not mc.clearResult() here.
+	// Caller should do it if they are in safe goroutine.
 }
 
 func (mc *mysqlConn) error() error {
@@ -439,13 +442,7 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 // finish is called when the query has canceled.
 func (mc *mysqlConn) cancel(err error) {
 	mc.canceled.Set(err)
-	nc := mc.netConn
-	if nc != nil {
-		_ = nc.SetDeadline(time.Now()) // wake up pending reads/writes
-		// Ignore error because:
-		// - If the connection is already closed, thats fine.
-		// - If the connection return error other reasons, we can not do anything about it.
-	}
+	mc.cleanup()
 }
 
 // finish is called when the query has succeeded.
