@@ -28,6 +28,7 @@ import (
 // Read packet to buffer 'data'
 func (mc *mysqlConn) readPacket() ([]byte, error) {
 	var prevData []byte
+	var rerr error = nil
 	for {
 		// read packet header
 		data, err := mc.packetReader.readNext(4)
@@ -46,10 +47,18 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		// packet length [24 bit]
 		pktLen := int(uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16)
 
-		if !mc.compress { // MySQL and MariaDB doesn't check packet nr in compressed packet.
+		if mc.compress {
+			// MySQL and MariaDB doesn't check packet nr in compressed packet.
+			if debugTrace && data[3] != mc.compressSequence {
+				mc.cfg.Logger.Print
+			}
+			mc.compressSequence = data[3]+1
+		} else mc.compress {
 			// check packet sync [8 bit]
 			if data[3] != mc.sequence {
 				mc.cfg.Logger.Print(fmt.Sprintf("[warn] unexpected seq nr: expected %v, got %v", mc.sequence, data[3]))
+				mc.invalid = true
+				rerr = ErrInvalidConn
 			}
 			mc.sequence++
 		}
@@ -117,7 +126,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 
 		// Write packet
 		if debugTrace {
-			mc.cfg.Logger.Print(fmt.Sprintf("writePacket: size=%v seq=%v", size, mc.sequence))
+			traceLogger.Printf("writePacket: size=%v seq=%v", size, mc.sequence)
 		}
 		if mc.writeTimeout > 0 {
 			if err := mc.netConn.SetWriteDeadline(time.Now().Add(mc.writeTimeout)); err != nil {

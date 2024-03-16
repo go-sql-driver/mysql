@@ -37,6 +37,7 @@ type mysqlConn struct {
 	compressSequence uint8
 	parseTime        bool
 	compress         bool
+	invalid          bool // true when the connection is in invalid state and will be closed later.
 
 	// for context support (Go 1.8+)
 	watching bool
@@ -132,7 +133,6 @@ func (mc *mysqlConn) Begin() (driver.Tx, error) {
 
 func (mc *mysqlConn) begin(readOnly bool) (driver.Tx, error) {
 	if mc.closed.Load() {
-		mc.cfg.Logger.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	var q string
@@ -173,7 +173,7 @@ func (mc *mysqlConn) cleanup() {
 		return
 	}
 	if err := mc.netConn.Close(); err != nil {
-		mc.cfg.Logger.Print(err)
+		mc.log("closing connection:", err)
 	}
 	mc.clearResult()
 }
@@ -698,5 +698,5 @@ func (mc *mysqlConn) ResetSession(ctx context.Context) error {
 // IsValid implements driver.Validator interface
 // (From Go 1.15)
 func (mc *mysqlConn) IsValid() bool {
-	return !mc.closed.Load()
+	return !mc.closed.Load() && !mc.invalid
 }

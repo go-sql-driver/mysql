@@ -37,18 +37,41 @@ var (
 	errBadConnNoWrite = errors.New("bad connection")
 )
 
-var defaultLogger = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
+// traceLogger is used for debug trace log.
+var traceLogger *log.Logger
+
+func init() {
+	if debugTrace {
+		traceLogger = log.New(os.Stderr, "[mysql.trace]", log.Lmicroseconds|log.Lshortfile)
+	}
+}
+
+func trace(format string, v ...any) {
+	if debugTrace {
+		traceLogger.Printf(format, v...)
+	}
+}
 
 // Logger is used to log critical error messages.
 type Logger interface {
-	Print(v ...interface{})
+	Print(v ...any)
+}
+
+var defaultLogger = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
+
+func (mc *mysqlConn) log(v ...any) {
+	mc.cfg.Logger.Print(v...)
+}
+
+func (mc *mysqlConn) logf(format string, v ...any) {
+	mc.cfg.Logger.Print(fmt.Sprintf(format, v...))
 }
 
 // NopLogger is a nop implementation of the Logger interface.
 type NopLogger struct{}
 
 // Print implements Logger interface.
-func (nl *NopLogger) Print(_ ...interface{}) {}
+func (nl *NopLogger) Print(_ ...any) {}
 
 // SetLogger is used to set the default logger for critical errors.
 // The initial logger is os.Stderr.
