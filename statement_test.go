@@ -77,7 +77,7 @@ func TestConvertPointer(t *testing.T) {
 }
 
 func TestConvertSignedIntegers(t *testing.T) {
-	values := []interface{}{
+	values := []any{
 		int8(-42),
 		int16(-42),
 		int32(-42),
@@ -106,7 +106,7 @@ func (u myUint64) Value() (driver.Value, error) {
 }
 
 func TestConvertUnsignedIntegers(t *testing.T) {
-	values := []interface{}{
+	values := []any{
 		uint8(42),
 		uint16(42),
 		uint32(42),
