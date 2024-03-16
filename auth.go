@@ -338,7 +338,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		return authEd25519(authData, mc.cfg.Passwd)
 
 	default:
-		mc.cfg.Logger.Print("unknown auth plugin:", plugin)
+		mc.log("unknown auth plugin:", plugin)
 		return nil, ErrUnknownPlugin
 	}
 }
