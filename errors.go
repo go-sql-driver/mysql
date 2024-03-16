@@ -41,14 +41,14 @@ var defaultLogger = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime|lo
 
 // Logger is used to log critical error messages.
 type Logger interface {
-	Print(v ...interface{})
+	Print(v ...any)
 }
 
 // NopLogger is a nop implementation of the Logger interface.
 type NopLogger struct{}
 
 // Print implements Logger interface.
-func (nl *NopLogger) Print(_ ...interface{}) {}
+func (nl *NopLogger) Print(_ ...any) {}
 
 // SetLogger is used to set the default logger for critical errors.
 // The initial logger is os.Stderr.
