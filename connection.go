@@ -138,7 +138,7 @@ func (mc *mysqlConn) Close() (err error) {
 	}
 
 	mc.cleanup()
-
+	mc.clearResult()
 	return
 }
 
@@ -153,13 +153,16 @@ func (mc *mysqlConn) cleanup() {
 
 	// Makes cleanup idempotent
 	close(mc.closech)
-	if mc.netConn == nil {
+	nc := mc.netConn
+	if nc == nil {
 		return
 	}
-	if err := mc.netConn.Close(); err != nil {
+	if err := nc.Close(); err != nil {
 		mc.log(err)
 	}
-	mc.clearResult()
+	// This function can be called from multiple goroutines.
+	// So we can not mc.clearResult() here.
+	// Caller should do it if they are in safe goroutine.
 }
 
 func (mc *mysqlConn) error() error {
