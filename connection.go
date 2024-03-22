@@ -153,11 +153,11 @@ func (mc *mysqlConn) cleanup() {
 
 	// Makes cleanup idempotent
 	close(mc.closech)
-	nc := mc.netConn
-	if nc == nil {
+	conn := mc.rawConn
+	if conn == nil {
 		return
 	}
-	if err := nc.Close(); err != nil {
+	if err := conn.Close(); err != nil {
 		mc.log(err)
 	}
 	// This function can be called from multiple goroutines.
