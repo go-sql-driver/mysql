@@ -3592,6 +3592,10 @@ func TestIssue1567(t *testing.T) {
 			t.Fatal(err)
 		}
 		rtt := time.Since(start)
+		if rtt <= 0 {
+			// In some environments, rtt may become 0, so set it to at least 1ms.
+			rtt = time.Millisecond
+		}
 
 		count := 1000
 		if testing.Short() {
