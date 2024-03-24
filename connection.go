@@ -17,6 +17,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -45,7 +46,12 @@ type mysqlConn struct {
 	closech  chan struct{}
 	finished chan<- struct{}
 	canceled atomicError // set non-nil if conn is canceled
-	closed   atomicBool  // set when conn is closed, before closech is closed
+	closed   atomic.Bool // set when conn is closed, before closech is closed
+}
+
+// Helper function to call per-connection logger.
+func (mc *mysqlConn) log(v ...any) {
+	mc.cfg.Logger.Print(v...)
 }
 
 type packetReader interface {
@@ -133,6 +139,7 @@ func (mc *mysqlConn) Begin() (driver.Tx, error) {
 
 func (mc *mysqlConn) begin(readOnly bool) (driver.Tx, error) {
 	if mc.closed.Load() {
+		mc.log(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	var q string
@@ -155,6 +162,7 @@ func (mc *mysqlConn) Close() (err error) {
 	}
 
 	mc.cleanup()
+	mc.clearResult()
 	return
 }
 
@@ -169,13 +177,16 @@ func (mc *mysqlConn) cleanup() {
 
 	// Makes cleanup idempotent
 	close(mc.closech)
-	if mc.netConn == nil {
+	conn := mc.rawConn
+	if conn == nil {
 		return
 	}
-	if err := mc.netConn.Close(); err != nil {
+	if err := conn.Close(); err != nil {
 		mc.log("closing connection:", err)
 	}
-	mc.clearResult()
+	// This function can be called from multiple goroutines.
+	// So we can not mc.clearResult() here.
+	// Caller should do it if they are in safe goroutine.
 }
 
 func (mc *mysqlConn) error() error {
@@ -190,14 +201,14 @@ func (mc *mysqlConn) error() error {
 
 func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	if mc.closed.Load() {
-		mc.cfg.Logger.Print(ErrInvalidConn)
+		mc.log(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	// Send command
 	err := mc.writeCommandPacketStr(comStmtPrepare, query)
 	if err != nil {
 		// STMT_PREPARE is safe to retry.  So we can return ErrBadConn here.
-		mc.cfg.Logger.Print(err)
+		mc.log(err)
 		return nil, driver.ErrBadConn
 	}
 
@@ -231,7 +242,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 	buf, err := mc.buf.takeCompleteBuffer()
 	if err != nil {
 		// can not take the buffer. Something must be wrong with the connection
-		mc.cfg.Logger.Print(err)
+		mc.log(err)
 		return "", ErrInvalidConn
 	}
 	buf = buf[:0]
@@ -323,7 +334,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
 	if mc.closed.Load() {
-		mc.cfg.Logger.Print(ErrInvalidConn)
+		mc.log(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	if len(args) != 0 {
@@ -383,7 +394,7 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 	handleOk := mc.clearResult()
 
 	if mc.closed.Load() {
-		mc.cfg.Logger.Print(ErrInvalidConn)
+		mc.log(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	if len(args) != 0 {
@@ -478,7 +489,7 @@ func (mc *mysqlConn) finish() {
 // Ping implements driver.Pinger interface
 func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
 	if mc.closed.Load() {
-		mc.cfg.Logger.Print(ErrInvalidConn)
+		mc.log(ErrInvalidConn)
 		return driver.ErrBadConn
 	}
 
@@ -687,7 +698,7 @@ func (mc *mysqlConn) ResetSession(ctx context.Context) error {
 			err = connCheck(conn)
 		}
 		if err != nil {
-			mc.cfg.Logger.Print("closing bad idle connection: ", err)
+			mc.log("closing bad idle connection: ", err)
 			return driver.ErrBadConn
 		}
 	}

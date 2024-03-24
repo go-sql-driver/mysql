@@ -23,7 +23,7 @@ var (
 
 func TestScanNullTime(t *testing.T) {
 	var scanTests = []struct {
-		in    interface{}
+		in    any
 		error bool
 		valid bool
 		time  time.Time

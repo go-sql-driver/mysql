@@ -37,6 +37,8 @@ var (
 	errBadConnNoWrite = errors.New("bad connection")
 )
 
+var defaultLogger = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
+
 // traceLogger is used for debug trace log.
 var traceLogger *log.Logger
 
@@ -55,12 +57,6 @@ func trace(format string, v ...any) {
 // Logger is used to log critical error messages.
 type Logger interface {
 	Print(v ...any)
-}
-
-var defaultLogger = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
-
-func (mc *mysqlConn) log(v ...any) {
-	mc.cfg.Logger.Print(v...)
 }
 
 func (mc *mysqlConn) logf(format string, v ...any) {

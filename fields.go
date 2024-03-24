@@ -134,7 +134,7 @@ var (
 	scanTypeString     = reflect.TypeOf("")
 	scanTypeNullString = reflect.TypeOf(sql.NullString{})
 	scanTypeBytes      = reflect.TypeOf([]byte{})
-	scanTypeUnknown    = reflect.TypeOf(new(interface{}))
+	scanTypeUnknown    = reflect.TypeOf(new(any))
 )
 
 type mysqlField struct {

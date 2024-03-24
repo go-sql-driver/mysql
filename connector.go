@@ -102,10 +102,10 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		nd := net.Dialer{Timeout: mc.cfg.Timeout}
 		mc.netConn, err = nd.DialContext(ctx, mc.cfg.Net, mc.cfg.Addr)
 	}
-
 	if err != nil {
 		return nil, err
 	}
+	mc.rawConn = mc.netConn
 
 	// Enable TCP Keepalives on TCP connections
 	if tc, ok := mc.netConn.(*net.TCPConn); ok {
