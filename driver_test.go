@@ -20,6 +20,7 @@ import (
 	"io"
 	"log"
 	"math"
+	mrand "math/rand"
 	"net"
 	"net/url"
 	"os"
@@ -3576,4 +3577,36 @@ func runCallCommand(dbt *DBTest, query, name string) {
 		for rows.Next() {
 		}
 	}
+}
+
+func TestIssue1567(t *testing.T) {
+	// enable TLS.
+	runTests(t, dsn+"&tls=skip-verify", func(dbt *DBTest) {
+		// disable connection pooling.
+		// data race happens when new connection is created.
+		dbt.db.SetMaxIdleConns(0)
+
+		// estimate round trip time.
+		start := time.Now()
+		if err := dbt.db.PingContext(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		rtt := time.Since(start)
+		if rtt <= 0 {
+			// In some environments, rtt may become 0, so set it to at least 1ms.
+			rtt = time.Millisecond
+		}
+
+		count := 1000
+		if testing.Short() {
+			count = 10
+		}
+
+		for i := 0; i < count; i++ {
+			timeout := time.Duration(mrand.Int63n(int64(rtt)))
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			dbt.db.PingContext(ctx)
+			cancel()
+		}
+	})
 }
