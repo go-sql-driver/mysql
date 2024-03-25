@@ -147,7 +147,7 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 
 	db, err := sql.Open(driverNameTest, dsn)
 	if err != nil {
-		t.Fatalf("error connecting: %s", err.Error())
+		t.Fatalf("connecting %q: %s", dsn, err)
 	}
 	defer db.Close()
 
@@ -160,10 +160,18 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	if _, err := ParseDSN(dsn2); err != errInvalidDSNUnsafeCollation {
 		db2, err = sql.Open(driverNameTest, dsn2)
 		if err != nil {
-			t.Fatalf("error connecting: %s", err.Error())
+			t.Fatalf("connecting %q: %s", dsn2, err)
 		}
 		defer db2.Close()
 	}
+
+	dsn3 := dsn + "&compress=true"
+	var db3 *sql.DB
+	db3, err = sql.Open(driverNameTest, dsn3)
+	if err != nil {
+		t.Fatalf("connecting %q: %s", dsn3, err)
+	}
+	defer db3.Close()
 
 	for _, test := range tests {
 		test := test
@@ -179,6 +187,11 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 				test(dbt2)
 			})
 		}
+		t.Run("compress", func(t *testing.T) {
+			dbt3 := &DBTest{t, db3}
+			t.Cleanup(cleanup)
+			test(dbt3)
+		})
 	}
 }
 
@@ -1265,7 +1278,8 @@ func TestLongData(t *testing.T) {
 		var rows *sql.Rows
 
 		// Long text data
-		const nonDataQueryLen = 28 // length query w/o value
+		// const nonDataQueryLen = 28 // length query w/o value + compress header
+		const nonDataQueryLen = 100
 		inS := in[:maxAllowedPacketSize-nonDataQueryLen]
 		dbt.mustExec("INSERT INTO test VALUES('" + inS + "')")
 		rows = dbt.mustQuery("SELECT value FROM test")
@@ -3540,6 +3554,10 @@ func TestConnectionAttributes(t *testing.T) {
 
 func TestErrorInMultiResult(t *testing.T) {
 	// https://github.com/go-sql-driver/mysql/issues/1361
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
 	var db *sql.DB
 	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
 		db, err = sql.Open("mysql", dsn)
