@@ -48,12 +48,6 @@ func init() {
 	}
 }
 
-func trace(format string, v ...any) {
-	if debugTrace {
-		traceLogger.Printf(format, v...)
-	}
-}
-
 // Logger is used to log critical error messages.
 type Logger interface {
 	Print(v ...any)

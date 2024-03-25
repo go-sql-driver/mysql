@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"runtime/debug"
 	"strconv"
 	"time"
 )
@@ -28,16 +27,14 @@ import (
 // Read packet to buffer 'data'
 func (mc *mysqlConn) readPacket() ([]byte, error) {
 	var prevData []byte
-	var rerr error = nil
+	invalid := false
+
 	for {
 		// read packet header
 		data, err := mc.packetReader.readNext(4)
 		if err != nil {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
-			}
-			if debugTrace {
-				debug.PrintStack()
 			}
 			mc.log(err)
 			mc.Close()
@@ -46,19 +43,25 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 
 		// packet length [24 bit]
 		pktLen := int(uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16)
+		seqNr := data[3]
 
 		if mc.compress {
 			// MySQL and MariaDB doesn't check packet nr in compressed packet.
-			if debugTrace && data[3] != mc.compressSequence {
-				mc.cfg.Logger.Print
+			if debugTrace && seqNr != mc.compressSequence {
+				mc.logf("[debug] mismatched compression sequence nr: expected: %v, got %v",
+					mc.compressSequence, seqNr)
 			}
-			mc.compressSequence = data[3]+1
-		} else mc.compress {
+			mc.compressSequence = seqNr + 1
+		} else {
 			// check packet sync [8 bit]
-			if data[3] != mc.sequence {
-				mc.cfg.Logger.Print(fmt.Sprintf("[warn] unexpected seq nr: expected %v, got %v", mc.sequence, data[3]))
-				mc.invalid = true
-				rerr = ErrInvalidConn
+			if seqNr != mc.sequence {
+				mc.logf("[warn] unexpected seq nr: expected %v, got %v", mc.sequence, seqNr)
+				// For large packets, we stop reading as soon as sync error.
+				if len(prevData) > 0 {
+					return nil, ErrPktSyncMul
+				}
+				// TODO(methane): report error when the packet is not an error packet.
+				invalid = true
 			}
 			mc.sequence++
 		}
@@ -72,7 +75,6 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 				mc.Close()
 				return nil, ErrInvalidConn
 			}
-
 			return prevData, nil
 		}
 
@@ -91,6 +93,10 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		if pktLen < maxPacketSize {
 			// zero allocations for non-split packets
 			if prevData == nil {
+				if invalid && data[0] != iERR {
+					// return sync error only for regular packet.
+					return nil, ErrPktSync
+				}
 				return data, nil
 			}
 
@@ -432,12 +438,9 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	// Reset Packet Sequence
 	mc.resetSequenceNr()
 
-	data, err := mc.buf.takeSmallBuffer(4 + 1)
-	if err != nil {
-		// cannot take the buffer. Something must be wrong with the connection
-		mc.log(err)
-		return errBadConnNoWrite
-	}
+	// We do not use mc.buf because this function is used by mc.Close()
+	// and mc.Close() could be used when some error happend during read.
+	data := make([]byte, 5)
 
 	// Add command byte
 	data[4] = command

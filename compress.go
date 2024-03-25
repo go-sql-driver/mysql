@@ -134,7 +134,7 @@ func (c *decompressor) uncompressPacket() error {
 			traceLogger.Printf("WARN: unexpected cmpress seq nr: expected %v, got %v",
 				c.mc.sequence, compressionSequence)
 		}
-		c.mc.invalid = true
+		// TODO(methane): report error when the packet is not an error packet.
 	}
 	c.mc.sequence = compressionSequence + 1
 	c.mc.compressSequence = c.mc.sequence
