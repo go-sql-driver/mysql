@@ -21,8 +21,9 @@ import (
 	"time"
 )
 
-// Packets documentation:
-// http://dev.mysql.com/doc/internals/en/client-server-protocol.html
+// MySQL client/server protocol documentations.
+// https://dev.mysql.com/doc/dev/mysql-server/latest/PAGE_PROTOCOL.html
+// https://mariadb.com/kb/en/clientserver-protocol/
 
 // Read packet to buffer 'data'
 func (mc *mysqlConn) readPacket() ([]byte, error) {

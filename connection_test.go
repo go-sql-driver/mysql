@@ -121,8 +121,8 @@ func TestInterpolateParamsUint64(t *testing.T) {
 
 func TestCheckNamedValue(t *testing.T) {
 	value := driver.NamedValue{Value: ^uint64(0)}
-	x := &mysqlConn{}
-	err := x.CheckNamedValue(&value)
+	mc := &mysqlConn{}
+	err := mc.CheckNamedValue(&value)
 
 	if err != nil {
 		t.Fatal("uint64 high-bit not convertible", err)

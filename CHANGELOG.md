@@ -1,3 +1,45 @@
+## Version 1.8.1 (2024-03-26)
+
+Bugfixes:
+
+- fix race condition when context is canceled in [#1562](https://github.com/go-sql-driver/mysql/pull/1562) and [#1570](https://github.com/go-sql-driver/mysql/pull/1570)
+
+## Version 1.8.0 (2024-03-09)
+
+Major Changes:
+
+- Use `SET NAMES charset COLLATE collation`. by @methane in [#1437](https://github.com/go-sql-driver/mysql/pull/1437)
+  - Older go-mysql-driver used `collation_id` in the handshake packet. But it caused collation mismatch in some situation.
+  - If you don't specify charset nor collation, go-mysql-driver sends `SET NAMES utf8mb4` for new connection. This uses server's default collation for utf8mb4.
+  - If you specify charset, go-mysql-driver sends `SET NAMES <charset>`. This uses the server's default collation for `<charset>`.
+  - If you specify collation and/or charset, go-mysql-driver sends `SET NAMES charset COLLATE collation`.
+- PathEscape dbname in DSN. by @methane in [#1432](https://github.com/go-sql-driver/mysql/pull/1432)
+  - This is backward incompatible in rare case. Check your DSN.
+- Drop Go 1.13-17 support by @methane in [#1420](https://github.com/go-sql-driver/mysql/pull/1420)
+  - Use Go 1.18+
+- Parse numbers on text protocol too by @methane in [#1452](https://github.com/go-sql-driver/mysql/pull/1452)
+  - When text protocol is used, go-mysql-driver passed bare `[]byte` to database/sql for avoid unnecessary allocation and conversion.
+  - If user specified `*any` to `Scan()`, database/sql passed the `[]byte` into the target variable.
+  - This confused users because most user doesn't know when text/binary protocol used.
+  - go-mysql-driver 1.8 converts integer/float values into int64/double even in text protocol. This doesn't increase allocation compared to `[]byte` and conversion cost is negatable.
+- New options start using the Functional Option Pattern to avoid increasing technical debt in the Config object. Future version may introduce Functional Option for existing options, but not for now.
+  - Make TimeTruncate functional option by @methane in [1552](https://github.com/go-sql-driver/mysql/pull/1552)
+  - Add BeforeConnect callback to configuration object by @ItalyPaleAle in [#1469](https://github.com/go-sql-driver/mysql/pull/1469)
+
+
+Other changes:
+
+- Adding DeregisterDialContext to prevent memory leaks with dialers we don't need anymore by @jypelle in https://github.com/go-sql-driver/mysql/pull/1422
+- Make logger configurable per connection by @frozenbonito in https://github.com/go-sql-driver/mysql/pull/1408
+- Fix ColumnType.DatabaseTypeName for mediumint unsigned by @evanelias in https://github.com/go-sql-driver/mysql/pull/1428
+- Add connection attributes by @Daemonxiao in https://github.com/go-sql-driver/mysql/pull/1389
+- Stop `ColumnTypeScanType()` from returning `sql.RawBytes` by @methane in https://github.com/go-sql-driver/mysql/pull/1424
+- Exec() now provides access to status of multiple statements. by @mherr-google in https://github.com/go-sql-driver/mysql/pull/1309
+- Allow to change (or disable) the default driver name for registration by @dolmen in https://github.com/go-sql-driver/mysql/pull/1499
+- Add default connection attribute '_server_host' by @oblitorum in https://github.com/go-sql-driver/mysql/pull/1506
+- QueryUnescape DSN ConnectionAttribute value by @zhangyangyu in https://github.com/go-sql-driver/mysql/pull/1470
+- Add client_ed25519 authentication by @Gusted in https://github.com/go-sql-driver/mysql/pull/1518
+
 ## Version 1.7.1 (2023-04-25)
 
 Changes:
