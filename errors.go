@@ -37,11 +37,27 @@ var (
 	errBadConnNoWrite = errors.New("bad connection")
 )
 
-var defaultLogger = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
+var defaultLogger = StdLogger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
 
 // Logger is used to log critical error messages.
 type Logger interface {
 	Print(v ...any)
+}
+
+// stdLog wraps log.Logger to adjust calldepth.
+type stdLog struct {
+	l *log.Logger
+}
+
+func (s *stdLog) Print(v ...any) {
+	// log.Logger.Print() uses a calldepth of 2.
+	// We need to skip one more frame for mysqlConn.log().
+	_ = s.l.Output(3, fmt.Sprint(v...))
+}
+
+// StdLogger creates a Logger that wraps a log.Logger.
+func StdLogger(l *log.Logger) Logger {
+	return &stdLog{l}
 }
 
 // NopLogger is a nop implementation of the Logger interface.
