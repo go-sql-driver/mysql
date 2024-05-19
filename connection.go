@@ -13,8 +13,10 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -47,7 +49,17 @@ type mysqlConn struct {
 
 // Helper function to call per-connection logger.
 func (mc *mysqlConn) log(v ...any) {
-	mc.cfg.Logger.Print(v...)
+	_, filename, lineno, ok := runtime.Caller(1)
+	prefix := ""
+	if ok {
+		pos = strings.LastIndexByte(filename, '/')
+		if pos != -1 {
+			filename = filename[pos+1:]
+		}
+		prefix = fmt.Sprintf("%s:%d: ", filename, lineno)
+	}
+
+	mc.cfg.Logger.Print(prefix, v...)
 }
 
 // Handles parameters set in DSN after the connection is established
