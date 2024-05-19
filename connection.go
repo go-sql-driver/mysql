@@ -50,16 +50,16 @@ type mysqlConn struct {
 // Helper function to call per-connection logger.
 func (mc *mysqlConn) log(v ...any) {
 	_, filename, lineno, ok := runtime.Caller(1)
-	prefix := ""
 	if ok {
-		pos = strings.LastIndexByte(filename, '/')
+		pos := strings.LastIndexByte(filename, '/')
 		if pos != -1 {
 			filename = filename[pos+1:]
 		}
-		prefix = fmt.Sprintf("%s:%d: ", filename, lineno)
+		prefix := fmt.Sprintf("%s:%d ", filename, lineno)
+		v = append([]any{prefix}, v...)
 	}
 
-	mc.cfg.Logger.Print(prefix, v...)
+	mc.cfg.Logger.Print(v...)
 }
 
 // Handles parameters set in DSN after the connection is established
