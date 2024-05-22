@@ -97,6 +97,11 @@ func init() {
 	}
 }
 
+// DriverName return driver name
+func DriverName() string {
+	return driverName
+}
+
 // NewConnector returns new driver.Connector.
 func NewConnector(cfg *Config) (driver.Connector, error) {
 	cfg = cfg.Clone()
