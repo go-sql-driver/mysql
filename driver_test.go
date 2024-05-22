@@ -3353,7 +3353,7 @@ func configForTests(t *testing.T) *Config {
 	return mycnf
 }
 
-func TestName(t *testing.T) {
+func TestDriverName(t *testing.T) {
 	dn := DriverName()
 	if dn != driverName {
 		t.Errorf("driver name is incorrect, got: %s", dn)
