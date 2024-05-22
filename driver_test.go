@@ -35,7 +35,7 @@ import (
 )
 
 // This variable can be replaced with -ldflags like below:
-// go test "-ldflags=-X github.com/go-sql-driver/mysql.driverNameTest=custom"
+// go test -ldflags="-X github.com/go-sql-driver/mysql.driverNameTest=custom"
 var driverNameTest string
 
 func init() {

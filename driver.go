@@ -88,7 +88,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 }
 
 // This variable can be replaced with -ldflags like below:
-// go build "-ldflags=-X github.com/go-sql-driver/mysql.driverName=custom"
+// go build -ldflags="-X github.com/go-sql-driver/mysql.driverName=custom"
 var driverName = "mysql"
 
 func init() {
