@@ -37,7 +37,7 @@ var (
 	errBadConnNoWrite = errors.New("bad connection")
 )
 
-var defaultLogger = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
+var defaultLogger = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime))
 
 // Logger is used to log critical error messages.
 type Logger interface {
