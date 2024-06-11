@@ -116,6 +116,8 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		// Write packet
 		if mc.writeTimeout > 0 {
 			if err := mc.netConn.SetWriteDeadline(time.Now().Add(mc.writeTimeout)); err != nil {
+				mc.cleanup()
+				mc.log(err)
 				return err
 			}
 		}
