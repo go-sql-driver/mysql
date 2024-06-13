@@ -400,31 +400,34 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 	}
 	// Send command
 	err := mc.writeCommandPacketStr(comQuery, query)
-	if err == nil {
-		// Read Result
-		var resLen int
-		resLen, err = handleOk.readResultSetHeaderPacket()
-		if err == nil {
-			rows := new(textRows)
-			rows.mc = mc
+	if err != nil {
+		return nil, mc.markBadConn(err)
+	}
 
-			if resLen == 0 {
-				rows.rs.done = true
+	// Read Result
+	var resLen int
+	resLen, err = handleOk.readResultSetHeaderPacket()
+	if err != nil {
+		return nil, mc.markBadConn(err)
+	}
 
-				switch err := rows.NextResultSet(); err {
-				case nil, io.EOF:
-					return rows, nil
-				default:
-					return nil, err
-				}
-			}
+	rows := new(textRows)
+	rows.mc = mc
 
-			// Columns
-			rows.rs.columns, err = mc.readColumns(resLen)
-			return rows, err
+	if resLen == 0 {
+		rows.rs.done = true
+
+		switch err := rows.NextResultSet(); err {
+		case nil, io.EOF:
+			return rows, nil
+		default:
+			return nil, err
 		}
 	}
-	return nil, mc.markBadConn(err)
+
+	// Columns
+	rows.rs.columns, err = mc.readColumns(resLen)
+	return rows, err
 }
 
 // Gets the value of the given MySQL System Variable
