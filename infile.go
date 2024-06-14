@@ -95,7 +95,6 @@ const defaultPacketSize = 16 * 1024 // 16KB is small enough for disk readahead a
 
 func (mc *okHandler) handleInFileRequest(name string) (err error) {
 	var rdr io.Reader
-	var data []byte
 	packetSize := defaultPacketSize
 	if mc.maxWriteSize < packetSize {
 		packetSize = mc.maxWriteSize
@@ -147,9 +146,11 @@ func (mc *okHandler) handleInFileRequest(name string) (err error) {
 	}
 
 	// send content packets
+	var data []byte
+
 	// if packetSize == 0, the Reader contains no data
 	if err == nil && packetSize > 0 {
-		data := make([]byte, 4+packetSize)
+		data = make([]byte, 4+packetSize)
 		var n int
 		for err == nil {
 			n, err = rdr.Read(data[4:])
