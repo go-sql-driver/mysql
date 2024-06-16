@@ -51,7 +51,6 @@ func (stmt *mysqlStmt) CheckNamedValue(nv *driver.NamedValue) (err error) {
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	if stmt.mc.closed.Load() {
-		stmt.mc.log(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	// Send command
@@ -95,7 +94,6 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 
 func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 	if stmt.mc.closed.Load() {
-		stmt.mc.log(ErrInvalidConn)
 		return nil, driver.ErrBadConn
 	}
 	// Send command
