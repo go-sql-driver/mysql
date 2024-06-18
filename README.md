@@ -38,6 +38,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
   * Secure `LOAD DATA LOCAL INFILE` support with file allowlisting and `io.Reader` support
   * Optional `time.Time` parsing
   * Optional placeholder interpolation
+  * Supports zlib compression.
 
 ## Requirements
 
@@ -267,6 +268,16 @@ SELECT u.id FROM users as u
 
 will return `u.id` instead of just `id` if `columnsWithAlias=true`.
 
+##### `compress`
+
+```
+Type:           bool
+Valid Values:   true, false
+Default:        false
+```
+
+Toggles zlib compression. false by default.
+
 ##### `interpolateParams`
 
 ```
@@ -309,6 +320,15 @@ Default:       64*1024*1024
 ```
 
 Max packet size allowed in bytes. The default value is 64 MiB and should be adjusted to match the server settings. `maxAllowedPacket=0` can be used to automatically fetch the `max_allowed_packet` variable from server *on every connection*.
+
+##### `minCompressLength`
+
+```
+Type:          decimal number
+Default:       50
+```
+
+Min packet size in bytes to compress, when compression is enabled (see the `compress` parameter). Packets smaller than this will be sent uncompressed.
 
 ##### `multiStatements`
 

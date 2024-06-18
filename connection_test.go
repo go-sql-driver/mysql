@@ -25,6 +25,7 @@ func TestInterpolateParams(t *testing.T) {
 			InterpolateParams: true,
 		},
 	}
+	mc.packetReader = &mc.buf
 
 	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42), "gopher"})
 	if err != nil {
@@ -72,6 +73,7 @@ func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
 			InterpolateParams: true,
 		},
 	}
+	mc.packetReader = &mc.buf
 
 	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42)})
 	if err != driver.ErrSkip {
@@ -89,6 +91,8 @@ func TestInterpolateParamsPlaceholderInString(t *testing.T) {
 			InterpolateParams: true,
 		},
 	}
+
+	mc.packetReader = &mc.buf
 
 	q, err := mc.interpolateParams("SELECT 'abc?xyz',?", []driver.Value{int64(42)})
 	// When InterpolateParams support string literal, this should return `"SELECT 'abc?xyz', 42`
@@ -159,9 +163,12 @@ func TestCleanCancel(t *testing.T) {
 
 func TestPingMarkBadConnection(t *testing.T) {
 	nc := badConnection{err: errors.New("boom")}
+
+	buf := newBuffer(nc)
 	mc := &mysqlConn{
 		netConn:          nc,
-		buf:              newBuffer(nc),
+		buf:              buf,
+		packetReader:     &buf,
 		maxAllowedPacket: defaultMaxAllowedPacket,
 	}
 
@@ -174,9 +181,12 @@ func TestPingMarkBadConnection(t *testing.T) {
 
 func TestPingErrInvalidConn(t *testing.T) {
 	nc := badConnection{err: errors.New("failed to write"), n: 10}
+
+	buf := newBuffer(nc)
 	mc := &mysqlConn{
 		netConn:          nc,
-		buf:              newBuffer(nc),
+		buf:              buf,
+		packetReader:     &buf,
 		maxAllowedPacket: defaultMaxAllowedPacket,
 		closech:          make(chan struct{}),
 		cfg:              NewConfig(),
