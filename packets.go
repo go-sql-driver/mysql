@@ -124,32 +124,32 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		}
 
 		n, err := mc.netConn.Write(data[:4+size])
-		if err == nil && n == 4+size {
-			mc.sequence++
-			if size != maxPacketSize {
-				return nil
-			}
-			pktLen -= size
-			data = data[size:]
-			continue
-		}
-
-		// Handle error
-		if err == nil { // n != len(data)
-			mc.cleanup()
-			mc.log(ErrMalformPkt)
-		} else {
+		if err != nil {
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return cerr
 			}
+			mc.cleanup()
 			if n == 0 && pktLen == len(data)-4 {
 				// only for the first loop iteration when nothing was written yet
+				mc.log(err)
 				return errBadConnNoWrite
+			} else {
+				return err
 			}
-			mc.cleanup()
-			mc.log(err)
 		}
-		return ErrInvalidConn
+		if n != 4+size {
+			// io.Writer(b) must return a non-nil error if it cannot write len(b) bytes.
+			// The io.ErrShortWrite error is used to indicate that this rule has not been followed.
+			mc.cleanup()
+			return io.ErrShortWrite
+		}
+
+		mc.sequence++
+		if size != maxPacketSize {
+			return nil
+		}
+		pktLen -= size
+		data = data[size:]
 	}
 }
 

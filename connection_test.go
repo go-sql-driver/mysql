@@ -163,6 +163,8 @@ func TestPingMarkBadConnection(t *testing.T) {
 		netConn:          nc,
 		buf:              newBuffer(nc),
 		maxAllowedPacket: defaultMaxAllowedPacket,
+		closech:          make(chan struct{}),
+		cfg:              NewConfig(),
 	}
 
 	err := mc.Ping(context.Background())
@@ -184,8 +186,8 @@ func TestPingErrInvalidConn(t *testing.T) {
 
 	err := mc.Ping(context.Background())
 
-	if err != ErrInvalidConn {
-		t.Errorf("expected ErrInvalidConn, got  %#v", err)
+	if err != nc.err {
+		t.Errorf("expected %#v, got  %#v", nc.err, err)
 	}
 }
 
