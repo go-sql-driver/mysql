@@ -111,15 +111,6 @@ func (mc *mysqlConn) handleParams() (err error) {
 	return
 }
 
-// markBadConn replaces errBadConnNoWrite with driver.ErrBadConn.
-// This function is used to return driver.ErrBadConn only when safe to retry.
-func (mc *mysqlConn) markBadConn(err error) error {
-	if err == errBadConnNoWrite {
-		return driver.ErrBadConn
-	}
-	return err
-}
-
 func (mc *mysqlConn) Begin() (driver.Tx, error) {
 	return mc.begin(false)
 }
@@ -138,7 +129,7 @@ func (mc *mysqlConn) begin(readOnly bool) (driver.Tx, error) {
 	if err == nil {
 		return &mysqlTx{mc}, err
 	}
-	return nil, mc.markBadConn(err)
+	return nil, err
 }
 
 func (mc *mysqlConn) Close() (err error) {
@@ -340,7 +331,7 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		copied := mc.result
 		return &copied, err
 	}
-	return nil, mc.markBadConn(err)
+	return nil, err
 }
 
 // Internal function to execute commands
@@ -348,7 +339,7 @@ func (mc *mysqlConn) exec(query string) error {
 	handleOk := mc.clearResult()
 	// Send command
 	if err := mc.writeCommandPacketStr(comQuery, query); err != nil {
-		return mc.markBadConn(err)
+		return err
 	}
 
 	// Read Result
@@ -378,10 +369,10 @@ func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, erro
 
 func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error) {
 	handleOk := mc.clearResult()
-
 	if mc.closed.Load() {
 		return nil, driver.ErrBadConn
 	}
+
 	if len(args) != 0 {
 		if !mc.cfg.InterpolateParams {
 			return nil, driver.ErrSkip
@@ -393,10 +384,11 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 		}
 		query = prepared
 	}
+
 	// Send command
 	err := mc.writeCommandPacketStr(comQuery, query)
 	if err != nil {
-		return nil, mc.markBadConn(err)
+		return nil, err
 	}
 
 	// Read Result
@@ -487,7 +479,7 @@ func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
 
 	handleOk := mc.clearResult()
 	if err = mc.writeCommandPacket(comPing); err != nil {
-		return mc.markBadConn(err)
+		return err
 	}
 
 	return handleOk.readResultOK()
