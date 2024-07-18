@@ -125,7 +125,10 @@ const (
 	fieldTypeBit
 )
 const (
-	fieldTypeJSON fieldType = iota + 0xf5
+	fieldTypeVector fieldType = iota + 0xf2
+	fieldTypeInvalid
+	fieldTypeBool
+	fieldTypeJSON
 	fieldTypeNewDecimal
 	fieldTypeEnum
 	fieldTypeSet
