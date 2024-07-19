@@ -37,14 +37,16 @@ jobs:
               '1.20',
           ]
           mysql = [
+              '9.0',
+              '8.4', # LTS
               '8.0',
-              '8.3',
               '5.7',
-              'mariadb-11.3',
+              'mariadb-11.4',   # LTS
+              'mariadb-11.2',
               'mariadb-11.1',
               'mariadb-10.11',  # LTS
               'mariadb-10.6',   # LTS
-              'mariadb-10.5',
+              'mariadb-10.5',   # LTS
           ]
 
           includes = []
