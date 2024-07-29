@@ -128,7 +128,7 @@ var (
 	scanTypeInt64      = reflect.TypeOf(int64(0))
 	scanTypeNullFloat  = reflect.TypeOf(sql.NullFloat64{})
 	scanTypeNullInt    = reflect.TypeOf(sql.NullInt64{})
-	scanTypeNullUInt   = reflect.TypeOf(sql.Null[uint64]{})
+	scanTypeNullUint   = reflect.TypeOf(sql.NullString{}) // reflect.TypeOf(sql.Null[uint64]{}) // support in go 1.22
 	scanTypeNullTime   = reflect.TypeOf(sql.NullTime{})
 	scanTypeUint8      = reflect.TypeOf(uint8(0))
 	scanTypeUint16     = reflect.TypeOf(uint16(0))
@@ -187,7 +187,7 @@ func (mf *mysqlField) scanType() reflect.Type {
 			return scanTypeInt64
 		}
 		if mf.flags&flagUnsigned != 0 {
-			return scanTypeNullUInt
+			return scanTypeNullUint
 		}
 		return scanTypeNullInt
 
