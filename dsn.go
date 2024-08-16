@@ -510,7 +510,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		case "charset":
 			cfg.charsets = strings.Split(value, ",")
 
-			// Collation
+		// Collation
 		case "collation":
 			cfg.Collation = value
 
