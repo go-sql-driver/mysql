@@ -394,7 +394,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
 func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
 	pktLen := 4 + len(authData)
-	data, err := mc.buf.takeSmallBuffer(pktLen)
+	data, err := mc.buf.takeBuffer(pktLen)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
 		mc.log(err)
