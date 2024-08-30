@@ -67,45 +67,20 @@ func (mc *mysqlConn) handleParams() (err error) {
 	var cmdSet strings.Builder
 
 	for param, val := range mc.cfg.Params {
-		switch param {
-		// Charset: character_set_connection, character_set_client, character_set_results
-		case "charset":
-			charsets := strings.Split(val, ",")
-			for _, cs := range charsets {
-				// ignore errors here - a charset may not exist
-				if mc.cfg.Collation != "" {
-					err = mc.exec("SET NAMES " + cs + " COLLATE " + mc.cfg.Collation)
-				} else {
-					err = mc.exec("SET NAMES " + cs)
-				}
-				if err == nil {
-					break
-				}
-			}
-			if err != nil {
-				return
-			}
-
-		// Other system vars accumulated in a single SET command
-		default:
-			if cmdSet.Len() == 0 {
-				// Heuristic: 29 chars for each other key=value to reduce reallocations
-				cmdSet.Grow(4 + len(param) + 3 + len(val) + 30*(len(mc.cfg.Params)-1))
-				cmdSet.WriteString("SET ")
-			} else {
-				cmdSet.WriteString(", ")
-			}
-			cmdSet.WriteString(param)
-			cmdSet.WriteString(" = ")
-			cmdSet.WriteString(val)
+		if cmdSet.Len() == 0 {
+			// Heuristic: 29 chars for each other key=value to reduce reallocations
+			cmdSet.Grow(4 + len(param) + 3 + len(val) + 30*(len(mc.cfg.Params)-1))
+			cmdSet.WriteString("SET ")
+		} else {
+			cmdSet.WriteString(", ")
 		}
+		cmdSet.WriteString(param)
+		cmdSet.WriteString(" = ")
+		cmdSet.WriteString(val)
 	}
 
 	if cmdSet.Len() > 0 {
 		err = mc.exec(cmdSet.String())
-		if err != nil {
-			return
-		}
 	}
 
 	return

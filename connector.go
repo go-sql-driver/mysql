@@ -180,6 +180,25 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		mc.maxWriteSize = mc.maxAllowedPacket
 	}
 
+	// Charset: character_set_connection, character_set_client, character_set_results
+	if len(mc.cfg.charsets) > 0 {
+		for _, cs := range mc.cfg.charsets {
+			// ignore errors here - a charset may not exist
+			if mc.cfg.Collation != "" {
+				err = mc.exec("SET NAMES " + cs + " COLLATE " + mc.cfg.Collation)
+			} else {
+				err = mc.exec("SET NAMES " + cs)
+			}
+			if err == nil {
+				break
+			}
+		}
+		if err != nil {
+			mc.Close()
+			return nil, err
+		}
+	}
+
 	// Handle DSN Params
 	err = mc.handleParams()
 	if err != nil {
