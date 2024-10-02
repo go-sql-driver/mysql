@@ -291,7 +291,6 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	}
 
 	if mc.cfg.TrackSessionState {
-		fmt.Println("Setting TrackSessionState")
 		clientFlags |= clientSessionTrack
 	}
 
