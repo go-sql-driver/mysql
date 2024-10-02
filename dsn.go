@@ -324,6 +324,10 @@ func (cfg *Config) FormatDSN() string {
 		writeDSNParam(&buf, &hasParam, "rejectReadOnly", "true")
 	}
 
+	if cfg.TrackSessionState {
+		writeDSNParam(&buf, &hasParam, "trackSessionState", "true")
+	}
+
 	if len(cfg.ServerPubKey) > 0 {
 		writeDSNParam(&buf, &hasParam, "serverPubKey", url.QueryEscape(cfg.ServerPubKey))
 	}
