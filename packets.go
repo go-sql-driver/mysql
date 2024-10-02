@@ -209,11 +209,24 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 
 	if len(data) > pos {
 		// character set [1 byte]
+		// charset := data[pos + 1]
+		pos += 1
+
 		// status flags [2 bytes]
+		// statusFlags := binary.LittleEndian.Uint16(data[pos : pos + 2])
+		pos += 2
+
 		// capability flags (upper 2 bytes) [2 bytes]
+		upper := binary.LittleEndian.Uint16(data[pos : pos+2])
+		pos += 2
+
+		mc.flags += clientFlag((uint32(upper) << 16))
+
 		// length of auth-plugin-data [1 byte]
 		// reserved (all [00]) [10 bytes]
-		pos += 1 + 2 + 2 + 1 + 10
+
+		//mc.flags = flags
+		pos += 1 + 10
 
 		// second part of the password cipher [minimum 13 bytes],
 		// where len=MAX(13, length of auth-plugin-data - 8)
@@ -275,6 +288,11 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 
 	if mc.cfg.MultiStatements {
 		clientFlags |= clientMultiStatements
+	}
+
+	if mc.cfg.TrackSessionState {
+		fmt.Println("Setting TrackSessionState")
+		clientFlags |= clientSessionTrack
 	}
 
 	// encode length of the auth plugin data
@@ -530,6 +548,7 @@ func (mc *okHandler) readResultSetHeaderPacket() (int, error) {
 	// handleOkPacket replaces both values; other cases leave the values unchanged.
 	mc.result.affectedRows = append(mc.result.affectedRows, 0)
 	mc.result.insertIds = append(mc.result.insertIds, 0)
+	mc.result.gtids = append(mc.result.gtids, "")
 
 	data, err := mc.conn().readPacket()
 	if err != nil {
@@ -638,16 +657,20 @@ func (mc *mysqlConn) clearResult() *okHandler {
 // Ok Packet
 // http://dev.mysql.com/doc/internals/en/generic-response-packets.html#packet-OK_Packet
 func (mc *okHandler) handleOkPacket(data []byte) error {
-	var n, m int
+	var offset, length int
+
 	var affectedRows, insertId uint64
 
 	// 0x00 [1 byte]
+	offset += 1
 
 	// Affected rows [Length Coded Binary]
-	affectedRows, _, n = readLengthEncodedInteger(data[1:])
+	affectedRows, _, length = readLengthEncodedInteger(data[offset:])
+	offset += length
 
 	// Insert id [Length Coded Binary]
-	insertId, _, m = readLengthEncodedInteger(data[1+n:])
+	insertId, _, length = readLengthEncodedInteger(data[offset:])
+	offset += length
 
 	// Update for the current statement result (only used by
 	// readResultSetHeaderPacket).
@@ -659,12 +682,59 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 	}
 
 	// server_status [2 bytes]
-	mc.status = readStatus(data[1+n+m : 1+n+m+2])
-	if mc.status&statusMoreResultsExists != 0 {
-		return nil
-	}
+	mc.status = readStatus(data[offset : offset+2])
+	offset += 2
 
 	// warning count [2 bytes]
+	offset += 2
+
+	var gtid string
+	if (mc.flags & clientSessionTrack) == clientSessionTrack {
+		// Human readable status information (ignored)
+		num, _, length := readLengthEncodedInteger(data[offset:])
+		offset += length
+
+		offset += int(num)
+
+		if (mc.status & statusSessionStateChanged) == statusSessionStateChanged {
+			// Length of session state changes
+			num, _, length = readLengthEncodedInteger(data[offset:])
+			offset += length
+
+			for t := 0; t < int(num); {
+				infoType := data[offset]
+				offset += 1
+				t += 1
+
+				if infoType == sessionTrackGtids {
+					_, _, length := readLengthEncodedInteger(data[offset:])
+					offset += length
+					t += length
+
+					offset += 1
+					t += 1
+
+					gtidLength, _, length := readLengthEncodedInteger(data[offset:])
+					offset += length
+					t += length
+
+					gtid = string(data[offset : offset+int(gtidLength)])
+
+					offset += int(gtidLength)
+					t += int(gtidLength)
+				} else {
+					// increase the offset to skip the value
+					valueLength, _, length := readLengthEncodedInteger(data[offset:])
+					offset += length + int(valueLength)
+					t += length + int(valueLength)
+				}
+			}
+		}
+
+		if len(mc.result.gtids) > 0 {
+			mc.result.gtids[len(mc.result.gtids)-1] = gtid
+		}
+	}
 
 	return nil
 }

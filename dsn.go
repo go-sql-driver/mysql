@@ -70,6 +70,7 @@ type Config struct {
 	MultiStatements          bool // Allow multiple statements in one query
 	ParseTime                bool // Parse time values to time.Time
 	RejectReadOnly           bool // Reject read-only connections
+	TrackSessionState        bool // Enable session state tracking (e.g. GTID values)
 
 	// unexported fields. new options should be come here
 
@@ -577,6 +578,13 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		case "rejectReadOnly":
 			var isBool bool
 			cfg.RejectReadOnly, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+
+		case "trackSessionState":
+			var isBool bool
+			cfg.TrackSessionState, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}

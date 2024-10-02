@@ -2602,6 +2602,144 @@ func TestExecMultipleResults(t *testing.T) {
 	})
 }
 
+func TestGTIDTracking(t *testing.T) {
+	ctx := context.Background()
+	runTests(t, dsn+"&trackSessionState=true", func(dbt *DBTest) {
+		dbt.mustExec(`
+		CREATE TABLE test (
+			id INT NOT NULL AUTO_INCREMENT,
+			value VARCHAR(255),
+			PRIMARY KEY   (id)
+		)`)
+
+		// Check the current gtid_mode
+		var gtidMode string
+		if err := dbt.db.QueryRow("SELECT @@global.gtid_mode").Scan(&gtidMode); err != nil {
+			t.Fatalf("failed to get gtid_mode: %v", err)
+		}
+
+		if gtidMode == "OFF" {
+			_, err := dbt.db.Exec("SET GLOBAL gtid_mode = OFF_PERMISSIVE")
+			if err != nil {
+				t.Fatalf("failed while trying to change gtid_mode: %v", err)
+			}
+			defer func() {
+				_, err := dbt.db.Exec("SET GLOBAL gtid_mode = OFF")
+				if err != nil {
+					t.Fatalf("failed while trying to reset gtid_mode: %v", err)
+				}
+			}()
+
+			gtidMode = "OFF_PERMISSIVE"
+		}
+
+		if gtidMode == "OFF_PERMISSIVE" {
+			_, err := dbt.db.Exec("SET GLOBAL gtid_mode = ON_PERMISSIVE")
+			if err != nil {
+				t.Fatalf("failed while trying to change gtid_mode: %v", err)
+			}
+			defer func() {
+				_, err := dbt.db.Exec("SET GLOBAL gtid_mode = OFF_PERMISSIVE")
+				if err != nil {
+					t.Fatalf("failed while trying to reset gtid_mode: %v", err)
+				}
+			}()
+
+			gtidMode = "ON_PERMISSIVE"
+		}
+
+		var enforceGTIDConsistency string
+		if err := dbt.db.QueryRow("SELECT @@global.enforce_gtid_consistency").Scan(&enforceGTIDConsistency); err != nil {
+			t.Fatalf("failed to get enforce_gtid_consistency: %v", err)
+		}
+
+		if enforceGTIDConsistency == "OFF" {
+			_, err := dbt.db.Exec("SET GLOBAL enforce_gtid_consistency = ON")
+			if err != nil {
+				t.Fatalf("failed while trying to change enforce_gtid_consistency: %v", err)
+			}
+			defer func() {
+				_, err := dbt.db.Exec("SET GLOBAL enforce_gtid_consistency = OFF")
+				if err != nil {
+					t.Fatalf("failed while trying to reset enforce_gtid_consistency: %v", err)
+				}
+			}()
+		}
+
+		if gtidMode == "ON_PERMISSIVE" {
+			_, err := dbt.db.Exec("SET GLOBAL gtid_mode = ON")
+			if err != nil {
+				t.Fatalf("failed while trying to change gtid_mode: %v", err)
+			}
+			defer func() {
+				_, err := dbt.db.Exec("SET GLOBAL gtid_mode = ON_PERMISSIVE")
+				if err != nil {
+					t.Fatalf("failed while trying to reset gtid_mode: %v", err)
+				}
+			}()
+
+			gtidMode = "ON"
+		}
+
+		conn, err := dbt.db.Conn(ctx)
+		if err != nil {
+			t.Fatalf("failed to connect: %v", err)
+		}
+		defer conn.Close()
+
+		var gtid string
+
+		conn.Raw(func(conn any) error {
+			c := conn.(*mysqlConn)
+
+			res, err := c.Exec("INSERT INTO test (value) VALUES ('a'), ('b')", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			gtid, err = res.(Result).LastGTID()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if gtid != "" {
+				t.Fatalf("expected empty gtid, got %v", gtid)
+			}
+
+			_, err = c.Exec("SET SESSION session_track_gtids = ALL_GTIDS", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			res, err = c.Exec("INSERT INTO test (value) VALUES ('a'), ('b')", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			gtid, err = res.(Result).LastGTID()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if gtid == "" {
+				t.Fatal("expected non-empty gtid")
+			}
+
+			return nil
+		})
+
+		var gtidExecuted string
+		err = conn.QueryRowContext(ctx, "SELECT @@global.gtid_executed").Scan(&gtidExecuted)
+		if err != nil {
+			dbt.Fatalf("%s", err.Error())
+		}
+
+		if gtidExecuted != gtid {
+			t.Fatalf("expected gtid %v, got %v", gtidExecuted, gtid)
+		}
+	})
+}
+
 // tests if rows are set in a proper state if some results were ignored before
 // calling rows.NextResultSet.
 func TestSkipResults(t *testing.T) {
