@@ -37,25 +37,26 @@ var (
 type Config struct {
 	// non boolean fields
 
-	User                 string                                                            // Username
-	Passwd               string                                                            // Password (requires User)
-	Net                  string                                                            // Network (e.g. "tcp", "tcp6", "unix". default: "tcp")
-	Addr                 string                                                            // Address (default: "127.0.0.1:3306" for "tcp" and "/tmp/mysql.sock" for "unix")
-	DBName               string                                                            // Database name
-	Params               map[string]string                                                 // Connection parameters
-	ConnectionAttributes string                                                            // Connection Attributes, comma-delimited string of user-defined "key:value" pairs
-	charsets             []string                                                          // Connection charset. When set, this will be set in SET NAMES <charset> query
-	Collation            string                                                            // Connection collation. When set, this will be set in SET NAMES <charset> COLLATE <collation> query
-	Loc                  *time.Location                                                    // Location for time.Time values
-	MaxAllowedPacket     int                                                               // Max packet size allowed
-	ServerPubKey         string                                                            // Server public key name
-	TLSConfig            string                                                            // TLS configuration name
-	TLS                  *tls.Config                                                       // TLS configuration, its priority is higher than TLSConfig
-	Timeout              time.Duration                                                     // Dial timeout
-	ReadTimeout          time.Duration                                                     // I/O read timeout
-	WriteTimeout         time.Duration                                                     // I/O write timeout
-	Logger               Logger                                                            // Logger
-	DialFunc             func(ctx context.Context, network, addr string) (net.Conn, error) // Specifies the dial function for creating connections
+	User                 string            // Username
+	Passwd               string            // Password (requires User)
+	Net                  string            // Network (e.g. "tcp", "tcp6", "unix". default: "tcp")
+	Addr                 string            // Address (default: "127.0.0.1:3306" for "tcp" and "/tmp/mysql.sock" for "unix")
+	DBName               string            // Database name
+	Params               map[string]string // Connection parameters
+	ConnectionAttributes string            // Connection Attributes, comma-delimited string of user-defined "key:value" pairs
+	charsets             []string          // Connection charset. When set, this will be set in SET NAMES <charset> query
+	Collation            string            // Connection collation. When set, this will be set in SET NAMES <charset> COLLATE <collation> query
+	Loc                  *time.Location    // Location for time.Time values
+	MaxAllowedPacket     int               // Max packet size allowed
+	ServerPubKey         string            // Server public key name
+	TLSConfig            string            // TLS configuration name
+	TLS                  *tls.Config       // TLS configuration, its priority is higher than TLSConfig
+	Timeout              time.Duration     // Dial timeout
+	ReadTimeout          time.Duration     // I/O read timeout
+	WriteTimeout         time.Duration     // I/O write timeout
+	Logger               Logger            // Logger
+	// DialFunc specifies the dial function for creating connections
+	DialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
 	// boolean fields
 
