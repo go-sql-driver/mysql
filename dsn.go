@@ -55,6 +55,8 @@ type Config struct {
 	ReadTimeout          time.Duration     // I/O read timeout
 	WriteTimeout         time.Duration     // I/O write timeout
 	Logger               Logger            // Logger
+	// DialFunc specifies the dial function for creating connections
+	DialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
 	// boolean fields
 
