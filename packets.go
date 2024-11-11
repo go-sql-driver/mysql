@@ -210,10 +210,12 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 	if len(data) > pos {
 		// character set [1 byte]
 		// status flags [2 bytes]
+		pos += 1 + 2
 		// capability flags (upper 2 bytes) [2 bytes]
+		mc.flags |= clientFlag(binary.LittleEndian.Uint16(data[pos:pos+2])) << 16
 		// length of auth-plugin-data [1 byte]
 		// reserved (all [00]) [10 bytes]
-		pos += 1 + 2 + 2 + 1 + 10
+		pos += 2 + 1 + 10
 
 		// second part of the password cipher [minimum 13 bytes],
 		// where len=MAX(13, length of auth-plugin-data - 8)
@@ -261,8 +263,10 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		clientLocalFiles |
 		clientPluginAuth |
 		clientMultiResults |
-		clientConnectAttrs |
+		mc.flags&clientConnectAttrs |
 		mc.flags&clientLongFlag
+
+	serverSupportClientConnectAttrs := mc.flags&clientConnectAttrs != 0
 
 	if mc.cfg.ClientFoundRows {
 		clientFlags |= clientFoundRows
@@ -295,11 +299,14 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		pktLen += n + 1
 	}
 
+	var connAttrsLEI []byte
 	// encode length of the connection attributes
-	var connAttrsLEIBuf [9]byte
-	connAttrsLen := len(mc.connector.encodedAttributes)
-	connAttrsLEI := appendLengthEncodedInteger(connAttrsLEIBuf[:0], uint64(connAttrsLen))
-	pktLen += len(connAttrsLEI) + len(mc.connector.encodedAttributes)
+	if serverSupportClientConnectAttrs {
+		var connAttrsLEIBuf [9]byte
+		connAttrsLen := len(mc.connector.encodedAttributes)
+		connAttrsLEI = appendLengthEncodedInteger(connAttrsLEIBuf[:0], uint64(connAttrsLen))
+		pktLen += len(connAttrsLEI) + len(mc.connector.encodedAttributes)
+	}
 
 	// Calculate packet length and get buffer with that size
 	data, err := mc.buf.takeBuffer(pktLen + 4)
@@ -382,8 +389,10 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	pos++
 
 	// Connection Attributes
-	pos += copy(data[pos:], connAttrsLEI)
-	pos += copy(data[pos:], []byte(mc.connector.encodedAttributes))
+	if serverSupportClientConnectAttrs {
+		pos += copy(data[pos:], connAttrsLEI)
+		pos += copy(data[pos:], []byte(mc.connector.encodedAttributes))
+	}
 
 	// Send Auth packet
 	return mc.writePacket(data[:pos])
