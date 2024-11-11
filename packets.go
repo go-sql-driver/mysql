@@ -322,17 +322,15 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	data[11] = 0x00
 
 	// Collation ID [1 byte]
-	cname := mc.cfg.Collation
-	if cname == "" {
-		cname = defaultCollation
-	}
-	var found bool
-	data[12], found = collations[cname]
-	if !found {
-		// Note possibility for false negatives:
-		// could be triggered  although the collation is valid if the
-		// collations map does not contain entries the server supports.
-		return fmt.Errorf("unknown collation: %q", cname)
+	data[12] = defaultCollationID
+	if cname := mc.cfg.Collation; cname != "" {
+		colID, ok := collations[cname]
+		if ok {
+			data[12] = colID
+		} else if len(mc.cfg.charsets) > 0 {
+			// When cfg.charset is set, the collation is set by `SET NAMES <charset> COLLATE <collation>`.
+			return fmt.Errorf("unknown collation: %q", cname)
+		}
 	}
 
 	// Filler [23 bytes] (all 0x00)
@@ -352,6 +350,9 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		// Switch to TLS
 		tlsConn := tls.Client(mc.netConn, mc.cfg.TLS)
 		if err := tlsConn.Handshake(); err != nil {
+			if cerr := mc.canceled.Value(); cerr != nil {
+				return cerr
+			}
 			return err
 		}
 		mc.netConn = tlsConn
@@ -391,7 +392,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
 func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
 	pktLen := 4 + len(authData)
-	data, err := mc.buf.takeSmallBuffer(pktLen)
+	data, err := mc.buf.takeBuffer(pktLen)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
 		mc.log(err)

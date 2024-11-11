@@ -339,7 +339,7 @@ func TestAppendDateTime(t *testing.T) {
 		buf, err := appendDateTime(buf, v.t, v.timeTruncate)
 		if err != nil {
 			if !v.expectedErr {
-				t.Errorf("appendDateTime(%v) returned an errror: %v", v.t, err)
+				t.Errorf("appendDateTime(%v) returned an error: %v", v.t, err)
 			}
 			continue
 		}
