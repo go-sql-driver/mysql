@@ -19,9 +19,17 @@ import "database/sql/driver"
 //	res.(mysql.Result).AllRowsAffected()
 type Result interface {
 	driver.Result
+
+	// LastGTID returns the GTID of the last result, if available.
+	LastGTID() (string, error)
+
+	// AllLastGTIDs returns a slice containing
+	AllLastGTIDs() []string
+
 	// AllRowsAffected returns a slice containing the affected rows for each
 	// executed statement.
 	AllRowsAffected() []int64
+
 	// AllLastInsertIds returns a slice containing the last inserted ID for each
 	// executed statement.
 	AllLastInsertIds() []int64
@@ -31,6 +39,7 @@ type mysqlResult struct {
 	// One entry in both slices is created for every executed statement result.
 	affectedRows []int64
 	insertIds    []int64
+	gtids        []string
 }
 
 func (res *mysqlResult) LastInsertId() (int64, error) {
@@ -41,10 +50,18 @@ func (res *mysqlResult) RowsAffected() (int64, error) {
 	return res.affectedRows[len(res.affectedRows)-1], nil
 }
 
+func (res *mysqlResult) LastGTID() (string, error) {
+	return res.gtids[len(res.gtids)-1], nil
+}
+
 func (res *mysqlResult) AllLastInsertIds() []int64 {
 	return append([]int64{}, res.insertIds...) // defensive copy
 }
 
 func (res *mysqlResult) AllRowsAffected() []int64 {
 	return append([]int64{}, res.affectedRows...) // defensive copy
+}
+
+func (res *mysqlResult) AllLastGTIDs() []string {
+	return append([]string{}, res.gtids...)
 }
