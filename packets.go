@@ -125,17 +125,11 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 
 		n, err := mc.netConn.Write(data[:4+size])
 		if err != nil {
+			mc.cleanup()
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return cerr
 			}
-			mc.cleanup()
-			if n == 0 && pktLen == len(data)-4 {
-				// only for the first loop iteration when nothing was written yet
-				mc.log(err)
-				return errBadConnNoWrite
-			} else {
-				return err
-			}
+			return err
 		}
 		if n != 4+size {
 			// io.Writer(b) must return a non-nil error if it cannot write len(b) bytes.
@@ -305,8 +299,8 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	data, err := mc.buf.takeBuffer(pktLen + 4)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		mc.log(err)
-		return errBadConnNoWrite
+		mc.cleanup()
+		return err
 	}
 
 	// ClientFlags [32 bit]
@@ -395,8 +389,8 @@ func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
 	data, err := mc.buf.takeBuffer(pktLen)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		mc.log(err)
-		return errBadConnNoWrite
+		mc.cleanup()
+		return err
 	}
 
 	// Add the auth data [EOF]
@@ -415,8 +409,8 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	data, err := mc.buf.takeSmallBuffer(4 + 1)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		mc.log(err)
-		return errBadConnNoWrite
+		mc.cleanup()
+		return err
 	}
 
 	// Add command byte
@@ -434,8 +428,8 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	data, err := mc.buf.takeBuffer(pktLen + 4)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		mc.log(err)
-		return errBadConnNoWrite
+		mc.cleanup()
+		return err
 	}
 
 	// Add command byte
@@ -455,8 +449,8 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	data, err := mc.buf.takeSmallBuffer(4 + 1 + 4)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		mc.log(err)
-		return errBadConnNoWrite
+		mc.cleanup()
+		return err
 	}
 
 	// Add command byte
@@ -998,8 +992,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	}
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
-		mc.log(err)
-		return errBadConnNoWrite
+		mc.cleanup()
+		return err
 	}
 
 	// command [1 byte]
@@ -1197,8 +1191,8 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		if valuesCap != cap(paramValues) {
 			data = append(data[:pos], paramValues...)
 			if err = mc.buf.store(data); err != nil {
-				mc.log(err)
-				return errBadConnNoWrite
+				mc.cleanup()
+				return err
 			}
 		}
 
