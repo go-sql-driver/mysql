@@ -32,11 +32,11 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		// read packet header
 		data, err := mc.buf.readNext(4)
 		if err != nil {
+			mc.close()
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
 			}
 			mc.log(err)
-			mc.Close()
 			return nil, ErrInvalidConn
 		}
 
@@ -45,7 +45,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 
 		// check packet sync [8 bit]
 		if data[3] != mc.sequence {
-			mc.Close()
+			mc.close()
 			if data[3] > mc.sequence {
 				return nil, ErrPktSyncMul
 			}
@@ -59,7 +59,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 			// there was no previous packet
 			if prevData == nil {
 				mc.log(ErrMalformPkt)
-				mc.Close()
+				mc.close()
 				return nil, ErrInvalidConn
 			}
 
@@ -69,11 +69,11 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		// read packet body [pktLen bytes]
 		data, err = mc.buf.readNext(pktLen)
 		if err != nil {
+			mc.close()
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return nil, cerr
 			}
 			mc.log(err)
-			mc.Close()
 			return nil, ErrInvalidConn
 		}
 
@@ -125,10 +125,10 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 
 		n, err := mc.netConn.Write(data[:4+size])
 		if err != nil {
+			mc.cleanup()
 			if cerr := mc.canceled.Value(); cerr != nil {
 				return cerr
 			}
-			mc.cleanup()
 			if n == 0 && pktLen == len(data)-4 {
 				// only for the first loop iteration when nothing was written yet
 				mc.log(err)
@@ -162,11 +162,6 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err error) {
 	data, err = mc.readPacket()
 	if err != nil {
-		// for init we can rewrite this to ErrBadConn for sql.Driver to retry, since
-		// in connection initialization we don't risk retrying non-idempotent actions.
-		if err == ErrInvalidConn {
-			return nil, "", driver.ErrBadConn
-		}
 		return
 	}
 
@@ -312,9 +307,8 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	// Calculate packet length and get buffer with that size
 	data, err := mc.buf.takeBuffer(pktLen + 4)
 	if err != nil {
-		// cannot take the buffer. Something must be wrong with the connection
-		mc.log(err)
-		return errBadConnNoWrite
+		mc.cleanup()
+		return err
 	}
 
 	// ClientFlags [32 bit]
@@ -404,9 +398,8 @@ func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
 	pktLen := 4 + len(authData)
 	data, err := mc.buf.takeBuffer(pktLen)
 	if err != nil {
-		// cannot take the buffer. Something must be wrong with the connection
-		mc.log(err)
-		return errBadConnNoWrite
+		mc.cleanup()
+		return err
 	}
 
 	// Add the auth data [EOF]
@@ -424,9 +417,7 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 
 	data, err := mc.buf.takeSmallBuffer(4 + 1)
 	if err != nil {
-		// cannot take the buffer. Something must be wrong with the connection
-		mc.log(err)
-		return errBadConnNoWrite
+		return err
 	}
 
 	// Add command byte
@@ -443,9 +434,7 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	pktLen := 1 + len(arg)
 	data, err := mc.buf.takeBuffer(pktLen + 4)
 	if err != nil {
-		// cannot take the buffer. Something must be wrong with the connection
-		mc.log(err)
-		return errBadConnNoWrite
+		return err
 	}
 
 	// Add command byte
@@ -464,9 +453,7 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 
 	data, err := mc.buf.takeSmallBuffer(4 + 1 + 4)
 	if err != nil {
-		// cannot take the buffer. Something must be wrong with the connection
-		mc.log(err)
-		return errBadConnNoWrite
+		return err
 	}
 
 	// Add command byte
@@ -1007,9 +994,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		// In this case the len(data) == cap(data) which is used to optimise the flow below.
 	}
 	if err != nil {
-		// cannot take the buffer. Something must be wrong with the connection
-		mc.log(err)
-		return errBadConnNoWrite
+		return err
 	}
 
 	// command [1 byte]
@@ -1207,8 +1192,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		if valuesCap != cap(paramValues) {
 			data = append(data[:pos], paramValues...)
 			if err = mc.buf.store(data); err != nil {
-				mc.log(err)
-				return errBadConnNoWrite
+				return err
 			}
 		}
 
