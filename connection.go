@@ -125,7 +125,7 @@ func (mc *mysqlConn) Close() (err error) {
 	return
 }
 
-// close closes the network connection and cleare results without sending COM_QUIT.
+// close closes the network connection and clear results without sending COM_QUIT.
 func (mc *mysqlConn) close() {
 	mc.cleanup()
 	mc.clearResult()

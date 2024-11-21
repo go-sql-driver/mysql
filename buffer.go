@@ -43,7 +43,7 @@ func newBuffer(nc net.Conn) buffer {
 	}
 }
 
-// busy retruns true if the buffer contains some read data.
+// busy returns true if the buffer contains some read data.
 func (b *buffer) busy() bool {
 	return b.length > 0
 }
