@@ -43,6 +43,11 @@ func newBuffer(nc net.Conn) buffer {
 	}
 }
 
+// busy retruns true if the buffer contains some read data.
+func (b *buffer) busy() bool {
+	return b.length > 0
+}
+
 // flip replaces the active buffer with the background buffer
 // this is a delayed flip that simply increases the buffer counter;
 // the actual flip will be performed the next time we call `buffer.fill`

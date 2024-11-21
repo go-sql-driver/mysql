@@ -121,10 +121,14 @@ func (mc *mysqlConn) Close() (err error) {
 	if !mc.closed.Load() {
 		err = mc.writeCommandPacket(comQuit)
 	}
+	mc.close()
+	return
+}
 
+// close closes the network connection and cleare results without sending COM_QUIT.
+func (mc *mysqlConn) close() {
 	mc.cleanup()
 	mc.clearResult()
-	return
 }
 
 // Closes the network connection and unsets internal variables. Do not call this
@@ -637,7 +641,7 @@ func (mc *mysqlConn) CheckNamedValue(nv *driver.NamedValue) (err error) {
 // ResetSession implements driver.SessionResetter.
 // (From Go 1.10)
 func (mc *mysqlConn) ResetSession(ctx context.Context) error {
-	if mc.closed.Load() {
+	if mc.closed.Load() || mc.buf.busy() {
 		return driver.ErrBadConn
 	}
 
@@ -671,7 +675,7 @@ func (mc *mysqlConn) ResetSession(ctx context.Context) error {
 // IsValid implements driver.Validator interface
 // (From Go 1.15)
 func (mc *mysqlConn) IsValid() bool {
-	return !mc.closed.Load()
+	return !mc.closed.Load() && !mc.buf.busy()
 }
 
 var _ driver.SessionResetter = &mysqlConn{}
