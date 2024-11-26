@@ -14,14 +14,26 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
 	fileRegister       map[string]bool
 	fileRegisterLock   sync.RWMutex
-	readerRegister     map[string]func() io.Reader
+	readerRegister     map[string]func(EncoderInfo) io.Reader
 	readerRegisterLock sync.RWMutex
 )
+
+// EncoderInfo contains the settings needed to encode a TSV file for LOAD DATA INFILE.
+type EncoderInfo struct {
+	Location *time.Location
+}
+
+func (c *Config) encoderInfo() EncoderInfo {
+	return EncoderInfo{
+		Location: c.Loc,
+	}
+}
 
 // RegisterLocalFile adds the given file to the file allowlist,
 // so that it can be used by "LOAD DATA LOCAL INFILE <filepath>".
@@ -66,10 +78,18 @@ func DeregisterLocalFile(filePath string) {
 //	if err != nil {
 //	...
 func RegisterReaderHandler(name string, handler func() io.Reader) {
+	RegisterReaderHandlerWithEncoderInfo(name, func(EncoderInfo) io.Reader {
+		return handler()
+	})
+}
+
+// RegisterReaderHandlerWithEncoderInfo is like RegisterReaderHandler but the
+// callback receives the information needed to correctly encode a TSV file.
+func RegisterReaderHandlerWithEncoderInfo(name string, handler func(EncoderInfo) io.Reader) {
 	readerRegisterLock.Lock()
 	// lazy map init
 	if readerRegister == nil {
-		readerRegister = make(map[string]func() io.Reader)
+		readerRegister = make(map[string]func(EncoderInfo) io.Reader)
 	}
 
 	readerRegister[name] = handler
@@ -109,7 +129,7 @@ func (mc *okHandler) handleInFileRequest(name string) (err error) {
 		readerRegisterLock.RUnlock()
 
 		if inMap {
-			rdr = handler()
+			rdr = handler(mc.cfg.encoderInfo())
 			if rdr != nil {
 				if cl, ok := rdr.(io.Closer); ok {
 					defer deferredClose(&err, cl)
