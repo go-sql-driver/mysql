@@ -42,7 +42,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
 
 ## Requirements
 
-* Go 1.20 or higher. We aim to support the 3 latest versions of Go.
+* Go 1.21 or higher. We aim to support the 3 latest versions of Go.
 * MySQL (5.7+) and MariaDB (10.5+) are supported.
 * [TiDB](https://github.com/pingcap/tidb) is supported by PingCAP.
   * Do not ask questions about TiDB in our issue tracker or forum.
@@ -538,6 +538,9 @@ This driver supports the [`ColumnType` interface](https://golang.org/pkg/databas
 ## `context.Context` Support
 Go 1.8 added `database/sql` support for `context.Context`. This driver supports query timeouts and cancellation via contexts.
 See [context support in the database/sql package](https://golang.org/doc/go1.8#database_sql) for more details.
+
+> [!IMPORTANT]
+> The `QueryContext`, `ExecContext`, etc. variants provided by `database/sql` will cause the connection to be closed if the provided context is cancelled or timed out before the result is received by the driver.
 
 
 ### `LOAD DATA LOCAL INFILE` support
