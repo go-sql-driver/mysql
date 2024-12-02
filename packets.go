@@ -49,14 +49,14 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		if mc.compress {
 			// MySQL and MariaDB doesn't check packet nr in compressed packet.
 			if debugTrace && seqNr != mc.compressSequence {
-				mc.logf("[debug] mismatched compression sequence nr: expected: %v, got %v",
+				fmt.Printf("[debug] mismatched compression sequence nr: expected: %v, got %v",
 					mc.compressSequence, seqNr)
 			}
 			mc.compressSequence = seqNr + 1
 		} else {
 			// check packet sync [8 bit]
 			if seqNr != mc.sequence {
-				mc.logf("[warn] unexpected seq nr: expected %v, got %v", mc.sequence, seqNr)
+				mc.log(fmt.Sprintf("[warn] unexpected seq nr: expected %v, got %v", mc.sequence, seqNr))
 				// For large packets, we stop reading as soon as sync error.
 				if len(prevData) > 0 {
 					return nil, ErrPktSyncMul
@@ -133,7 +133,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 
 		// Write packet
 		if debugTrace {
-			traceLogger.Printf("writePacket: size=%v seq=%v", size, mc.sequence)
+			fmt.Printf("writePacket: size=%v seq=%v", size, mc.sequence)
 		}
 		if mc.writeTimeout > 0 {
 			if err := mc.netConn.SetWriteDeadline(time.Now().Add(mc.writeTimeout)); err != nil {
@@ -228,7 +228,6 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err erro
 			return nil, "", ErrNoTLS
 		}
 	}
-
 	pos += 2
 
 	if len(data) > pos {
@@ -303,6 +302,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	if mc.cfg.TLS != nil {
 		clientFlags |= clientSSL
 	}
+
 	if mc.cfg.MultiStatements {
 		clientFlags |= clientMultiStatements
 	}

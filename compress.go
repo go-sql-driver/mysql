@@ -123,7 +123,7 @@ func (c *decompressor) uncompressPacket() error {
 	uncompressedLength := int(uint32(header[4]) | uint32(header[5])<<8 | uint32(header[6])<<16)
 	compressionSequence := uint8(header[3])
 	if debugTrace {
-		traceLogger.Printf("uncompress cmplen=%v uncomplen=%v pkt_cmp_seq=%v expected_cmp_seq=%v\n",
+		fmt.Printf("uncompress cmplen=%v uncomplen=%v pkt_cmp_seq=%v expected_cmp_seq=%v\n",
 			comprLength, uncompressedLength, compressionSequence, c.mc.sequence)
 	}
 	if compressionSequence != c.mc.sequence {
@@ -131,7 +131,7 @@ func (c *decompressor) uncompressPacket() error {
 		// server may return error packet (e.g. 1153 Got a packet bigger than 'max_allowed_packet' bytes)
 		// before receiving all packets from client. In this case, seqnr is younger than expected.
 		if debugTrace {
-			traceLogger.Printf("WARN: unexpected cmpress seq nr: expected %v, got %v",
+			fmt.Printf("WARN: unexpected cmpress seq nr: expected %v, got %v",
 				c.mc.sequence, compressionSequence)
 		}
 		// TODO(methane): report error when the packet is not an error packet.
@@ -219,7 +219,7 @@ func (mc *mysqlConn) writeCompressed(packets []byte) (int, error) {
 func (mc *mysqlConn) writeCompressedPacket(data []byte, uncompressedLen int) error {
 	comprLength := len(data) - 7
 	if debugTrace {
-		traceLogger.Printf(
+		fmt.Printf(
 			"writeCompressedPacket: comprLength=%v, uncompressedLen=%v, seq=%v",
 			comprLength, uncompressedLen, mc.compressSequence)
 	}

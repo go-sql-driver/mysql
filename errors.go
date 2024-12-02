@@ -39,22 +39,9 @@ var (
 
 var defaultLogger = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime))
 
-// traceLogger is used for debug trace log.
-var traceLogger *log.Logger
-
-func init() {
-	if debugTrace {
-		traceLogger = log.New(os.Stderr, "[mysql.trace]", log.Lmicroseconds|log.Lshortfile)
-	}
-}
-
 // Logger is used to log critical error messages.
 type Logger interface {
 	Print(v ...any)
-}
-
-func (mc *mysqlConn) logf(format string, v ...any) {
-	mc.cfg.Logger.Print(fmt.Sprintf(format, v...))
 }
 
 // NopLogger is a nop implementation of the Logger interface.
