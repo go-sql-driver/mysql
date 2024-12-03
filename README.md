@@ -321,15 +321,6 @@ Default:       64*1024*1024
 
 Max packet size allowed in bytes. The default value is 64 MiB and should be adjusted to match the server settings. `maxAllowedPacket=0` can be used to automatically fetch the `max_allowed_packet` variable from server *on every connection*.
 
-##### `minCompressLength`
-
-```
-Type:          decimal number
-Default:       50
-```
-
-Min packet size in bytes to compress, when compression is enabled (see the `compress` parameter). Packets smaller than this will be sent uncompressed.
-
 ##### `multiStatements`
 
 ```
