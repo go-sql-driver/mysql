@@ -97,8 +97,10 @@ var _ net.Conn = new(mockConn)
 func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
 	conn := new(mockConn)
 	connector := newConnector(NewConfig())
+	buf := newBuffer(conn)
 	mc := &mysqlConn{
-		buf:              newBuffer(conn),
+		buf:              buf,
+		packetRW:         &buf,
 		cfg:              connector.cfg,
 		connector:        connector,
 		netConn:          conn,
@@ -114,6 +116,7 @@ func TestReadPacketSingleByte(t *testing.T) {
 	mc := &mysqlConn{
 		buf: newBuffer(conn),
 	}
+	mc.packetRW = &mc.buf
 
 	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
 	conn.maxReads = 1
@@ -143,7 +146,7 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 		{
 			ClientSequenceID: 0,
 			ServerSequenceID: 0x42,
-			ExpectedErr:      ErrPktSyncMul,
+			ExpectedErr:      ErrPktSync,
 		},
 	} {
 		conn, mc := newRWMockConn(testCase.ClientSequenceID)
@@ -166,6 +169,7 @@ func TestReadPacketSplit(t *testing.T) {
 	mc := &mysqlConn{
 		buf: newBuffer(conn),
 	}
+	mc.packetRW = &mc.buf
 
 	data := make([]byte, maxPacketSize*2+4*3)
 	const pkt2ofs = maxPacketSize + 4
@@ -273,6 +277,7 @@ func TestReadPacketFail(t *testing.T) {
 		closech: make(chan struct{}),
 		cfg:     NewConfig(),
 	}
+	mc.packetRW = &mc.buf
 
 	// illegal empty (stand-alone) packet
 	conn.data = []byte{0x00, 0x00, 0x00, 0x00}
@@ -318,6 +323,7 @@ func TestRegression801(t *testing.T) {
 		sequence: 42,
 		closech:  make(chan struct{}),
 	}
+	mc.packetRW = &mc.buf
 
 	conn.data = []byte{72, 0, 0, 42, 10, 53, 46, 53, 46, 56, 0, 165, 0, 0, 0,
 		60, 70, 63, 58, 68, 104, 34, 97, 0, 223, 247, 33, 2, 0, 15, 128, 21, 0,

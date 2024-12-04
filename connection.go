@@ -28,6 +28,7 @@ type mysqlConn struct {
 	netConn          net.Conn
 	rawConn          net.Conn    // underlying connection when netConn is TLS connection.
 	result           mysqlResult // managed by clearResult() and handleOkPacket().
+	packetRW         packetIO
 	cfg              *Config
 	connector        *connector
 	maxAllowedPacket int
@@ -36,7 +37,9 @@ type mysqlConn struct {
 	flags            clientFlag
 	status           statusFlag
 	sequence         uint8
+	compressSequence uint8
 	parseTime        bool
+	compress         bool
 
 	// for context support (Go 1.8+)
 	watching bool
@@ -60,6 +63,27 @@ func (mc *mysqlConn) log(v ...any) {
 	}
 
 	mc.cfg.Logger.Print(v...)
+}
+
+type packetIO interface {
+	readNext(need int) ([]byte, error)
+	writePackets(data []byte) (int, error)
+}
+
+func (mc *mysqlConn) resetSequenceNr() {
+	mc.sequence = 0
+	mc.compressSequence = 0
+}
+
+// syncSequenceNr must be called when finished writing some packet and before start reading.
+func (mc *mysqlConn) syncSequenceNr() {
+	// Syncs compressionSequence to sequence.
+	// This is not documented but done in `net_flush()` in MySQL and MariaDB.
+	// https://github.com/mariadb-corporation/mariadb-connector-c/blob/8228164f850b12353da24df1b93a1e53cc5e85e9/libmariadb/ma_net.c#L170-L171
+	// https://github.com/mysql/mysql-server/blob/824e2b4064053f7daf17d7f3f84b7a3ed92e5fb4/sql-common/net_serv.cc#L293
+	if mc.compress {
+		mc.sequence = mc.compressSequence
+	}
 }
 
 // Handles parameters set in DSN after the connection is established
@@ -147,7 +171,7 @@ func (mc *mysqlConn) cleanup() {
 		return
 	}
 	if err := conn.Close(); err != nil {
-		mc.log(err)
+		mc.log("closing connection:", err)
 	}
 	// This function can be called from multiple goroutines.
 	// So we can not mc.clearResult() here.

@@ -38,6 +38,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
   * Secure `LOAD DATA LOCAL INFILE` support with file allowlisting and `io.Reader` support
   * Optional `time.Time` parsing
   * Optional placeholder interpolation
+  * Supports zlib compression.
 
 ## Requirements
 
@@ -266,6 +267,16 @@ SELECT u.id FROM users as u
 ```
 
 will return `u.id` instead of just `id` if `columnsWithAlias=true`.
+
+##### `compress`
+
+```
+Type:           bool
+Valid Values:   true, false
+Default:        false
+```
+
+Toggles zlib compression. false by default.
 
 ##### `interpolateParams`
 

@@ -73,7 +73,10 @@ type Config struct {
 	ParseTime                bool // Parse time values to time.Time
 	RejectReadOnly           bool // Reject read-only connections
 
-	// unexported fields. new options should be come here
+	// unexported fields. new options should be come here.
+	// boolean first. alphabetical order.
+
+	compress bool // Enable zlib compression
 
 	beforeConnect func(context.Context, *Config) error // Invoked before a connection is established
 	pubKey        *rsa.PublicKey                       // Server public key
@@ -93,7 +96,6 @@ func NewConfig() *Config {
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
 	}
-
 	return cfg
 }
 
@@ -121,6 +123,14 @@ func TimeTruncate(d time.Duration) Option {
 func BeforeConnect(fn func(context.Context, *Config) error) Option {
 	return func(cfg *Config) error {
 		cfg.beforeConnect = fn
+		return nil
+	}
+}
+
+// EnableCompress sets the compression mode.
+func EnableCompression(yes bool) Option {
+	return func(cfg *Config) error {
+		cfg.compress = yes
 		return nil
 	}
 }
@@ -295,6 +305,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.ColumnsWithAlias {
 		writeDSNParam(&buf, &hasParam, "columnsWithAlias", "true")
+	}
+
+	if cfg.compress {
+		writeDSNParam(&buf, &hasParam, "compress", "true")
 	}
 
 	if cfg.InterpolateParams {
@@ -525,7 +539,11 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// Compression
 		case "compress":
-			return errors.New("compression not implemented yet")
+			var isBool bool
+			cfg.compress, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
 
 		// Enable client side placeholder substitution
 		case "interpolateParams":
