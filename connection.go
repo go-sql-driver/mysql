@@ -28,7 +28,7 @@ type mysqlConn struct {
 	netConn          net.Conn
 	rawConn          net.Conn    // underlying connection when netConn is TLS connection.
 	result           mysqlResult // managed by clearResult() and handleOkPacket().
-	packetReader     packetReader
+	packetRW         packetIO
 	cfg              *Config
 	connector        *connector
 	maxAllowedPacket int
@@ -65,8 +65,9 @@ func (mc *mysqlConn) log(v ...any) {
 	mc.cfg.Logger.Print(v...)
 }
 
-type packetReader interface {
+type packetIO interface {
 	readNext(need int) ([]byte, error)
+	writePackets(data []byte) (int, error)
 }
 
 func (mc *mysqlConn) resetSequenceNr() {

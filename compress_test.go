@@ -26,8 +26,9 @@ func makeRandByteSlice(size int) []byte {
 func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []byte {
 	conn := new(mockConn)
 	mc.netConn = conn
+	comp := newCompIO(mc)
 
-	n, err := mc.writeCompressed(uncompressedPacket)
+	n, err := comp.writePackets(uncompressedPacket)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +44,7 @@ func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expS
 	conn := new(mockConn)
 	conn.data = compressedPacket
 	mc.buf.nc = conn
-	cr := newDecompressor(mc)
+	cr := newCompIO(mc)
 
 	uncompressedPacket, err := cr.readNext(expSize)
 	if err != nil {

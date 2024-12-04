@@ -155,3 +155,9 @@ func (b *buffer) store(buf []byte) {
 		b.cachedBuf = buf[:cap(buf)]
 	}
 }
+
+// writePackets is a proxy function to nc.Write.
+// This is used to make the buffer type compatible with compressed I/O.
+func (b *buffer) writePackets(packets []byte) (int, error) {
+	return b.nc.Write(packets)
+}

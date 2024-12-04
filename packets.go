@@ -32,7 +32,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 
 	for {
 		// read packet header
-		data, err := mc.packetReader.readNext(4)
+		data, err := mc.packetRW.readNext(4)
 		if err != nil {
 			mc.close()
 			if cerr := mc.canceled.Value(); cerr != nil {
@@ -80,7 +80,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		}
 
 		// read packet body [pktLen bytes]
-		data, err = mc.packetReader.readNext(pktLen)
+		data, err = mc.packetRW.readNext(pktLen)
 		if err != nil {
 			mc.close()
 			if cerr := mc.canceled.Value(); cerr != nil {
@@ -143,15 +143,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			}
 		}
 
-		var (
-			n   int
-			err error
-		)
-		if mc.compress {
-			n, err = mc.writeCompressed(data[:4+size])
-		} else {
-			n, err = mc.netConn.Write(data[:4+size])
-		}
+		n, err := mc.packetRW.writePackets(data[:4+size])
 		if err != nil {
 			mc.cleanup()
 			if cerr := mc.canceled.Value(); cerr != nil {

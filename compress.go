@@ -85,34 +85,28 @@ func zCompress(src []byte, dst io.Writer) error {
 	return nil
 }
 
-type decompressor struct {
-	mc *mysqlConn
-	// read buffer (FIFO).
-	// We can not reuse already-read buffer until dropping Go 1.20 support.
-	// It is because of database/mysql's weired behavior.
-	// See https://github.com/go-sql-driver/mysql/issues/1435
-	bytesBuf []byte
+type compIO struct {
+	mc   *mysqlConn
+	buff bytes.Buffer
 }
 
-func newDecompressor(mc *mysqlConn) *decompressor {
-	return &decompressor{
+func newCompIO(mc *mysqlConn) *compIO {
+	return &compIO{
 		mc: mc,
 	}
 }
 
-func (c *decompressor) readNext(need int) ([]byte, error) {
-	for len(c.bytesBuf) < need {
+func (c *compIO) readNext(need int) ([]byte, error) {
+	for c.buff.Len() < need {
 		if err := c.uncompressPacket(); err != nil {
 			return nil, err
 		}
 	}
-
-	data := c.bytesBuf[:need:need] // prevent caller writes into r.bytesBuf
-	c.bytesBuf = c.bytesBuf[need:]
-	return data, nil
+	data := c.buff.Next(need)
+	return data[:need:need], nil // prevent caller writes into c.buff
 }
 
-func (c *decompressor) uncompressPacket() error {
+func (c *compIO) uncompressPacket() error {
 	header, err := c.mc.buf.readNext(7) // size of compressed header
 	if err != nil {
 		return err
@@ -147,19 +141,14 @@ func (c *decompressor) uncompressPacket() error {
 	// if payload is uncompressed, its length will be specified as zero, and its
 	// true length is contained in comprLength
 	if uncompressedLength == 0 {
-		c.bytesBuf = append(c.bytesBuf, comprData...)
+		c.buff.Write(comprData)
 		return nil
 	}
 
 	// use existing capacity in bytesBuf if possible
-	offset := len(c.bytesBuf)
-	if cap(c.bytesBuf)-offset < uncompressedLength {
-		old := c.bytesBuf
-		c.bytesBuf = make([]byte, offset, offset+uncompressedLength)
-		copy(c.bytesBuf, old)
-	}
-
-	lenRead, err := zDecompress(comprData, c.bytesBuf[offset:offset+uncompressedLength])
+	c.buff.Grow(uncompressedLength)
+	dec := c.buff.AvailableBuffer()[:uncompressedLength]
+	lenRead, err := zDecompress(comprData, dec)
 	if err != nil {
 		return err
 	}
@@ -167,21 +156,22 @@ func (c *decompressor) uncompressPacket() error {
 		return fmt.Errorf("invalid compressed packet: uncompressed length in header is %d, actual %d",
 			uncompressedLength, lenRead)
 	}
-	c.bytesBuf = c.bytesBuf[:offset+uncompressedLength]
+	c.buff.Write(dec) // fast copy. See bytes.Buffer.AvailableBuffer() doc.
 	return nil
 }
 
 const maxPayloadLen = maxPacketSize - 4
 
-// writeCompressed sends one or some packets with compression.
+// writePackets sends one or some packets with compression.
 // Use this instead of mc.netConn.Write() when mc.compress is true.
-func (mc *mysqlConn) writeCompressed(packets []byte) (int, error) {
+func (c *compIO) writePackets(packets []byte) (int, error) {
 	totalBytes := len(packets)
 	dataLen := len(packets)
 	blankHeader := make([]byte, 7)
-	var buf bytes.Buffer
+	buf := &c.buff
 
 	for dataLen > 0 {
+		buf.Reset()
 		payloadLen := dataLen
 		if payloadLen > maxPayloadLen {
 			payloadLen = maxPayloadLen
@@ -200,10 +190,10 @@ func (mc *mysqlConn) writeCompressed(packets []byte) (int, error) {
 			}
 			uncompressedLen = 0
 		} else {
-			zCompress(payload, &buf)
+			zCompress(payload, buf)
 		}
 
-		if err := mc.writeCompressedPacket(buf.Bytes(), uncompressedLen); err != nil {
+		if err := c.writeCompressedPacket(buf.Bytes(), uncompressedLen); err != nil {
 			return 0, err
 		}
 		dataLen -= payloadLen
@@ -216,7 +206,8 @@ func (mc *mysqlConn) writeCompressed(packets []byte) (int, error) {
 
 // writeCompressedPacket writes a compressed packet with header.
 // data should start with 7 size space for header followed by payload.
-func (mc *mysqlConn) writeCompressedPacket(data []byte, uncompressedLen int) error {
+func (c *compIO) writeCompressedPacket(data []byte, uncompressedLen int) error {
+	mc := c.mc
 	comprLength := len(data) - 7
 	if debugTrace {
 		fmt.Printf(
