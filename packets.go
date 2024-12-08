@@ -43,7 +43,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		}
 
 		// packet length [24 bit]
-		pktLen := int(uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16)
+		pktLen := getUint24(data[:3])
 		seqNr := data[3]
 
 		if mc.compress {
@@ -117,18 +117,8 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 	}
 
 	for {
-		var size int
-		if pktLen >= maxPacketSize {
-			data[0] = 0xff
-			data[1] = 0xff
-			data[2] = 0xff
-			size = maxPacketSize
-		} else {
-			data[0] = byte(pktLen)
-			data[1] = byte(pktLen >> 8)
-			data[2] = byte(pktLen >> 16)
-			size = pktLen
-		}
+		size := min(maxPacketSize, pktLen)
+		putUint24(data[:3], size)
 		data[3] = mc.sequence
 
 		// Write packet

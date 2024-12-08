@@ -98,7 +98,7 @@ func newCompIO(mc *mysqlConn) *compIO {
 
 func (c *compIO) readNext(need int) ([]byte, error) {
 	for c.buff.Len() < need {
-		if err := c.uncompressPacket(); err != nil {
+		if err := c.readCompressedPacket(); err != nil {
 			return nil, err
 		}
 	}
@@ -106,16 +106,17 @@ func (c *compIO) readNext(need int) ([]byte, error) {
 	return data[:need:need], nil // prevent caller writes into c.buff
 }
 
-func (c *compIO) uncompressPacket() error {
+func (c *compIO) readCompressedPacket() error {
 	header, err := c.mc.buf.readNext(7) // size of compressed header
 	if err != nil {
 		return err
 	}
+	_ = header[6] // bounds check hint to compiler; guaranteed by readNext
 
 	// compressed header structure
-	comprLength := int(uint32(header[0]) | uint32(header[1])<<8 | uint32(header[2])<<16)
-	uncompressedLength := int(uint32(header[4]) | uint32(header[5])<<8 | uint32(header[6])<<16)
+	comprLength := getUint24(header[0:3])
 	compressionSequence := uint8(header[3])
+	uncompressedLength := getUint24(header[4:7])
 	if debugTrace {
 		fmt.Printf("uncompress cmplen=%v uncomplen=%v pkt_cmp_seq=%v expected_cmp_seq=%v\n",
 			comprLength, uncompressedLength, compressionSequence, c.mc.sequence)
@@ -171,34 +172,34 @@ func (c *compIO) writePackets(packets []byte) (int, error) {
 	buf := &c.buff
 
 	for dataLen > 0 {
-		buf.Reset()
-		payloadLen := dataLen
-		if payloadLen > maxPayloadLen {
-			payloadLen = maxPayloadLen
-		}
+		payloadLen := min(maxPayloadLen, dataLen)
 		payload := packets[:payloadLen]
 		uncompressedLen := payloadLen
 
-		if _, err := buf.Write(blankHeader); err != nil {
-			return 0, err
-		}
+		buf.Reset()
+		buf.Write(blankHeader) // Buffer.Write() never returns error
 
 		// If payload is less than minCompressLength, don't compress.
 		if uncompressedLen < minCompressLength {
-			if _, err := buf.Write(payload); err != nil {
-				return 0, err
-			}
+			buf.Write(payload)
 			uncompressedLen = 0
 		} else {
 			zCompress(payload, buf)
+			// do not compress if compressed data is larger than uncompressed data
+			// I intentionally miss 7 byte header in the buf; compress should compress more than 7 bytes.
+			if buf.Len() > uncompressedLen {
+				buf.Reset()
+				buf.Write(blankHeader)
+				buf.Write(payload)
+				uncompressedLen = 0
+			}
 		}
 
-		if err := c.writeCompressedPacket(buf.Bytes(), uncompressedLen); err != nil {
+		if err := c.mc.writeCompressedPacket(buf.Bytes(), uncompressedLen); err != nil {
 			return 0, err
 		}
 		dataLen -= payloadLen
 		packets = packets[payloadLen:]
-		buf.Reset()
 	}
 
 	return totalBytes, nil
@@ -206,8 +207,7 @@ func (c *compIO) writePackets(packets []byte) (int, error) {
 
 // writeCompressedPacket writes a compressed packet with header.
 // data should start with 7 size space for header followed by payload.
-func (c *compIO) writeCompressedPacket(data []byte, uncompressedLen int) error {
-	mc := c.mc
+func (mc *mysqlConn) writeCompressedPacket(data []byte, uncompressedLen int) error {
 	comprLength := len(data) - 7
 	if debugTrace {
 		fmt.Printf(
@@ -216,16 +216,9 @@ func (c *compIO) writeCompressedPacket(data []byte, uncompressedLen int) error {
 	}
 
 	// compression header
-	data[0] = byte(0xff & comprLength)
-	data[1] = byte(0xff & (comprLength >> 8))
-	data[2] = byte(0xff & (comprLength >> 16))
-
+	putUint24(data[0:3], comprLength)
 	data[3] = mc.compressSequence
-
-	// this value is never greater than maxPayloadLength
-	data[4] = byte(0xff & uncompressedLen)
-	data[5] = byte(0xff & (uncompressedLen >> 8))
-	data[6] = byte(0xff & (uncompressedLen >> 16))
+	putUint24(data[4:7], uncompressedLen)
 
 	if _, err := mc.netConn.Write(data); err != nil {
 		mc.log("writing compressed packet:", err)

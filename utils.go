@@ -490,6 +490,18 @@ func formatBinaryTime(src []byte, length uint8) (driver.Value, error) {
 *                       Convert from and to bytes                             *
 ******************************************************************************/
 
+// 24bit integer: used for packet headers.
+
+func putUint24(data []byte, n int) {
+	data[2] = byte(n >> 16)
+	data[1] = byte(n >> 8)
+	data[0] = byte(n)
+}
+
+func getUint24(data []byte) int {
+	return int(data[2])<<16 | int(data[1])<<8 | int(data[0])
+}
+
 func uint64ToBytes(n uint64) []byte {
 	return []byte{
 		byte(n),
