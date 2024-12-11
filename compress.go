@@ -195,7 +195,7 @@ func (c *compIO) writePackets(packets []byte) (int, error) {
 			}
 		}
 
-		if err := c.mc.writeCompressedPacket(buf.Bytes(), uncompressedLen); err != nil {
+		if err := c.writeCompressedPacket(buf.Bytes(), uncompressedLen); err != nil {
 			return 0, err
 		}
 		dataLen -= payloadLen
@@ -207,7 +207,8 @@ func (c *compIO) writePackets(packets []byte) (int, error) {
 
 // writeCompressedPacket writes a compressed packet with header.
 // data should start with 7 size space for header followed by payload.
-func (mc *mysqlConn) writeCompressedPacket(data []byte, uncompressedLen int) error {
+func (c *compIO) writeCompressedPacket(data []byte, uncompressedLen int) error {
+	mc := c.mc
 	comprLength := len(data) - 7
 	if debugTrace {
 		fmt.Printf(
@@ -220,7 +221,7 @@ func (mc *mysqlConn) writeCompressedPacket(data []byte, uncompressedLen int) err
 	data[3] = mc.compressSequence
 	putUint24(data[4:7], uncompressedLen)
 
-	if _, err := mc.netConn.Write(data); err != nil {
+	if _, err := mc.buf.writePackets(data); err != nil {
 		mc.log("writing compressed packet:", err)
 		return err
 	}

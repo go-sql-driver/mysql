@@ -132,8 +132,8 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	mc.packetRW = &mc.buf
 
 	// Set I/O timeouts
-	mc.buf.timeout = mc.cfg.ReadTimeout
-	mc.writeTimeout = mc.cfg.WriteTimeout
+	mc.buf.readTimeout = mc.cfg.ReadTimeout
+	mc.buf.writeTimeout = mc.cfg.WriteTimeout
 
 	// Reading Handshake Initialization Packet
 	authData, plugin, err := mc.readHandshakePacket()

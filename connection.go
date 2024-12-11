@@ -33,7 +33,6 @@ type mysqlConn struct {
 	connector        *connector
 	maxAllowedPacket int
 	maxWriteSize     int
-	writeTimeout     time.Duration
 	flags            clientFlag
 	status           statusFlag
 	sequence         uint8

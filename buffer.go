@@ -23,10 +23,11 @@ const maxCachedBufSize = 256 * 1024
 // The buffer is similar to bufio.Reader / Writer but zero-copy-ish
 // Also highly optimized for this particular use case.
 type buffer struct {
-	buf       []byte // read buffer.
-	cachedBuf []byte // buffer that will be reused. len(cachedBuf) <= maxCachedBufSize.
-	nc        net.Conn
-	timeout   time.Duration
+	buf          []byte // read buffer.
+	cachedBuf    []byte // buffer that will be reused. len(cachedBuf) <= maxCachedBufSize.
+	nc           net.Conn
+	readTimeout  time.Duration
+	writeTimeout time.Duration
 }
 
 // newBuffer allocates and returns a new buffer.
@@ -64,8 +65,8 @@ func (b *buffer) fill(need int) error {
 	copy(dest[:n], b.buf)
 
 	for {
-		if b.timeout > 0 {
-			if err := b.nc.SetReadDeadline(time.Now().Add(b.timeout)); err != nil {
+		if b.readTimeout > 0 {
+			if err := b.nc.SetReadDeadline(time.Now().Add(b.readTimeout)); err != nil {
 				return err
 			}
 		}
@@ -159,5 +160,10 @@ func (b *buffer) store(buf []byte) {
 // writePackets is a proxy function to nc.Write.
 // This is used to make the buffer type compatible with compressed I/O.
 func (b *buffer) writePackets(packets []byte) (int, error) {
+	if b.writeTimeout > 0 {
+		if err := b.nc.SetWriteDeadline(time.Now().Add(b.writeTimeout)); err != nil {
+			return 0, err
+		}
+	}
 	return b.nc.Write(packets)
 }
