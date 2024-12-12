@@ -96,6 +96,10 @@ func newCompIO(mc *mysqlConn) *compIO {
 	}
 }
 
+func (c *compIO) reset() {
+	c.buff.Reset()
+}
+
 func (c *compIO) readNext(need int, r readwriteFunc) ([]byte, error) {
 	for c.buff.Len() < need {
 		if err := c.readCompressedPacket(r); err != nil {

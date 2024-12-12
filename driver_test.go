@@ -971,12 +971,16 @@ func TestDateTime(t *testing.T) {
 			var err error
 			rows, err = dbt.db.Query(`SELECT cast("00:00:00.1" as TIME(1)) = "00:00:00.1"`)
 			if err == nil {
-				rows.Scan(&microsecsSupported)
+				if rows.Next() {
+					rows.Scan(&microsecsSupported)
+				}
 				rows.Close()
 			}
 			rows, err = dbt.db.Query(`SELECT cast("0000-00-00" as DATE) = "0000-00-00"`)
 			if err == nil {
-				rows.Scan(&zeroDateSupported)
+				if rows.Next() {
+					rows.Scan(&zeroDateSupported)
+				}
 				rows.Close()
 			}
 			for _, setups := range testcases {

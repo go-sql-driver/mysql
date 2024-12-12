@@ -97,6 +97,7 @@ func (mc *mysqlConn) syncSequenceNr() {
 	// https://github.com/mysql/mysql-server/blob/824e2b4064053f7daf17d7f3f84b7a3ed92e5fb4/sql-common/net_serv.cc#L293
 	if mc.compress {
 		mc.sequence = mc.compressSequence
+		mc.compIO.reset()
 	}
 }
 
