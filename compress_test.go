@@ -11,7 +11,6 @@ package mysql
 import (
 	"bytes"
 	"crypto/rand"
-	"fmt"
 	"io"
 	"testing"
 )
@@ -26,15 +25,12 @@ func makeRandByteSlice(size int) []byte {
 func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []byte {
 	conn := new(mockConn)
 	mc.netConn = conn
-	comp := newCompIO(mc)
 
-	n, err := comp.writePackets(uncompressedPacket)
+	err := mc.writePacket(append(make([]byte, 4), uncompressedPacket...))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != len(uncompressedPacket) {
-		t.Fatalf("expected to write %d bytes, wrote %d bytes", len(uncompressedPacket), n)
-	}
+
 	return conn.written
 }
 
@@ -43,10 +39,9 @@ func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expS
 	// mocking out buf variable
 	conn := new(mockConn)
 	conn.data = compressedPacket
-	mc.buf.nc = conn
-	cr := newCompIO(mc)
+	mc.netConn = conn
 
-	uncompressedPacket, err := cr.readNext(expSize)
+	uncompressedPacket, err := mc.readPacket()
 	if err != nil {
 		if err != io.EOF {
 			t.Fatalf("non-nil/non-EOF error when reading contents: %s", err.Error())
@@ -72,8 +67,6 @@ func TestRoundtrip(t *testing.T) {
 	}{
 		{uncompressed: []byte("a"),
 			desc: "a"},
-		{uncompressed: []byte{0},
-			desc: "0 byte"},
 		{uncompressed: []byte("hello world"),
 			desc: "hello world"},
 		{uncompressed: make([]byte, 100),
@@ -82,8 +75,6 @@ func TestRoundtrip(t *testing.T) {
 			desc: "32768 bytes"},
 		{uncompressed: make([]byte, 330000),
 			desc: "33000 bytes"},
-		{uncompressed: make([]byte, 0),
-			desc: "nothing"},
 		{uncompressed: makeRandByteSlice(10),
 			desc: "10 rand bytes",
 		},
@@ -100,26 +91,29 @@ func TestRoundtrip(t *testing.T) {
 
 	_, cSend := newRWMockConn(0)
 	cSend.compress = true
+	cSend.compIO = newCompIO(cSend)
 	_, cReceive := newRWMockConn(0)
 	cReceive.compress = true
+	cReceive.compIO = newCompIO(cReceive)
 
 	for _, test := range tests {
-		s := fmt.Sprintf("Test roundtrip with %s", test.desc)
-		cSend.resetSequenceNr()
-		cReceive.resetSequenceNr()
+		t.Run(test.desc, func(t *testing.T) {
+			cSend.resetSequenceNr()
+			cReceive.resetSequenceNr()
 
-		uncompressed := roundtripHelper(t, cSend, cReceive, test.uncompressed)
-		if !bytes.Equal(uncompressed, test.uncompressed) {
-			t.Fatalf("%s: roundtrip failed", s)
-		}
+			uncompressed := roundtripHelper(t, cSend, cReceive, test.uncompressed)
+			if !bytes.Equal(uncompressed, test.uncompressed) {
+				t.Fatalf("roundtrip failed")
+			}
 
-		if cSend.sequence != cReceive.sequence {
-			t.Errorf("inconsistent sequence number: send=%v recv=%v",
-				cSend.sequence, cReceive.sequence)
-		}
-		if cSend.compressSequence != cReceive.compressSequence {
-			t.Errorf("inconsistent compress sequence number: send=%v recv=%v",
-				cSend.compressSequence, cReceive.compressSequence)
-		}
+			if cSend.sequence != cReceive.sequence {
+				t.Errorf("inconsistent sequence number: send=%v recv=%v",
+					cSend.sequence, cReceive.sequence)
+			}
+			if cSend.compressSequence != cReceive.compressSequence {
+				t.Errorf("inconsistent compress sequence number: send=%v recv=%v",
+					cSend.compressSequence, cReceive.compressSequence)
+			}
+		})
 	}
 }

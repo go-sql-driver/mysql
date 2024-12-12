@@ -28,7 +28,7 @@ type mysqlConn struct {
 	netConn          net.Conn
 	rawConn          net.Conn    // underlying connection when netConn is TLS connection.
 	result           mysqlResult // managed by clearResult() and handleOkPacket().
-	packetRW         packetIO
+	compIO           *compIO
 	cfg              *Config
 	connector        *connector
 	maxAllowedPacket int
@@ -64,9 +64,24 @@ func (mc *mysqlConn) log(v ...any) {
 	mc.cfg.Logger.Print(v...)
 }
 
-type packetIO interface {
-	readNext(need int) ([]byte, error)
-	writePackets(data []byte) (int, error)
+func (mc *mysqlConn) readWithTimeout(b []byte) (int, error) {
+	to := mc.cfg.ReadTimeout
+	if to > 0 {
+		if err := mc.netConn.SetReadDeadline(time.Now().Add(to)); err != nil {
+			return 0, err
+		}
+	}
+	return mc.netConn.Read(b)
+}
+
+func (mc *mysqlConn) writeWithTimeout(b []byte) (int, error) {
+	to := mc.cfg.WriteTimeout
+	if to > 0 {
+		if err := mc.netConn.SetWriteDeadline(time.Now().Add(to)); err != nil {
+			return 0, err
+		}
+	}
+	return mc.netConn.Write(b)
 }
 
 func (mc *mysqlConn) resetSequenceNr() {

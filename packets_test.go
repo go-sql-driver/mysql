@@ -97,10 +97,8 @@ var _ net.Conn = new(mockConn)
 func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
 	conn := new(mockConn)
 	connector := newConnector(NewConfig())
-	buf := newBuffer(conn)
 	mc := &mysqlConn{
-		buf:              buf,
-		packetRW:         &buf,
+		buf:              newBuffer(),
 		cfg:              connector.cfg,
 		connector:        connector,
 		netConn:          conn,
@@ -114,9 +112,10 @@ func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
 func TestReadPacketSingleByte(t *testing.T) {
 	conn := new(mockConn)
 	mc := &mysqlConn{
-		buf: newBuffer(conn),
+		netConn: conn,
+		buf:     newBuffer(),
+		cfg:     NewConfig(),
 	}
-	mc.packetRW = &mc.buf
 
 	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
 	conn.maxReads = 1
@@ -151,7 +150,7 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 	} {
 		conn, mc := newRWMockConn(testCase.ClientSequenceID)
 
-		conn.data = []byte{0x01, 0x00, 0x00, testCase.ServerSequenceID, 0xff}
+		conn.data = []byte{0x01, 0x00, 0x00, testCase.ServerSequenceID, 0x22}
 		_, err := mc.readPacket()
 		if err != testCase.ExpectedErr {
 			t.Errorf("expected %v, got %v", testCase.ExpectedErr, err)
@@ -167,9 +166,10 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 func TestReadPacketSplit(t *testing.T) {
 	conn := new(mockConn)
 	mc := &mysqlConn{
-		buf: newBuffer(conn),
+		netConn: conn,
+		buf:     newBuffer(),
+		cfg:     NewConfig(),
 	}
-	mc.packetRW = &mc.buf
 
 	data := make([]byte, maxPacketSize*2+4*3)
 	const pkt2ofs = maxPacketSize + 4
@@ -273,11 +273,11 @@ func TestReadPacketSplit(t *testing.T) {
 func TestReadPacketFail(t *testing.T) {
 	conn := new(mockConn)
 	mc := &mysqlConn{
-		buf:     newBuffer(conn),
+		netConn: conn,
+		buf:     newBuffer(),
 		closech: make(chan struct{}),
 		cfg:     NewConfig(),
 	}
-	mc.packetRW = &mc.buf
 
 	// illegal empty (stand-alone) packet
 	conn.data = []byte{0x00, 0x00, 0x00, 0x00}
@@ -290,7 +290,7 @@ func TestReadPacketFail(t *testing.T) {
 	// reset
 	conn.reads = 0
 	mc.sequence = 0
-	mc.buf = newBuffer(conn)
+	mc.buf = newBuffer()
 
 	// fail to read header
 	conn.closed = true
@@ -303,7 +303,7 @@ func TestReadPacketFail(t *testing.T) {
 	conn.closed = false
 	conn.reads = 0
 	mc.sequence = 0
-	mc.buf = newBuffer(conn)
+	mc.buf = newBuffer()
 
 	// fail to read body
 	conn.maxReads = 1
@@ -318,12 +318,12 @@ func TestReadPacketFail(t *testing.T) {
 func TestRegression801(t *testing.T) {
 	conn := new(mockConn)
 	mc := &mysqlConn{
-		buf:      newBuffer(conn),
+		netConn:  conn,
+		buf:      newBuffer(),
 		cfg:      new(Config),
 		sequence: 42,
 		closech:  make(chan struct{}),
 	}
-	mc.packetRW = &mc.buf
 
 	conn.data = []byte{72, 0, 0, 42, 10, 53, 46, 53, 46, 56, 0, 165, 0, 0, 0,
 		60, 70, 63, 58, 68, 104, 34, 97, 0, 223, 247, 33, 2, 0, 15, 128, 21, 0,

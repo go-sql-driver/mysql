@@ -10,12 +10,15 @@ package mysql
 
 import (
 	"io"
-	"net"
-	"time"
 )
 
 const defaultBufSize = 4096
 const maxCachedBufSize = 256 * 1024
+
+// readwriteFunc is a function that compatible with io.Reader and io.Writer.
+// We use this function type instead of io.ReadWriter because we want to
+// just pass mc.readWithTimeout or mc.writeWithTimeout functions.
+type readwriteFunc func([]byte) (int, error)
 
 // A buffer which is used for both reading and writing.
 // This is possible since communication on each connection is synchronous.
@@ -23,18 +26,14 @@ const maxCachedBufSize = 256 * 1024
 // The buffer is similar to bufio.Reader / Writer but zero-copy-ish
 // Also highly optimized for this particular use case.
 type buffer struct {
-	buf          []byte // read buffer.
-	cachedBuf    []byte // buffer that will be reused. len(cachedBuf) <= maxCachedBufSize.
-	nc           net.Conn
-	readTimeout  time.Duration
-	writeTimeout time.Duration
+	buf       []byte // read buffer.
+	cachedBuf []byte // buffer that will be reused. len(cachedBuf) <= maxCachedBufSize.
 }
 
 // newBuffer allocates and returns a new buffer.
-func newBuffer(nc net.Conn) buffer {
+func newBuffer() buffer {
 	return buffer{
 		cachedBuf: make([]byte, defaultBufSize),
-		nc:        nc,
 	}
 }
 
@@ -44,7 +43,7 @@ func (b *buffer) busy() bool {
 }
 
 // fill reads into the read buffer until at least _need_ bytes are in it.
-func (b *buffer) fill(need int) error {
+func (b *buffer) fill(need int, r readwriteFunc) error {
 	// we'll move the contents of the current buffer to dest before filling it.
 	dest := b.cachedBuf
 
@@ -65,13 +64,7 @@ func (b *buffer) fill(need int) error {
 	copy(dest[:n], b.buf)
 
 	for {
-		if b.readTimeout > 0 {
-			if err := b.nc.SetReadDeadline(time.Now().Add(b.readTimeout)); err != nil {
-				return err
-			}
-		}
-
-		nn, err := b.nc.Read(dest[n:])
+		nn, err := r(dest[n:])
 		n += nn
 
 		if err == nil && n < need {
@@ -93,10 +86,10 @@ func (b *buffer) fill(need int) error {
 
 // returns next N bytes from buffer.
 // The returned slice is only guaranteed to be valid until the next read
-func (b *buffer) readNext(need int) ([]byte, error) {
+func (b *buffer) readNext(need int, r readwriteFunc) ([]byte, error) {
 	if len(b.buf) < need {
 		// refill
-		if err := b.fill(need); err != nil {
+		if err := b.fill(need, r); err != nil {
 			return nil, err
 		}
 	}
@@ -155,15 +148,4 @@ func (b *buffer) store(buf []byte) {
 	if cap(buf) <= maxCachedBufSize && cap(buf) > cap(b.cachedBuf) {
 		b.cachedBuf = buf[:cap(buf)]
 	}
-}
-
-// writePackets is a proxy function to nc.Write.
-// This is used to make the buffer type compatible with compressed I/O.
-func (b *buffer) writePackets(packets []byte) (int, error) {
-	if b.writeTimeout > 0 {
-		if err := b.nc.SetWriteDeadline(time.Now().Add(b.writeTimeout)); err != nil {
-			return 0, err
-		}
-	}
-	return b.nc.Write(packets)
 }

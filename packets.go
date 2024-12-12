@@ -30,9 +30,14 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 	var prevData []byte
 	invalid := false
 
+	readFunc := mc.buf.readNext
+	if mc.compress {
+		readFunc = mc.compIO.readNext
+	}
+
 	for {
 		// read packet header
-		data, err := mc.packetRW.readNext(4)
+		data, err := readFunc(4, mc.readWithTimeout)
 		if err != nil {
 			mc.close()
 			if cerr := mc.canceled.Value(); cerr != nil {
@@ -59,6 +64,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 				mc.log(fmt.Sprintf("[warn] unexpected seq nr: expected %v, got %v", mc.sequence, seqNr))
 				// For large packets, we stop reading as soon as sync error.
 				if len(prevData) > 0 {
+					mc.close()
 					return nil, ErrPktSyncMul
 				}
 				// TODO(methane): report error when the packet is not an error packet.
@@ -80,7 +86,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		}
 
 		// read packet body [pktLen bytes]
-		data, err = mc.packetRW.readNext(pktLen)
+		data, err = readFunc(pktLen, mc.readWithTimeout)
 		if err != nil {
 			mc.close()
 			if cerr := mc.canceled.Value(); cerr != nil {
@@ -94,9 +100,13 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		if pktLen < maxPacketSize {
 			// zero allocations for non-split packets
 			if prevData == nil {
-				if invalid && data[0] != iERR {
+				if invalid {
+					mc.close()
 					// return sync error only for regular packet.
-					return nil, ErrPktSync
+					// error packets may have wrong sequence number.
+					if data[0] != iERR {
+						return nil, ErrPktSync
+					}
 				}
 				return data, nil
 			}
@@ -111,9 +121,13 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 // Write packet buffer 'data'
 func (mc *mysqlConn) writePacket(data []byte) error {
 	pktLen := len(data) - 4
-
 	if pktLen > mc.maxAllowedPacket {
 		return ErrPktTooLarge
+	}
+
+	writeFunc := mc.writeWithTimeout
+	if mc.compress {
+		writeFunc = mc.compIO.writePackets
 	}
 
 	for {
@@ -126,7 +140,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			fmt.Printf("writePacket: size=%v seq=%v", size, mc.sequence)
 		}
 
-		n, err := mc.packetRW.writePackets(data[:4+size])
+		n, err := writeFunc(data[:4+size])
 		if err != nil {
 			mc.cleanup()
 			if cerr := mc.canceled.Value(); cerr != nil {
@@ -363,7 +377,6 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 			return err
 		}
 		mc.netConn = tlsConn
-		mc.buf.nc = tlsConn
 	}
 
 	// User [null terminated string]

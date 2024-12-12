@@ -19,13 +19,12 @@ import (
 
 func TestInterpolateParams(t *testing.T) {
 	mc := &mysqlConn{
-		buf:              newBuffer(nil),
+		buf:              newBuffer(),
 		maxAllowedPacket: maxPacketSize,
 		cfg: &Config{
 			InterpolateParams: true,
 		},
 	}
-	mc.packetRW = &mc.buf
 
 	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42), "gopher"})
 	if err != nil {
@@ -40,7 +39,7 @@ func TestInterpolateParams(t *testing.T) {
 
 func TestInterpolateParamsJSONRawMessage(t *testing.T) {
 	mc := &mysqlConn{
-		buf:              newBuffer(nil),
+		buf:              newBuffer(),
 		maxAllowedPacket: maxPacketSize,
 		cfg: &Config{
 			InterpolateParams: true,
@@ -67,13 +66,12 @@ func TestInterpolateParamsJSONRawMessage(t *testing.T) {
 
 func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
 	mc := &mysqlConn{
-		buf:              newBuffer(nil),
+		buf:              newBuffer(),
 		maxAllowedPacket: maxPacketSize,
 		cfg: &Config{
 			InterpolateParams: true,
 		},
 	}
-	mc.packetRW = &mc.buf
 
 	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42)})
 	if err != driver.ErrSkip {
@@ -85,14 +83,12 @@ func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
 // https://github.com/go-sql-driver/mysql/pull/490
 func TestInterpolateParamsPlaceholderInString(t *testing.T) {
 	mc := &mysqlConn{
-		buf:              newBuffer(nil),
+		buf:              newBuffer(),
 		maxAllowedPacket: maxPacketSize,
 		cfg: &Config{
 			InterpolateParams: true,
 		},
 	}
-
-	mc.packetRW = &mc.buf
 
 	q, err := mc.interpolateParams("SELECT 'abc?xyz',?", []driver.Value{int64(42)})
 	// When InterpolateParams support string literal, this should return `"SELECT 'abc?xyz', 42`
@@ -103,7 +99,7 @@ func TestInterpolateParamsPlaceholderInString(t *testing.T) {
 
 func TestInterpolateParamsUint64(t *testing.T) {
 	mc := &mysqlConn{
-		buf:              newBuffer(nil),
+		buf:              newBuffer(),
 		maxAllowedPacket: maxPacketSize,
 		cfg: &Config{
 			InterpolateParams: true,
@@ -164,11 +160,10 @@ func TestCleanCancel(t *testing.T) {
 func TestPingMarkBadConnection(t *testing.T) {
 	nc := badConnection{err: errors.New("boom")}
 
-	buf := newBuffer(nc)
+	buf := newBuffer()
 	mc := &mysqlConn{
 		netConn:          nc,
 		buf:              buf,
-		packetRW:         &buf,
 		maxAllowedPacket: defaultMaxAllowedPacket,
 		closech:          make(chan struct{}),
 		cfg:              NewConfig(),
@@ -184,11 +179,9 @@ func TestPingMarkBadConnection(t *testing.T) {
 func TestPingErrInvalidConn(t *testing.T) {
 	nc := badConnection{err: errors.New("failed to write"), n: 10}
 
-	buf := newBuffer(nc)
 	mc := &mysqlConn{
 		netConn:          nc,
-		buf:              buf,
-		packetRW:         &buf,
+		buf:              newBuffer(),
 		maxAllowedPacket: defaultMaxAllowedPacket,
 		closech:          make(chan struct{}),
 		cfg:              NewConfig(),

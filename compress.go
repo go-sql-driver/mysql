@@ -47,7 +47,7 @@ func zDecompress(src, dst []byte) (int, error) {
 		}
 	} else {
 		zr = a.(io.ReadCloser)
-		if zr.(zlib.Resetter).Reset(br, nil); err != nil {
+		if err := zr.(zlib.Resetter).Reset(br, nil); err != nil {
 			return 0, err
 		}
 	}
@@ -96,9 +96,9 @@ func newCompIO(mc *mysqlConn) *compIO {
 	}
 }
 
-func (c *compIO) readNext(need int) ([]byte, error) {
+func (c *compIO) readNext(need int, r readwriteFunc) ([]byte, error) {
 	for c.buff.Len() < need {
-		if err := c.readCompressedPacket(); err != nil {
+		if err := c.readCompressedPacket(r); err != nil {
 			return nil, err
 		}
 	}
@@ -106,8 +106,8 @@ func (c *compIO) readNext(need int) ([]byte, error) {
 	return data[:need:need], nil // prevent caller writes into c.buff
 }
 
-func (c *compIO) readCompressedPacket() error {
-	header, err := c.mc.buf.readNext(7) // size of compressed header
+func (c *compIO) readCompressedPacket(r readwriteFunc) error {
+	header, err := c.mc.buf.readNext(7, r) // size of compressed header
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func (c *compIO) readCompressedPacket() error {
 	c.mc.sequence = compressionSequence + 1
 	c.mc.compressSequence = c.mc.sequence
 
-	comprData, err := c.mc.buf.readNext(comprLength)
+	comprData, err := c.mc.buf.readNext(comprLength, r)
 	if err != nil {
 		return err
 	}
@@ -221,7 +221,7 @@ func (c *compIO) writeCompressedPacket(data []byte, uncompressedLen int) error {
 	data[3] = mc.compressSequence
 	putUint24(data[4:7], uncompressedLen)
 
-	if _, err := mc.buf.writePackets(data); err != nil {
+	if _, err := mc.writeWithTimeout(data); err != nil {
 		mc.log("writing compressed packet:", err)
 		return err
 	}
