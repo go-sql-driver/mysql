@@ -15,10 +15,10 @@ import (
 const defaultBufSize = 4096
 const maxCachedBufSize = 256 * 1024
 
-// readwriteFunc is a function that compatible with io.Reader and io.Writer.
-// We use this function type instead of io.ReadWriter because we want to
-// just pass mc.readWithTimeout or mc.writeWithTimeout functions.
-type readwriteFunc func([]byte) (int, error)
+// readerFunc is a function that compatible with io.Reader.
+// We use this function type instead of io.Reader because we want to
+// just pass mc.readWithTimeout.
+type readerFunc func([]byte) (int, error)
 
 // A buffer which is used for both reading and writing.
 // This is possible since communication on each connection is synchronous.
@@ -43,7 +43,7 @@ func (b *buffer) busy() bool {
 }
 
 // fill reads into the read buffer until at least _need_ bytes are in it.
-func (b *buffer) fill(need int, r readwriteFunc) error {
+func (b *buffer) fill(need int, r readerFunc) error {
 	// we'll move the contents of the current buffer to dest before filling it.
 	dest := b.cachedBuf
 
@@ -86,7 +86,7 @@ func (b *buffer) fill(need int, r readwriteFunc) error {
 
 // returns next N bytes from buffer.
 // The returned slice is only guaranteed to be valid until the next read
-func (b *buffer) readNext(need int, r readwriteFunc) ([]byte, error) {
+func (b *buffer) readNext(need int, r readerFunc) ([]byte, error) {
 	if len(b.buf) < need {
 		// refill
 		if err := b.fill(need, r); err != nil {

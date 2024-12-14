@@ -36,7 +36,7 @@ func init() {
 	}
 }
 
-func zDecompress(src, dst []byte) (int, error) {
+func zDecompress(src []byte, dst *bytes.Buffer) (int, error) {
 	br := bytes.NewReader(src)
 	var zr io.ReadCloser
 	var err error
@@ -51,27 +51,11 @@ func zDecompress(src, dst []byte) (int, error) {
 			return 0, err
 		}
 	}
-	defer func() {
-		zr.Close()
-		zrPool.Put(zr)
-	}()
 
-	lenRead := 0
-	size := len(dst)
-
-	for lenRead < size {
-		n, err := zr.Read(dst[lenRead:])
-		lenRead += n
-
-		if err == io.EOF {
-			if lenRead < size {
-				return lenRead, io.ErrUnexpectedEOF
-			}
-		} else if err != nil {
-			return lenRead, err
-		}
-	}
-	return lenRead, nil
+	n, _ := dst.ReadFrom(zr) // ignore err because zr.Close() will return it again.
+	err = zr.Close()         // zr.Close() may return chuecksum error.
+	zrPool.Put(zr)
+	return int(n), err
 }
 
 func zCompress(src []byte, dst io.Writer) error {
@@ -100,7 +84,7 @@ func (c *compIO) reset() {
 	c.buff.Reset()
 }
 
-func (c *compIO) readNext(need int, r readwriteFunc) ([]byte, error) {
+func (c *compIO) readNext(need int, r readerFunc) ([]byte, error) {
 	for c.buff.Len() < need {
 		if err := c.readCompressedPacket(r); err != nil {
 			return nil, err
@@ -110,7 +94,7 @@ func (c *compIO) readNext(need int, r readwriteFunc) ([]byte, error) {
 	return data[:need:need], nil // prevent caller writes into c.buff
 }
 
-func (c *compIO) readCompressedPacket(r readwriteFunc) error {
+func (c *compIO) readCompressedPacket(r readerFunc) error {
 	header, err := c.mc.buf.readNext(7, r) // size of compressed header
 	if err != nil {
 		return err
@@ -121,19 +105,17 @@ func (c *compIO) readCompressedPacket(r readwriteFunc) error {
 	comprLength := getUint24(header[0:3])
 	compressionSequence := uint8(header[3])
 	uncompressedLength := getUint24(header[4:7])
-	if debugTrace {
+	if debug {
 		fmt.Printf("uncompress cmplen=%v uncomplen=%v pkt_cmp_seq=%v expected_cmp_seq=%v\n",
 			comprLength, uncompressedLength, compressionSequence, c.mc.sequence)
 	}
-	if compressionSequence != c.mc.sequence {
-		// return ErrPktSync
-		// server may return error packet (e.g. 1153 Got a packet bigger than 'max_allowed_packet' bytes)
-		// before receiving all packets from client. In this case, seqnr is younger than expected.
-		if debugTrace {
-			fmt.Printf("WARN: unexpected cmpress seq nr: expected %v, got %v",
-				c.mc.sequence, compressionSequence)
-		}
-		// TODO(methane): report error when the packet is not an error packet.
+	// Do not return ErrPktSync here.
+	// Server may return error packet (e.g. 1153 Got a packet bigger than 'max_allowed_packet' bytes)
+	// before receiving all packets from client. In this case, seqnr is younger than expected.
+	// NOTE: Both of mariadbclient and mysqlclient do not check seqnr. Only server checks it.
+	if debug && compressionSequence != c.mc.sequence {
+		fmt.Printf("WARN: unexpected cmpress seq nr: expected %v, got %v",
+			c.mc.sequence, compressionSequence)
 	}
 	c.mc.sequence = compressionSequence + 1
 	c.mc.compressSequence = c.mc.sequence
@@ -152,31 +134,29 @@ func (c *compIO) readCompressedPacket(r readwriteFunc) error {
 
 	// use existing capacity in bytesBuf if possible
 	c.buff.Grow(uncompressedLength)
-	dec := c.buff.AvailableBuffer()[:uncompressedLength]
-	lenRead, err := zDecompress(comprData, dec)
+	nread, err := zDecompress(comprData, &c.buff)
 	if err != nil {
 		return err
 	}
-	if lenRead != uncompressedLength {
+	if nread != uncompressedLength {
 		return fmt.Errorf("invalid compressed packet: uncompressed length in header is %d, actual %d",
-			uncompressedLength, lenRead)
+			uncompressedLength, nread)
 	}
-	c.buff.Write(dec) // fast copy. See bytes.Buffer.AvailableBuffer() doc.
 	return nil
 }
 
+const minCompressLength = 150
 const maxPayloadLen = maxPacketSize - 4
 
 // writePackets sends one or some packets with compression.
 // Use this instead of mc.netConn.Write() when mc.compress is true.
 func (c *compIO) writePackets(packets []byte) (int, error) {
 	totalBytes := len(packets)
-	dataLen := len(packets)
 	blankHeader := make([]byte, 7)
 	buf := &c.buff
 
-	for dataLen > 0 {
-		payloadLen := min(maxPayloadLen, dataLen)
+	for len(packets) > 0 {
+		payloadLen := min(maxPayloadLen, len(packets))
 		payload := packets[:payloadLen]
 		uncompressedLen := payloadLen
 
@@ -190,8 +170,8 @@ func (c *compIO) writePackets(packets []byte) (int, error) {
 		} else {
 			zCompress(payload, buf)
 			// do not compress if compressed data is larger than uncompressed data
-			// I intentionally miss 7 byte header in the buf; compress should compress more than 7 bytes.
-			if buf.Len() > uncompressedLen {
+			// I intentionally miss 7 byte header in the buf; compress more than 7 bytes.
+			if buf.Len() >= uncompressedLen {
 				buf.Reset()
 				buf.Write(blankHeader)
 				buf.Write(payload)
@@ -204,7 +184,6 @@ func (c *compIO) writePackets(packets []byte) (int, error) {
 			// up compressed bytes that is returned by underlying Write().
 			return totalBytes - len(packets) + n, err
 		}
-		dataLen -= payloadLen
 		packets = packets[payloadLen:]
 	}
 
@@ -216,7 +195,7 @@ func (c *compIO) writePackets(packets []byte) (int, error) {
 func (c *compIO) writeCompressedPacket(data []byte, uncompressedLen int) (int, error) {
 	mc := c.mc
 	comprLength := len(data) - 7
-	if debugTrace {
+	if debug {
 		fmt.Printf(
 			"writeCompressedPacket: comprLength=%v, uncompressedLen=%v, seq=%v",
 			comprLength, uncompressedLen, mc.compressSequence)
@@ -227,8 +206,8 @@ func (c *compIO) writeCompressedPacket(data []byte, uncompressedLen int) (int, e
 	data[3] = mc.compressSequence
 	putUint24(data[4:7], uncompressedLen)
 
-	if n, err := mc.writeWithTimeout(data); err != nil {
-		// mc.log("writing compressed packet:", err)
+	n, err := mc.writeWithTimeout(data)
+	if err != nil {
 		return n, err
 	}
 

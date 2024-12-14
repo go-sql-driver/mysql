@@ -30,14 +30,14 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 	var prevData []byte
 	invalid := false
 
-	readFunc := mc.buf.readNext
+	readNext := mc.buf.readNext
 	if mc.compress {
-		readFunc = mc.compIO.readNext
+		readNext = mc.compIO.readNext
 	}
 
 	for {
 		// read packet header
-		data, err := readFunc(4, mc.readWithTimeout)
+		data, err := readNext(4, mc.readWithTimeout)
 		if err != nil {
 			mc.close()
 			if cerr := mc.canceled.Value(); cerr != nil {
@@ -49,19 +49,19 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 
 		// packet length [24 bit]
 		pktLen := getUint24(data[:3])
-		seqNr := data[3]
+		seq := data[3]
 
 		if mc.compress {
 			// MySQL and MariaDB doesn't check packet nr in compressed packet.
-			if debugTrace && seqNr != mc.compressSequence {
+			if debug && seq != mc.compressSequence {
 				fmt.Printf("[debug] mismatched compression sequence nr: expected: %v, got %v",
-					mc.compressSequence, seqNr)
+					mc.compressSequence, seq)
 			}
-			mc.compressSequence = seqNr + 1
+			mc.compressSequence = seq + 1
 		} else {
 			// check packet sync [8 bit]
-			if seqNr != mc.sequence {
-				mc.log(fmt.Sprintf("[warn] unexpected seq nr: expected %v, got %v", mc.sequence, seqNr))
+			if seq != mc.sequence {
+				mc.log(fmt.Sprintf("[warn] unexpected seq nr: expected %v, got %v", mc.sequence, seq))
 				// For large packets, we stop reading as soon as sync error.
 				if len(prevData) > 0 {
 					mc.close()
@@ -86,7 +86,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		}
 
 		// read packet body [pktLen bytes]
-		data, err = readFunc(pktLen, mc.readWithTimeout)
+		data, err = readNext(pktLen, mc.readWithTimeout)
 		if err != nil {
 			mc.close()
 			if cerr := mc.canceled.Value(); cerr != nil {
@@ -136,7 +136,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		data[3] = mc.sequence
 
 		// Write packet
-		if debugTrace {
+		if debug {
 			fmt.Printf("writePacket: size=%v seq=%v", size, mc.sequence)
 		}
 

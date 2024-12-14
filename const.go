@@ -11,14 +11,13 @@ package mysql
 import "runtime"
 
 const (
-	debugTrace = false // for debugging wire protocol.
+	debug = false // for debugging. Set true only in development.
 
 	defaultAuthPlugin       = "mysql_native_password"
 	defaultMaxAllowedPacket = 64 << 20 // 64 MiB. See https://github.com/go-sql-driver/mysql/issues/1355
 	minProtocolVersion      = 10
 	maxPacketSize           = 1<<24 - 1
 	timeFormat              = "2006-01-02 15:04:05.999999"
-	minCompressLength       = 150
 
 	// Connection attributes
 	// See https://dev.mysql.com/doc/refman/8.0/en/performance-schema-connection-attribute-tables.html#performance-schema-connection-attributes-available
