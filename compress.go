@@ -64,9 +64,9 @@ func zCompress(src []byte, dst io.Writer) error {
 	if _, err := zw.Write(src); err != nil {
 		return err
 	}
-	zw.Close()
+	err := zw.Close()
 	zwPool.Put(zw)
-	return nil
+	return err
 }
 
 type compIO struct {
@@ -168,10 +168,13 @@ func (c *compIO) writePackets(packets []byte) (int, error) {
 			buf.Write(payload)
 			uncompressedLen = 0
 		} else {
-			zCompress(payload, buf)
+			err := zCompress(payload, buf)
+			if debug && err != nil {
+				fmt.Printf("zCompress error: %v", err)
+			}
 			// do not compress if compressed data is larger than uncompressed data
-			// I intentionally miss 7 byte header in the buf; compress more than 7 bytes.
-			if buf.Len() >= uncompressedLen {
+			// I intentionally miss 7 byte header in the buf; zCompress must compress more than 7 bytes.
+			if err != nil || buf.Len() >= uncompressedLen {
 				buf.Reset()
 				buf.Write(blankHeader)
 				buf.Write(payload)
