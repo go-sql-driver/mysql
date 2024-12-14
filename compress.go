@@ -206,11 +206,6 @@ func (c *compIO) writeCompressedPacket(data []byte, uncompressedLen int) (int, e
 	data[3] = mc.compressSequence
 	putUint24(data[4:7], uncompressedLen)
 
-	n, err := mc.writeWithTimeout(data)
-	if err != nil {
-		return n, err
-	}
-
 	mc.compressSequence++
-	return n, nil
+	return mc.writeWithTimeout(data)
 }
