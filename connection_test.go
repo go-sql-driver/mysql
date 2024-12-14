@@ -159,11 +159,9 @@ func TestCleanCancel(t *testing.T) {
 
 func TestPingMarkBadConnection(t *testing.T) {
 	nc := badConnection{err: errors.New("boom")}
-
-	buf := newBuffer()
 	mc := &mysqlConn{
 		netConn:          nc,
-		buf:              buf,
+		buf:              newBuffer(),
 		maxAllowedPacket: defaultMaxAllowedPacket,
 		closech:          make(chan struct{}),
 		cfg:              NewConfig(),
@@ -178,7 +176,6 @@ func TestPingMarkBadConnection(t *testing.T) {
 
 func TestPingErrInvalidConn(t *testing.T) {
 	nc := badConnection{err: errors.New("failed to write"), n: 10}
-
 	mc := &mysqlConn{
 		netConn:          nc,
 		buf:              newBuffer(),

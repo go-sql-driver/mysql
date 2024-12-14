@@ -199,8 +199,10 @@ func (c *compIO) writePackets(packets []byte) (int, error) {
 			}
 		}
 
-		if err := c.writeCompressedPacket(buf.Bytes(), uncompressedLen); err != nil {
-			return 0, err
+		if n, err := c.writeCompressedPacket(buf.Bytes(), uncompressedLen); err != nil {
+			// To allow returning ErrBadConn when sending really 0 bytes, we sum
+			// up compressed bytes that is returned by underlying Write().
+			return totalBytes - len(packets) + n, err
 		}
 		dataLen -= payloadLen
 		packets = packets[payloadLen:]
@@ -211,7 +213,7 @@ func (c *compIO) writePackets(packets []byte) (int, error) {
 
 // writeCompressedPacket writes a compressed packet with header.
 // data should start with 7 size space for header followed by payload.
-func (c *compIO) writeCompressedPacket(data []byte, uncompressedLen int) error {
+func (c *compIO) writeCompressedPacket(data []byte, uncompressedLen int) (int, error) {
 	mc := c.mc
 	comprLength := len(data) - 7
 	if debugTrace {
@@ -225,11 +227,11 @@ func (c *compIO) writeCompressedPacket(data []byte, uncompressedLen int) error {
 	data[3] = mc.compressSequence
 	putUint24(data[4:7], uncompressedLen)
 
-	if _, err := mc.writeWithTimeout(data); err != nil {
-		mc.log("writing compressed packet:", err)
-		return err
+	if n, err := mc.writeWithTimeout(data); err != nil {
+		// mc.log("writing compressed packet:", err)
+		return n, err
 	}
 
 	mc.compressSequence++
-	return nil
+	return n, nil
 }
