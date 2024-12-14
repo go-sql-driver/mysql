@@ -84,13 +84,13 @@ func (mc *mysqlConn) writeWithTimeout(b []byte) (int, error) {
 	return mc.netConn.Write(b)
 }
 
-func (mc *mysqlConn) resetSequenceNr() {
+func (mc *mysqlConn) resetSequence() {
 	mc.sequence = 0
 	mc.compressSequence = 0
 }
 
-// syncSequenceNr must be called when finished writing some packet and before start reading.
-func (mc *mysqlConn) syncSequenceNr() {
+// syncSequence must be called when finished writing some packet and before start reading.
+func (mc *mysqlConn) syncSequence() {
 	// Syncs compressionSequence to sequence.
 	// This is not documented but done in `net_flush()` in MySQL and MariaDB.
 	// https://github.com/mariadb-corporation/mariadb-connector-c/blob/8228164f850b12353da24df1b93a1e53cc5e85e9/libmariadb/ma_net.c#L170-L171

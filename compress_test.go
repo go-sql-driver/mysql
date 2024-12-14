@@ -98,8 +98,8 @@ func TestRoundtrip(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			cSend.resetSequenceNr()
-			cReceive.resetSequenceNr()
+			cSend.resetSequence()
+			cReceive.resetSequence()
 
 			uncompressed := roundtripHelper(t, cSend, cReceive, test.uncompressed)
 			if !bytes.Equal(uncompressed, test.uncompressed) {
