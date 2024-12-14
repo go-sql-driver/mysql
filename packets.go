@@ -28,7 +28,7 @@ import (
 // Read packet to buffer 'data'
 func (mc *mysqlConn) readPacket() ([]byte, error) {
 	var prevData []byte
-	invalid := false
+	invalidSequence := false
 
 	readNext := mc.buf.readNext
 	if mc.compress {
@@ -67,8 +67,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 					mc.close()
 					return nil, ErrPktSyncMul
 				}
-				// TODO(methane): report error when the packet is not an error packet.
-				invalid = true
+				invalidSequence = true
 			}
 			mc.sequence++
 		}
@@ -99,19 +98,18 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		// return data if this was the last packet
 		if pktLen < maxPacketSize {
 			// zero allocations for non-split packets
-			if prevData == nil {
-				if invalid {
-					mc.close()
-					// return sync error only for regular packet.
-					// error packets may have wrong sequence number.
-					if data[0] != iERR {
-						return nil, ErrPktSync
-					}
-				}
-				return data, nil
+			if prevData != nil {
+				data = append(prevData, data...)
 			}
-
-			return append(prevData, data...), nil
+			if invalidSequence {
+				mc.close()
+				// return sync error only for regular packet.
+				// error packets may have wrong sequence number.
+				if data[0] != iERR {
+					return nil, ErrPktSync
+				}
+			}
+			return data, nil
 		}
 
 		prevData = append(prevData, data...)

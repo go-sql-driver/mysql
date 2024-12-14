@@ -150,9 +150,8 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 		t.Fatalf("connecting %q: %s", dsn, err)
 	}
 	defer db.Close()
-
-	cleanup := func() {
-		db.Exec("DROP TABLE IF EXISTS test")
+	if err = db.Ping(); err != nil {
+		t.Fatalf("connecting %q: %s", dsn, err)
 	}
 
 	dsn2 := dsn + "&interpolateParams=true"
@@ -173,23 +172,31 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	}
 	defer db3.Close()
 
+	cleanupSql := "DROP TABLE IF EXISTS test"
+
 	for _, test := range tests {
 		test := test
 		t.Run("default", func(t *testing.T) {
 			dbt := &DBTest{t, db}
-			t.Cleanup(cleanup)
+			t.Cleanup(func() {
+				db.Exec(cleanupSql)
+			})
 			test(dbt)
 		})
 		if db2 != nil {
 			t.Run("interpolateParams", func(t *testing.T) {
 				dbt2 := &DBTest{t, db2}
-				t.Cleanup(cleanup)
+				t.Cleanup(func() {
+					db2.Exec(cleanupSql)
+				})
 				test(dbt2)
 			})
 		}
 		t.Run("compress", func(t *testing.T) {
 			dbt3 := &DBTest{t, db3}
-			t.Cleanup(cleanup)
+			t.Cleanup(func() {
+				db3.Exec(cleanupSql)
+			})
 			test(dbt3)
 		})
 	}
