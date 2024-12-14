@@ -35,7 +35,7 @@ func compressHelper(t *testing.T, mc *mysqlConn, uncompressedPacket []byte) []by
 }
 
 // uncompressHelper uncompresses compressedPacket and checks state variables
-func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expSize int) []byte {
+func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte) []byte {
 	// mocking out buf variable
 	conn := new(mockConn)
 	conn.data = compressedPacket
@@ -47,16 +47,13 @@ func uncompressHelper(t *testing.T, mc *mysqlConn, compressedPacket []byte, expS
 			t.Fatalf("non-nil/non-EOF error when reading contents: %s", err.Error())
 		}
 	}
-	if len(uncompressedPacket) != expSize {
-		t.Errorf("uncompressed size is unexpected. expected %d but got %d", expSize, len(uncompressedPacket))
-	}
 	return uncompressedPacket
 }
 
 // roundtripHelper compresses then uncompresses uncompressedPacket and checks state variables
 func roundtripHelper(t *testing.T, cSend *mysqlConn, cReceive *mysqlConn, uncompressedPacket []byte) []byte {
 	compressed := compressHelper(t, cSend, uncompressedPacket)
-	return uncompressHelper(t, cReceive, compressed, len(uncompressedPacket))
+	return uncompressHelper(t, cReceive, compressed)
 }
 
 // TestRoundtrip tests two connections, where one is reading and the other is writing
@@ -102,10 +99,13 @@ func TestRoundtrip(t *testing.T) {
 			cReceive.resetSequence()
 
 			uncompressed := roundtripHelper(t, cSend, cReceive, test.uncompressed)
-			if !bytes.Equal(uncompressed, test.uncompressed) {
-				t.Fatalf("roundtrip failed")
+			if len(uncompressed) != len(test.uncompressed) {
+				t.Errorf("uncompressed size is unexpected. expected %d but got %d",
+					len(test.uncompressed), len(uncompressed))
 			}
-
+			if !bytes.Equal(uncompressed, test.uncompressed) {
+				t.Errorf("roundtrip failed")
+			}
 			if cSend.sequence != cReceive.sequence {
 				t.Errorf("inconsistent sequence number: send=%v recv=%v",
 					cSend.sequence, cReceive.sequence)
