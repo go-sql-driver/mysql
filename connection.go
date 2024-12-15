@@ -40,6 +40,7 @@ type mysqlConn struct {
 
 	// for context support (Go 1.8+)
 	watching bool
+	authed   bool
 	watcher  chan<- context.Context
 	closech  chan struct{}
 	finished chan<- struct{}
@@ -436,9 +437,15 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 }
 
 // cancel is called when the query has canceled.
-func (mc *mysqlConn) cancel(err error) {
+func (mc *mysqlConn) cancel(err error) error {
 	mc.canceled.Set(err)
+	if mc.authed {
+		return mc.Close()
+	}
+
 	mc.cleanup()
+
+	return nil
 }
 
 // finish is called when the query has succeeded.
@@ -624,7 +631,9 @@ func (mc *mysqlConn) startWatcher() {
 
 			select {
 			case <-ctx.Done():
-				mc.cancel(ctx.Err())
+				if err := mc.cancel(ctx.Err()); err != nil {
+					mc.log(err)
+				}
 			case <-finished:
 			case <-mc.closech:
 				return

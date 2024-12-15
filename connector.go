@@ -169,6 +169,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		mc.cleanup()
 		return nil, err
 	}
+	mc.authed = true
 
 	if mc.cfg.MaxAllowedPacket > 0 {
 		mc.maxAllowedPacket = mc.cfg.MaxAllowedPacket
