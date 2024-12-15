@@ -435,7 +435,7 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 	return nil, err
 }
 
-// finish is called when the query has canceled.
+// cancel is called when the query has canceled.
 func (mc *mysqlConn) cancel(err error) {
 	mc.canceled.Set(err)
 	mc.cleanup()
