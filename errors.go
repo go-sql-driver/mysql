@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync/atomic"
 )
 
 // Various errors the driver might return. Can change between driver versions.
@@ -37,7 +38,11 @@ var (
 	errBadConnNoWrite = errors.New("bad connection")
 )
 
-var defaultLogger = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime))
+var defaultLogger atomic.Pointer[Logger]
+
+func init() {
+	SetLogger(Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime)))
+}
 
 // Logger is used to log critical error messages.
 type Logger interface {
@@ -56,8 +61,18 @@ func SetLogger(logger Logger) error {
 	if logger == nil {
 		return errors.New("logger is nil")
 	}
-	defaultLogger = logger
+	defaultLogger.Store(&logger)
 	return nil
+}
+
+func getLogger() Logger {
+	l := defaultLogger.Load()
+	if l == nil {
+		// Use thread-safe logger initialization
+		return &NopLogger{}
+	}
+
+	return *l
 }
 
 // MySQLError is an error type which represents a single MySQL error

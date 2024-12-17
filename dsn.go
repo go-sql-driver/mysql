@@ -89,7 +89,7 @@ func NewConfig() *Config {
 	cfg := &Config{
 		Loc:                  time.UTC,
 		MaxAllowedPacket:     defaultMaxAllowedPacket,
-		Logger:               defaultLogger,
+		Logger:               getLogger(),
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
 	}
@@ -203,7 +203,7 @@ func (cfg *Config) normalize() error {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = defaultLogger
+		cfg.Logger = getLogger()
 	}
 
 	return nil

@@ -2141,7 +2141,7 @@ func TestInsertRetrieveEscapedData(t *testing.T) {
 func TestUnixSocketAuthFail(t *testing.T) {
 	runTests(t, dsn, func(dbt *DBTest) {
 		// Save the current logger so we can restore it.
-		oldLogger := defaultLogger
+		oldLogger := getLogger()
 
 		// Set a new logger so we can capture its output.
 		buffer := bytes.NewBuffer(make([]byte, 0, 64))
