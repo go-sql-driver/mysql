@@ -297,6 +297,10 @@ func (cfg *Config) FormatDSN() string {
 		writeDSNParam(&buf, &hasParam, "columnsWithAlias", "true")
 	}
 
+	if cfg.ConnectionAttributes != "" {
+		writeDSNParam(&buf, &hasParam, "connectionAttributes", url.QueryEscape(cfg.ConnectionAttributes))
+	}
+
 	if cfg.InterpolateParams {
 		writeDSNParam(&buf, &hasParam, "interpolateParams", "true")
 	}

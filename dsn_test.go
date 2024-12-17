@@ -77,6 +77,9 @@ var testDSNs = []struct {
 }, {
 	"user:password@/dbname?loc=UTC&timeout=30s&parseTime=true&timeTruncate=1h",
 	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Loc: time.UTC, Timeout: 30 * time.Second, ParseTime: true, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, timeTruncate: time.Hour},
+}, {
+	"foo:bar@tcp(192.168.1.50:3307)/baz?timeout=10s&connectionAttributes=program_name:MySQLGoDriver%2FTest,program_version:1.2.3",
+	&Config{User: "foo", Passwd: "bar", Net: "tcp", Addr: "192.168.1.50:3307", DBName: "baz", Loc: time.UTC, Timeout: 10 * time.Second, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, ConnectionAttributes: "program_name:MySQLGoDriver/Test,program_version:1.2.3"},
 },
 }
 
@@ -109,7 +112,8 @@ func TestDSNParserInvalid(t *testing.T) {
 		"User:pass@tcp(1.2.3.4:3306)",           // no trailing slash
 		"net()/",                                // unknown default addr
 		"user:pass@tcp(127.0.0.1:3306)/db/name", // invalid dbname
-		"user:password@/dbname?allowFallbackToPlaintext=PREFERRED", // wrong bool flag
+		"user:password@/dbname?allowFallbackToPlaintext=PREFERRED",          // wrong bool flag
+		"user:password@/dbname?connectionAttributes=attr1:/unescaped/value", // unescaped
 		//"/dbname?arg=/some/unescaped/path",
 	}
 
