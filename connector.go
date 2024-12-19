@@ -165,6 +165,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		mc.cleanup()
 		return nil, err
 	}
+	mc.authed = true
 
 	if mc.cfg.compress && mc.flags&clientCompress == clientCompress {
 		mc.compress = true
