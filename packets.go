@@ -329,16 +329,10 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	}
 
 	// ClientFlags [32 bit]
-	data[4] = byte(clientFlags)
-	data[5] = byte(clientFlags >> 8)
-	data[6] = byte(clientFlags >> 16)
-	data[7] = byte(clientFlags >> 24)
+	binary.LittleEndian.PutUint32(data[4:], uint32(clientFlags))
 
 	// MaxPacketSize [32 bit] (none)
-	data[8] = 0x00
-	data[9] = 0x00
-	data[10] = 0x00
-	data[11] = 0x00
+	binary.LittleEndian.PutUint32(data[8:], 0)
 
 	// Collation ID [1 byte]
 	data[12] = defaultCollationID
@@ -478,10 +472,7 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	data[4] = command
 
 	// Add arg [32 bit]
-	data[5] = byte(arg)
-	data[6] = byte(arg >> 8)
-	data[7] = byte(arg >> 16)
-	data[8] = byte(arg >> 24)
+	binary.LittleEndian.PutUint32(data[5:], arg)
 
 	// Send CMD packet
 	return mc.writePacket(data)
@@ -955,14 +946,10 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 		data[4] = comStmtSendLongData
 
 		// Add stmtID [32 bit]
-		data[5] = byte(stmt.id)
-		data[6] = byte(stmt.id >> 8)
-		data[7] = byte(stmt.id >> 16)
-		data[8] = byte(stmt.id >> 24)
+		binary.LittleEndian.PutUint32(data[5:], stmt.id)
 
 		// Add paramID [16 bit]
-		data[9] = byte(paramID)
-		data[10] = byte(paramID >> 8)
+		binary.LittleEndian.PutUint16(data[9:], uint16(paramID))
 
 		// Send CMD packet
 		err := stmt.mc.writePacket(data[:4+pktLen])
@@ -1018,19 +1005,13 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	data[4] = comStmtExecute
 
 	// statement_id [4 bytes]
-	data[5] = byte(stmt.id)
-	data[6] = byte(stmt.id >> 8)
-	data[7] = byte(stmt.id >> 16)
-	data[8] = byte(stmt.id >> 24)
+	binary.LittleEndian.PutUint32(data[5:], stmt.id)
 
 	// flags (0: CURSOR_TYPE_NO_CURSOR) [1 byte]
 	data[9] = 0x00
 
 	// iteration_count (uint32(1)) [4 bytes]
-	data[10] = 0x01
-	data[11] = 0x00
-	data[12] = 0x00
-	data[13] = 0x00
+	binary.LittleEndian.PutUint32(data[10:], 1)
 
 	if len(args) > 0 {
 		pos := minPktLen
@@ -1084,50 +1065,17 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			case int64:
 				paramTypes[i+i] = byte(fieldTypeLongLong)
 				paramTypes[i+i+1] = 0x00
-
-				if cap(paramValues)-len(paramValues)-8 >= 0 {
-					paramValues = paramValues[:len(paramValues)+8]
-					binary.LittleEndian.PutUint64(
-						paramValues[len(paramValues)-8:],
-						uint64(v),
-					)
-				} else {
-					paramValues = append(paramValues,
-						uint64ToBytes(uint64(v))...,
-					)
-				}
+				paramValues = binary.LittleEndian.AppendUint64(paramValues, uint64(v))
 
 			case uint64:
 				paramTypes[i+i] = byte(fieldTypeLongLong)
 				paramTypes[i+i+1] = 0x80 // type is unsigned
-
-				if cap(paramValues)-len(paramValues)-8 >= 0 {
-					paramValues = paramValues[:len(paramValues)+8]
-					binary.LittleEndian.PutUint64(
-						paramValues[len(paramValues)-8:],
-						uint64(v),
-					)
-				} else {
-					paramValues = append(paramValues,
-						uint64ToBytes(uint64(v))...,
-					)
-				}
+				paramValues = binary.LittleEndian.AppendUint64(paramValues, uint64(v))
 
 			case float64:
 				paramTypes[i+i] = byte(fieldTypeDouble)
 				paramTypes[i+i+1] = 0x00
-
-				if cap(paramValues)-len(paramValues)-8 >= 0 {
-					paramValues = paramValues[:len(paramValues)+8]
-					binary.LittleEndian.PutUint64(
-						paramValues[len(paramValues)-8:],
-						math.Float64bits(v),
-					)
-				} else {
-					paramValues = append(paramValues,
-						uint64ToBytes(math.Float64bits(v))...,
-					)
-				}
+				paramValues = binary.LittleEndian.AppendUint64(paramValues, math.Float64bits(v))
 
 			case bool:
 				paramTypes[i+i] = byte(fieldTypeTiny)
