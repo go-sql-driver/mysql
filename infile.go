@@ -172,6 +172,7 @@ func (mc *okHandler) handleInFileRequest(name string) (err error) {
 	if ioErr := mc.conn().writePacket(data[:4]); ioErr != nil {
 		return ioErr
 	}
+	mc.conn().syncSequence()
 
 	// read OK packet
 	if err == nil {

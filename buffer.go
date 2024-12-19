@@ -10,12 +10,15 @@ package mysql
 
 import (
 	"io"
-	"net"
-	"time"
 )
 
 const defaultBufSize = 4096
 const maxCachedBufSize = 256 * 1024
+
+// readerFunc is a function that compatible with io.Reader.
+// We use this function type instead of io.Reader because we want to
+// just pass mc.readWithTimeout.
+type readerFunc func([]byte) (int, error)
 
 // A buffer which is used for both reading and writing.
 // This is possible since communication on each connection is synchronous.
@@ -25,15 +28,12 @@ const maxCachedBufSize = 256 * 1024
 type buffer struct {
 	buf       []byte // read buffer.
 	cachedBuf []byte // buffer that will be reused. len(cachedBuf) <= maxCachedBufSize.
-	nc        net.Conn
-	timeout   time.Duration
 }
 
 // newBuffer allocates and returns a new buffer.
-func newBuffer(nc net.Conn) buffer {
+func newBuffer() buffer {
 	return buffer{
 		cachedBuf: make([]byte, defaultBufSize),
-		nc:        nc,
 	}
 }
 
@@ -43,7 +43,7 @@ func (b *buffer) busy() bool {
 }
 
 // fill reads into the read buffer until at least _need_ bytes are in it.
-func (b *buffer) fill(need int) error {
+func (b *buffer) fill(need int, r readerFunc) error {
 	// we'll move the contents of the current buffer to dest before filling it.
 	dest := b.cachedBuf
 
@@ -64,13 +64,7 @@ func (b *buffer) fill(need int) error {
 	copy(dest[:n], b.buf)
 
 	for {
-		if b.timeout > 0 {
-			if err := b.nc.SetReadDeadline(time.Now().Add(b.timeout)); err != nil {
-				return err
-			}
-		}
-
-		nn, err := b.nc.Read(dest[n:])
+		nn, err := r(dest[n:])
 		n += nn
 
 		if err == nil && n < need {
@@ -92,10 +86,10 @@ func (b *buffer) fill(need int) error {
 
 // returns next N bytes from buffer.
 // The returned slice is only guaranteed to be valid until the next read
-func (b *buffer) readNext(need int) ([]byte, error) {
+func (b *buffer) readNext(need int, r readerFunc) ([]byte, error) {
 	if len(b.buf) < need {
 		// refill
-		if err := b.fill(need); err != nil {
+		if err := b.fill(need, r); err != nil {
 			return nil, err
 		}
 	}
