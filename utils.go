@@ -49,9 +49,33 @@ var (
 //	    log.Fatal(err)
 //	}
 //	clientCert = append(clientCert, certs)
+//	cipherSuites := []uint16{
+//		// These 10 are the normal Go 1.22+ defaults
+//		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+//		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+//		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+//		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+//		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+//		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+//		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+//		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+//		tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+//		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+//
+//		// These 4 use RSA key exchange, no longer included by default in Go 1.22+
+//		// but often needed to connect to MySQL 5.7, MariaDB 10.1, or anything older
+//		tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+//		tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+//		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+//		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+//	}
 //	mysql.RegisterTLSConfig("custom", &tls.Config{
 //	    RootCAs: rootCertPool,
 //	    Certificates: clientCert,
+//
+//	    // Only include the following two lines when supporting older servers
+//	    CipherSuites: cipherSuites,     // in Go 1.22+, allow TLS connection to MySQL 5.x or MariaDB 10.1 or older
+//	    MinVersion: tls.VersionTLS10,   // in Go 1.18+, allow TLS connection to MySQL 5.6 or older
 //	})
 //	db, err := sql.Open("mysql", "user@tcp(localhost:3306)/test?tls=custom")
 func RegisterTLSConfig(key string, config *tls.Config) error {

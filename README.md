@@ -181,7 +181,11 @@ Valid Values:   true, false
 Default:        false
 ```
 
-`allowFallbackToPlaintext=true` acts like a `--ssl-mode=PREFERRED` MySQL client as described in [Command Options for Connecting to the Server](https://dev.mysql.com/doc/refman/5.7/en/connection-options.html#option_general_ssl-mode)
+`allowFallbackToPlaintext=true` permits fallback to an unencrypted connection if the server is not configured to use TLS. This behavior is enabled automatically when using `tls=preferred`, but it is also available as a separate parameter to allow plaintext fallback when using a custom TLS configuration.
+
+Plaintext fallback only occurs if the server is not configured to use TLS at all. MySQL 5.7+ and MariaDB 11.4+ ship with TLS support pre-enabled by default using a self-signed server cert, so plaintext fallback typically won't occur with these server versions.
+
+Setting `allowFallbackToPlaintext=true` does **not** allow plaintext fallback in situations where the server has TLS enabled but is incompatible with the client configuration's cipher suites or TLS version. In recent Golang versions, establishing an encrypted connection to older server versions (e.g. MySQL 5.x or MariaDB 10.1) often requires a custom TLS configuration which allows RSA key exchange cipher suites. Very old server versions also require reducing the client's minimum TLS version. See documentation for [`mysql.RegisterTLSConfig`](https://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig) for example code.
 
 ##### `allowNativePasswords`
 
@@ -431,8 +435,9 @@ Valid Values:   true, false, skip-verify, preferred, <name>
 Default:        false
 ```
 
-`tls=true` enables TLS / SSL encrypted connection to the server. Use `skip-verify` if you want to use a self-signed or invalid certificate (server side) or use `preferred` to use TLS only when advertised by the server. This is similar to `skip-verify`, but additionally allows a fallback to a connection which is not encrypted. Neither `skip-verify` nor `preferred` add any reliable security. You can use a custom TLS config after registering it with [`mysql.RegisterTLSConfig`](https://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).
+`tls=true` enables TLS / SSL encrypted connection to the server. Use `skip-verify` if you want to use a self-signed or invalid certificate (server side) or use `preferred` to use TLS only when advertised by the server. Using `tls=preferred` is equivalent to setting `tls=skip-verify&allowFallbackToPlaintext=true`, which permits fallback to an unencrypted connection if the server is not configured to use TLS at all. Neither `skip-verify` nor `preferred` add any reliable security. You can use a custom TLS config after registering it with [`mysql.RegisterTLSConfig`](https://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).
 
+In recent Golang versions, establishing an encrypted connection to older server versions (MySQL 5.x or MariaDB 10.1) often requires a custom TLS configuration, in order to allow RSA key exchange cipher suites and a lower minimum TLS version. See documentation for [`mysql.RegisterTLSConfig`](https://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig) for example code.
 
 ##### `writeTimeout`
 
