@@ -28,15 +28,17 @@ type mysqlConn struct {
 	netConn          net.Conn
 	rawConn          net.Conn    // underlying connection when netConn is TLS connection.
 	result           mysqlResult // managed by clearResult() and handleOkPacket().
+	compIO           *compIO
 	cfg              *Config
 	connector        *connector
 	maxAllowedPacket int
 	maxWriteSize     int
-	writeTimeout     time.Duration
 	flags            clientFlag
 	status           statusFlag
 	sequence         uint8
+	compressSequence uint8
 	parseTime        bool
+	compress         bool
 
 	// for context support (Go 1.8+)
 	watching bool
@@ -60,6 +62,43 @@ func (mc *mysqlConn) log(v ...any) {
 	}
 
 	mc.cfg.Logger.Print(v...)
+}
+
+func (mc *mysqlConn) readWithTimeout(b []byte) (int, error) {
+	to := mc.cfg.ReadTimeout
+	if to > 0 {
+		if err := mc.netConn.SetReadDeadline(time.Now().Add(to)); err != nil {
+			return 0, err
+		}
+	}
+	return mc.netConn.Read(b)
+}
+
+func (mc *mysqlConn) writeWithTimeout(b []byte) (int, error) {
+	to := mc.cfg.WriteTimeout
+	if to > 0 {
+		if err := mc.netConn.SetWriteDeadline(time.Now().Add(to)); err != nil {
+			return 0, err
+		}
+	}
+	return mc.netConn.Write(b)
+}
+
+func (mc *mysqlConn) resetSequence() {
+	mc.sequence = 0
+	mc.compressSequence = 0
+}
+
+// syncSequence must be called when finished writing some packet and before start reading.
+func (mc *mysqlConn) syncSequence() {
+	// Syncs compressionSequence to sequence.
+	// This is not documented but done in `net_flush()` in MySQL and MariaDB.
+	// https://github.com/mariadb-corporation/mariadb-connector-c/blob/8228164f850b12353da24df1b93a1e53cc5e85e9/libmariadb/ma_net.c#L170-L171
+	// https://github.com/mysql/mysql-server/blob/824e2b4064053f7daf17d7f3f84b7a3ed92e5fb4/sql-common/net_serv.cc#L293
+	if mc.compress {
+		mc.sequence = mc.compressSequence
+		mc.compIO.reset()
+	}
 }
 
 // Handles parameters set in DSN after the connection is established
@@ -121,10 +160,14 @@ func (mc *mysqlConn) Close() (err error) {
 	if !mc.closed.Load() {
 		err = mc.writeCommandPacket(comQuit)
 	}
+	mc.close()
+	return
+}
 
+// close closes the network connection and clear results without sending COM_QUIT.
+func (mc *mysqlConn) close() {
 	mc.cleanup()
 	mc.clearResult()
-	return
 }
 
 // Closes the network connection and unsets internal variables. Do not call this
@@ -143,7 +186,7 @@ func (mc *mysqlConn) cleanup() {
 		return
 	}
 	if err := conn.Close(); err != nil {
-		mc.log(err)
+		mc.log("closing connection:", err)
 	}
 	// This function can be called from multiple goroutines.
 	// So we can not mc.clearResult() here.
@@ -431,7 +474,7 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 	return nil, err
 }
 
-// finish is called when the query has canceled.
+// cancel is called when the query has canceled.
 func (mc *mysqlConn) cancel(err error) {
 	mc.canceled.Set(err)
 	mc.cleanup()
@@ -637,7 +680,7 @@ func (mc *mysqlConn) CheckNamedValue(nv *driver.NamedValue) (err error) {
 // ResetSession implements driver.SessionResetter.
 // (From Go 1.10)
 func (mc *mysqlConn) ResetSession(ctx context.Context) error {
-	if mc.closed.Load() {
+	if mc.closed.Load() || mc.buf.busy() {
 		return driver.ErrBadConn
 	}
 
@@ -671,7 +714,7 @@ func (mc *mysqlConn) ResetSession(ctx context.Context) error {
 // IsValid implements driver.Validator interface
 // (From Go 1.15)
 func (mc *mysqlConn) IsValid() bool {
-	return !mc.closed.Load()
+	return !mc.closed.Load() && !mc.buf.busy()
 }
 
 var _ driver.SessionResetter = &mysqlConn{}

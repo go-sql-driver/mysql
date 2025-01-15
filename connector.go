@@ -127,11 +127,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 	defer mc.finish()
 
-	mc.buf = newBuffer(mc.netConn)
-
-	// Set I/O timeouts
-	mc.buf.timeout = mc.cfg.ReadTimeout
-	mc.writeTimeout = mc.cfg.WriteTimeout
+	mc.buf = newBuffer()
 
 	// Reading Handshake Initialization Packet
 	authData, plugin, err := mc.readHandshakePacket()
@@ -170,6 +166,10 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 
+	if mc.cfg.compress && mc.flags&clientCompress == clientCompress {
+		mc.compress = true
+		mc.compIO = newCompIO(mc)
+	}
 	if mc.cfg.MaxAllowedPacket > 0 {
 		mc.maxAllowedPacket = mc.cfg.MaxAllowedPacket
 	} else {
