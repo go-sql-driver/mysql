@@ -524,16 +524,6 @@ func uint64ToString(n uint64) []byte {
 	return a[i:]
 }
 
-// treats string value as unsigned integer representation
-func stringToInt(b []byte) int {
-	val := 0
-	for i := range b {
-		val *= 10
-		val += int(b[i] - 0x30)
-	}
-	return val
-}
-
 // returns the string read as a bytes slice, whether the value is NULL,
 // the number of bytes read and an error, in case the string is longer than
 // the input slice
