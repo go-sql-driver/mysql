@@ -11,6 +11,7 @@ package mysql
 import (
 	"context"
 	"database/sql/driver"
+	"fmt"
 	"net"
 	"os"
 	"strconv"
@@ -179,7 +180,12 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 			mc.Close()
 			return nil, err
 		}
-		mc.maxAllowedPacket = stringToInt(maxap) - 1
+		n, err := strconv.Atoi(string(maxap))
+		if err != nil {
+			mc.Close()
+			return nil, fmt.Errorf("invalid max_allowed_packet value (%q): %w", maxap, err)
+		}
+		mc.maxAllowedPacket = n - 1
 	}
 	if mc.maxAllowedPacket < maxPacketSize {
 		mc.maxWriteSize = mc.maxAllowedPacket
