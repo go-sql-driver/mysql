@@ -19,6 +19,7 @@
 - Add "filename:line" prefix to log in go-mysql. Custom loggers now show it. (#1589)
 - Improve error handling. It reduces the "busy buffer" errors. (#1595, #1601, #1641)
 - Use `strconv.Atoi` to parse max_allowed_packet. (#1661)
+- `rejectReadOnly` option now handles ER_READ_ONLY_MODE (1290) error too. (#1660)
 
 
 ## Version 1.8.1 (2024-03-26)
