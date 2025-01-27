@@ -509,7 +509,12 @@ func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
 			return nil, "", ErrMalformPkt
 		}
 		plugin := string(data[1:pluginEndIndex])
-		authData := data[pluginEndIndex+1:]
+		var authData []byte
+		if pluginEndIndex == len(data)-1 {
+			authData = data[pluginEndIndex+1:]
+		} else {
+			authData = data[pluginEndIndex+1 : len(data)-1]
+		}
 		return authData, plugin, nil
 
 	default: // Error otherwise
