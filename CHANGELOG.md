@@ -13,6 +13,7 @@
 
 - Fix auth errors when username/password are too long. (#1625)
 - Check if MySQL supports CLIENT_CONNECT_ATTRS before sending client attributes. (#1640)
+- Fix auth switch request handling. (#1666)
 
 ### Other changes
 
