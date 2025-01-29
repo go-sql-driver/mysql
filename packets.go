@@ -510,6 +510,9 @@ func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
 		}
 		plugin := string(data[1:pluginEndIndex])
 		authData := data[pluginEndIndex+1:]
+		if len(authData) > 0 && authData[len(authData)-1] == 0 {
+			authData = authData[:len(authData)-1]
+		}
 		return authData, plugin, nil
 
 	default: // Error otherwise
