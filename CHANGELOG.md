@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.9.0 (2025-01-XX)
+## v1.9.0 (2025-02-18)
 
 ### Major Changes
 
