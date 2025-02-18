@@ -3608,6 +3608,12 @@ func runCallCommand(dbt *DBTest, query, name string) {
 func TestIssue1567(t *testing.T) {
 	// enable TLS.
 	runTests(t, dsn+"&tls=skip-verify", func(dbt *DBTest) {
+		var max int
+		err := dbt.db.QueryRow("SELECT @@max_connections").Scan(&max)
+		if err != nil {
+			dbt.Fatalf("%s", err.Error())
+		}
+
 		// disable connection pooling.
 		// data race happens when new connection is created.
 		dbt.db.SetMaxIdleConns(0)
@@ -3626,6 +3632,9 @@ func TestIssue1567(t *testing.T) {
 		count := 1000
 		if testing.Short() {
 			count = 10
+		}
+		if count > max {
+			count = max
 		}
 
 		for i := 0; i < count; i++ {
