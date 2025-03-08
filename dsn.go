@@ -309,6 +309,7 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.ConnectionAttributes != "" {
 		writeDSNParam(&buf, &hasParam, "connectionAttributes", url.QueryEscape(cfg.ConnectionAttributes))
+	}
 
 	if cfg.compress {
 		writeDSNParam(&buf, &hasParam, "compress", "true")
