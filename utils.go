@@ -490,17 +490,16 @@ func formatBinaryTime(src []byte, length uint8) (driver.Value, error) {
 *                       Convert from and to bytes                             *
 ******************************************************************************/
 
-func uint64ToBytes(n uint64) []byte {
-	return []byte{
-		byte(n),
-		byte(n >> 8),
-		byte(n >> 16),
-		byte(n >> 24),
-		byte(n >> 32),
-		byte(n >> 40),
-		byte(n >> 48),
-		byte(n >> 56),
-	}
+// 24bit integer: used for packet headers.
+
+func putUint24(data []byte, n int) {
+	data[2] = byte(n >> 16)
+	data[1] = byte(n >> 8)
+	data[0] = byte(n)
+}
+
+func getUint24(data []byte) int {
+	return int(data[2])<<16 | int(data[1])<<8 | int(data[0])
 }
 
 func uint64ToString(n uint64) []byte {
@@ -523,16 +522,6 @@ func uint64ToString(n uint64) []byte {
 	a[i] = uint8(n) + 0x30
 
 	return a[i:]
-}
-
-// treats string value as unsigned integer representation
-func stringToInt(b []byte) int {
-	val := 0
-	for i := range b {
-		val *= 10
-		val += int(b[i] - 0x30)
-	}
-	return val
 }
 
 // returns the string read as a bytes slice, whether the value is NULL,
@@ -586,18 +575,15 @@ func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
 
 	// 252: value of following 2
 	case 0xfc:
-		return uint64(b[1]) | uint64(b[2])<<8, false, 3
+		return uint64(binary.LittleEndian.Uint16(b[1:])), false, 3
 
 	// 253: value of following 3
 	case 0xfd:
-		return uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16, false, 4
+		return uint64(getUint24(b[1:])), false, 4
 
 	// 254: value of following 8
 	case 0xfe:
-		return uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16 |
-				uint64(b[4])<<24 | uint64(b[5])<<32 | uint64(b[6])<<40 |
-				uint64(b[7])<<48 | uint64(b[8])<<56,
-			false, 9
+		return uint64(binary.LittleEndian.Uint64(b[1:])), false, 9
 	}
 
 	// 0-250: value of first byte
@@ -611,13 +597,14 @@ func appendLengthEncodedInteger(b []byte, n uint64) []byte {
 		return append(b, byte(n))
 
 	case n <= 0xffff:
-		return append(b, 0xfc, byte(n), byte(n>>8))
+		b = append(b, 0xfc)
+		return binary.LittleEndian.AppendUint16(b, uint16(n))
 
 	case n <= 0xffffff:
 		return append(b, 0xfd, byte(n), byte(n>>8), byte(n>>16))
 	}
-	return append(b, 0xfe, byte(n), byte(n>>8), byte(n>>16), byte(n>>24),
-		byte(n>>32), byte(n>>40), byte(n>>48), byte(n>>56))
+	b = append(b, 0xfe)
+	return binary.LittleEndian.AppendUint64(b, n)
 }
 
 func appendLengthEncodedString(b []byte, s string) []byte {

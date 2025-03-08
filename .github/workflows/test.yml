@@ -15,9 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dominikh/staticcheck-action@v1.3.0
-        with:
-          version: "2023.1.6"
+      - uses: dominikh/staticcheck-action@v1.3.1
 
   list:
     runs-on: ubuntu-latest
@@ -31,10 +29,10 @@ jobs:
           import os
           go = [
               # Keep the most recent production release at the top
-              '1.22',
+              '1.23',
               # Older production releases
+              '1.22',
               '1.21',
-              '1.20',
           ]
           mysql = [
               '9.0',
@@ -85,7 +83,7 @@ jobs:
           my-cnf: |
             innodb_log_file_size=256MB
             innodb_buffer_pool_size=512MB
-            max_allowed_packet=16MB
+            max_allowed_packet=48MB
             ; TestConcurrent fails if max_connections is too large
             max_connections=50
             local_infile=1

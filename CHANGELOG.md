@@ -1,3 +1,28 @@
+# Changelog
+
+## v1.9.0 (2025-02-18)
+
+### Major Changes
+
+- Implement zlib compression. (#1487)
+- Supported Go version is updated to Go 1.21+. (#1639)
+- Add support for VECTOR type introduced in MySQL 9.0. (#1609)
+- Config object can have custom dial function. (#1527)
+
+### Bugfixes
+
+- Fix auth errors when username/password are too long. (#1625)
+- Check if MySQL supports CLIENT_CONNECT_ATTRS before sending client attributes. (#1640)
+- Fix auth switch request handling. (#1666)
+
+### Other changes
+
+- Add "filename:line" prefix to log in go-mysql. Custom loggers now show it. (#1589)
+- Improve error handling. It reduces the "busy buffer" errors. (#1595, #1601, #1641)
+- Use `strconv.Atoi` to parse max_allowed_packet. (#1661)
+- `rejectReadOnly` option now handles ER_READ_ONLY_MODE (1290) error too. (#1660)
+
+
 ## Version 1.8.1 (2024-03-26)
 
 Bugfixes:

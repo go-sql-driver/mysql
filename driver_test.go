@@ -147,12 +147,11 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 
 	db, err := sql.Open(driverNameTest, dsn)
 	if err != nil {
-		t.Fatalf("error connecting: %s", err.Error())
+		t.Fatalf("connecting %q: %s", dsn, err)
 	}
 	defer db.Close()
-
-	cleanup := func() {
-		db.Exec("DROP TABLE IF EXISTS test")
+	if err = db.Ping(); err != nil {
+		t.Fatalf("connecting %q: %s", dsn, err)
 	}
 
 	dsn2 := dsn + "&interpolateParams=true"
@@ -160,25 +159,46 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	if _, err := ParseDSN(dsn2); err != errInvalidDSNUnsafeCollation {
 		db2, err = sql.Open(driverNameTest, dsn2)
 		if err != nil {
-			t.Fatalf("error connecting: %s", err.Error())
+			t.Fatalf("connecting %q: %s", dsn2, err)
 		}
 		defer db2.Close()
 	}
+
+	dsn3 := dsn + "&compress=true"
+	var db3 *sql.DB
+	db3, err = sql.Open(driverNameTest, dsn3)
+	if err != nil {
+		t.Fatalf("connecting %q: %s", dsn3, err)
+	}
+	defer db3.Close()
+
+	cleanupSql := "DROP TABLE IF EXISTS test"
 
 	for _, test := range tests {
 		test := test
 		t.Run("default", func(t *testing.T) {
 			dbt := &DBTest{t, db}
-			t.Cleanup(cleanup)
+			t.Cleanup(func() {
+				db.Exec(cleanupSql)
+			})
 			test(dbt)
 		})
 		if db2 != nil {
 			t.Run("interpolateParams", func(t *testing.T) {
 				dbt2 := &DBTest{t, db2}
-				t.Cleanup(cleanup)
+				t.Cleanup(func() {
+					db2.Exec(cleanupSql)
+				})
 				test(dbt2)
 			})
 		}
+		t.Run("compress", func(t *testing.T) {
+			dbt3 := &DBTest{t, db3}
+			t.Cleanup(func() {
+				db3.Exec(cleanupSql)
+			})
+			test(dbt3)
+		})
 	}
 }
 
@@ -958,12 +978,16 @@ func TestDateTime(t *testing.T) {
 			var err error
 			rows, err = dbt.db.Query(`SELECT cast("00:00:00.1" as TIME(1)) = "00:00:00.1"`)
 			if err == nil {
-				rows.Scan(&microsecsSupported)
+				if rows.Next() {
+					rows.Scan(&microsecsSupported)
+				}
 				rows.Close()
 			}
 			rows, err = dbt.db.Query(`SELECT cast("0000-00-00" as DATE) = "0000-00-00"`)
 			if err == nil {
-				rows.Scan(&zeroDateSupported)
+				if rows.Next() {
+					rows.Scan(&zeroDateSupported)
+				}
 				rows.Close()
 			}
 			for _, setups := range testcases {
@@ -1265,8 +1289,7 @@ func TestLongData(t *testing.T) {
 		var rows *sql.Rows
 
 		// Long text data
-		const nonDataQueryLen = 28 // length query w/o value
-		inS := in[:maxAllowedPacketSize-nonDataQueryLen]
+		inS := in[:maxAllowedPacketSize-100]
 		dbt.mustExec("INSERT INTO test VALUES('" + inS + "')")
 		rows = dbt.mustQuery("SELECT value FROM test")
 		defer rows.Close()
@@ -3585,6 +3608,12 @@ func runCallCommand(dbt *DBTest, query, name string) {
 func TestIssue1567(t *testing.T) {
 	// enable TLS.
 	runTests(t, dsn+"&tls=skip-verify", func(dbt *DBTest) {
+		var max int
+		err := dbt.db.QueryRow("SELECT @@max_connections").Scan(&max)
+		if err != nil {
+			dbt.Fatalf("%s", err.Error())
+		}
+
 		// disable connection pooling.
 		// data race happens when new connection is created.
 		dbt.db.SetMaxIdleConns(0)
@@ -3603,6 +3632,9 @@ func TestIssue1567(t *testing.T) {
 		count := 1000
 		if testing.Short() {
 			count = 10
+		}
+		if count > max {
+			count = max
 		}
 
 		for i := 0; i < count; i++ {

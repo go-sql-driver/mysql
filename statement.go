@@ -24,11 +24,12 @@ type mysqlStmt struct {
 
 func (stmt *mysqlStmt) Close() error {
 	if stmt.mc == nil || stmt.mc.closed.Load() {
-		// driver.Stmt.Close can be called more than once, thus this function
-		// has to be idempotent.
-		// See also Issue #450 and golang/go#16019.
-		//errLog.Print(ErrInvalidConn)
-		return driver.ErrBadConn
+		// driver.Stmt.Close could be called more than once, thus this function
+		// had to be idempotent. See also Issue #450 and golang/go#16019.
+		// This bug has been fixed in Go 1.8.
+		// https://github.com/golang/go/commit/90b8a0ca2d0b565c7c7199ffcf77b15ea6b6db3a
+		// But we keep this function idempotent because it is safer.
+		return nil
 	}
 
 	err := stmt.mc.writeCommandPacketUint32(comStmtClose, stmt.id)

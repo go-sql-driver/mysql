@@ -44,7 +44,8 @@ type Config struct {
 	DBName               string            // Database name
 	Params               map[string]string // Connection parameters
 	ConnectionAttributes string            // Connection Attributes, comma-delimited string of user-defined "key:value" pairs
-	Collation            string            // Connection collation
+	charsets             []string          // Connection charset. When set, this will be set in SET NAMES <charset> query
+	Collation            string            // Connection collation. When set, this will be set in SET NAMES <charset> COLLATE <collation> query
 	Loc                  *time.Location    // Location for time.Time values
 	MaxAllowedPacket     int               // Max packet size allowed
 	ServerPubKey         string            // Server public key name
@@ -54,6 +55,8 @@ type Config struct {
 	ReadTimeout          time.Duration     // I/O read timeout
 	WriteTimeout         time.Duration     // I/O write timeout
 	Logger               Logger            // Logger
+	// DialFunc specifies the dial function for creating connections
+	DialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
 	// boolean fields
 
@@ -70,7 +73,10 @@ type Config struct {
 	ParseTime                bool // Parse time values to time.Time
 	RejectReadOnly           bool // Reject read-only connections
 
-	// unexported fields. new options should be come here
+	// unexported fields. new options should be come here.
+	// boolean first. alphabetical order.
+
+	compress bool // Enable zlib compression
 
 	beforeConnect func(context.Context, *Config) error // Invoked before a connection is established
 	pubKey        *rsa.PublicKey                       // Server public key
@@ -90,7 +96,6 @@ func NewConfig() *Config {
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
 	}
-
 	return cfg
 }
 
@@ -118,6 +123,14 @@ func TimeTruncate(d time.Duration) Option {
 func BeforeConnect(fn func(context.Context, *Config) error) Option {
 	return func(cfg *Config) error {
 		cfg.beforeConnect = fn
+		return nil
+	}
+}
+
+// EnableCompress sets the compression mode.
+func EnableCompression(yes bool) Option {
+	return func(cfg *Config) error {
+		cfg.compress = yes
 		return nil
 	}
 }
@@ -282,6 +295,10 @@ func (cfg *Config) FormatDSN() string {
 		writeDSNParam(&buf, &hasParam, "clientFoundRows", "true")
 	}
 
+	if charsets := cfg.charsets; len(charsets) > 0 {
+		writeDSNParam(&buf, &hasParam, "charset", strings.Join(charsets, ","))
+	}
+
 	if col := cfg.Collation; col != "" {
 		writeDSNParam(&buf, &hasParam, "collation", col)
 	}
@@ -292,6 +309,9 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.ConnectionAttributes != "" {
 		writeDSNParam(&buf, &hasParam, "connectionAttributes", url.QueryEscape(cfg.ConnectionAttributes))
+
+	if cfg.compress {
+		writeDSNParam(&buf, &hasParam, "compress", "true")
 	}
 
 	if cfg.InterpolateParams {
@@ -505,6 +525,10 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				return errors.New("invalid bool value: " + value)
 			}
 
+		// charset
+		case "charset":
+			cfg.charsets = strings.Split(value, ",")
+
 		// Collation
 		case "collation":
 			cfg.Collation = value
@@ -518,7 +542,11 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// Compression
 		case "compress":
-			return errors.New("compression not implemented yet")
+			var isBool bool
+			cfg.compress, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
 
 		// Enable client side placeholder substitution
 		case "interpolateParams":

@@ -46,9 +46,13 @@ func (tb *TB) checkStmt(stmt *sql.Stmt, err error) *sql.Stmt {
 	return stmt
 }
 
-func initDB(b *testing.B, queries ...string) *sql.DB {
+func initDB(b *testing.B, useCompression bool, queries ...string) *sql.DB {
 	tb := (*TB)(b)
-	db := tb.checkDB(sql.Open(driverNameTest, dsn))
+	comprStr := ""
+	if useCompression {
+		comprStr = "&compress=1"
+	}
+	db := tb.checkDB(sql.Open(driverNameTest, dsn+comprStr))
 	for _, query := range queries {
 		if _, err := db.Exec(query); err != nil {
 			b.Fatalf("error on %q: %v", query, err)
@@ -60,10 +64,18 @@ func initDB(b *testing.B, queries ...string) *sql.DB {
 const concurrencyLevel = 10
 
 func BenchmarkQuery(b *testing.B) {
+	benchmarkQueryHelper(b, false)
+}
+
+func BenchmarkQueryCompression(b *testing.B) {
+	benchmarkQueryHelper(b, true)
+}
+
+func benchmarkQueryHelper(b *testing.B, compr bool) {
 	tb := (*TB)(b)
 	b.StopTimer()
 	b.ReportAllocs()
-	db := initDB(b,
+	db := initDB(b, compr,
 		"DROP TABLE IF EXISTS foo",
 		"CREATE TABLE foo (id INT PRIMARY KEY, val CHAR(50))",
 		`INSERT INTO foo VALUES (1, "one")`,
@@ -222,7 +234,7 @@ func BenchmarkInterpolation(b *testing.B) {
 		},
 		maxAllowedPacket: maxPacketSize,
 		maxWriteSize:     maxPacketSize - 1,
-		buf:              newBuffer(nil),
+		buf:              newBuffer(),
 	}
 
 	args := []driver.Value{
@@ -269,7 +281,7 @@ func benchmarkQueryContext(b *testing.B, db *sql.DB, p int) {
 }
 
 func BenchmarkQueryContext(b *testing.B) {
-	db := initDB(b,
+	db := initDB(b, false,
 		"DROP TABLE IF EXISTS foo",
 		"CREATE TABLE foo (id INT PRIMARY KEY, val CHAR(50))",
 		`INSERT INTO foo VALUES (1, "one")`,
@@ -305,7 +317,7 @@ func benchmarkExecContext(b *testing.B, db *sql.DB, p int) {
 }
 
 func BenchmarkExecContext(b *testing.B) {
-	db := initDB(b,
+	db := initDB(b, false,
 		"DROP TABLE IF EXISTS foo",
 		"CREATE TABLE foo (id INT PRIMARY KEY, val CHAR(50))",
 		`INSERT INTO foo VALUES (1, "one")`,
@@ -323,7 +335,7 @@ func BenchmarkExecContext(b *testing.B) {
 // "size=" means size of each blobs.
 func BenchmarkQueryRawBytes(b *testing.B) {
 	var sizes []int = []int{100, 1000, 2000, 4000, 8000, 12000, 16000, 32000, 64000, 256000}
-	db := initDB(b,
+	db := initDB(b, false,
 		"DROP TABLE IF EXISTS bench_rawbytes",
 		"CREATE TABLE bench_rawbytes (id INT PRIMARY KEY, val LONGBLOB)",
 	)
@@ -376,7 +388,7 @@ func BenchmarkQueryRawBytes(b *testing.B) {
 // BenchmarkReceiveMassiveRows measures performance of receiving large number of rows.
 func BenchmarkReceiveMassiveRows(b *testing.B) {
 	// Setup -- prepare 10000 rows.
-	db := initDB(b,
+	db := initDB(b, false,
 		"DROP TABLE IF EXISTS foo",
 		"CREATE TABLE foo (id INT PRIMARY KEY, val TEXT)")
 	defer db.Close()

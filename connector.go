@@ -11,6 +11,7 @@ package mysql
 import (
 	"context"
 	"database/sql/driver"
+	"fmt"
 	"net"
 	"os"
 	"strconv"
@@ -87,20 +88,25 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	mc.parseTime = mc.cfg.ParseTime
 
 	// Connect to Server
-	dialsLock.RLock()
-	dial, ok := dials[mc.cfg.Net]
-	dialsLock.RUnlock()
-	if ok {
-		dctx := ctx
-		if mc.cfg.Timeout > 0 {
-			var cancel context.CancelFunc
-			dctx, cancel = context.WithTimeout(ctx, c.cfg.Timeout)
-			defer cancel()
-		}
-		mc.netConn, err = dial(dctx, mc.cfg.Addr)
+	dctx := ctx
+	if mc.cfg.Timeout > 0 {
+		var cancel context.CancelFunc
+		dctx, cancel = context.WithTimeout(ctx, c.cfg.Timeout)
+		defer cancel()
+	}
+
+	if c.cfg.DialFunc != nil {
+		mc.netConn, err = c.cfg.DialFunc(dctx, mc.cfg.Net, mc.cfg.Addr)
 	} else {
-		nd := net.Dialer{Timeout: mc.cfg.Timeout}
-		mc.netConn, err = nd.DialContext(ctx, mc.cfg.Net, mc.cfg.Addr)
+		dialsLock.RLock()
+		dial, ok := dials[mc.cfg.Net]
+		dialsLock.RUnlock()
+		if ok {
+			mc.netConn, err = dial(dctx, mc.cfg.Addr)
+		} else {
+			nd := net.Dialer{}
+			mc.netConn, err = nd.DialContext(dctx, mc.cfg.Net, mc.cfg.Addr)
+		}
 	}
 	if err != nil {
 		return nil, err
@@ -122,11 +128,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 	defer mc.finish()
 
-	mc.buf = newBuffer(mc.netConn)
-
-	// Set I/O timeouts
-	mc.buf.timeout = mc.cfg.ReadTimeout
-	mc.writeTimeout = mc.cfg.WriteTimeout
+	mc.buf = newBuffer()
 
 	// Reading Handshake Initialization Packet
 	authData, plugin, err := mc.readHandshakePacket()
@@ -165,6 +167,10 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 
+	if mc.cfg.compress && mc.flags&clientCompress == clientCompress {
+		mc.compress = true
+		mc.compIO = newCompIO(mc)
+	}
 	if mc.cfg.MaxAllowedPacket > 0 {
 		mc.maxAllowedPacket = mc.cfg.MaxAllowedPacket
 	} else {
@@ -174,10 +180,34 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 			mc.Close()
 			return nil, err
 		}
-		mc.maxAllowedPacket = stringToInt(maxap) - 1
+		n, err := strconv.Atoi(string(maxap))
+		if err != nil {
+			mc.Close()
+			return nil, fmt.Errorf("invalid max_allowed_packet value (%q): %w", maxap, err)
+		}
+		mc.maxAllowedPacket = n - 1
 	}
 	if mc.maxAllowedPacket < maxPacketSize {
 		mc.maxWriteSize = mc.maxAllowedPacket
+	}
+
+	// Charset: character_set_connection, character_set_client, character_set_results
+	if len(mc.cfg.charsets) > 0 {
+		for _, cs := range mc.cfg.charsets {
+			// ignore errors here - a charset may not exist
+			if mc.cfg.Collation != "" {
+				err = mc.exec("SET NAMES " + cs + " COLLATE " + mc.cfg.Collation)
+			} else {
+				err = mc.exec("SET NAMES " + cs)
+			}
+			if err == nil {
+				break
+			}
+		}
+		if err != nil {
+			mc.Close()
+			return nil, err
+		}
 	}
 
 	// Handle DSN Params
