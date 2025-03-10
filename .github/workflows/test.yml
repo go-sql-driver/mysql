@@ -29,10 +29,10 @@ jobs:
           import os
           go = [
               # Keep the most recent production release at the top
-              '1.23',
+              '1.24',
               # Older production releases
+              '1.23',
               '1.22',
-              '1.21',
           ]
           mysql = [
               '9.0',
