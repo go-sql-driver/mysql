@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.9.1 (2025-03-21)
+
+### Major Changes
+
+* Add Charset() option. (#1679)
+
+### Bugfixes
+
+* go.mod: fix go version format (#1682)
+* Fix FormatDSN missing ConnectionAttributes (#1619)
+
 ## v1.9.0 (2025-02-18)
 
 ### Major Changes
