@@ -156,7 +156,7 @@ func (rows *mysqlRows) nextResultSet() (int, error) {
 	rows.rs = resultSet{}
 	// rows.mc.affectedRows and rows.mc.insertIds accumulate on each call to
 	// nextResultSet.
-	resLen, err := rows.mc.resultUnchanged().readResultSetHeaderPacket()
+	resLen, _, err := rows.mc.resultUnchanged().readResultSetHeaderPacket()
 	if err != nil {
 		// Clean up about multi-results flag
 		rows.rs.done = true

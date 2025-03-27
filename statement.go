@@ -20,6 +20,7 @@ type mysqlStmt struct {
 	mc         *mysqlConn
 	id         uint32
 	paramCount int
+	columns    []mysqlField
 }
 
 func (stmt *mysqlStmt) Close() error {
@@ -64,7 +65,7 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	handleOk := stmt.mc.clearResult()
 
 	// Read Result
-	resLen, err := handleOk.readResultSetHeaderPacket()
+	resLen, _, err := handleOk.readResultSetHeaderPacket()
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +108,7 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 
 	// Read Result
 	handleOk := stmt.mc.clearResult()
-	resLen, err := handleOk.readResultSetHeaderPacket()
+	resLen, metadataFollows, err := handleOk.readResultSetHeaderPacket()
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +117,20 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 
 	if resLen > 0 {
 		rows.mc = mc
-		rows.rs.columns, err = mc.readColumns(resLen)
+		if metadataFollows {
+			rows.rs.columns, err = mc.readColumns(resLen)
+			if err != nil {
+				return nil, err
+			}
+			stmt.columns = rows.rs.columns
+		} else {
+			// skip EOF Packet
+			_, err := mc.readPacket()
+			if err != nil {
+				return nil, err
+			}
+			rows.rs.columns = stmt.columns
+		}
 	} else {
 		rows.rs.done = true
 

@@ -24,21 +24,22 @@ import (
 )
 
 type mysqlConn struct {
-	buf              buffer
-	netConn          net.Conn
-	rawConn          net.Conn    // underlying connection when netConn is TLS connection.
-	result           mysqlResult // managed by clearResult() and handleOkPacket().
-	compIO           *compIO
-	cfg              *Config
-	connector        *connector
-	maxAllowedPacket int
-	maxWriteSize     int
-	flags            clientFlag
-	status           statusFlag
-	sequence         uint8
-	compressSequence uint8
-	parseTime        bool
-	compress         bool
+	buf                   buffer
+	netConn               net.Conn
+	rawConn               net.Conn    // underlying connection when netConn is TLS connection.
+	result                mysqlResult // managed by clearResult() and handleOkPacket().
+	compIO                *compIO
+	cfg                   *Config
+	connector             *connector
+	maxAllowedPacket      int
+	maxWriteSize          int
+	clientCapabilities    capabilityFlag
+	clientExtCapabilities extendedCapabilityFlag
+	status                statusFlag
+	sequence              uint8
+	compressSequence      uint8
+	parseTime             bool
+	compress              bool
 
 	// for context support (Go 1.8+)
 	watching bool
@@ -229,7 +230,15 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 		}
 
 		if columnCount > 0 {
-			err = mc.readUntilEOF()
+			if mc.clientExtCapabilities&clientCacheMetadata != 0 {
+				stmt.columns, err = mc.readColumns(int(columnCount))
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				// skip column definition packets and intermediate EOF packet
+				err = mc.readUntilEOF()
+			}
 		}
 	}
 
@@ -370,7 +379,7 @@ func (mc *mysqlConn) exec(query string) error {
 	}
 
 	// Read Result
-	resLen, err := handleOk.readResultSetHeaderPacket()
+	resLen, _, err := handleOk.readResultSetHeaderPacket()
 	if err != nil {
 		return err
 	}
@@ -419,7 +428,7 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 
 	// Read Result
 	var resLen int
-	resLen, err = handleOk.readResultSetHeaderPacket()
+	resLen, _, err = handleOk.readResultSetHeaderPacket()
 	if err != nil {
 		return nil, err
 	}
@@ -453,7 +462,7 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 	}
 
 	// Read Result
-	resLen, err := handleOk.readResultSetHeaderPacket()
+	resLen, _, err := handleOk.readResultSetHeaderPacket()
 	if err == nil {
 		rows := new(textRows)
 		rows.mc = mc
