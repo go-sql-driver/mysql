@@ -1630,13 +1630,46 @@ func TestCollation(t *testing.T) {
 		}
 
 		runTests(t, tdsn, func(dbt *DBTest) {
+			// see https://mariadb.com/kb/en/setting-character-sets-and-collations/#changing-default-collation
+			// when character_set_collations is set for the charset, it overrides the default collation
+			// so we need to check if the default collation is overridden
+			forceExpected := expected
+			var defaultCollations string
+			err := dbt.db.QueryRow("SELECT @@character_set_collations").Scan(&defaultCollations)
+			if err == nil {
+				// Query succeeded, need to check if we should override expected collation
+				collationMap := make(map[string]string)
+				pairs := strings.Split(defaultCollations, ",")
+				for _, pair := range pairs {
+					parts := strings.Split(pair, "=")
+					if len(parts) == 2 {
+						collationMap[parts[0]] = parts[1]
+					}
+				}
+
+				// Get charset prefix from expected collation
+				parts := strings.Split(expected, "_")
+				if len(parts) > 0 {
+					charset := parts[0]
+					if newCollation, ok := collationMap[charset]; ok {
+						forceExpected = newCollation
+					}
+				}
+			}
+
 			var got string
 			if err := dbt.db.QueryRow("SELECT @@collation_connection").Scan(&got); err != nil {
 				dbt.Fatal(err)
 			}
 
 			if got != expected {
-				dbt.Fatalf("expected connection collation %s but got %s", expected, got)
+				if forceExpected != expected {
+					if got != forceExpected {
+						dbt.Fatalf("expected forced connection collation %s but got %s", forceExpected, got)
+					}
+				} else {
+					dbt.Fatalf("expected connection collation %s but got %s", expected, got)
+				}
 			}
 		})
 	}
@@ -1685,7 +1718,7 @@ func TestRawBytesResultExceedsBuffer(t *testing.T) {
 }
 
 func TestTimezoneConversion(t *testing.T) {
-	zones := []string{"UTC", "US/Central", "US/Pacific", "Local"}
+	zones := []string{"UTC", "America/New_York", "Asia/Hong_Kong", "Local"}
 
 	// Regression test for timezone handling
 	tzTest := func(dbt *DBTest) {
@@ -1693,8 +1726,8 @@ func TestTimezoneConversion(t *testing.T) {
 		dbt.mustExec("CREATE TABLE test (ts TIMESTAMP)")
 
 		// Insert local time into database (should be converted)
-		usCentral, _ := time.LoadLocation("US/Central")
-		reftime := time.Date(2014, 05, 30, 18, 03, 17, 0, time.UTC).In(usCentral)
+		newYorkTz, _ := time.LoadLocation("America/New_York")
+		reftime := time.Date(2014, 05, 30, 18, 03, 17, 0, time.UTC).In(newYorkTz)
 		dbt.mustExec("INSERT INTO test VALUE (?)", reftime)
 
 		// Retrieve time from DB
@@ -1713,7 +1746,7 @@ func TestTimezoneConversion(t *testing.T) {
 		// Check that dates match
 		if reftime.Unix() != dbTime.Unix() {
 			dbt.Errorf("times do not match.\n")
-			dbt.Errorf(" Now(%v)=%v\n", usCentral, reftime)
+			dbt.Errorf(" Now(%v)=%v\n", newYorkTz, reftime)
 			dbt.Errorf(" Now(UTC)=%v\n", dbTime)
 		}
 	}
@@ -3541,6 +3574,15 @@ func TestConnectionAttributes(t *testing.T) {
 
 	dbt := &DBTest{t, db}
 
+	var varName string
+	var varValue string
+	err := dbt.db.QueryRow("SHOW VARIABLES LIKE 'performance_schema'").Scan(&varName, &varValue)
+	if err != nil {
+		t.Fatalf("error: %s", err.Error())
+	}
+	if varValue != "ON" {
+		t.Skipf("Performance schema is not enabled. skipping")
+	}
 	queryString := "SELECT ATTR_NAME, ATTR_VALUE FROM performance_schema.session_account_connect_attrs WHERE PROCESSLIST_ID = CONNECTION_ID()"
 	rows := dbt.mustQuery(queryString)
 	defer rows.Close()
