@@ -724,28 +724,21 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 		}
 
 		// Catalog
-		pos, err := skipLengthEncodedString(data)
-		if err != nil {
-			return nil, err
-		}
-
+		pos := int(data[0]) + 1
 		// Database [len coded string]
-		n, err := skipLengthEncodedString(data[pos:])
-		if err != nil {
-			return nil, err
-		}
-		pos += n
+		pos += int(data[pos]) + 1
 
-		// Table [len coded string]
+		// Table alias [len coded string]
+		// alias length can be up to 256
 		if mc.cfg.ColumnsWithAlias {
 			tableName, _, n, err := readLengthEncodedString(data[pos:])
 			if err != nil {
 				return nil, err
 			}
 			pos += n
-			columns[i].tableName = string(tableName)
+			columns[i].tableName = tableName
 		} else {
-			n, err = skipLengthEncodedString(data[pos:])
+			n, err := skipLengthEncodedString(data[pos:])
 			if err != nil {
 				return nil, err
 			}
@@ -753,26 +746,18 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 		}
 
 		// Original table [len coded string]
-		n, err = skipLengthEncodedString(data[pos:])
-		if err != nil {
-			return nil, err
-		}
-		pos += n
+		pos += int(data[pos]) + 1
 
-		// Name [len coded string]
+		// Name alias [len coded string]
 		name, _, n, err := readLengthEncodedString(data[pos:])
 		if err != nil {
 			return nil, err
 		}
-		columns[i].name = string(name)
+		columns[i].name = name
 		pos += n
 
 		// Original name [len coded string]
-		n, err = skipLengthEncodedString(data[pos:])
-		if err != nil {
-			return nil, err
-		}
-		pos += n
+		pos += int(data[pos]) + 1
 
 		// Filler [uint8]
 		pos++
@@ -843,7 +828,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 	for i := range dest {
 		// Read bytes and convert to string
 		var buf []byte
-		buf, isNull, n, err = readLengthEncodedString(data[pos:])
+		buf, isNull, n, err = readLengthEncodedBytes(data[pos:])
 		pos += n
 
 		if err != nil {
@@ -1322,7 +1307,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 			fieldTypeVector:
 			var isNull bool
 			var n int
-			dest[i], isNull, n, err = readLengthEncodedString(data[pos:])
+			dest[i], isNull, n, err = readLengthEncodedBytes(data[pos:])
 			pos += n
 			if err == nil {
 				if !isNull {

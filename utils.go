@@ -524,10 +524,7 @@ func uint64ToString(n uint64) []byte {
 	return a[i:]
 }
 
-// returns the string read as a bytes slice, whether the value is NULL,
-// the number of bytes read and an error, in case the string is longer than
-// the input slice
-func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
+func readLengthEncodedBytes(b []byte) ([]byte, bool, int, error) {
 	// Get length
 	num, isNull, n := readLengthEncodedInteger(b)
 	if num < 1 {
@@ -541,6 +538,25 @@ func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
 		return b[n-int(num) : n : n], false, n, nil
 	}
 	return nil, false, n, io.EOF
+}
+
+// returns the string read as a bytes slice, whether the value is NULL,
+// the number of bytes read and an error, in case the string is longer than
+// the input slice
+func readLengthEncodedString(b []byte) (string, bool, int, error) {
+	// Get length
+	num, isNull, n := readLengthEncodedInteger(b)
+	if num < 1 {
+		return "", isNull, n, nil
+	}
+
+	n += int(num)
+
+	// Check data length
+	if len(b) >= n {
+		return string(b[n-int(num) : n : n]), false, n, nil
+	}
+	return "", false, n, io.EOF
 }
 
 // returns the number of bytes skipped and an error, in case the string is
@@ -567,7 +583,9 @@ func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
 	if len(b) == 0 {
 		return 0, true, 1
 	}
-
+	if b[0] < 251 {
+		return uint64(b[0]), false, 1
+	}
 	switch b[0] {
 	// 251: NULL
 	case 0xfb:
@@ -582,12 +600,9 @@ func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
 		return uint64(getUint24(b[1:])), false, 4
 
 	// 254: value of following 8
-	case 0xfe:
-		return uint64(binary.LittleEndian.Uint64(b[1:])), false, 9
+	default:
+		return binary.LittleEndian.Uint64(b[1:]), false, 9
 	}
-
-	// 0-250: value of first byte
-	return uint64(b[0]), false, 1
 }
 
 // encodes a uint64 value and appends it to the given bytes slice
