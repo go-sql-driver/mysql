@@ -281,7 +281,8 @@ func (mc *mysqlConn) initClientCapabilities(serverCapabilities capabilityFlag, c
 			clientLocalFiles |
 			clientPluginAuth |
 			clientMultiResults |
-			clientConnectAttrs
+			clientConnectAttrs |
+			clientDeprecateEOF
 
 	if cfg.ClientFoundRows {
 		clientCapabilities |= clientFoundRows
@@ -709,18 +710,10 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 	columns := make([]mysqlField, count)
 
-	for i := 0; ; i++ {
+	for i := 0; i < count; i++ {
 		data, err := mc.readPacket()
 		if err != nil {
 			return nil, err
-		}
-
-		// EOF Packet
-		if data[0] == iEOF && (len(data) == 5 || len(data) == 1) {
-			if i == count {
-				return columns, nil
-			}
-			return nil, fmt.Errorf("column count mismatch n:%d len:%d", count, len(columns))
 		}
 
 		// Catalog
@@ -780,13 +773,13 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 
 		// Decimals [uint8]
 		columns[i].decimals = data[pos]
-		//pos++
-
-		// Default value [len coded binary]
-		//if pos < len(data) {
-		//	defaultVal, _, err = bytesToLengthCodedBinary(data[pos:])
-		//}
 	}
+
+	// skip EOF packet if client does not support deprecateEOF
+	if err := mc.skipEof(); err != nil {
+		return nil, err
+	}
+	return columns, nil
 }
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
@@ -804,9 +797,16 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 	}
 
 	// EOF Packet
-	if data[0] == iEOF && len(data) == 5 {
-		// server_status [2 bytes]
-		rows.mc.status = readStatus(data[3:])
+	if data[0] == iEOF && len(data) < 0xffffff {
+		if mc.clientCapabilities&clientDeprecateEOF == 0 {
+			// EOF packet
+			mc.status = readStatus(data[3:])
+		} else {
+			// Ok Packet with an 0xFE header
+			_, _, n := readLengthEncodedInteger(data[1:])
+			_, _, m := readLengthEncodedInteger(data[1+n:])
+			mc.status = readStatus(data[1+n+m:])
+		}
 		rows.rs.done = true
 		if !rows.HasNextResultSet() {
 			rows.mc = nil
@@ -826,7 +826,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 	)
 
 	for i := range dest {
-		// Read bytes and convert to string
+		// Read field bytes
 		var buf []byte
 		buf, isNull, n, err = readLengthEncodedBytes(data[pos:])
 		pos += n
@@ -871,6 +871,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 
 		default:
 			dest[i] = buf
+			continue
 		}
 		if err != nil {
 			return err
@@ -880,8 +881,33 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 	return nil
 }
 
-// Reads Packets until EOF-Packet or an Error appears. Returns count of Packets read
-func (mc *mysqlConn) readUntilEOF() error {
+func (mc *mysqlConn) skipPackets(number int) error {
+	for i := 0; i < number; i++ {
+		if _, err := mc.readPacket(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (mc *mysqlConn) skipEof() error {
+	if mc.clientCapabilities&clientDeprecateEOF == 0 {
+		if _, err := mc.readPacket(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (mc *mysqlConn) skipColumns(resLen int) error {
+	if err := mc.skipPackets(resLen); err != nil {
+		return err
+	}
+	return mc.skipEof()
+}
+
+// Reads Packets until EOF-Packet or an Error appears.
+func (mc *mysqlConn) skipResultSetRows() error {
 	for {
 		data, err := mc.readPacket()
 		if err != nil {
@@ -892,10 +918,18 @@ func (mc *mysqlConn) readUntilEOF() error {
 		case iERR:
 			return mc.handleErrorPacket(data)
 		case iEOF:
-			if len(data) == 5 {
-				mc.status = readStatus(data[3:])
+			if len(data) < 0xffffff {
+				if mc.clientCapabilities&clientDeprecateEOF == 0 {
+					// EOF packet
+					mc.status = readStatus(data[3:])
+				} else {
+					// OK packet with an 0xFE header
+					_, _, n := readLengthEncodedInteger(data[1:])
+					_, _, m := readLengthEncodedInteger(data[1+n:])
+					mc.status = readStatus(data[1+n+m:])
+				}
+				return nil
 			}
-			return nil
 		}
 	}
 }
@@ -1192,11 +1226,11 @@ func (mc *okHandler) discardResults() error {
 		}
 		if resLen > 0 {
 			// columns
-			if err := mc.conn().readUntilEOF(); err != nil {
+			if err := mc.conn().skipColumns(resLen); err != nil {
 				return err
 			}
 			// rows
-			if err := mc.conn().readUntilEOF(); err != nil {
+			if err := mc.conn().skipResultSetRows(); err != nil {
 				return err
 			}
 		}
@@ -1213,19 +1247,27 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 
 	// packet indicator [1 byte]
 	if data[0] != iOK {
-		// EOF Packet
-		if data[0] == iEOF && len(data) == 5 {
-			rows.mc.status = readStatus(data[3:])
+		// EOF/OK Packet
+		if data[0] == iEOF {
+			if rows.mc.clientCapabilities&clientDeprecateEOF == 0 {
+				// EOF packet
+				rows.mc.status = readStatus(data[3:])
+			} else {
+				// OK Packet with an 0xFE header
+				_, _, n := readLengthEncodedInteger(data[1:])
+				_, _, m := readLengthEncodedInteger(data[1+n:])
+				rows.mc.status = readStatus(data[1+n+m:])
+			}
 			rows.rs.done = true
 			if !rows.HasNextResultSet() {
 				rows.mc = nil
 			}
 			return io.EOF
 		}
-		mc := rows.mc
-		rows.mc = nil
 
 		// Error otherwise
+		mc := rows.mc
+		rows.mc = nil
 		return mc.handleErrorPacket(data)
 	}
 

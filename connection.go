@@ -224,20 +224,20 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	columnCount, err := stmt.readPrepareResultPacket()
 	if err == nil {
 		if stmt.paramCount > 0 {
-			if err = mc.readUntilEOF(); err != nil {
+			if err = mc.skipColumns(stmt.paramCount); err != nil {
 				return nil, err
 			}
 		}
 
 		if columnCount > 0 {
 			if mc.clientExtCapabilities&clientCacheMetadata != 0 {
-				stmt.columns, err = mc.readColumns(int(columnCount))
-				if err != nil {
+				if stmt.columns, err = mc.readColumns(int(columnCount)); err != nil {
 					return nil, err
 				}
 			} else {
-				// skip column definition packets and intermediate EOF packet
-				err = mc.readUntilEOF()
+				if err = mc.skipColumns(int(columnCount)); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -386,12 +386,12 @@ func (mc *mysqlConn) exec(query string) error {
 
 	if resLen > 0 {
 		// columns
-		if err := mc.readUntilEOF(); err != nil {
+		if err := mc.skipColumns(resLen); err != nil {
 			return err
 		}
 
 		// rows
-		if err := mc.readUntilEOF(); err != nil {
+		if err := mc.skipResultSetRows(); err != nil {
 			return err
 		}
 	}
@@ -470,14 +470,14 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 
 		if resLen > 0 {
 			// Columns
-			if err := mc.readUntilEOF(); err != nil {
+			if err := mc.skipColumns(resLen); err != nil {
 				return nil, err
 			}
 		}
 
 		dest := make([]driver.Value, resLen)
 		if err = rows.readRow(dest); err == nil {
-			return dest[0].([]byte), mc.readUntilEOF()
+			return dest[0].([]byte), mc.skipResultSetRows()
 		}
 	}
 	return nil, err

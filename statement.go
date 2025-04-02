@@ -72,12 +72,12 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 
 	if resLen > 0 {
 		// Columns
-		if err = mc.readUntilEOF(); err != nil {
+		if err = mc.skipColumns(resLen); err != nil {
 			return nil, err
 		}
 
 		// Rows
-		if err := mc.readUntilEOF(); err != nil {
+		if err = mc.skipResultSetRows(); err != nil {
 			return nil, err
 		}
 	}
@@ -118,15 +118,12 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 	if resLen > 0 {
 		rows.mc = mc
 		if metadataFollows {
-			rows.rs.columns, err = mc.readColumns(resLen)
-			if err != nil {
+			if rows.rs.columns, err = mc.readColumns(resLen); err != nil {
 				return nil, err
 			}
 			stmt.columns = rows.rs.columns
 		} else {
-			// skip EOF Packet
-			_, err := mc.readPacket()
-			if err != nil {
+			if err = mc.skipEof(); err != nil {
 				return nil, err
 			}
 			rows.rs.columns = stmt.columns
