@@ -44,7 +44,6 @@ type Config struct {
 	DBName               string            // Database name
 	Params               map[string]string // Connection parameters
 	ConnectionAttributes string            // Connection Attributes, comma-delimited string of user-defined "key:value" pairs
-	charsets             []string          // Connection charset. When set, this will be set in SET NAMES <charset> query
 	Collation            string            // Connection collation. When set, this will be set in SET NAMES <charset> COLLATE <collation> query
 	Loc                  *time.Location    // Location for time.Time values
 	MaxAllowedPacket     int               // Max packet size allowed
@@ -81,6 +80,7 @@ type Config struct {
 	beforeConnect func(context.Context, *Config) error // Invoked before a connection is established
 	pubKey        *rsa.PublicKey                       // Server public key
 	timeTruncate  time.Duration                        // Truncate time.Time values to the specified duration
+	charsets      []string                             // Connection charset. When set, this will be set in SET NAMES <charset> query
 }
 
 // Functional Options Pattern
@@ -131,6 +131,21 @@ func BeforeConnect(fn func(context.Context, *Config) error) Option {
 func EnableCompression(yes bool) Option {
 	return func(cfg *Config) error {
 		cfg.compress = yes
+		return nil
+	}
+}
+
+// Charset sets the connection charset and collation.
+//
+// charset is the connection charset.
+// collation is the connection collation. It can be null or empty string.
+//
+// When collation is not specified, `SET NAMES <charset>` command is sent when the connection is established.
+// When collation is specified, `SET NAMES <charset> COLLATE <collation>` command is sent when the connection is established.
+func Charset(charset, collation string) Option {
+	return func(cfg *Config) error {
+		cfg.charsets = []string{charset}
+		cfg.Collation = collation
 		return nil
 	}
 }
@@ -305,6 +320,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.ColumnsWithAlias {
 		writeDSNParam(&buf, &hasParam, "columnsWithAlias", "true")
+	}
+
+	if cfg.ConnectionAttributes != "" {
+		writeDSNParam(&buf, &hasParam, "connectionAttributes", url.QueryEscape(cfg.ConnectionAttributes))
 	}
 
 	if cfg.compress {
