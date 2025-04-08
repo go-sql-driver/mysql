@@ -13,8 +13,15 @@ type mysqlTx struct {
 }
 
 func (tx *mysqlTx) Commit() (err error) {
-	if tx.mc == nil || tx.mc.closed.Load() {
+	if tx.mc == nil {
 		return ErrInvalidConn
+	}
+	if tx.mc.closed.Load() {
+		err = tx.mc.error()
+		if err == nil {
+			err = ErrInvalidConn
+		}
+		return
 	}
 	err = tx.mc.exec("COMMIT")
 	tx.mc = nil
@@ -22,8 +29,15 @@ func (tx *mysqlTx) Commit() (err error) {
 }
 
 func (tx *mysqlTx) Rollback() (err error) {
-	if tx.mc == nil || tx.mc.closed.Load() {
+	if tx.mc == nil {
 		return ErrInvalidConn
+	}
+	if tx.mc.closed.Load() {
+		err = tx.mc.error()
+		if err == nil {
+			err = ErrInvalidConn
+		}
+		return
 	}
 	err = tx.mc.exec("ROLLBACK")
 	tx.mc = nil
