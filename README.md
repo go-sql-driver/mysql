@@ -172,6 +172,16 @@ Default:        false
 
 `allowCleartextPasswords=true` allows using the [cleartext client side plugin](https://dev.mysql.com/doc/en/cleartext-pluggable-authentication.html) if required by an account, such as one defined with the [PAM authentication plugin](http://dev.mysql.com/doc/en/pam-authentication-plugin.html). Sending passwords in clear text may be a security problem in some configurations. To avoid problems if there is any possibility that the password would be intercepted, clients should connect to MySQL Server using a method that protects the password. Possibilities include [TLS / SSL](#tls), IPsec, or a private network.
 
+##### `AllowDialogPasswords`
+
+```
+Type:           bool
+Valid Values:   true, false
+Default:        false
+```
+
+`AllowDialogPasswords=true` allows using the [PAM client side plugin](https://mariadb.com/kb/en/authentication-plugin-pam/) if required by an account, such as one defined with the PAM authentication plugin. Sending passwords in clear text may be a security problem in some configurations. To avoid problems if there is any possibility that the password would be intercepted, clients should connect to Server using a method that protects the password. Possibilities include [TLS / SSL](#tls), IPsec, or a private network.
+
 
 ##### `allowFallbackToPlaintext`
 
@@ -453,6 +463,16 @@ Default:        none
 
 [Connection attributes](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-connection-attribute-tables.html) are key-value pairs that application programs can pass to the server at connect time.
 
+
+##### `OtherPasswd`
+
+```
+Type:           comma-delimited string of password for MariaDB PAM authentication, if requiring more than one password
+Valid Values:   (<password2>,<password3>,...)
+Default:        none
+```
+
+
 ##### System Variables
 
 Any other parameters are interpreted as system variables:
@@ -533,6 +553,19 @@ See [context support in the database/sql package](https://golang.org/doc/go1.8#d
 > [!IMPORTANT]
 > The `QueryContext`, `ExecContext`, etc. variants provided by `database/sql` will cause the connection to be closed if the provided context is cancelled or timed out before the result is received by the driver.
 
+
+### Authentication Plugin System
+
+The driver implements a pluggable authentication system that supports various authentication methods used by MySQL and MariaDB servers. The built-in authentication plugins include:
+
+- `mysql_native_password` - The default MySQL authentication method
+- `caching_sha2_password` - Default authentication method in MySQL 8.0+
+- `mysql_clear_password` - Cleartext authentication (requires `allowCleartextPasswords=true`)
+- `mysql_old_password` - Old MySQL authentication (requires `allowOldPasswords=true`)
+- `sha256_password` - SHA256 authentication
+- `parsec` - MariaDB 11.6+ PARSEC authentication
+- `client_ed25519` - MariaDB Ed25519 authentication
+- `dialog` - MariaDB PAM authentication  (requires `AllowDialogPasswords=true`)
 
 ### `LOAD DATA LOCAL INFILE` support
 For this feature you need direct access to the package. Therefore you must change the import path (no `_`):
