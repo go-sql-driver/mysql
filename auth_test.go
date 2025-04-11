@@ -16,6 +16,8 @@ import (
 	"encoding/pem"
 	"fmt"
 	"testing"
+
+	osuser "os/user"
 )
 
 var testPubKey = []byte("-----BEGIN PUBLIC KEY-----\n" +
@@ -76,6 +78,47 @@ func TestScrambleSHA256Pass(t *testing.T) {
 		if tuple.out != fmt.Sprintf("%x", ours) {
 			t.Errorf("Failed SHA256 password %q", tuple.pass)
 		}
+	}
+}
+
+func TestDefaultUser(t *testing.T) {
+	conn, mc := newRWMockConn(1)
+	mc.cfg.User = ""
+	mc.cfg.Passwd = "secret"
+
+	authData := []byte{90, 105, 74, 126, 30, 48, 37, 56, 3, 23, 115, 127, 69,
+		22, 41, 84, 32, 123, 43, 118}
+	plugin := "mysql_native_password"
+
+	// Send Client Authentication Packet
+	authPlugin, exists := globalPluginRegistry.GetPlugin(plugin)
+	if !exists {
+		t.Fatalf("plugin not registered")
+	}
+	var expectedUsername string
+	currentUser, err := osuser.Current()
+	if err != nil {
+		expectedUsername = ""
+	} else {
+		expectedUsername = currentUser.Username
+	}
+
+	authResp, err := authPlugin.InitAuth(authData, mc.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check written auth response
+	authRespStart := 4 + 4 + 4 + 1 + 23
+	authRespEnd := authRespStart + len(expectedUsername)
+	writtenAuthResp := conn.written[authRespStart:authRespEnd]
+	expectedAuthResp := []byte(expectedUsername)
+	if !bytes.Equal(writtenAuthResp, expectedAuthResp) || conn.written[authRespEnd] != 0 {
+		t.Fatalf("unexpected written auth response: %v", writtenAuthResp)
 	}
 }
 

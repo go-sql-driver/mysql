@@ -256,13 +256,17 @@ func writeDSNParam(buf *bytes.Buffer, hasParam *bool, name, value string) {
 func (cfg *Config) FormatDSN() string {
 	var buf bytes.Buffer
 
-	// [username[:password]@]
+	// [[username][:password]@]
 	if len(cfg.User) > 0 {
 		buf.WriteString(cfg.User)
 		if len(cfg.Passwd) > 0 {
 			buf.WriteByte(':')
 			buf.WriteString(cfg.Passwd)
 		}
+		buf.WriteByte('@')
+	} else if len(cfg.Passwd) > 0 {
+		buf.WriteByte(':')
+		buf.WriteString(cfg.Passwd)
 		buf.WriteByte('@')
 	}
 
@@ -408,7 +412,7 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 	// New config with some default values
 	cfg = NewConfig()
 
-	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
+	// [[username][:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
 	// Find the last '/' (since the password or the net addr might contain a '/')
 	foundSlash := false
 	for i := len(dsn) - 1; i >= 0; i-- {
@@ -418,11 +422,11 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 
 			// left part is empty if i <= 0
 			if i > 0 {
-				// [username[:password]@][protocol[(address)]]
+				// [[username][:password]@][protocol[(address)]]
 				// Find the last '@' in dsn[:i]
 				for j = i; j >= 0; j-- {
 					if dsn[j] == '@' {
-						// username[:password]
+						// [username][:password]
 						// Find the first ':' in dsn[:j]
 						for k = 0; k < j; k++ {
 							if dsn[k] == ':' {

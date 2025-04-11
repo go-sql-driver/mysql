@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	osuser "os/user"
 	"strconv"
 	"time"
 )
@@ -303,8 +304,17 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		// length encoded integer
 		clientFlags |= clientPluginAuthLenEncClientData
 	}
+	var userName string
+	if len(mc.cfg.User) > 0 {
+		userName = mc.cfg.User
+	} else {
+		// Get current user if username is empty
+		if currentUser, err := osuser.Current(); err == nil {
+			userName = currentUser.Username
+		}
+	}
 
-	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1 + len(authRespLEI) + len(authResp) + 21 + 1
+	pktLen := 4 + 4 + 1 + 23 + len(userName) + 1 + len(authRespLEI) + len(authResp) + 21 + 1
 
 	// To specify a db name
 	if n := len(mc.cfg.DBName); n > 0 {
@@ -372,8 +382,8 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	}
 
 	// User [null terminated string]
-	if len(mc.cfg.User) > 0 {
-		pos += copy(data[pos:], mc.cfg.User)
+	if len(userName) > 0 {
+		pos += copy(data[pos:], userName)
 	}
 	data[pos] = 0x00
 	pos++
