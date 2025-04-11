@@ -131,7 +131,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	mc.buf = newBuffer()
 
 	// Reading Handshake Initialization Packet
-	authData, plugin, err := mc.readHandshakePacket()
+	authData, serverCapabilities, serverExtendedCapabilities, plugin, err := mc.readHandshakePacket()
 	if err != nil {
 		mc.cleanup()
 		return nil, err
@@ -153,7 +153,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 			return nil, err
 		}
 	}
-	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
+	if err = mc.writeHandshakeResponsePacket(authResp, serverCapabilities, serverExtendedCapabilities, plugin); err != nil {
 		mc.cleanup()
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 
-	if mc.cfg.compress && mc.flags&clientCompress == clientCompress {
+	if mc.cfg.compress && mc.clientCapabilities&clientCompress > 0 {
 		mc.compress = true
 		mc.compIO = newCompIO(mc)
 	}

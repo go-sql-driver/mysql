@@ -43,10 +43,10 @@ const (
 )
 
 // https://dev.mysql.com/doc/internals/en/capability-flags.html#packet-Protocol::CapabilityFlags
-type clientFlag uint32
+type capabilityFlag uint32
 
 const (
-	clientLongPassword clientFlag = 1 << iota
+	clientMySQL capabilityFlag = 1 << iota
 	clientFoundRows
 	clientLongFlag
 	clientConnectWithDB
@@ -72,6 +72,20 @@ const (
 	clientSessionTrack
 	clientDeprecateEOF
 )
+
+// https://mariadb.com/kb/en/connection/#capabilities
+type extendedCapabilityFlag uint32
+
+const (
+	progressIndicator extendedCapabilityFlag = 1 << iota
+	clientComMulti
+	clientStmtBulkOperations
+	clientExtendedMetadata
+	clientCacheMetadata
+	clientUnitBulkResult
+)
+
+// https://mariadb.com/kb/en/connection/#capabilities
 
 const (
 	comQuit byte = iota + 1

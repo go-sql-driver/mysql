@@ -440,3 +440,53 @@ func BenchmarkReceiveMassiveRows(b *testing.B) {
 		}
 	})
 }
+
+// BenchmarkReceiveMetadata measures performance of receiving more metadata than real data
+func BenchmarkReceiveMetadata(b *testing.B) {
+	tb := (*TB)(b)
+	b.StopTimer()
+	b.ReportAllocs()
+
+	// Create a table with 1000 integer fields
+	createTableQuery := "CREATE TABLE large_integer_table ("
+	for i := 0; i < 1000; i++ {
+		createTableQuery += fmt.Sprintf("col_%d INT", i)
+		if i < 999 {
+			createTableQuery += ", "
+		}
+	}
+	createTableQuery += ")"
+
+	// Initialize database
+	db := initDB(b, false,
+		"DROP TABLE IF EXISTS large_integer_table",
+		createTableQuery,
+		"INSERT INTO large_integer_table VALUES ("+
+			strings.Repeat("0,", 999)+"0)", // Insert a row of zeros
+	)
+	defer db.Close()
+
+	// Prepare a SELECT query to retrieve metadata
+	stmt := tb.checkStmt(db.Prepare("SELECT * FROM large_integer_table LIMIT 1"))
+	defer stmt.Close()
+
+	b.StartTimer()
+
+	// Benchmark metadata retrieval
+	for i := 0; i < b.N; i++ {
+		rows := tb.checkRows(stmt.Query())
+
+		// Create a slice to scan all columns
+		values := make([]interface{}, 1000)
+		valuePtrs := make([]interface{}, 1000)
+		for j := range values {
+			valuePtrs[j] = &values[j]
+		}
+		rows.Next()
+		// Scan the row
+		err := rows.Scan(valuePtrs...)
+		tb.check(err)
+
+		rows.Close()
+	}
+}

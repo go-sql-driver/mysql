@@ -332,9 +332,17 @@ func TestRegression801(t *testing.T) {
 		112, 97, 115, 115, 119, 111, 114, 100}
 	conn.maxReads = 1
 
-	authData, pluginName, err := mc.readHandshakePacket()
+	authData, serverCapabilities, serverExtendedCapabilities, pluginName, err := mc.readHandshakePacket()
 	if err != nil {
 		t.Fatalf("got error: %v", err)
+	}
+
+	if serverCapabilities != 2148530143 {
+		t.Fatalf("expected serverCapabilities to be 2148530143, got %v", serverCapabilities)
+	}
+
+	if serverExtendedCapabilities != 0 {
+		t.Fatalf("expected serverExtendedCapabilities to be 0, got %v", serverExtendedCapabilities)
 	}
 
 	if pluginName != "mysql_native_password" {
