@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	osuser "os/user"
 	"strconv"
 	"time"
 )
@@ -303,8 +304,17 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		// length encoded integer
 		clientFlags |= clientPluginAuthLenEncClientData
 	}
+	var userName string
+	if len(mc.cfg.User) > 0 {
+		userName = mc.cfg.User
+	} else {
+		// Get current user if username is empty
+		if currentUser, err := osuser.Current(); err == nil {
+			userName = currentUser.Username
+		}
+	}
 
-	pktLen := 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1 + len(authRespLEI) + len(authResp) + 21 + 1
+	pktLen := 4 + 4 + 1 + 23 + len(userName) + 1 + len(authRespLEI) + len(authResp) + 21 + 1
 
 	// To specify a db name
 	if n := len(mc.cfg.DBName); n > 0 {
@@ -372,8 +382,8 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	}
 
 	// User [null terminated string]
-	if len(mc.cfg.User) > 0 {
-		pos += copy(data[pos:], mc.cfg.User)
+	if len(userName) > 0 {
+		pos += copy(data[pos:], userName)
 	}
 	data[pos] = 0x00
 	pos++
@@ -481,44 +491,6 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 /******************************************************************************
 *                              Result Packets                                 *
 ******************************************************************************/
-
-func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
-	data, err := mc.readPacket()
-	if err != nil {
-		return nil, "", err
-	}
-
-	// packet indicator
-	switch data[0] {
-
-	case iOK:
-		// resultUnchanged, since auth happens before any queries or
-		// commands have been executed.
-		return nil, "", mc.resultUnchanged().handleOkPacket(data)
-
-	case iAuthMoreData:
-		return data[1:], "", err
-
-	case iEOF:
-		if len(data) == 1 {
-			// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::OldAuthSwitchRequest
-			return nil, "mysql_old_password", nil
-		}
-		pluginEndIndex := bytes.IndexByte(data, 0x00)
-		if pluginEndIndex < 0 {
-			return nil, "", ErrMalformPkt
-		}
-		plugin := string(data[1:pluginEndIndex])
-		authData := data[pluginEndIndex+1:]
-		if len(authData) > 0 && authData[len(authData)-1] == 0 {
-			authData = authData[:len(authData)-1]
-		}
-		return authData, plugin, nil
-
-	default: // Error otherwise
-		return nil, "", mc.handleErrorPacket(data)
-	}
-}
 
 // Returns error if Packet is not a 'Result OK'-Packet
 func (mc *okHandler) readResultOK() error {

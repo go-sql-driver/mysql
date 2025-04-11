@@ -140,14 +140,22 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if plugin == "" {
 		plugin = defaultAuthPlugin
 	}
+	authPlugin, exists := globalPluginRegistry.GetPlugin(plugin)
+	if !exists {
+		return nil, fmt.Errorf("this authentication plugin '%s' is not supported", plugin)
+	}
 
 	// Send Client Authentication Packet
-	authResp, err := mc.auth(authData, plugin)
-	if err != nil {
+	authResp, err := authPlugin.InitAuth(authData, mc.cfg)
+	if err != nil && plugin != defaultAuthPlugin {
 		// try the default auth plugin, if using the requested plugin failed
 		c.cfg.Logger.Print("could not use requested auth plugin '"+plugin+"': ", err.Error())
 		plugin = defaultAuthPlugin
-		authResp, err = mc.auth(authData, plugin)
+		authPlugin, exists = globalPluginRegistry.GetPlugin(plugin)
+		if !exists {
+			return nil, fmt.Errorf("this authentication plugin '%s' is not supported", plugin)
+		}
+		authResp, err = authPlugin.InitAuth(authData, mc.cfg)
 		if err != nil {
 			mc.cleanup()
 			return nil, err
@@ -159,7 +167,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	// Handle response to auth packet, switch methods if possible
-	if err = mc.handleAuthResult(authData, plugin); err != nil {
+	if err = mc.handleAuthResult(authData, authPlugin); err != nil {
 		// Authentication failed and MySQL has already closed the connection
 		// (https://dev.mysql.com/doc/internals/en/authentication-fails.html).
 		// Do not send COM_QUIT, just cleanup and return the error.

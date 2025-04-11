@@ -1631,13 +1631,46 @@ func TestCollation(t *testing.T) {
 		}
 
 		runTests(t, tdsn, func(dbt *DBTest) {
+			// see https://mariadb.com/kb/en/setting-character-sets-and-collations/#changing-default-collation
+			// when character_set_collations is set for the charset, it overrides the default collation
+			// so we need to check if the default collation is overridden
+			forceExpected := expected
+			var defaultCollations string
+			err := dbt.db.QueryRow("SELECT @@character_set_collations").Scan(&defaultCollations)
+			if err == nil {
+				// Query succeeded, need to check if we should override expected collation
+				collationMap := make(map[string]string)
+				pairs := strings.Split(defaultCollations, ",")
+				for _, pair := range pairs {
+					parts := strings.Split(pair, "=")
+					if len(parts) == 2 {
+						collationMap[parts[0]] = parts[1]
+					}
+				}
+
+				// Get charset prefix from expected collation
+				parts := strings.Split(expected, "_")
+				if len(parts) > 0 {
+					charset := parts[0]
+					if newCollation, ok := collationMap[charset]; ok {
+						forceExpected = newCollation
+					}
+				}
+			}
+
 			var got string
 			if err := dbt.db.QueryRow("SELECT @@collation_connection").Scan(&got); err != nil {
 				dbt.Fatal(err)
 			}
 
 			if got != expected {
-				dbt.Fatalf("expected connection collation %s but got %s", expected, got)
+				if forceExpected != expected {
+					if got != forceExpected {
+						dbt.Fatalf("expected forced connection collation %s but got %s", forceExpected, got)
+					}
+				} else {
+					dbt.Fatalf("expected connection collation %s but got %s", expected, got)
+				}
 			}
 		})
 	}
@@ -1686,7 +1719,7 @@ func TestRawBytesResultExceedsBuffer(t *testing.T) {
 }
 
 func TestTimezoneConversion(t *testing.T) {
-	zones := []string{"UTC", "US/Central", "US/Pacific", "Local"}
+	zones := []string{"UTC", "America/New_York", "Asia/Hong_Kong", "Local"}
 
 	// Regression test for timezone handling
 	tzTest := func(dbt *DBTest) {
@@ -1694,8 +1727,8 @@ func TestTimezoneConversion(t *testing.T) {
 		dbt.mustExec("CREATE TABLE test (ts TIMESTAMP)")
 
 		// Insert local time into database (should be converted)
-		usCentral, _ := time.LoadLocation("US/Central")
-		reftime := time.Date(2014, 05, 30, 18, 03, 17, 0, time.UTC).In(usCentral)
+		newYorkTz, _ := time.LoadLocation("America/New_York")
+		reftime := time.Date(2014, 05, 30, 18, 03, 17, 0, time.UTC).In(newYorkTz)
 		dbt.mustExec("INSERT INTO test VALUE (?)", reftime)
 
 		// Retrieve time from DB
@@ -1714,7 +1747,7 @@ func TestTimezoneConversion(t *testing.T) {
 		// Check that dates match
 		if reftime.Unix() != dbTime.Unix() {
 			dbt.Errorf("times do not match.\n")
-			dbt.Errorf(" Now(%v)=%v\n", usCentral, reftime)
+			dbt.Errorf(" Now(%v)=%v\n", newYorkTz, reftime)
 			dbt.Errorf(" Now(UTC)=%v\n", dbTime)
 		}
 	}
@@ -3542,6 +3575,15 @@ func TestConnectionAttributes(t *testing.T) {
 
 	dbt := &DBTest{t, db}
 
+	var varName string
+	var varValue string
+	err := dbt.db.QueryRow("SHOW VARIABLES LIKE 'performance_schema'").Scan(&varName, &varValue)
+	if err != nil {
+		t.Fatalf("error: %s", err.Error())
+	}
+	if varValue != "ON" {
+		t.Skipf("Performance schema is not enabled. skipping")
+	}
 	queryString := "SELECT ATTR_NAME, ATTR_VALUE FROM performance_schema.session_account_connect_attrs WHERE PROCESSLIST_ID = CONNECTION_ID()"
 	rows := dbt.mustQuery(queryString)
 	defer rows.Close()
@@ -3645,4 +3687,396 @@ func TestIssue1567(t *testing.T) {
 			cancel()
 		}
 	})
+}
+
+// TestParsecAuth tests the Parsec authentication method with MariaDB 11.6+
+func TestParsecAuth(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	// Connect to the database
+	db, err := sql.Open(driverNameTest, dsn)
+	if err != nil {
+		t.Fatalf("Error connecting: %s", err.Error())
+	}
+	defer db.Close()
+
+	// Check MariaDB version
+	var version string
+	err = db.QueryRow("SELECT VERSION()").Scan(&version)
+	if err != nil {
+		t.Fatalf("Error checking version: %s", err.Error())
+	}
+
+	t.Logf("Database version: %s", version)
+
+	// Check if this is a MariaDB server
+	isMariaDB := strings.Contains(strings.ToLower(version), "mariadb")
+	if !isMariaDB {
+		t.Skip("Parsec authentication requires MariaDB 11.6+")
+	}
+
+	// Extract version number
+	parts := strings.Split(version, "-")
+	versionParts := strings.Split(parts[0], ".")
+	if len(versionParts) < 2 {
+		t.Skip("Cannot determine MariaDB version format")
+	}
+
+	major, err := strconv.Atoi(versionParts[0])
+	if err != nil {
+		t.Skip("Cannot parse MariaDB major version")
+	}
+
+	minor, err := strconv.Atoi(versionParts[1])
+	if err != nil {
+		t.Skip("Cannot parse MariaDB minor version")
+	}
+
+	// Skip if version is below 11.6
+	if major < 11 || (major == 11 && minor < 6) {
+		t.Skip("Parsec authentication requires MariaDB 11.6+")
+	}
+
+	t.Logf("MariaDB version %d.%d detected", major, minor)
+
+	// Check if the parsec plugin is installed
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM information_schema.plugins WHERE PLUGIN_NAME = 'parsec' AND PLUGIN_STATUS = 'ACTIVE'").Scan(&count)
+	if err != nil {
+		t.Fatalf("Error checking parsec plugin: %s", err.Error())
+	}
+
+	if count == 0 {
+		// Try to install the plugin
+		_, err = db.Exec("INSTALL SONAME 'auth_parsec'")
+		if err != nil {
+			t.Skipf("Parsec authentication plugin is not available: %s", err.Error())
+		}
+
+		// Check again if the plugin is active
+		err = db.QueryRow("SELECT COUNT(*) FROM information_schema.plugins WHERE PLUGIN_NAME = 'parsec' AND PLUGIN_STATUS = 'ACTIVE'").Scan(&count)
+		if err != nil {
+			t.Fatalf("Error checking parsec plugin after installation: %s", err.Error())
+		}
+
+		if count == 0 {
+			t.Skip("Parsec authentication plugin could not be activated")
+		}
+	}
+
+	t.Log("Parsec authentication plugin is active")
+
+	// Create a test user with parsec authentication
+	username := "parsec_test_user"
+	password := "parsec_password"
+
+	// Drop the user if it exists
+	_, err = db.Exec(fmt.Sprintf("DROP USER IF EXISTS '%s'@'localhost'", username))
+	if err != nil {
+		t.Fatalf("Error dropping user: %s", err.Error())
+	}
+
+	// Create the user with parsec authentication
+	createUserSQL := fmt.Sprintf("CREATE USER '%s'@'localhost' IDENTIFIED VIA parsec USING PASSWORD('%s')", username, password)
+	_, err = db.Exec(createUserSQL)
+	if err != nil {
+		t.Fatalf("Error creating user: %s\nSQL: %s", err.Error(), createUserSQL)
+	}
+	defer func() {
+		_, err := db.Exec(fmt.Sprintf("DROP USER IF EXISTS '%s'@'localhost'", username))
+		if err != nil {
+			t.Logf("Error dropping user during cleanup: %s", err.Error())
+		}
+	}()
+
+	// Grant privileges to the test user
+	grantSQL := fmt.Sprintf("GRANT ALL ON *.* TO '%s'@'localhost' WITH GRANT OPTION", username)
+	_, err = db.Exec(grantSQL)
+	if err != nil {
+		t.Fatalf("Error granting privileges: %s\nSQL: %s", err.Error(), grantSQL)
+	}
+
+	// Flush privileges
+	_, err = db.Exec("FLUSH PRIVILEGES")
+	if err != nil {
+		t.Fatalf("Error flushing privileges: %s", err.Error())
+	}
+
+	// Connect with the new user using parsec authentication
+	parsecDSN := fmt.Sprintf("%s:%s@%s/%s?timeout=30s", username, password, netAddr, dbname)
+
+	t.Logf("Attempting to connect with DSN: %s", parsecDSN)
+
+	parsecDB, err := sql.Open(driverNameTest, parsecDSN)
+	if err != nil {
+		t.Fatalf("Error opening connection with parsec: %s", err.Error())
+	}
+	defer parsecDB.Close()
+
+	// Verify that we can run a query
+	var result int
+	err = parsecDB.QueryRow("SELECT 1").Scan(&result)
+	if err != nil {
+		t.Fatalf("Error running query with parsec authentication: %s", err.Error())
+	}
+	if result != 1 {
+		t.Fatalf("Unexpected result: expected 1, got %d", result)
+	}
+
+	t.Log("Successfully authenticated using parsec authentication")
+}
+
+func TestEd25519AuthIntegration(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	// Connect to the database
+	db, err := sql.Open(driverNameTest, dsn)
+	if err != nil {
+		t.Fatalf("Error connecting: %s", err.Error())
+	}
+	defer db.Close()
+
+	// Check MariaDB version
+	var version string
+	err = db.QueryRow("SELECT VERSION()").Scan(&version)
+	if err != nil {
+		t.Fatalf("Error checking version: %s", err.Error())
+	}
+
+	t.Logf("Database version: %s", version)
+
+	// Check if this is a MariaDB server
+	isMariaDB := strings.Contains(strings.ToLower(version), "mariadb")
+	if !isMariaDB {
+		t.Skip("ed25519 authentication test requires MariaDB")
+	}
+
+	// Check if the ed25519 plugin is installed
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM information_schema.plugins WHERE PLUGIN_NAME = 'ed25519' AND PLUGIN_STATUS = 'ACTIVE'").Scan(&count)
+	if err != nil {
+		t.Fatalf("Error checking ed25519 plugin: %s", err.Error())
+	}
+
+	if count == 0 {
+		// Try to install the plugin
+		_, err = db.Exec("INSTALL SONAME 'auth_ed25519'")
+		if err != nil {
+			t.Skipf("ed25519 authentication plugin is not available: %s", err.Error())
+		}
+
+		// Check again if the plugin is active
+		err = db.QueryRow("SELECT COUNT(*) FROM information_schema.plugins WHERE PLUGIN_NAME = 'ed25519' AND PLUGIN_STATUS = 'ACTIVE'").Scan(&count)
+		if err != nil {
+			t.Fatalf("Error checking ed25519 plugin after installation: %s", err.Error())
+		}
+
+		if count == 0 {
+			t.Skip("ed25519 authentication plugin could not be activated")
+		}
+	}
+
+	t.Log("ed25519 authentication plugin is active")
+
+	// Create a test user with ed25519 authentication
+	username := "ed25519_test_user"
+	password := "ed25519_test_password"
+
+	// Drop the user if it exists
+	_, err = db.Exec(fmt.Sprintf("DROP USER IF EXISTS '%s'@'localhost'", username))
+	if err != nil {
+		t.Fatalf("Error dropping user: %s", err.Error())
+	}
+
+	// Create the user with ed25519 authentication
+	createUserSQL := fmt.Sprintf("CREATE USER '%s'@'localhost' IDENTIFIED VIA ed25519 USING PASSWORD('%s')", username, password)
+	_, err = db.Exec(createUserSQL)
+	if err != nil {
+		t.Fatalf("Error creating user: %s\nSQL: %s", err.Error(), createUserSQL)
+	}
+	defer func() {
+		_, err := db.Exec(fmt.Sprintf("DROP USER IF EXISTS '%s'@'localhost'", username))
+		if err != nil {
+			t.Logf("Error dropping user during cleanup: %s", err.Error())
+		}
+	}()
+
+	// Grant privileges to the test user
+	grantSQL := fmt.Sprintf("GRANT ALL ON *.* TO '%s'@'localhost'", username)
+	_, err = db.Exec(grantSQL)
+	if err != nil {
+		t.Fatalf("Error granting privileges: %s\nSQL: %s", err.Error(), grantSQL)
+	}
+
+	// Flush privileges
+	_, err = db.Exec("FLUSH PRIVILEGES")
+	if err != nil {
+		t.Fatalf("Error flushing privileges: %s", err.Error())
+	}
+
+	// Connect with the new user using ed25519 authentication
+	ed25519DSN := fmt.Sprintf("%s:%s@%s/%s?timeout=30s", username, password, netAddr, dbname)
+	t.Logf("Attempting to connect with DSN: %s", ed25519DSN)
+
+	ed25519DB, err := sql.Open(driverNameTest, ed25519DSN)
+	if err != nil {
+		t.Fatalf("Error opening connection with ed25519: %s", err.Error())
+	}
+	defer ed25519DB.Close()
+
+	// Verify that we can run a query
+	var result int
+	err = ed25519DB.QueryRow("SELECT 1").Scan(&result)
+	if err != nil {
+		t.Fatalf("Error running query with ed25519 authentication: %s", err.Error())
+	}
+	if result != 1 {
+		t.Fatalf("Unexpected result: expected 1, got %d", result)
+	}
+
+	t.Log("Successfully authenticated using ed25519 authentication")
+}
+
+// TestMultiAuthIntegration tests the multiple authentication methods with MariaDB
+// there will be 3 authentication methods: mysql_native_password, ed25519, parsec
+// * first native password will be wrong,
+// * server will send a authentication switch request with ed25519 that will fail
+// * server will send another authentication switch request with parsec that will succeed
+func TestMultiAuthIntegration(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+
+	// Connect to the database
+	db, err := sql.Open(driverNameTest, dsn)
+	if err != nil {
+		t.Fatalf("Error connecting: %s", err.Error())
+	}
+	defer db.Close()
+
+	// Check MariaDB version
+	var version string
+	err = db.QueryRow("SELECT VERSION()").Scan(&version)
+	if err != nil {
+		t.Fatalf("Error checking version: %s", err.Error())
+	}
+
+	t.Logf("Database version: %s", version)
+
+	// Check if this is a MariaDB server
+	isMariaDB := strings.Contains(strings.ToLower(version), "mariadb")
+	if !isMariaDB {
+		t.Skip("Parsec authentication requires MariaDB 11.6+")
+	}
+
+	// Extract version number
+	parts := strings.Split(version, "-")
+	versionParts := strings.Split(parts[0], ".")
+	if len(versionParts) < 2 {
+		t.Skip("Cannot determine MariaDB version format")
+	}
+
+	major, err := strconv.Atoi(versionParts[0])
+	if err != nil {
+		t.Skip("Cannot parse MariaDB major version")
+	}
+
+	minor, err := strconv.Atoi(versionParts[1])
+	if err != nil {
+		t.Skip("Cannot parse MariaDB minor version")
+	}
+
+	// Skip if version is below 11.6
+	if major < 11 || (major == 11 && minor < 6) {
+		t.Skip("Parsec authentication requires MariaDB 11.6+")
+	}
+
+	// Check if the ed25519 plugin is installed
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM information_schema.plugins WHERE PLUGIN_NAME = 'ed25519' AND PLUGIN_STATUS = 'ACTIVE'").Scan(&count)
+	if err != nil {
+		t.Fatalf("Error checking ed25519 plugin: %s", err.Error())
+	}
+
+	if count == 0 {
+		// Try to install the plugin
+		_, err = db.Exec("INSTALL SONAME 'auth_ed25519'")
+		if err != nil {
+			t.Skipf("ed25519 authentication plugin is not available: %s", err.Error())
+		}
+
+		// Check again if the plugin is active
+		err = db.QueryRow("SELECT COUNT(*) FROM information_schema.plugins WHERE PLUGIN_NAME = 'ed25519' AND PLUGIN_STATUS = 'ACTIVE'").Scan(&count)
+		if err != nil {
+			t.Fatalf("Error checking ed25519 plugin after installation: %s", err.Error())
+		}
+
+		if count == 0 {
+			t.Skip("ed25519 authentication plugin could not be activated")
+		}
+	}
+
+	t.Log("ed25519 authentication plugin is active")
+
+	// Create a test user with multiple authentication methods
+	username := "multi_auth_test_user"
+	password := "multi_auth_test_password"
+
+	// Drop the user if it exists
+	_, err = db.Exec(fmt.Sprintf("DROP USER IF EXISTS '%s'@'localhost'", username))
+	if err != nil {
+		t.Fatalf("Error dropping user: %s", err.Error())
+	}
+
+	// Create the user with multiple authentication methods, password only for parsec
+	createUserSQL := fmt.Sprintf("CREATE USER '%s'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD('wrongPwd') OR ed25519  USING PASSWORD('anotherWrongPwd') OR parsec USING PASSWORD('%s')", username, password)
+	_, err = db.Exec(createUserSQL)
+	if err != nil {
+		t.Fatalf("Error creating user: %s\nSQL: %s", err.Error(), createUserSQL)
+	}
+	defer func() {
+		_, err := db.Exec(fmt.Sprintf("DROP USER IF EXISTS '%s'@'localhost'", username))
+		if err != nil {
+			t.Logf("Error dropping user during cleanup: %s", err.Error())
+		}
+	}()
+
+	// Grant privileges to the test user
+	grantSQL := fmt.Sprintf("GRANT ALL ON *.* TO '%s'@'localhost'", username)
+	_, err = db.Exec(grantSQL)
+	if err != nil {
+		t.Fatalf("Error granting privileges: %s\nSQL: %s", err.Error(), grantSQL)
+	}
+
+	// Flush privileges
+	_, err = db.Exec("FLUSH PRIVILEGES")
+	if err != nil {
+		t.Fatalf("Error flushing privileges: %s", err.Error())
+	}
+
+	// Test parsec authentication with password
+	parsecDSN := fmt.Sprintf("%s:%s@%s/%s?timeout=30s", username, password, netAddr, dbname)
+	t.Logf("Attempting to connect with parsec DSN: %s", parsecDSN)
+
+	parsecDB, err := sql.Open(driverNameTest, parsecDSN)
+	if err != nil {
+		t.Fatalf("Error opening connection with parsec: %s", err.Error())
+	}
+	defer parsecDB.Close()
+
+	// Verify that we can run a query using parsec auth
+	var result int
+	err = parsecDB.QueryRow("SELECT 1").Scan(&result)
+	if err != nil {
+		t.Fatalf("Error running query with parsec authentication: %s", err.Error())
+	}
+	if result != 1 {
+		t.Fatalf("Unexpected result with parsec auth: expected 1, got %d", result)
+	}
+
+	t.Log("Successfully authenticated using parsec authentication with password")
 }

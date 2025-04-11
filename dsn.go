@@ -39,6 +39,7 @@ type Config struct {
 
 	User                 string            // Username
 	Passwd               string            // Password (requires User)
+	OtherPasswd          string            // Other Passwords, comma-delimited passwords for dialog authentication
 	Net                  string            // Network (e.g. "tcp", "tcp6", "unix". default: "tcp")
 	Addr                 string            // Address (default: "127.0.0.1:3306" for "tcp" and "/tmp/mysql.sock" for "unix")
 	DBName               string            // Database name
@@ -61,6 +62,7 @@ type Config struct {
 
 	AllowAllFiles            bool // Allow all files to be used with LOAD DATA LOCAL INFILE
 	AllowCleartextPasswords  bool // Allows the cleartext client side plugin
+	AllowDialogPasswords     bool // Allows the dialog authentication plugin
 	AllowFallbackToPlaintext bool // Allows fallback to unencrypted connection if server does not support TLS
 	AllowNativePasswords     bool // Allows the native password authentication method
 	AllowOldPasswords        bool // Allows the old insecure password method
@@ -254,13 +256,17 @@ func writeDSNParam(buf *bytes.Buffer, hasParam *bool, name, value string) {
 func (cfg *Config) FormatDSN() string {
 	var buf bytes.Buffer
 
-	// [username[:password]@]
+	// [[username][:password]@]
 	if len(cfg.User) > 0 {
 		buf.WriteString(cfg.User)
 		if len(cfg.Passwd) > 0 {
 			buf.WriteByte(':')
 			buf.WriteString(cfg.Passwd)
 		}
+		buf.WriteByte('@')
+	} else if len(cfg.Passwd) > 0 {
+		buf.WriteByte(':')
+		buf.WriteString(cfg.Passwd)
 		buf.WriteByte('@')
 	}
 
@@ -288,6 +294,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.AllowCleartextPasswords {
 		writeDSNParam(&buf, &hasParam, "allowCleartextPasswords", "true")
+	}
+
+	if cfg.AllowDialogPasswords {
+		writeDSNParam(&buf, &hasParam, "allowDialogPasswords", "true")
 	}
 
 	if cfg.AllowFallbackToPlaintext {
@@ -340,6 +350,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.MultiStatements {
 		writeDSNParam(&buf, &hasParam, "multiStatements", "true")
+	}
+
+	if cfg.OtherPasswd != "" {
+		writeDSNParam(&buf, &hasParam, "OtherPasswd", url.QueryEscape(cfg.OtherPasswd))
 	}
 
 	if cfg.ParseTime {
@@ -398,7 +412,7 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 	// New config with some default values
 	cfg = NewConfig()
 
-	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
+	// [[username][:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
 	// Find the last '/' (since the password or the net addr might contain a '/')
 	foundSlash := false
 	for i := len(dsn) - 1; i >= 0; i-- {
@@ -408,11 +422,11 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 
 			// left part is empty if i <= 0
 			if i > 0 {
-				// [username[:password]@][protocol[(address)]]
+				// [[username][:password]@][protocol[(address)]]
 				// Find the last '@' in dsn[:i]
 				for j = i; j >= 0; j-- {
 					if dsn[j] == '@' {
-						// username[:password]
+						// [username][:password]
 						// Find the first ':' in dsn[:j]
 						for k = 0; k < j; k++ { // We cannot use k = range j here, because we use dsn[:k] below
 							if dsn[k] == ':' {
@@ -497,6 +511,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 		case "allowCleartextPasswords":
 			var isBool bool
 			cfg.AllowCleartextPasswords, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+
+		// Use dialog authentication
+		case "allowDialogPasswords":
+			var isBool bool
+			cfg.AllowDialogPasswords, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
 			}
@@ -677,6 +699,13 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				return fmt.Errorf("invalid connectionAttributes value: %v", err)
 			}
 			cfg.ConnectionAttributes = connectionAttributes
+
+		case "OtherPasswd":
+			otherPasswd, err := url.QueryUnescape(value)
+			if err != nil {
+				return fmt.Errorf("invalid OtherPasswd value: %v", err)
+			}
+			cfg.OtherPasswd = otherPasswd
 
 		default:
 			// lazy init

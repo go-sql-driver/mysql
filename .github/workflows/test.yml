@@ -39,6 +39,7 @@ jobs:
               '8.4', # LTS
               '8.0',
               '5.7',
+              'mariadb-11.7',   # in order to test parsec
               'mariadb-11.4',   # LTS
               'mariadb-11.2',
               'mariadb-11.1',
