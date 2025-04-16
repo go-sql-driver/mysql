@@ -534,6 +534,17 @@ See [context support in the database/sql package](https://golang.org/doc/go1.8#d
 > The `QueryContext`, `ExecContext`, etc. variants provided by `database/sql` will cause the connection to be closed if the provided context is cancelled or timed out before the result is received by the driver.
 
 
+### Authentication Plugin System
+
+The driver implements a pluggable authentication system that supports various authentication methods used by MySQL and MariaDB servers. The built-in authentication plugins include:
+
+- `mysql_native_password` - The default MySQL authentication method
+- `caching_sha2_password` - Default authentication method in MySQL 8.0+
+- `mysql_clear_password` - Cleartext authentication (requires `allowCleartextPasswords=true`)
+- `mysql_old_password` - Old MySQL authentication (requires `allowOldPasswords=true`)
+- `sha256_password` - SHA256 authentication
+- `client_ed25519` - MariaDB Ed25519 authentication
+
 ### `LOAD DATA LOCAL INFILE` support
 For this feature you need direct access to the package. Therefore you must change the import path (no `_`):
 ```go

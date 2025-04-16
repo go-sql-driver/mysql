@@ -482,44 +482,6 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 *                              Result Packets                                 *
 ******************************************************************************/
 
-func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
-	data, err := mc.readPacket()
-	if err != nil {
-		return nil, "", err
-	}
-
-	// packet indicator
-	switch data[0] {
-
-	case iOK:
-		// resultUnchanged, since auth happens before any queries or
-		// commands have been executed.
-		return nil, "", mc.resultUnchanged().handleOkPacket(data)
-
-	case iAuthMoreData:
-		return data[1:], "", err
-
-	case iEOF:
-		if len(data) == 1 {
-			// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::OldAuthSwitchRequest
-			return nil, "mysql_old_password", nil
-		}
-		pluginEndIndex := bytes.IndexByte(data, 0x00)
-		if pluginEndIndex < 0 {
-			return nil, "", ErrMalformPkt
-		}
-		plugin := string(data[1:pluginEndIndex])
-		authData := data[pluginEndIndex+1:]
-		if len(authData) > 0 && authData[len(authData)-1] == 0 {
-			authData = authData[:len(authData)-1]
-		}
-		return authData, plugin, nil
-
-	default: // Error otherwise
-		return nil, "", mc.handleErrorPacket(data)
-	}
-}
-
 // Returns error if Packet is not a 'Result OK'-Packet
 func (mc *okHandler) readResultOK() error {
 	data, err := mc.conn().readPacket()
