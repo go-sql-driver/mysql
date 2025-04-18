@@ -113,6 +113,47 @@ func benchmarkQueryHelper(b *testing.B, compr bool) {
 	}
 }
 
+func BenchmarkSelect10000rows(b *testing.B) {
+	db := initDB(b, false)
+	defer db.Close()
+
+	// Check if we're using MariaDB
+	var version string
+	err := db.QueryRow("SELECT @@version").Scan(&version)
+	if err != nil {
+		b.Fatalf("Failed to get server version: %v", err)
+	}
+
+	if !strings.Contains(strings.ToLower(version), "mariadb") {
+		b.Skip("Skipping benchmark as it requires MariaDB sequence table")
+		return
+	}
+
+	b.StartTimer()
+	stmt, err := db.Prepare("SELECT * FROM seq_1_to_10000")
+	if err != nil {
+		b.Fatalf("Failed to prepare statement: %v", err)
+	}
+	defer stmt.Close()
+	for n := 0; n < b.N; n++ {
+		rows, err := stmt.Query()
+		if err != nil {
+			b.Fatalf("Failed to query 10000rows: %v", err)
+		}
+
+		var id int64
+		for rows.Next() {
+			err = rows.Scan(&id)
+			if err != nil {
+				rows.Close()
+				b.Fatalf("Failed to scan row: %v", err)
+			}
+		}
+		rows.Close()
+	}
+	b.StopTimer()
+}
+
 func BenchmarkExec(b *testing.B) {
 	tb := (*TB)(b)
 	b.StopTimer()

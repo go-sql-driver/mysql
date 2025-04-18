@@ -16,6 +16,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type connector struct {
@@ -130,6 +131,22 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 
 	mc.buf = newBuffer()
 
+	// setting readNext/read functions
+	mc.readNextFunc = mc.buf.readNext
+
+	// Initialize read function based on configuration
+	if mc.cfg.ReadTimeout > 0 {
+		mc.readFunc = func(b []byte) (int, error) {
+			deadline := time.Now().Add(mc.cfg.ReadTimeout)
+			if err := mc.netConn.SetReadDeadline(deadline); err != nil {
+				return 0, err
+			}
+			return mc.netConn.Read(b)
+		}
+	} else {
+		mc.readFunc = mc.netConn.Read
+	}
+
 	// Reading Handshake Initialization Packet
 	authData, plugin, err := mc.readHandshakePacket()
 	if err != nil {
@@ -170,6 +187,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if mc.cfg.compress && mc.flags&clientCompress == clientCompress {
 		mc.compress = true
 		mc.compIO = newCompIO(mc)
+		mc.readNextFunc = mc.compIO.readNext
 	}
 	if mc.cfg.MaxAllowedPacket > 0 {
 		mc.maxAllowedPacket = mc.cfg.MaxAllowedPacket
