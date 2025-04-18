@@ -30,14 +30,9 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 	var prevData []byte
 	invalidSequence := false
 
-	readNext := mc.buf.readNext
-	if mc.compress {
-		readNext = mc.compIO.readNext
-	}
-
 	for {
 		// read packet header
-		data, err := readNext(4, mc.readWithTimeout)
+		data, err := mc.readNextFunc(4, mc.readFunc)
 		if err != nil {
 			mc.close()
 			if cerr := mc.canceled.Value(); cerr != nil {
@@ -85,7 +80,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		}
 
 		// read packet body [pktLen bytes]
-		data, err = readNext(pktLen, mc.readWithTimeout)
+		data, err = mc.readNextFunc(pktLen, mc.readFunc)
 		if err != nil {
 			mc.close()
 			if cerr := mc.canceled.Value(); cerr != nil {
@@ -369,6 +364,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 			return err
 		}
 		mc.netConn = tlsConn
+		mc.readFunc = mc.netConn.Read
 	}
 
 	// User [null terminated string]

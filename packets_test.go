@@ -97,24 +97,30 @@ var _ net.Conn = new(mockConn)
 func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
 	conn := new(mockConn)
 	connector := newConnector(NewConfig())
+	buf := newBuffer()
 	mc := &mysqlConn{
-		buf:              newBuffer(),
+		buf:              buf,
 		cfg:              connector.cfg,
 		connector:        connector,
 		netConn:          conn,
 		closech:          make(chan struct{}),
 		maxAllowedPacket: defaultMaxAllowedPacket,
 		sequence:         sequence,
+		readNextFunc:     buf.readNext,
+		readFunc:         conn.Read,
 	}
 	return conn, mc
 }
 
 func TestReadPacketSingleByte(t *testing.T) {
 	conn := new(mockConn)
+	buf := newBuffer()
 	mc := &mysqlConn{
-		netConn: conn,
-		buf:     newBuffer(),
-		cfg:     NewConfig(),
+		netConn:      conn,
+		buf:          buf,
+		cfg:          NewConfig(),
+		readNextFunc: buf.readNext,
+		readFunc:     conn.Read,
 	}
 
 	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
@@ -165,10 +171,13 @@ func TestReadPacketWrongSequenceID(t *testing.T) {
 
 func TestReadPacketSplit(t *testing.T) {
 	conn := new(mockConn)
+	buf := newBuffer()
 	mc := &mysqlConn{
-		netConn: conn,
-		buf:     newBuffer(),
-		cfg:     NewConfig(),
+		netConn:      conn,
+		buf:          buf,
+		cfg:          NewConfig(),
+		readNextFunc: buf.readNext,
+		readFunc:     conn.Read,
 	}
 
 	data := make([]byte, maxPacketSize*2+4*3)
@@ -272,11 +281,14 @@ func TestReadPacketSplit(t *testing.T) {
 
 func TestReadPacketFail(t *testing.T) {
 	conn := new(mockConn)
+	buf := newBuffer()
 	mc := &mysqlConn{
-		netConn: conn,
-		buf:     newBuffer(),
-		closech: make(chan struct{}),
-		cfg:     NewConfig(),
+		netConn:      conn,
+		buf:          buf,
+		closech:      make(chan struct{}),
+		cfg:          NewConfig(),
+		readNextFunc: buf.readNext,
+		readFunc:     conn.Read,
 	}
 
 	// illegal empty (stand-alone) packet
@@ -317,12 +329,15 @@ func TestReadPacketFail(t *testing.T) {
 // not-NUL terminated plugin_name in init packet
 func TestRegression801(t *testing.T) {
 	conn := new(mockConn)
+	buf := newBuffer()
 	mc := &mysqlConn{
-		netConn:  conn,
-		buf:      newBuffer(),
-		cfg:      new(Config),
-		sequence: 42,
-		closech:  make(chan struct{}),
+		netConn:      conn,
+		buf:          buf,
+		cfg:          new(Config),
+		sequence:     42,
+		closech:      make(chan struct{}),
+		readNextFunc: buf.readNext,
+		readFunc:     conn.Read,
 	}
 
 	conn.data = []byte{72, 0, 0, 42, 10, 53, 46, 53, 46, 56, 0, 165, 0, 0, 0,

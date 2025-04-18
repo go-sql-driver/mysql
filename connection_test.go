@@ -18,12 +18,17 @@ import (
 )
 
 func TestInterpolateParams(t *testing.T) {
+	buf := newBuffer()
+	nc := &net.TCPConn{}
 	mc := &mysqlConn{
-		buf:              newBuffer(),
+		buf:              buf,
+		netConn:          nc,
 		maxAllowedPacket: maxPacketSize,
 		cfg: &Config{
 			InterpolateParams: true,
 		},
+		readNextFunc: buf.readNext,
+		readFunc:     nc.Read,
 	}
 
 	q, err := mc.interpolateParams("SELECT ?+?", []driver.Value{int64(42), "gopher"})
