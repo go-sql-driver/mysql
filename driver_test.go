@@ -1609,10 +1609,12 @@ func TestCollation(t *testing.T) {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	defaultCollation := "utf8mb4_general_ci"
+	// MariaDB may override collation specified by handshake with `character_set_collations` variable.
+	// https://mariadb.com/kb/en/setting-character-sets-and-collations/#changing-default-collation
+	// https://mariadb.com/kb/en/server-system-variables/#character_set_collations
+	// utf8mb4_general_ci, utf8mb3_general_ci will be overridden by default MariaDB.
+	// Collations other than charasets default are not overridden. So utf8mb4_unicode_ci is safe.
 	testCollations := []string{
-		"",               // do not set
-		defaultCollation, // driver default
 		"latin1_general_ci",
 		"binary",
 		"utf8mb4_unicode_ci",
@@ -1620,57 +1622,19 @@ func TestCollation(t *testing.T) {
 	}
 
 	for _, collation := range testCollations {
-		var expected, tdsn string
-		if collation != "" {
-			tdsn = dsn + "&collation=" + collation
-			expected = collation
-		} else {
-			tdsn = dsn
-			expected = defaultCollation
-		}
+		t.Run(collation, func(t *testing.T) {
+			tdsn := dsn + "&collation=" + collation
+			expected := collation
 
-		runTests(t, tdsn, func(dbt *DBTest) {
-			// see https://mariadb.com/kb/en/setting-character-sets-and-collations/#changing-default-collation
-			// when character_set_collations is set for the charset, it overrides the default collation
-			// so we need to check if the default collation is overridden
-			forceExpected := expected
-			var defaultCollations string
-			err := dbt.db.QueryRow("SELECT @@character_set_collations").Scan(&defaultCollations)
-			if err == nil {
-				// Query succeeded, need to check if we should override expected collation
-				collationMap := make(map[string]string)
-				pairs := strings.Split(defaultCollations, ",")
-				for _, pair := range pairs {
-					parts := strings.Split(pair, "=")
-					if len(parts) == 2 {
-						collationMap[parts[0]] = parts[1]
-					}
+			runTests(t, tdsn, func(dbt *DBTest) {
+				var got string
+				if err := dbt.db.QueryRow("SELECT @@collation_connection").Scan(&got); err != nil {
+					dbt.Fatal(err)
 				}
-
-				// Get charset prefix from expected collation
-				parts := strings.Split(expected, "_")
-				if len(parts) > 0 {
-					charset := parts[0]
-					if newCollation, ok := collationMap[charset]; ok {
-						forceExpected = newCollation
-					}
-				}
-			}
-
-			var got string
-			if err := dbt.db.QueryRow("SELECT @@collation_connection").Scan(&got); err != nil {
-				dbt.Fatal(err)
-			}
-
-			if got != expected {
-				if forceExpected != expected {
-					if got != forceExpected {
-						dbt.Fatalf("expected forced connection collation %s but got %s", forceExpected, got)
-					}
-				} else {
+				if got != expected {
 					dbt.Fatalf("expected connection collation %s but got %s", expected, got)
 				}
-			}
+			})
 		})
 	}
 }
