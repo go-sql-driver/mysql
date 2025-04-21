@@ -1609,10 +1609,12 @@ func TestCollation(t *testing.T) {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	defaultCollation := "utf8mb4_general_ci"
+	// MariaDB may override collation specified by handshake with `character_set_collations` variable.
+	// https://mariadb.com/kb/en/setting-character-sets-and-collations/#changing-default-collation
+	// https://mariadb.com/kb/en/server-system-variables/#character_set_collations
+	// utf8mb4_general_ci, utf8mb3_general_ci will be overridden by default MariaDB.
+	// Collations other than charasets default are not overridden. So utf8mb4_unicode_ci is safe.
 	testCollations := []string{
-		"",               // do not set
-		defaultCollation, // driver default
 		"latin1_general_ci",
 		"binary",
 		"utf8mb4_unicode_ci",
@@ -1620,24 +1622,19 @@ func TestCollation(t *testing.T) {
 	}
 
 	for _, collation := range testCollations {
-		var expected, tdsn string
-		if collation != "" {
-			tdsn = dsn + "&collation=" + collation
-			expected = collation
-		} else {
-			tdsn = dsn
-			expected = defaultCollation
-		}
+		t.Run(collation, func(t *testing.T) {
+			tdsn := dsn + "&collation=" + collation
+			expected := collation
 
-		runTests(t, tdsn, func(dbt *DBTest) {
-			var got string
-			if err := dbt.db.QueryRow("SELECT @@collation_connection").Scan(&got); err != nil {
-				dbt.Fatal(err)
-			}
-
-			if got != expected {
-				dbt.Fatalf("expected connection collation %s but got %s", expected, got)
-			}
+			runTests(t, tdsn, func(dbt *DBTest) {
+				var got string
+				if err := dbt.db.QueryRow("SELECT @@collation_connection").Scan(&got); err != nil {
+					dbt.Fatal(err)
+				}
+				if got != expected {
+					dbt.Fatalf("expected connection collation %s but got %s", expected, got)
+				}
+			})
 		})
 	}
 }
@@ -1685,7 +1682,7 @@ func TestRawBytesResultExceedsBuffer(t *testing.T) {
 }
 
 func TestTimezoneConversion(t *testing.T) {
-	zones := []string{"UTC", "US/Central", "US/Pacific", "Local"}
+	zones := []string{"UTC", "America/New_York", "Asia/Hong_Kong", "Local"}
 
 	// Regression test for timezone handling
 	tzTest := func(dbt *DBTest) {
@@ -1693,8 +1690,8 @@ func TestTimezoneConversion(t *testing.T) {
 		dbt.mustExec("CREATE TABLE test (ts TIMESTAMP)")
 
 		// Insert local time into database (should be converted)
-		usCentral, _ := time.LoadLocation("US/Central")
-		reftime := time.Date(2014, 05, 30, 18, 03, 17, 0, time.UTC).In(usCentral)
+		newYorkTz, _ := time.LoadLocation("America/New_York")
+		reftime := time.Date(2014, 05, 30, 18, 03, 17, 0, time.UTC).In(newYorkTz)
 		dbt.mustExec("INSERT INTO test VALUE (?)", reftime)
 
 		// Retrieve time from DB
@@ -1713,7 +1710,7 @@ func TestTimezoneConversion(t *testing.T) {
 		// Check that dates match
 		if reftime.Unix() != dbTime.Unix() {
 			dbt.Errorf("times do not match.\n")
-			dbt.Errorf(" Now(%v)=%v\n", usCentral, reftime)
+			dbt.Errorf(" Now(%v)=%v\n", newYorkTz, reftime)
 			dbt.Errorf(" Now(UTC)=%v\n", dbTime)
 		}
 	}
@@ -3541,6 +3538,15 @@ func TestConnectionAttributes(t *testing.T) {
 
 	dbt := &DBTest{t, db}
 
+	var varName string
+	var varValue string
+	err := dbt.db.QueryRow("SHOW VARIABLES LIKE 'performance_schema'").Scan(&varName, &varValue)
+	if err != nil {
+		t.Fatalf("error: %s", err.Error())
+	}
+	if varValue != "ON" {
+		t.Skipf("Performance schema is not enabled. skipping")
+	}
 	queryString := "SELECT ATTR_NAME, ATTR_VALUE FROM performance_schema.session_account_connect_attrs WHERE PROCESSLIST_ID = CONNECTION_ID()"
 	rows := dbt.mustQuery(queryString)
 	defer rows.Close()
