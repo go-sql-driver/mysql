@@ -141,7 +141,7 @@ func TestCleanCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	for i := 0; i < 3; i++ { // Repeat same behavior
+	for range 3 { // Repeat same behavior
 		err := mc.Ping(ctx)
 		if err != context.Canceled {
 			t.Errorf("expected context.Canceled, got %#v", err)

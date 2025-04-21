@@ -26,6 +26,7 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1609,10 +1610,12 @@ func TestCollation(t *testing.T) {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
 
-	defaultCollation := "utf8mb4_general_ci"
+	// MariaDB may override collation specified by handshake with `character_set_collations` variable.
+	// https://mariadb.com/kb/en/setting-character-sets-and-collations/#changing-default-collation
+	// https://mariadb.com/kb/en/server-system-variables/#character_set_collations
+	// utf8mb4_general_ci, utf8mb3_general_ci will be overridden by default MariaDB.
+	// Collations other than charasets default are not overridden. So utf8mb4_unicode_ci is safe.
 	testCollations := []string{
-		"",               // do not set
-		defaultCollation, // driver default
 		"latin1_general_ci",
 		"binary",
 		"utf8mb4_unicode_ci",
@@ -1620,57 +1623,19 @@ func TestCollation(t *testing.T) {
 	}
 
 	for _, collation := range testCollations {
-		var expected, tdsn string
-		if collation != "" {
-			tdsn = dsn + "&collation=" + collation
-			expected = collation
-		} else {
-			tdsn = dsn
-			expected = defaultCollation
-		}
+		t.Run(collation, func(t *testing.T) {
+			tdsn := dsn + "&collation=" + collation
+			expected := collation
 
-		runTests(t, tdsn, func(dbt *DBTest) {
-			// see https://mariadb.com/kb/en/setting-character-sets-and-collations/#changing-default-collation
-			// when character_set_collations is set for the charset, it overrides the default collation
-			// so we need to check if the default collation is overridden
-			forceExpected := expected
-			var defaultCollations string
-			err := dbt.db.QueryRow("SELECT @@character_set_collations").Scan(&defaultCollations)
-			if err == nil {
-				// Query succeeded, need to check if we should override expected collation
-				collationMap := make(map[string]string)
-				pairs := strings.Split(defaultCollations, ",")
-				for _, pair := range pairs {
-					parts := strings.Split(pair, "=")
-					if len(parts) == 2 {
-						collationMap[parts[0]] = parts[1]
-					}
+			runTests(t, tdsn, func(dbt *DBTest) {
+				var got string
+				if err := dbt.db.QueryRow("SELECT @@collation_connection").Scan(&got); err != nil {
+					dbt.Fatal(err)
 				}
-
-				// Get charset prefix from expected collation
-				parts := strings.Split(expected, "_")
-				if len(parts) > 0 {
-					charset := parts[0]
-					if newCollation, ok := collationMap[charset]; ok {
-						forceExpected = newCollation
-					}
-				}
-			}
-
-			var got string
-			if err := dbt.db.QueryRow("SELECT @@collation_connection").Scan(&got); err != nil {
-				dbt.Fatal(err)
-			}
-
-			if got != expected {
-				if forceExpected != expected {
-					if got != forceExpected {
-						dbt.Fatalf("expected forced connection collation %s but got %s", forceExpected, got)
-					}
-				} else {
+				if got != expected {
 					dbt.Fatalf("expected connection collation %s but got %s", expected, got)
 				}
-			}
+			})
 		})
 	}
 }
@@ -1959,7 +1924,7 @@ func TestPreparedManyCols(t *testing.T) {
 		rows.Close()
 
 		// Create 0byte string which we can't send via STMT_LONG_DATA.
-		for i := 0; i < numParams; i++ {
+		for i := range numParams {
 			params[i] = ""
 		}
 		rows, err = stmt.Query(params...)
@@ -2004,7 +1969,7 @@ func TestConcurrent(t *testing.T) {
 			})
 		}
 
-		for i := 0; i < max; i++ {
+		for i := range max {
 			go func(id int) {
 				defer wg.Done()
 
@@ -2388,7 +2353,7 @@ func TestPing(t *testing.T) {
 			q.Close()
 
 			// Verify that Ping() clears both fields.
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				if err := c.Ping(ctx); err != nil {
 					dbt.fail("Pinger", "Ping", err)
 				}
@@ -2591,7 +2556,7 @@ func TestMultiResultSet(t *testing.T) {
 			}
 			defer stmt.Close()
 
-			for j := 0; j < 2; j++ {
+			for j := range 2 {
 				rows, err := stmt.Query()
 				if err != nil {
 					dbt.Fatalf("%v (i=%d) (j=%d)", err, i, j)
@@ -2698,7 +2663,7 @@ func TestQueryMultipleResults(t *testing.T) {
 			c := conn.(*mysqlConn)
 
 			// Demonstrate that repeated queries reset the affectedRows
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				_, err := qr.Query(`
 				INSERT INTO test (value) VALUES ('a'), ('b');
 				INSERT INTO test (value) VALUES ('c'), ('d'), ('e');
@@ -3326,11 +3291,11 @@ func TestRawBytesAreNotModified(t *testing.T) {
 
 	runTests(t, dsn, func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (id int, value BLOB) CHARACTER SET utf8")
-		for i := 0; i < insertRows; i++ {
+		for i := range insertRows {
 			dbt.mustExec("INSERT INTO test VALUES (?, ?)", i+1, sqlBlobs[i&1])
 		}
 
-		for i := 0; i < contextRaceIterations; i++ {
+		for i := range contextRaceIterations {
 			func() {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -3594,8 +3559,8 @@ func TestConnectionAttributes(t *testing.T) {
 		rowsMap[attrName] = attrValue
 	}
 
-	connAttrs := append(append([]string{}, defaultAttrs...), customAttrs...)
-	expectedAttrValues := append(append([]string{}, defaultAttrValues...), customAttrValues...)
+	connAttrs := slices.Concat(defaultAttrs, customAttrs)
+	expectedAttrValues := slices.Concat(defaultAttrValues, customAttrValues)
 	for i := range connAttrs {
 		if gotValue := rowsMap[connAttrs[i]]; gotValue != expectedAttrValues[i] {
 			dbt.Errorf("expected %q, got %q", expectedAttrValues[i], gotValue)
@@ -3679,7 +3644,7 @@ func TestIssue1567(t *testing.T) {
 			count = max
 		}
 
-		for i := 0; i < count; i++ {
+		for range count {
 			timeout := time.Duration(mrand.Int63n(int64(rtt)))
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			dbt.db.PingContext(ctx)
