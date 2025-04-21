@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.9.2 (2025-04-07)
+
+v1.9.2 is a re-release of v1.9.1 due to a release process issue; no changes were made to the content.
+
+
 ## v1.9.1 (2025-03-21)
 
 ### Major Changes

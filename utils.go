@@ -182,7 +182,7 @@ func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 
 func parseByteYear(b []byte) (int, error) {
 	year, n := 0, 1000
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		v, err := bToi(b[i])
 		if err != nil {
 			return 0, err
@@ -207,7 +207,7 @@ func parseByte2Digits(b1, b2 byte) (int, error) {
 
 func parseByteNanoSec(b []byte) (int, error) {
 	ns, digit := 0, 100000 // max is 6-digits
-	for i := 0; i < len(b); i++ {
+	for i := range b {
 		v, err := bToi(b[i])
 		if err != nil {
 			return 0, err
@@ -678,7 +678,7 @@ func escapeStringBackslash(buf []byte, v string) []byte {
 	pos := len(buf)
 	buf = reserveBuffer(buf, len(v)*2)
 
-	for i := 0; i < len(v); i++ {
+	for i := range len(v) {
 		c := v[i]
 		switch c {
 		case '\x00':
@@ -746,7 +746,7 @@ func escapeStringQuotes(buf []byte, v string) []byte {
 	pos := len(buf)
 	buf = reserveBuffer(buf, len(v)*2)
 
-	for i := 0; i < len(v); i++ {
+	for i := range len(v) {
 		c := v[i]
 		if c == '\'' {
 			buf[pos+1] = '\''

@@ -93,7 +93,7 @@ func benchmarkQueryHelper(b *testing.B, compr bool) {
 	defer wg.Wait()
 	b.StartTimer()
 
-	for i := 0; i < concurrencyLevel; i++ {
+	for range concurrencyLevel {
 		go func() {
 			for {
 				if atomic.AddInt64(&remain, -1) < 0 {
@@ -171,7 +171,7 @@ func BenchmarkExec(b *testing.B) {
 	defer wg.Wait()
 	b.StartTimer()
 
-	for i := 0; i < concurrencyLevel; i++ {
+	for range concurrencyLevel {
 		go func() {
 			for {
 				if atomic.AddInt64(&remain, -1) < 0 {
@@ -386,7 +386,7 @@ func BenchmarkQueryRawBytes(b *testing.B) {
 	for i := range blob {
 		blob[i] = 42
 	}
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		_, err := db.Exec("INSERT INTO bench_rawbytes VALUES (?, ?)", i, blob)
 		if err != nil {
 			b.Fatal(err)
@@ -442,7 +442,7 @@ func BenchmarkReceiveMassiveRows(b *testing.B) {
 	}
 	for i := 0; i < 10000; i += 100 {
 		args := make([]any, 200)
-		for j := 0; j < 100; j++ {
+		for j := range 100 {
 			args[j*2] = i + j
 			args[j*2+1] = sval
 		}
