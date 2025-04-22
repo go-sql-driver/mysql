@@ -129,13 +129,13 @@ func BenchmarkSelect10000rows(b *testing.B) {
 		return
 	}
 
-	b.StartTimer()
+	b.ResetTimer()
 	stmt, err := db.Prepare("SELECT * FROM seq_1_to_10000")
 	if err != nil {
 		b.Fatalf("Failed to prepare statement: %v", err)
 	}
 	defer stmt.Close()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		rows, err := stmt.Query()
 		if err != nil {
 			b.Fatalf("Failed to query 10000rows: %v", err)
@@ -151,7 +151,6 @@ func BenchmarkSelect10000rows(b *testing.B) {
 		}
 		rows.Close()
 	}
-	b.StopTimer()
 }
 
 func BenchmarkExec(b *testing.B) {
