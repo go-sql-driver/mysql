@@ -46,10 +46,10 @@ func (tb *TB) checkStmt(stmt *sql.Stmt, err error) *sql.Stmt {
 	return stmt
 }
 
-func initDB(b *testing.B, useCompression bool, queries ...string) *sql.DB {
+func initDB(b *testing.B, compress bool, queries ...string) *sql.DB {
 	tb := (*TB)(b)
 	comprStr := ""
-	if useCompression {
+	if compress {
 		comprStr = "&compress=1"
 	}
 	db := tb.checkDB(sql.Open(driverNameTest, dsn+comprStr))
@@ -64,16 +64,15 @@ func initDB(b *testing.B, useCompression bool, queries ...string) *sql.DB {
 const concurrencyLevel = 10
 
 func BenchmarkQuery(b *testing.B) {
-	benchmarkQueryHelper(b, false)
+	benchmarkQuery(b, false)
 }
 
-func BenchmarkQueryCompression(b *testing.B) {
-	benchmarkQueryHelper(b, true)
+func BenchmarkQueryCompressed(b *testing.B) {
+	benchmarkQuery(b, true)
 }
 
-func benchmarkQueryHelper(b *testing.B, compr bool) {
+func benchmarkQuery(b *testing.B, compr bool) {
 	tb := (*TB)(b)
-	b.StopTimer()
 	b.ReportAllocs()
 	db := initDB(b, compr,
 		"DROP TABLE IF EXISTS foo",
@@ -93,7 +92,7 @@ func benchmarkQueryHelper(b *testing.B, compr bool) {
 	defer wg.Wait()
 	b.StartTimer()
 
-	for range concurrencyLevel {
+	for i := 0; i < concurrencyLevel; i++ {
 		go func() {
 			for {
 				if atomic.AddInt64(&remain, -1) < 0 {
@@ -115,8 +114,6 @@ func benchmarkQueryHelper(b *testing.B, compr bool) {
 
 func BenchmarkExec(b *testing.B) {
 	tb := (*TB)(b)
-	b.StopTimer()
-	b.ReportAllocs()
 	db := tb.checkDB(sql.Open(driverNameTest, dsn))
 	db.SetMaxIdleConns(concurrencyLevel)
 	defer db.Close()
@@ -128,9 +125,11 @@ func BenchmarkExec(b *testing.B) {
 	var wg sync.WaitGroup
 	wg.Add(concurrencyLevel)
 	defer wg.Wait()
-	b.StartTimer()
 
-	for range concurrencyLevel {
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i <  concurrencyLevel; i++ {
 		go func() {
 			for {
 				if atomic.AddInt64(&remain, -1) < 0 {
@@ -158,14 +157,15 @@ func initRoundtripBenchmarks() ([]byte, int, int) {
 }
 
 func BenchmarkRoundtripTxt(b *testing.B) {
-	b.StopTimer()
 	sample, min, max := initRoundtripBenchmarks()
 	sampleString := string(sample)
-	b.ReportAllocs()
 	tb := (*TB)(b)
 	db := tb.checkDB(sql.Open(driverNameTest, dsn))
 	defer db.Close()
-	b.StartTimer()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
 	var result string
 	for i := 0; i < b.N; i++ {
 		length := min + i
@@ -192,15 +192,15 @@ func BenchmarkRoundtripTxt(b *testing.B) {
 }
 
 func BenchmarkRoundtripBin(b *testing.B) {
-	b.StopTimer()
 	sample, min, max := initRoundtripBenchmarks()
-	b.ReportAllocs()
 	tb := (*TB)(b)
 	db := tb.checkDB(sql.Open(driverNameTest, dsn))
 	defer db.Close()
 	stmt := tb.checkStmt(db.Prepare("SELECT ?"))
 	defer stmt.Close()
-	b.StartTimer()
+
+	b.ReportAllocs()
+	b.ResetTimer()
 	var result sql.RawBytes
 	for i := 0; i < b.N; i++ {
 		length := min + i
@@ -345,7 +345,7 @@ func BenchmarkQueryRawBytes(b *testing.B) {
 	for i := range blob {
 		blob[i] = 42
 	}
-	for i := range 100 {
+	for i := 0; i < 100; i++ {
 		_, err := db.Exec("INSERT INTO bench_rawbytes VALUES (?, ?)", i, blob)
 		if err != nil {
 			b.Fatal(err)
@@ -385,10 +385,9 @@ func BenchmarkQueryRawBytes(b *testing.B) {
 	}
 }
 
-// BenchmarkReceiveMassiveRows measures performance of receiving large number of rows.
-func BenchmarkReceiveMassiveRows(b *testing.B) {
+func benchmark10kRows(b *testing.B, compress bool) {
 	// Setup -- prepare 10000 rows.
-	db := initDB(b, false,
+	db := initDB(b, compress,
 		"DROP TABLE IF EXISTS foo",
 		"CREATE TABLE foo (id INT PRIMARY KEY, val TEXT)")
 	defer db.Close()
@@ -399,11 +398,14 @@ func BenchmarkReceiveMassiveRows(b *testing.B) {
 		b.Errorf("failed to prepare query: %v", err)
 		return
 	}
+
+	args := make([]any, 200)
+	for i := 1; i < 200; i+=2 {
+		args[i] = sval
+	}
 	for i := 0; i < 10000; i += 100 {
-		args := make([]any, 200)
-		for j := range 100 {
+		for j := 0; j < 100; j++ {
 			args[j*2] = i + j
-			args[j*2+1] = sval
 		}
 		_, err := stmt.Exec(args...)
 		if err != nil {
@@ -413,30 +415,43 @@ func BenchmarkReceiveMassiveRows(b *testing.B) {
 	}
 	stmt.Close()
 
-	// Use b.Run() to skip expensive setup.
+	// benchmark function called several times with different b.N.
+	// it means heavy setup is called multiple times.
+	// Use b.Run() to run expensive setup only once.
+	// Go 1.24 introduced b.Loop() for this purpose. But we keep this
+	// benchmark compatible with Go 1.20.
 	b.Run("query", func(b *testing.B) {
 		b.ReportAllocs()
-
 		for i := 0; i < b.N; i++ {
 			rows, err := db.Query(`SELECT id, val FROM foo`)
 			if err != nil {
 				b.Errorf("failed to select: %v", err)
 				return
 			}
+			// rows.Scan() escapes arguments. So these variables must be defined
+			// before loop.
+			var i int
+			var s sql.RawBytes
 			for rows.Next() {
-				var i int
-				var s sql.RawBytes
-				err = rows.Scan(&i, &s)
-				if err != nil {
+				if err := rows.Scan(&i, &s); err != nil {
 					b.Errorf("failed to scan: %v", err)
-					_ = rows.Close()
+					rows.Close()
 					return
 				}
 			}
 			if err = rows.Err(); err != nil {
 				b.Errorf("failed to read rows: %v", err)
 			}
-			_ = rows.Close()
+			rows.Close()
 		}
 	})
+}
+
+// BenchmarkReceive10kRows measures performance of receiving large number of rows.
+func BenchmarkReceive10kRows(b *testing.B) {
+	benchmark10kRows(b, false)
+}
+
+func BenchmarkReceive10kRowsCompressed(b *testing.B) {
+	benchmark10kRows(b, true)
 }
