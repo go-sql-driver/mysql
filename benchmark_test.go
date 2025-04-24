@@ -129,7 +129,7 @@ func BenchmarkExec(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i <  concurrencyLevel; i++ {
+	for i := 0; i < concurrencyLevel; i++ {
 		go func() {
 			for {
 				if atomic.AddInt64(&remain, -1) < 0 {
@@ -400,7 +400,7 @@ func benchmark10kRows(b *testing.B, compress bool) {
 	}
 
 	args := make([]any, 200)
-	for i := 1; i < 200; i+=2 {
+	for i := 1; i < 200; i += 2 {
 		args[i] = sval
 	}
 	for i := 0; i < 10000; i += 100 {
@@ -454,4 +454,59 @@ func BenchmarkReceive10kRows(b *testing.B) {
 
 func BenchmarkReceive10kRowsCompressed(b *testing.B) {
 	benchmark10kRows(b, true)
+}
+
+// BenchmarkReceiveMetadata measures performance of receiving lots of metadata compare to data in rows
+func BenchmarkReceiveMetadata(b *testing.B) {
+	tb := (*TB)(b)
+
+	// Create a table with 1000 integer fields
+	createTableQuery := "CREATE TABLE large_integer_table ("
+	for i := 0; i < 1000; i++ {
+		createTableQuery += fmt.Sprintf("col_%d INT", i)
+		if i < 999 {
+			createTableQuery += ", "
+		}
+	}
+	createTableQuery += ")"
+
+	// Initialize database
+	db := initDB(b, false,
+		"DROP TABLE IF EXISTS large_integer_table",
+		createTableQuery,
+		"INSERT INTO large_integer_table VALUES ("+
+			strings.Repeat("0,", 999)+"0)", // Insert a row of zeros
+	)
+	defer db.Close()
+
+	b.Run("query", func(b *testing.B) {
+		db.SetMaxIdleConns(0)
+		db.SetMaxIdleConns(1)
+
+		// Create a slice to scan all columns
+		values := make([]interface{}, 1000)
+		valuePtrs := make([]interface{}, 1000)
+		for j := range values {
+			valuePtrs[j] = &values[j]
+		}
+
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		// Prepare a SELECT query to retrieve metadata
+		stmt := tb.checkStmt(db.Prepare("SELECT * FROM large_integer_table LIMIT 1"))
+		defer stmt.Close()
+
+		// Benchmark metadata retrieval
+		for i := 0; i < b.N; i++ {
+			rows := tb.checkRows(stmt.Query())
+
+			rows.Next()
+			// Scan the row
+			err := rows.Scan(valuePtrs...)
+			tb.check(err)
+
+			rows.Close()
+		}
+	})
 }
