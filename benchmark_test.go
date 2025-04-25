@@ -484,8 +484,8 @@ func BenchmarkReceiveMetadata(b *testing.B) {
 		db.SetMaxIdleConns(1)
 
 		// Create a slice to scan all columns
-		values := make([]interface{}, 1000)
-		valuePtrs := make([]interface{}, 1000)
+		values := make([]any, 1000)
+		valuePtrs := make([]any, 1000)
 		for j := range values {
 			valuePtrs[j] = &values[j]
 		}
@@ -498,7 +498,7 @@ func BenchmarkReceiveMetadata(b *testing.B) {
 		defer stmt.Close()
 
 		// Benchmark metadata retrieval
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			rows := tb.checkRows(stmt.Query())
 
 			rows.Next()
