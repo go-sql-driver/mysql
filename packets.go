@@ -363,13 +363,11 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		}
 		// MariaDB Extended Capabilities
 		binary.LittleEndian.PutUint32(data[13+19:], uint32(mc.extCapabilities))
-		pos += 4
 	} else {
 		for ; pos < 13+23; pos++ {
 			data[pos] = 0
 		}
 	}
-	// assert len(data) == pos
 
 	// SSL Connection Request Packet
 	// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase_packets_protocol_ssl_request.html
@@ -707,7 +705,7 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 	columns := make([]mysqlField, count)
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		data, err := mc.readPacket()
 		if err != nil {
 			return nil, err
@@ -905,6 +903,7 @@ func (mc *mysqlConn) skipPackets(n int) error {
 	return nil
 }
 
+// skips EOF packet after n * ColumnDefinition packets when clientDeprecateEOF is not set
 func (mc *mysqlConn) skipEof() error {
 	if mc.capabilities&clientDeprecateEOF == 0 {
 		if _, err := mc.readPacket(); err != nil {
