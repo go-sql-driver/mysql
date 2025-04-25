@@ -77,7 +77,7 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 		}
 
 		// Rows
-		if err = mc.skipResultSetRows(); err != nil {
+		if err = mc.skipRows(); err != nil {
 			return nil, err
 		}
 	}

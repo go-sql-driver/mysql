@@ -809,14 +809,18 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 	}
 
 	// EOF Packet
-	if data[0] == iEOF && len(data) < 0xffffff {
+	// text row packets may starts with LengthEncodedString.
+	// In such case, 0xFE can mean string larger than 0xffffff.
+	// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_dt_integers.html#sect_protocol_basic_dt_int_le
+	if data[0] == iEOF && len(data) <= 0xffffff {
 		if mc.capabilities&clientDeprecateEOF == 0 {
-			// EOF packet
+			// Deprecated EOF packet
+			// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_eof_packet.html
 			mc.status = readStatus(data[3:])
 		} else {
 			// Ok Packet with an 0xFE header
-			_, _, n := readLengthEncodedInteger(data[1:])
-			_, _, m := readLengthEncodedInteger(data[1+n:])
+			_, _, n := readLengthEncodedInteger(data[1:])   // affected_rows
+			_, _, m := readLengthEncodedInteger(data[1+n:]) // last_insert_id
 			mc.status = readStatus(data[1+n+m:])
 		}
 		rows.rs.done = true
@@ -892,8 +896,8 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 	return nil
 }
 
-func (mc *mysqlConn) skipPackets(number int) error {
-	for i := 0; i < number; i++ {
+func (mc *mysqlConn) skipPackets(n int) error {
+	for i := 0; i < n; i++ {
 		if _, err := mc.readPacket(); err != nil {
 			return err
 		}
@@ -910,15 +914,15 @@ func (mc *mysqlConn) skipEof() error {
 	return nil
 }
 
-func (mc *mysqlConn) skipColumns(resLen int) error {
-	if err := mc.skipPackets(resLen); err != nil {
+func (mc *mysqlConn) skipColumns(n int) error {
+	if err := mc.skipPackets(n); err != nil {
 		return err
 	}
 	return mc.skipEof()
 }
 
 // Reads Packets until EOF-Packet or an Error appears.
-func (mc *mysqlConn) skipResultSetRows() error {
+func (mc *mysqlConn) skipRows() error {
 	for {
 		data, err := mc.readPacket()
 		if err != nil {
@@ -929,14 +933,16 @@ func (mc *mysqlConn) skipResultSetRows() error {
 		case iERR:
 			return mc.handleErrorPacket(data)
 		case iEOF:
-			if len(data) < 0xffffff {
+			// text row packets may starts with LengthEncodedString.
+			// In such case, 0xFE can mean string larger than 0xffffff.
+			if len(data) <= 0xffffff {
 				if mc.capabilities&clientDeprecateEOF == 0 {
 					// EOF packet
 					mc.status = readStatus(data[3:])
 				} else {
 					// OK packet with an 0xFE header
-					_, _, n := readLengthEncodedInteger(data[1:])
-					_, _, m := readLengthEncodedInteger(data[1+n:])
+					_, _, n := readLengthEncodedInteger(data[1:])   // affected_rows
+					_, _, m := readLengthEncodedInteger(data[1+n:]) // last_insert_id
 					mc.status = readStatus(data[1+n+m:])
 				}
 				return nil
@@ -1238,7 +1244,7 @@ func (mc *okHandler) discardResults() error {
 				return err
 			}
 			// rows
-			if err := mc.conn().skipResultSetRows(); err != nil {
+			if err := mc.conn().skipRows(); err != nil {
 				return err
 			}
 		}

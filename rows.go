@@ -113,7 +113,7 @@ func (rows *mysqlRows) Close() (err error) {
 
 	// Remove unread packets from stream
 	if !rows.rs.done {
-		err = mc.skipResultSetRows()
+		err = mc.skipRows()
 	}
 	if err == nil {
 		handleOk := mc.clearResult()
@@ -143,7 +143,7 @@ func (rows *mysqlRows) nextResultSet() (int, error) {
 
 	// Remove unread packets from stream
 	if !rows.rs.done {
-		if err := rows.mc.skipResultSetRows(); err != nil {
+		if err := rows.mc.skipRows(); err != nil {
 			return 0, err
 		}
 		rows.rs.done = true

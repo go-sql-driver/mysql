@@ -391,7 +391,7 @@ func (mc *mysqlConn) exec(query string) error {
 		}
 
 		// rows
-		if err := mc.skipResultSetRows(); err != nil {
+		if err := mc.skipRows(); err != nil {
 			return err
 		}
 	}
@@ -477,7 +477,7 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 
 		dest := make([]driver.Value, resLen)
 		if err = rows.readRow(dest); err == nil {
-			return dest[0].([]byte), mc.skipResultSetRows()
+			return dest[0].([]byte), mc.skipRows()
 		}
 	}
 	return nil, err
