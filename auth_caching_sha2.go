@@ -16,6 +16,12 @@ import (
 	"fmt"
 )
 
+// Authentication response constants
+const (
+	cachingSha2FastAuth       = 3 // Password found in cache
+	cachingSha2FullAuthNeeded = 4 // Full authentication needed
+)
+
 // CachingSha2PasswordPlugin implements the caching_sha2_password authentication
 // This plugin provides secure password-based authentication using SHA256 and RSA encryption,
 // with server-side caching of password verifiers for improved performance.
@@ -66,11 +72,11 @@ func (p *CachingSha2PasswordPlugin) continuationAuth(packet []byte, authData []b
 
 		case 2:
 			switch packet[1] {
-			case 3:
+			case cachingSha2FastAuth:
 				// the password was found in the server's cache
 				return mc.readPacket()
 
-			case 4:
+			case cachingSha2FullAuthNeeded:
 				// indicates full authentication is needed
 				// For TLS connections or Unix socket, send cleartext password
 				if mc.cfg.TLS != nil || mc.cfg.Net == "unix" {
