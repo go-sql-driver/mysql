@@ -89,7 +89,7 @@ func TestAuthFastCachingSHA256PasswordCached(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, 0, 0, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestAuthFastCachingSHA256PasswordEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, 0, 0, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestAuthFastCachingSHA256PasswordFullRSA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, 0, 0, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestAuthFastCachingSHA256PasswordFullRSAWithKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, 0, 0, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +284,7 @@ func TestAuthFastCachingSHA256PasswordFullSecure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, 0, 0, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +357,7 @@ func TestAuthFastCleartextPassword(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, 0, 0, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -400,7 +400,7 @@ func TestAuthFastCleartextPasswordEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, 0, 0, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +459,7 @@ func TestAuthFastNativePassword(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, 0, 0, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -502,7 +502,7 @@ func TestAuthFastNativePasswordEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, 0, 0, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -544,7 +544,7 @@ func TestAuthFastSHA256PasswordEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, 0, 0, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -592,7 +592,7 @@ func TestAuthFastSHA256PasswordRSA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, 0, 0, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -641,7 +641,7 @@ func TestAuthFastSHA256PasswordRSAWithKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, 0, 0, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -678,7 +678,7 @@ func TestAuthFastSHA256PasswordSecure(t *testing.T) {
 	// unset TLS config to prevent the actual establishment of a TLS wrapper
 	mc.cfg.TLS = nil
 
-	err = mc.writeHandshakeResponsePacket(authResp, 0, 0, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1343,7 +1343,7 @@ func TestEd25519Auth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = mc.writeHandshakeResponsePacket(authResp, 0, 0, plugin)
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -24,22 +24,22 @@ import (
 )
 
 type mysqlConn struct {
-	buf                   buffer
-	netConn               net.Conn
-	rawConn               net.Conn    // underlying connection when netConn is TLS connection.
-	result                mysqlResult // managed by clearResult() and handleOkPacket().
-	compIO                *compIO
-	cfg                   *Config
-	connector             *connector
-	maxAllowedPacket      int
-	maxWriteSize          int
-	clientCapabilities    capabilityFlag
-	clientExtCapabilities extendedCapabilityFlag
-	status                statusFlag
-	sequence              uint8
-	compressSequence      uint8
-	parseTime             bool
-	compress              bool
+	buf              buffer
+	netConn          net.Conn
+	rawConn          net.Conn    // underlying connection when netConn is TLS connection.
+	result           mysqlResult // managed by clearResult() and handleOkPacket().
+	compIO           *compIO
+	cfg              *Config
+	connector        *connector
+	maxAllowedPacket int
+	maxWriteSize     int
+	capabilities     capabilityFlag
+	extCapabilities  extendedCapabilityFlag
+	status           statusFlag
+	sequence         uint8
+	compressSequence uint8
+	parseTime        bool
+	compress         bool
 
 	// for context support (Go 1.8+)
 	watching bool
@@ -230,7 +230,7 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 		}
 
 		if columnCount > 0 {
-			if mc.clientExtCapabilities&clientCacheMetadata != 0 {
+			if mc.extCapabilities&clientCacheMetadata != 0 {
 				if stmt.columns, err = mc.readColumns(int(columnCount)); err != nil {
 					return nil, err
 				}
