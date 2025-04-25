@@ -137,10 +137,6 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 
-	if mc.cfg.TLS != nil && serverCapabilities&clientSSL == 0 {
-		return nil, fmt.Errorf("TLS is required, but server doesn't support it")
-	}
-
 	if plugin == "" {
 		plugin = defaultAuthPlugin
 	}
