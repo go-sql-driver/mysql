@@ -65,15 +65,22 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	handleOk := stmt.mc.clearResult()
 
 	// Read Result
-	resLen, _, err := handleOk.readResultSetHeaderPacket()
+	resLen, metadataFollows, err := handleOk.readResultSetHeaderPacket()
 	if err != nil {
 		return nil, err
 	}
 
 	if resLen > 0 {
 		// Columns
-		if err = mc.skipColumns(resLen); err != nil {
-			return nil, err
+		if metadataFollows && stmt.mc.extCapabilities&clientCacheMetadata != 0 {
+			// we can not skip column metadata because next stmt.Query() may use it.
+			if stmt.columns, err = mc.readColumns(resLen); err != nil {
+				return nil, err
+			}
+		} else {
+			if err = mc.skipColumns(resLen); err != nil {
+				return nil, err
+			}
 		}
 
 		// Rows
