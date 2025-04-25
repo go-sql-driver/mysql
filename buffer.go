@@ -42,6 +42,11 @@ func (b *buffer) busy() bool {
 	return len(b.buf) > 0
 }
 
+// len returns how many bytes in the read buffer.
+func (b *buffer) len() int {
+	return len(b.buf)
+}
+
 // fill reads into the read buffer until at least _need_ bytes are in it.
 func (b *buffer) fill(need int, r readerFunc) error {
 	// we'll move the contents of the current buffer to dest before filling it.
@@ -86,17 +91,10 @@ func (b *buffer) fill(need int, r readerFunc) error {
 
 // returns next N bytes from buffer.
 // The returned slice is only guaranteed to be valid until the next read
-func (b *buffer) readNext(need int, r readerFunc) ([]byte, error) {
-	if len(b.buf) < need {
-		// refill
-		if err := b.fill(need, r); err != nil {
-			return nil, err
-		}
-	}
-
-	data := b.buf[:need]
+func (b *buffer) readNext(need int) []byte {
+	data := b.buf[:need:need]
 	b.buf = b.buf[need:]
-	return data, nil
+	return data
 }
 
 // takeBuffer returns a buffer with the requested size.
