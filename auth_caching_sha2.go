@@ -112,7 +112,12 @@ func (p *CachingSha2PasswordPlugin) continuationAuth(packet []byte, authData []b
 						if err != nil {
 							return nil, fmt.Errorf("failed to parse public key: %w", err)
 						}
-						pubKey = pkix.(*rsa.PublicKey)
+
+						var ok bool
+						pubKey, ok = pkix.(*rsa.PublicKey)
+						if !ok {
+							return nil, fmt.Errorf("server sent an invalid public key type: %T", pkix)
+						}
 					}
 
 					// Encrypt and send password
@@ -142,7 +147,7 @@ func (p *CachingSha2PasswordPlugin) continuationAuth(packet []byte, authData []b
 //
 // The algorithm is:
 // 1. SHA256(password)
-// 2. SHA256(SHA256(SHA256(password)))
+// 2. SHA256(SHA256(password))
 // 3. XOR(SHA256(password), SHA256(SHA256(SHA256(password)), scramble))
 //
 // This provides a way to verify the password without storing it in cleartext.

@@ -68,6 +68,9 @@ func (p *Sha256PasswordPlugin) InitAuth(authData []byte, cfg *Config) ([]byte, e
 // 2. Error packet - Authentication failed
 // 3. More data packet - Contains the server's public key for password encryption
 func (p *Sha256PasswordPlugin) continuationAuth(packet []byte, authData []byte, mc *mysqlConn) ([]byte, error) {
+	if len(packet) == 0 {
+		return nil, fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
+	}
 
 	switch packet[0] {
 	case iOK, iERR, iEOF:
@@ -86,8 +89,13 @@ func (p *Sha256PasswordPlugin) continuationAuth(packet []byte, authData []byte, 
 			return nil, fmt.Errorf("failed to parse public key: %w", err)
 		}
 
+		pubKey, ok := pub.(*rsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("server sent an invalid public key type: %T", pub)
+		}
+
 		// Send encrypted password
-		enc, err := encryptPassword(mc.cfg.Passwd, authData, pub.(*rsa.PublicKey))
+		enc, err := encryptPassword(mc.cfg.Passwd, authData, pubKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encrypt password with server key: %w", err)
 		}
