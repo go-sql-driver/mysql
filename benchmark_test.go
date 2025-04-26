@@ -479,34 +479,32 @@ func BenchmarkReceiveMetadata(b *testing.B) {
 	)
 	defer db.Close()
 
-	b.Run("query", func(b *testing.B) {
-		db.SetMaxIdleConns(0)
-		db.SetMaxIdleConns(1)
+	db.SetMaxIdleConns(0)
+	db.SetMaxIdleConns(1)
 
-		// Create a slice to scan all columns
-		values := make([]any, 1000)
-		valuePtrs := make([]any, 1000)
-		for j := range values {
-			valuePtrs[j] = &values[j]
-		}
+	// Create a slice to scan all columns
+	values := make([]any, 1000)
+	valuePtrs := make([]any, 1000)
+	for j := range values {
+		valuePtrs[j] = &values[j]
+	}
 
-		b.ReportAllocs()
-		b.ResetTimer()
+	// Prepare a SELECT query to retrieve metadata
+	stmt := tb.checkStmt(db.Prepare("SELECT * FROM large_integer_table LIMIT 1"))
+	defer stmt.Close()
 
-		// Prepare a SELECT query to retrieve metadata
-		stmt := tb.checkStmt(db.Prepare("SELECT * FROM large_integer_table LIMIT 1"))
-		defer stmt.Close()
+	b.ReportAllocs()
+	b.ResetTimer()
 
-		// Benchmark metadata retrieval
-		for range b.N {
-			rows := tb.checkRows(stmt.Query())
+	// Benchmark metadata retrieval
+	for b.Loop() {
+		rows := tb.checkRows(stmt.Query())
 
-			rows.Next()
-			// Scan the row
-			err := rows.Scan(valuePtrs...)
-			tb.check(err)
+		rows.Next()
+		// Scan the row
+		err := rows.Scan(valuePtrs...)
+		tb.check(err)
 
-			rows.Close()
-		}
-	})
+		rows.Close()
+	}
 }
