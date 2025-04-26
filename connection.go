@@ -231,7 +231,7 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 
 		if columnCount > 0 {
 			if mc.extCapabilities&clientCacheMetadata != 0 {
-				if stmt.columns, err = mc.readColumns(int(columnCount)); err != nil {
+				if stmt.columns, err = mc.readColumns(int(columnCount), nil); err != nil {
 					return nil, err
 				}
 			} else {
@@ -448,7 +448,7 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 	}
 
 	// Columns
-	rows.rs.columns, err = mc.readColumns(resLen)
+	rows.rs.columns, err = mc.readColumns(resLen, nil)
 	return rows, err
 }
 
