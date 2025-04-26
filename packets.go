@@ -702,8 +702,11 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
-func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
+func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, error) {
 	columns := make([]mysqlField, count)
+	if len(old) != count {
+		old = nil
+	}
 
 	for i := range count {
 		data, err := mc.readPacket()
@@ -731,7 +734,12 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 				return nil, err
 			}
 			pos += n
-			columns[i].tableName = string(tableName)
+			if old != nil && old[i].tableName == string(tableName) {
+				// avoid allocating new string
+				columns[i].tableName = old[i].tableName
+			} else {
+				columns[i].tableName = string(tableName)
+			}
 		} else {
 			n, err = skipLengthEncodedString(data[pos:])
 			if err != nil {
@@ -752,7 +760,12 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 		if err != nil {
 			return nil, err
 		}
-		columns[i].name = string(name)
+		if old != nil && old[i].name == string(name) {
+			// avoid allocating new string
+			columns[i].name = old[i].name
+		} else {
+			columns[i].name = string(name)
+		}
 		pos += n
 
 		// Original name [len coded string]
