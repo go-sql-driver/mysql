@@ -490,14 +490,13 @@ func BenchmarkReceiveMetadata(b *testing.B) {
 			valuePtrs[j] = &values[j]
 		}
 
-		b.ReportAllocs()
-		b.ResetTimer()
-
 		// Prepare a SELECT query to retrieve metadata
 		stmt := tb.checkStmt(db.Prepare("SELECT * FROM large_integer_table LIMIT 1"))
 		defer stmt.Close()
 
 		// Benchmark metadata retrieval
+		b.ReportAllocs()
+		b.ResetTimer()
 		for range b.N {
 			rows := tb.checkRows(stmt.Query())
 

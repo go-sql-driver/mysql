@@ -186,7 +186,7 @@ func (rows *binaryRows) NextResultSet() error {
 		return err
 	}
 
-	rows.rs.columns, err = rows.mc.readColumns(resLen)
+	rows.rs.columns, err = rows.mc.readColumns(resLen, nil)
 	return err
 }
 
@@ -208,7 +208,7 @@ func (rows *textRows) NextResultSet() (err error) {
 		return err
 	}
 
-	rows.rs.columns, err = rows.mc.readColumns(resLen)
+	rows.rs.columns, err = rows.mc.readColumns(resLen, nil)
 	return err
 }
 
