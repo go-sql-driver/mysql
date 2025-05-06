@@ -32,7 +32,7 @@ const (
 )
 
 // MySQL constants documentation:
-// http://dev.mysql.com/doc/internals/en/client-server-protocol.html
+// https://dev.mysql.com/doc/dev/mysql-server/latest/PAGE_PROTOCOL.html
 
 const (
 	iOK           byte = 0x00
