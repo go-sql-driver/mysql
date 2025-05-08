@@ -322,7 +322,7 @@ func (mc *mysqlConn) initCapabilities(serverCapabilities capabilityFlag, serverE
 }
 
 // Client Authentication Packet
-// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::HandshakeResponse
+// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase_packets_protocol_handshake_response.html
 func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string) error {
 	// packet header  4
 	// capabilities   4
@@ -419,7 +419,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	return mc.writePacket(data)
 }
 
-// http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
+// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase_packets_protocol_auth_switch_response.html
 func (mc *mysqlConn) writeAuthSwitchPacket(authData []byte) error {
 	pktLen := 4 + len(authData)
 	data, err := mc.buf.takeBuffer(pktLen)
@@ -517,7 +517,7 @@ func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
 
 	case iEOF:
 		if len(data) == 1 {
-			// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::OldAuthSwitchRequest
+			// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase_packets_protocol_old_auth_switch_request.html
 			return nil, "mysql_old_password", nil
 		}
 		pluginEndIndex := bytes.IndexByte(data, 0x00)
@@ -585,7 +585,7 @@ func (mc *okHandler) readResultSetHeaderPacket() (int, bool, error) {
 }
 
 // Error Packet
-// http://dev.mysql.com/doc/internals/en/generic-response-packets.html#packet-ERR_Packet
+// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_err_packet.html
 func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 	if data[0] != iERR {
 		return ErrMalformPkt
@@ -667,7 +667,7 @@ func (mc *mysqlConn) clearResult() *okHandler {
 }
 
 // Ok Packet
-// http://dev.mysql.com/doc/internals/en/generic-response-packets.html#packet-OK_Packet
+// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_ok_packet.html
 func (mc *okHandler) handleOkPacket(data []byte) error {
 	var n, m int
 	var affectedRows, insertId uint64
@@ -701,7 +701,7 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 }
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
-// http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
+// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response_text_resultset_column_definition.html#sect_protocol_com_query_response_text_resultset_column_definition_41
 func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, error) {
 	columns := make([]mysqlField, count)
 	if len(old) != count {
@@ -806,7 +806,7 @@ func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, err
 }
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
-// http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-ProtocolText::ResultsetRow
+// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response_text_resultset_row.html
 func (rows *textRows) readRow(dest []driver.Value) error {
 	mc := rows.mc
 
@@ -968,7 +968,7 @@ func (mc *mysqlConn) skipRows() error {
 ******************************************************************************/
 
 // Prepare Result Packets
-// http://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
+// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_stmt_prepare.html#sect_protocol_com_stmt_prepare_response
 func (stmt *mysqlStmt) readPrepareResultPacket() (uint16, error) {
 	data, err := stmt.mc.readPacket()
 	if err == nil {
@@ -995,7 +995,7 @@ func (stmt *mysqlStmt) readPrepareResultPacket() (uint16, error) {
 	return 0, err
 }
 
-// http://dev.mysql.com/doc/internals/en/com-stmt-send-long-data.html
+// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_stmt_send_long_data.html
 func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 	maxLen := stmt.mc.maxAllowedPacket - 1
 	pktLen := maxLen
@@ -1043,7 +1043,7 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 }
 
 // Execute Prepared Statement
-// http://dev.mysql.com/doc/internals/en/com-stmt-execute.html
+// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_stmt_execute.html
 func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	if len(args) != stmt.paramCount {
 		return fmt.Errorf(
@@ -1264,7 +1264,7 @@ func (mc *okHandler) discardResults() error {
 	return nil
 }
 
-// http://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html
+// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_binary_resultset.html#sect_protocol_binary_resultset_row
 func (rows *binaryRows) readRow(dest []driver.Value) error {
 	data, err := rows.mc.readPacket()
 	if err != nil {
