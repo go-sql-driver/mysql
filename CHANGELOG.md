@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.9.3 (2025-06-13)
+
+* `tx.Commit()` and `tx.Rollback()` returned `ErrInvalidConn` always.
+  Now they return cached real error if present. (#1690)
+
+* Optimize reading small resultsets to fix performance regression
+  introduced by compression protocol support. (#1707)
+
+* Fix `db.Ping()` on compressed connection. (#1723)
+
+
 ## v1.9.2 (2025-04-07)
 
 v1.9.2 is a re-release of v1.9.1 due to a release process issue; no changes were made to the content.
