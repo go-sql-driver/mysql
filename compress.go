@@ -113,12 +113,11 @@ func (c *compIO) readCompressedPacket() error {
 	// Server may return error packet (e.g. 1153 Got a packet bigger than 'max_allowed_packet' bytes)
 	// before receiving all packets from client. In this case, seqnr is younger than expected.
 	// NOTE: Both of mariadbclient and mysqlclient do not check seqnr. Only server checks it.
-	if debug && compressionSequence != c.mc.sequence {
+	if debug && compressionSequence != c.mc.compressSequence {
 		fmt.Printf("WARN: unexpected cmpress seq nr: expected %v, got %v",
-			c.mc.sequence, compressionSequence)
+			c.mc.compressSequence, compressionSequence)
 	}
-	c.mc.sequence = compressionSequence + 1
-	c.mc.compressSequence = c.mc.sequence
+	c.mc.compressSequence = compressionSequence + 1
 
 	comprData, err := c.mc.readNext(comprLength)
 	if err != nil {
@@ -200,7 +199,7 @@ func (c *compIO) writeCompressedPacket(data []byte, uncompressedLen int) (int, e
 	comprLength := len(data) - 7
 	if debug {
 		fmt.Printf(
-			"writeCompressedPacket: comprLength=%v, uncompressedLen=%v, seq=%v",
+			"writeCompressedPacket: comprLength=%v, uncompressedLen=%v, seq=%v\n",
 			comprLength, uncompressedLen, mc.compressSequence)
 	}
 
