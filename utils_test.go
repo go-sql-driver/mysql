@@ -120,7 +120,7 @@ func TestFormatBinaryTime(t *testing.T) {
 
 func TestEscapeBackslash(t *testing.T) {
 	expect := func(expected, value string) {
-		actual := string(escapeBytesBackslash([]byte{}, []byte(value)))
+		actual := string(escapeBytesBackslash([]byte{}, []byte(value), false))
 		if actual != expected {
 			t.Errorf(
 				"expected %s, got %s",
@@ -137,18 +137,36 @@ func TestEscapeBackslash(t *testing.T) {
 		}
 	}
 
-	expect("foo\\0bar", "foo\x00bar")
-	expect("foo\\nbar", "foo\nbar")
-	expect("foo\\rbar", "foo\rbar")
-	expect("foo\\Zbar", "foo\x1abar")
-	expect("foo\\\"bar", "foo\"bar")
-	expect("foo\\\\bar", "foo\\bar")
-	expect("foo\\'bar", "foo'bar")
+	expect("'foo\\0bar'", "foo\x00bar")
+	expect("'foo\\nbar'", "foo\nbar")
+	expect("'foo\\rbar'", "foo\rbar")
+	expect("'foo\\Zbar'", "foo\x1abar")
+	expect("'foo\\\"bar'", "foo\"bar")
+	expect("'foo\\\\bar'", "foo\\bar")
+	expect("'foo\\'bar'", "foo'bar")
+
+	// Test binary flag for escapeBytesBackslash
+	binExpect := func(expected, value string) {
+		actual := string(escapeBytesBackslash([]byte{}, []byte(value), true))
+		if actual != expected {
+			t.Errorf(
+				"expected %s, got %s (binary)",
+				expected, actual,
+			)
+		}
+	}
+	binExpect("_binary'foo\\0bar'", "foo\x00bar")
+	binExpect("_binary'foo\\nbar'", "foo\nbar")
+	binExpect("_binary'foo\\rbar'", "foo\rbar")
+	binExpect("_binary'foo\\Zbar'", "foo\x1abar")
+	binExpect("_binary'foo\\\"bar'", "foo\"bar")
+	binExpect("_binary'foo\\\\bar'", "foo\\bar")
+	binExpect("_binary'foo\\'bar'", "foo'bar")
 }
 
 func TestEscapeQuotes(t *testing.T) {
 	expect := func(expected, value string) {
-		actual := string(escapeBytesQuotes([]byte{}, []byte(value)))
+		actual := string(escapeBytesQuotes([]byte{}, []byte(value), false))
 		if actual != expected {
 			t.Errorf(
 				"expected %s, got %s",
@@ -165,12 +183,29 @@ func TestEscapeQuotes(t *testing.T) {
 		}
 	}
 
-	expect("foo\x00bar", "foo\x00bar") // not affected
-	expect("foo\nbar", "foo\nbar")     // not affected
-	expect("foo\rbar", "foo\rbar")     // not affected
-	expect("foo\x1abar", "foo\x1abar") // not affected
-	expect("foo''bar", "foo'bar")      // affected
-	expect("foo\"bar", "foo\"bar")     // not affected
+	expect("'foo\x00bar'", "foo\x00bar") // not affected
+	expect("'foo\nbar'", "foo\nbar")     // not affected
+	expect("'foo\rbar'", "foo\rbar")     // not affected
+	expect("'foo\x1abar'", "foo\x1abar") // not affected
+	expect("'foo''bar'", "foo'bar")      // affected
+	expect("'foo\"bar'", "foo\"bar")     // not affected
+
+	// Test binary flag for escapeBytesQuotes
+	binExpect := func(expected, value string) {
+		actual := string(escapeBytesQuotes([]byte{}, []byte(value), true))
+		if actual != expected {
+			t.Errorf(
+				"expected %s, got %s (binary)",
+				expected, actual,
+			)
+		}
+	}
+	binExpect("_binary'foo\x00bar'", "foo\x00bar")
+	binExpect("_binary'foo\nbar'", "foo\nbar")
+	binExpect("_binary'foo\rbar'", "foo\rbar")
+	binExpect("_binary'foo\x1abar'", "foo\x1abar")
+	binExpect("_binary'foo''bar'", "foo'bar")
+	binExpect("_binary'foo\"bar'", "foo\"bar")
 }
 
 func TestAtomicError(t *testing.T) {

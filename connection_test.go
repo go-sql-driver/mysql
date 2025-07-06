@@ -79,24 +79,6 @@ func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
 	}
 }
 
-// We don't support placeholder in string literal for now.
-// https://github.com/go-sql-driver/mysql/pull/490
-func TestInterpolateParamsPlaceholderInString(t *testing.T) {
-	mc := &mysqlConn{
-		buf:              newBuffer(),
-		maxAllowedPacket: maxPacketSize,
-		cfg: &Config{
-			InterpolateParams: true,
-		},
-	}
-
-	q, err := mc.interpolateParams("SELECT 'abc?xyz',?", []driver.Value{int64(42)})
-	// When InterpolateParams support string literal, this should return `"SELECT 'abc?xyz', 42`
-	if err != driver.ErrSkip {
-		t.Errorf("Expected err=driver.ErrSkip, got err=%#v, q=%#v", err, q)
-	}
-}
-
 func TestInterpolateParamsUint64(t *testing.T) {
 	mc := &mysqlConn{
 		buf:              newBuffer(),
@@ -203,4 +185,56 @@ func (bc badConnection) Write(b []byte) (n int, err error) {
 
 func (bc badConnection) Close() error {
 	return nil
+}
+
+func TestInterpolateParamsWithComments(t *testing.T) {
+	mc := &mysqlConn{
+		buf:              newBuffer(),
+		maxAllowedPacket: maxPacketSize,
+		cfg: &Config{
+			InterpolateParams: true,
+		},
+	}
+
+	tests := []struct {
+		query      string
+		args       []driver.Value
+		expected   string
+		shouldSkip bool
+	}{
+		// ? in single-line comment (--) should not be replaced
+		{"SELECT 1 -- ?\n, ?", []driver.Value{int64(42)}, "SELECT 1 -- ?\n, 42", false},
+		// ? in single-line comment (#) should not be replaced
+		{"SELECT 1 # ?\n, ?", []driver.Value{int64(42)}, "SELECT 1 # ?\n, 42", false},
+		// ? in multi-line comment should not be replaced
+		{"SELECT /* ? */ ?", []driver.Value{int64(42)}, "SELECT /* ? */ 42", false},
+		// ? in string literal should not be replaced
+		{"SELECT '?', ?", []driver.Value{int64(42)}, "SELECT '?', 42", false},
+		// ? in backtick identifier should not be replaced
+		{"SELECT `?`, ?", []driver.Value{int64(42)}, "SELECT `?`, 42", false},
+		// ? in backslash-escaped string literal should not be replaced
+		{"SELECT 'C:\\path\\?x.txt', ?", []driver.Value{int64(42)}, "SELECT 'C:\\path\\?x.txt', 42", false},
+		// ? in backslash-escaped string literal should not be replaced
+		{"SELECT '\\'?', col FROM tbl WHERE id = ? AND desc = 'foo\\'bar?'", []driver.Value{int64(42)}, "SELECT '\\'?', col FROM tbl WHERE id = 42 AND desc = 'foo\\'bar?'", false},
+		// Multiple comments and real placeholders
+		{"SELECT ? -- comment ?\n, ? /* ? */ , ? # ?\n, ?", []driver.Value{int64(1), int64(2), int64(3)}, "SELECT 1 -- comment ?\n, 2 /* ? */ , 3 # ?\n, ?", true},
+	}
+
+	for i, test := range tests {
+
+		q, err := mc.interpolateParams(test.query, test.args)
+		if test.shouldSkip {
+			if err != driver.ErrSkip {
+				t.Errorf("Test %d: Expected driver.ErrSkip, got err=%#v, q=%#v", i, err, q)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("Test %d: Expected err=nil, got %#v", i, err)
+			continue
+		}
+		if q != test.expected {
+			t.Errorf("Test %d: Expected: %q\nGot: %q", i, test.expected, q)
+		}
+	}
 }
