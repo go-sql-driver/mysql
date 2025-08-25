@@ -503,6 +503,10 @@ func (mc *mysqlConn) finish() {
 
 // Ping implements driver.Pinger interface
 func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
+	return mc.sendNoArgsCommandWithResultOK(ctx, comPing)
+}
+
+func (mc *mysqlConn) sendNoArgsCommandWithResultOK(ctx context.Context, cmd byte) (err error) {
 	if mc.closed.Load() {
 		return driver.ErrBadConn
 	}
@@ -513,7 +517,7 @@ func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
 	defer mc.finish()
 
 	handleOk := mc.clearResult()
-	if err = mc.writeCommandPacket(comPing); err != nil {
+	if err = mc.writeCommandPacket(cmd); err != nil {
 		return mc.markBadConn(err)
 	}
 
