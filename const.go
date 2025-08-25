@@ -115,6 +115,7 @@ const (
 	comStmtReset
 	comSetOption
 	comStmtFetch
+	comConnReset = 31
 )
 
 // https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnType

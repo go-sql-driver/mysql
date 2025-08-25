@@ -685,6 +685,11 @@ func (mc *mysqlConn) startWatcher() {
 	}()
 }
 
+// Reset resets the MySQL connection.
+func (mc *mysqlConn) Reset(ctx context.Context) (err error) {
+	return mc.sendNoArgsCommandWithResultOK(ctx, comConnReset)
+}
+
 func (mc *mysqlConn) CheckNamedValue(nv *driver.NamedValue) (err error) {
 	nv.Value, err = converter{}.ConvertValue(nv.Value)
 	return

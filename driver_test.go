@@ -2322,13 +2322,69 @@ func TestRejectReadOnly(t *testing.T) {
 }
 
 func TestPing(t *testing.T) {
-	ctx := context.Background()
 	runTests(t, dsn, func(dbt *DBTest) {
 		if err := dbt.db.Ping(); err != nil {
 			dbt.fail("Ping", "Ping", err)
 		}
 	})
+}
 
+func TestNoArgsCommand(t *testing.T) {
+	ctx := context.Background()
+	for _, test := range []struct{
+		method string
+		query string
+		funcToCall func(ctx context.Context, mc *mysqlConn) error
+	} {
+		{method: "Ping", query: "Ping", funcToCall: func(ctx context.Context, mc *mysqlConn) error {return mc.Ping(ctx)}},
+		{method: "Conn", query: "Reset", funcToCall: func(ctx context.Context, mc *mysqlConn) error {return mc.Reset(ctx)}},
+	} {
+		test := test
+		t.Run(test.method+"_"+test.query, func(t *testing.T) {
+			runTests(t, dsn, func(dbt *DBTest) {
+				conn, err := dbt.db.Conn(ctx)
+				if err != nil {
+					dbt.fail("db", "Conn", err)
+				}
+
+				// Check that affectedRows and insertIds are cleared after each call.
+				conn.Raw(func(conn any) error {
+					c := conn.(*mysqlConn)
+
+					// Issue a query that sets affectedRows and insertIds.
+					q, err := c.Query(`SELECT 1`, nil)
+					if err != nil {
+						dbt.fail("Conn", "Query", err)
+					}
+					if got, want := c.result.affectedRows, []int64{0}; !reflect.DeepEqual(got, want) {
+						dbt.Fatalf("bad affectedRows: got %v, want=%v", got, want)
+					}
+					if got, want := c.result.insertIds, []int64{0}; !reflect.DeepEqual(got, want) {
+						dbt.Fatalf("bad insertIds: got %v, want=%v", got, want)
+					}
+					q.Close()
+
+					// Verify that Ping()/Reset() clears both fields.
+					for range 2 {
+						if err := test.funcToCall(ctx, c); err != nil {
+							dbt.fail(test.method, test.query, err)
+						}
+						if got, want := c.result.affectedRows, []int64(nil); !reflect.DeepEqual(got, want) {
+							t.Errorf("bad affectedRows: got %v, want=%v", got, want)
+						}
+						if got, want := c.result.insertIds, []int64(nil); !reflect.DeepEqual(got, want) {
+							t.Errorf("bad affectedRows: got %v, want=%v", got, want)
+						}
+					}
+					return nil
+				})
+			})
+		})
+	}
+}
+
+func TestReset(t *testing.T) {
+	ctx := context.Background()
 	runTests(t, dsn, func(dbt *DBTest) {
 		conn, err := dbt.db.Conn(ctx)
 		if err != nil {
@@ -2339,31 +2395,49 @@ func TestPing(t *testing.T) {
 		conn.Raw(func(conn any) error {
 			c := conn.(*mysqlConn)
 
-			// Issue a query that sets affectedRows and insertIds.
-			q, err := c.Query(`SELECT 1`, nil)
+			_, err = c.ExecContext(ctx, "SET @a := 1", nil)
 			if err != nil {
-				dbt.fail("Conn", "Query", err)
+				dbt.fail("Conn", "ExecContext", err)
 			}
-			if got, want := c.result.affectedRows, []int64{0}; !reflect.DeepEqual(got, want) {
-				dbt.Fatalf("bad affectedRows: got %v, want=%v", got, want)
+			var rows driver.Rows
+			rows, err = c.QueryContext(ctx, "SELECT @a", nil)
+			if err != nil {
+				dbt.fail("Conn", "QueryContext", err)
 			}
-			if got, want := c.result.insertIds, []int64{0}; !reflect.DeepEqual(got, want) {
-				dbt.Fatalf("bad insertIds: got %v, want=%v", got, want)
+			result := []driver.Value{0}
+			err = rows.Next(result)
+			if err != nil {
+				dbt.fail("Rows", "Next", err)
 			}
-			q.Close()
+			err = rows.Close()
+			if err != nil {
+				dbt.fail("Rows", "Close", err)
+			}
+			if !reflect.DeepEqual([]driver.Value{int64(1)}, result) {
+				dbt.Fatalf("failed to set @a to 1 with SET: got %v, want=%v", result, []driver.Value{int64(1)})
+			}
 
-			// Verify that Ping() clears both fields.
-			for range 2 {
-				if err := c.Ping(ctx); err != nil {
-					dbt.fail("Pinger", "Ping", err)
-				}
-				if got, want := c.result.affectedRows, []int64(nil); !reflect.DeepEqual(got, want) {
-					t.Errorf("bad affectedRows: got %v, want=%v", got, want)
-				}
-				if got, want := c.result.insertIds, []int64(nil); !reflect.DeepEqual(got, want) {
-					t.Errorf("bad affectedRows: got %v, want=%v", got, want)
-				}
+			err = c.Reset(ctx)
+			if err != nil {
+				dbt.fail("Conn", "Reset", err)
 			}
+
+			rows, err = c.QueryContext(ctx, "SELECT @a", nil)
+			if err != nil {
+				dbt.fail("Conn", "QueryContext", err)
+			}
+			err = rows.Next(result)
+			if err != nil {
+				dbt.fail("Rows", "Next", err)
+			}
+			err = rows.Close()
+			if err != nil {
+				dbt.fail("Rows", "Close", err)
+			}
+			if !reflect.DeepEqual([]driver.Value{nil}, result) {
+				dbt.Fatalf("Reset did not reset the session (@a is still set): got %v, want=%v", result, []driver.Value{nil})
+			}
+
 			return nil
 		})
 	})
