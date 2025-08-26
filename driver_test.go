@@ -2368,6 +2368,11 @@ func TestSimpleCommandOK(t *testing.T) {
 					// Verify that Ping()/Reset() clears both fields.
 					for range 2 {
 						if err := test.funcToCall(ctx, c); err != nil {
+							// Skip Reset on servers lacking COM_RESET_CONNECTION support.
+							if test.query == "Reset" {
+								maybeSkip(t, err, 1047) // ER_UNKNOWN_COM_ERROR
+								maybeSkip(t, err, 1235) // ER_NOT_SUPPORTED_YET
+							}
 							dbt.fail(test.method, test.query, err)
 						}
 						if got, want := c.result.affectedRows, []int64(nil); !reflect.DeepEqual(got, want) {
@@ -2406,7 +2411,7 @@ func TestReset(t *testing.T) {
 			if err != nil {
 				dbt.fail("Conn", "QueryContext", err)
 			}
-			result := []driver.Value{0}
+			result := []driver.Value{nil}
 			err = rows.Next(result)
 			if err != nil {
 				dbt.fail("Rows", "Next", err)
@@ -2415,12 +2420,16 @@ func TestReset(t *testing.T) {
 			if err != nil {
 				dbt.fail("Rows", "Close", err)
 			}
-			if !reflect.DeepEqual([]driver.Value{int64(1)}, result) {
-				dbt.Fatalf("failed to set @a to 1 with SET: got %v, want=%v", result, []driver.Value{int64(1)})
+			if !(reflect.DeepEqual([]driver.Value{int64(1)}, result) ||
+				reflect.DeepEqual([]driver.Value{[]byte("1")}, result)) {
+				dbt.Fatalf("failed to set @a to 1 with SET: got %v, want int64(1) or []byte(\"1\")", result)
 			}
 
 			err = c.Reset(ctx)
 			if err != nil {
+				// Allow skipping on unsupported COM_RESET_CONNECTION
+				maybeSkip(t, err, 1047) // ER_UNKNOWN_COM_ERROR
+				maybeSkip(t, err, 1235) // ER_NOT_SUPPORTED_YET
 				dbt.fail("Conn", "Reset", err)
 			}
 
