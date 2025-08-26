@@ -115,7 +115,9 @@ const (
 	comStmtReset
 	comSetOption
 	comStmtFetch
-	comConnReset = 31
+	comDaemon
+	comBinlogDumpGTID
+	comResetConnection
 )
 
 // https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnType
