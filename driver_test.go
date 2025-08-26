@@ -2439,8 +2439,8 @@ func TestReset(t *testing.T) {
 			if err != nil {
 				dbt.fail("Conn", "QueryContext", err)
 			}
-			// We intentionally do not clear the destination before calling Next()
-			// to make sure the SELECT really returns nil
+			// Seed with a sentinel to ensure Rows.Next overwrites it with nil.
+			result = []driver.Value{"sentinel-non-nil"}
 			err = rows.Next(result)
 			if err != nil {
 				dbt.fail("Rows", "Next", err)
