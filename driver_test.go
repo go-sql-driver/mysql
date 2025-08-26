@@ -2353,9 +2353,9 @@ func TestSimpleCommandOK(t *testing.T) {
 					c := conn.(*mysqlConn)
 
 					// Issue a query that sets affectedRows and insertIds.
-					q, err := c.Query(`SELECT 1`, nil)
+					q, err := c.QueryContext(ctx, `SELECT 1`, nil)
 					if err != nil {
-						dbt.fail("Conn", "Query", err)
+						dbt.fail("Conn", "QueryContext", err)
 					}
 					if got, want := c.result.affectedRows, []int64{0}; !reflect.DeepEqual(got, want) {
 						dbt.Fatalf("bad affectedRows: got %v, want=%v", got, want)
@@ -2363,7 +2363,9 @@ func TestSimpleCommandOK(t *testing.T) {
 					if got, want := c.result.insertIds, []int64{0}; !reflect.DeepEqual(got, want) {
 						dbt.Fatalf("bad insertIds: got %v, want=%v", got, want)
 					}
-					q.Close()
+					if err := q.Close(); err != nil {
+						dbt.fail("Rows", "Close", err)
+					}
 
 					// Verify that Ping()/Reset() clears both fields.
 					for range 2 {
@@ -2437,6 +2439,8 @@ func TestReset(t *testing.T) {
 			if err != nil {
 				dbt.fail("Conn", "QueryContext", err)
 			}
+			// We intentionally do not clear the destination before calling Next()
+			// to make sure the SELECT really returns nil
 			err = rows.Next(result)
 			if err != nil {
 				dbt.fail("Rows", "Next", err)
