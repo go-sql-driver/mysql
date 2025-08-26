@@ -2329,14 +2329,14 @@ func TestPing(t *testing.T) {
 	})
 }
 
-func TestNoArgsCommand(t *testing.T) {
+func TestSimpleCommandOK(t *testing.T) {
 	ctx := context.Background()
 	for _, test := range []struct{
 		method string
 		query string
 		funcToCall func(ctx context.Context, mc *mysqlConn) error
 	} {
-		{method: "Ping", query: "Ping", funcToCall: func(ctx context.Context, mc *mysqlConn) error {return mc.Ping(ctx)}},
+		{method: "Pinger", query: "Ping", funcToCall: func(ctx context.Context, mc *mysqlConn) error {return mc.Ping(ctx)}},
 		{method: "Conn", query: "Reset", funcToCall: func(ctx context.Context, mc *mysqlConn) error {return mc.Reset(ctx)}},
 	} {
 		test := test
@@ -2346,6 +2346,7 @@ func TestNoArgsCommand(t *testing.T) {
 				if err != nil {
 					dbt.fail("db", "Conn", err)
 				}
+				defer conn.Close()
 
 				// Check that affectedRows and insertIds are cleared after each call.
 				conn.Raw(func(conn any) error {
@@ -2373,7 +2374,7 @@ func TestNoArgsCommand(t *testing.T) {
 							t.Errorf("bad affectedRows: got %v, want=%v", got, want)
 						}
 						if got, want := c.result.insertIds, []int64(nil); !reflect.DeepEqual(got, want) {
-							t.Errorf("bad affectedRows: got %v, want=%v", got, want)
+							t.Errorf("bad insertIds: got %v, want=%v", got, want)
 						}
 					}
 					return nil
@@ -2390,8 +2391,9 @@ func TestReset(t *testing.T) {
 		if err != nil {
 			dbt.fail("db", "Conn", err)
 		}
+		defer conn.Close()
 
-		// Check that affectedRows and insertIds are cleared after each call.
+		// Verify that COM_RESET_CONNECTION clears session state (e.g., user variables).
 		conn.Raw(func(conn any) error {
 			c := conn.(*mysqlConn)
 
