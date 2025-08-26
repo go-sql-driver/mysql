@@ -129,9 +129,9 @@ func TestCheckNamedValue(t *testing.T) {
 	}
 }
 
-// TestNoArgsCommandCleanCancel tests passed context is cancelled at start.
+// TestSimpleCommandOKCleanCancel tests passed context is cancelled at start.
 // No packet should be sent.  Connection should keep current status.
-func TestNoArgsCommandCleanCancel(t *testing.T) {
+func TestSimpleCommandOKCleanCancel(t *testing.T) {
 	for _, test := range []struct {
 		name string
 		funcToCall func(ctx context.Context, mc *mysqlConn) error
@@ -168,7 +168,7 @@ func TestNoArgsCommandCleanCancel(t *testing.T) {
 	}
 }
 
-func TestNoArgsCommandMarkBadConnection(t *testing.T) {
+func TestSimpleCommandOKMarkBadConnection(t *testing.T) {
 	for _, test := range []struct {
 		name string
 		funcToCall func(mc *mysqlConn) error
@@ -196,7 +196,7 @@ func TestNoArgsCommandMarkBadConnection(t *testing.T) {
 	}
 }
 
-func TestNoArgsCommandErrInvalidConn(t *testing.T) {
+func TestSimpleCommandOKErrInvalidConn(t *testing.T) {
 	for _, test := range []struct {
 		name string
 		funcToCall func(mc *mysqlConn) error
