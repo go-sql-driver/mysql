@@ -685,7 +685,16 @@ func (mc *mysqlConn) startWatcher() {
 	}()
 }
 
-// Reset resets the MySQL connection.
+// Reset resets the server-side session state using COM_RESET_CONNECTION.
+// It clears most per-session state (e.g., user variables, prepared statements)
+// without re-authenticating.
+// Usage hint: call via database/sql.Conn.Raw using a method assertion:
+//   conn.Raw(func(c any) error {
+//     if r, ok := c.(interface{ Reset(context.Context) error }); ok {
+//       return r.Reset(ctx)
+//     }
+//     return nil
+//   })
 func (mc *mysqlConn) Reset(ctx context.Context) (err error) {
 	return mc.sendSimpleCommandOK(ctx, comResetConnection)
 }
