@@ -281,6 +281,14 @@ Default:        false
 
 Toggles zlib compression. false by default.
 
+##### `compressLevel`
+
+```
+Type:           decimal number
+Valid Values:   1-9
+Default:        2
+```
+
 ##### `interpolateParams`
 
 ```

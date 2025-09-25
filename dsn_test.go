@@ -72,6 +72,12 @@ var testDSNs = []struct {
 	"tcp(127.0.0.1)/dbname",
 	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {
+	"tcp(127.0.0.1)/dbname?compress=true,compressLevel=6",
+	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", compress: true, compressLevel: 6, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
+}, {
+	"tcp(127.0.0.1)/dbname?compress=true",
+	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", compress: true, compressLevel: defaultCompressionLevel, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
+}, {
 	"tcp(de:ad:be:ef::ca:fe)/dbname",
 	&Config{Net: "tcp", Addr: "[de:ad:be:ef::ca:fe]:3306", DBName: "dbname", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true},
 }, {

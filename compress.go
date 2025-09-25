@@ -10,73 +10,56 @@ package mysql
 
 import (
 	"bytes"
-	"compress/zlib"
 	"fmt"
 	"io"
-	"sync"
+
+	"github.com/klauspost/compress/zlib"
 )
 
-var (
-	zrPool *sync.Pool // Do not use directly. Use zDecompress() instead.
-	zwPool *sync.Pool // Do not use directly. Use zCompress() instead.
-)
-
-func init() {
-	zrPool = &sync.Pool{
-		New: func() any { return nil },
-	}
-	zwPool = &sync.Pool{
-		New: func() any {
-			zw, err := zlib.NewWriterLevel(new(bytes.Buffer), 2)
-			if err != nil {
-				panic(err) // compress/zlib return non-nil error only if level is invalid
-			}
-			return zw
-		},
-	}
-}
-
-func zDecompress(src []byte, dst *bytes.Buffer) (int, error) {
+func (c *compIO) zDecompress(src []byte) (int, error) {
 	br := bytes.NewReader(src)
-	var zr io.ReadCloser
 	var err error
-
-	if a := zrPool.Get(); a == nil {
-		if zr, err = zlib.NewReader(br); err != nil {
+	if c.zr == nil {
+		c.zr, err = zlib.NewReader(br)
+		if err != nil {
 			return 0, err
 		}
 	} else {
-		zr = a.(io.ReadCloser)
-		if err := zr.(zlib.Resetter).Reset(br, nil); err != nil {
+		err = c.zr.(zlib.Resetter).Reset(br, nil)
+		if err != nil {
 			return 0, err
 		}
 	}
-
-	n, _ := dst.ReadFrom(zr) // ignore err because zr.Close() will return it again.
-	err = zr.Close()         // zr.Close() may return chuecksum error.
-	zrPool.Put(zr)
+	n, _ := c.buff.ReadFrom(c.zr) // ignore err because zr.Close() will return it again.
+	err = c.zr.Close()            // zr.Close() may return chuecksum error.
 	return int(n), err
 }
 
-func zCompress(src []byte, dst io.Writer) error {
-	zw := zwPool.Get().(*zlib.Writer)
-	zw.Reset(dst)
-	if _, err := zw.Write(src); err != nil {
+func (c *compIO) zCompress(src []byte) error {
+	c.zw.Reset(&c.buff)
+	if _, err := c.zw.Write(src); err != nil {
 		return err
 	}
-	err := zw.Close()
-	zwPool.Put(zw)
+	err := c.zw.Close()
 	return err
 }
 
 type compIO struct {
 	mc   *mysqlConn
 	buff bytes.Buffer
+	zw   *zlib.Writer
+	zr   io.ReadCloser
 }
 
 func newCompIO(mc *mysqlConn) *compIO {
+	w, err := zlib.NewWriterLevel(new(bytes.Buffer), mc.cfg.compressLevel)
+	if err != nil {
+		panic(err) // compress/zlib return non-nil error only if level is invalid
+	}
 	return &compIO{
 		mc: mc,
+		zw: w,
+		zr: nil,
 	}
 }
 
@@ -133,7 +116,7 @@ func (c *compIO) readCompressedPacket() error {
 
 	// use existing capacity in bytesBuf if possible
 	c.buff.Grow(uncompressedLength)
-	nread, err := zDecompress(comprData, &c.buff)
+	nread, err := c.zDecompress(comprData)
 	if err != nil {
 		return err
 	}
@@ -167,7 +150,7 @@ func (c *compIO) writePackets(packets []byte) (int, error) {
 			buf.Write(payload)
 			uncompressedLen = 0
 		} else {
-			err := zCompress(payload, buf)
+			err := c.zCompress(payload)
 			if debug && err != nil {
 				fmt.Printf("zCompress error: %v", err)
 			}

@@ -24,6 +24,8 @@ import (
 	"time"
 )
 
+const defaultCompressionLevel = 2
+
 var (
 	errInvalidDSNUnescaped       = errors.New("invalid DSN: did you forget to escape a param value?")
 	errInvalidDSNAddr            = errors.New("invalid DSN: network address not terminated (missing closing brace)")
@@ -75,7 +77,8 @@ type Config struct {
 	// unexported fields. new options should be come here.
 	// boolean first. alphabetical order.
 
-	compress bool // Enable zlib compression
+	compress      bool // Enable zlib compression
+	compressLevel int  // Compression level
 
 	beforeConnect func(context.Context, *Config) error // Invoked before a connection is established
 	pubKey        *rsa.PublicKey                       // Server public key
@@ -95,6 +98,7 @@ func NewConfig() *Config {
 		Logger:               defaultLogger,
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
+		compressLevel:        defaultCompressionLevel,
 	}
 	return cfg
 }
@@ -127,10 +131,14 @@ func BeforeConnect(fn func(context.Context, *Config) error) Option {
 	}
 }
 
-// EnableCompress sets the compression mode.
-func EnableCompression(yes bool) Option {
+// EnableCompress sets the compression mode and level.
+func EnableCompression(yes bool, level int) Option {
 	return func(cfg *Config) error {
 		cfg.compress = yes
+		cfg.compressLevel = defaultCompressionLevel
+		if level > 0 {
+			cfg.compressLevel = level
+		}
 		return nil
 	}
 }
@@ -562,6 +570,15 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			cfg.compress, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
+			}
+		// Compression level
+		case "compressLevel":
+			cfg.compressLevel, err = strconv.Atoi(value)
+			if err != nil {
+				return
+			}
+			if cfg.compressLevel < 0 || cfg.compressLevel > 9 {
+				return errors.New("invalid compress level: " + value)
 			}
 
 		// Enable client side placeholder substitution
