@@ -21,6 +21,7 @@ type mysqlStmt struct {
 	id         uint32
 	paramCount int
 	columns    []mysqlField
+    queryString      string
 }
 
 func (stmt *mysqlStmt) Close() error {
@@ -52,49 +53,61 @@ func (stmt *mysqlStmt) CheckNamedValue(nv *driver.NamedValue) (err error) {
 }
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
-	if stmt.mc.closed.Load() {
-		return nil, driver.ErrBadConn
-	}
-	// Send command
-	err := stmt.writeExecutePacket(args)
-	if err != nil {
-		return nil, stmt.mc.markBadConn(err)
-	}
+    for attempt := 0; attempt < 2; attempt++ {
+        if stmt.mc.closed.Load() {
+            return nil, driver.ErrBadConn
+        }
+        // Send command
+        err := stmt.writeExecutePacket(args)
+        if err != nil {
+            return nil, stmt.mc.markBadConn(err)
+        }
 
-	mc := stmt.mc
-	handleOk := stmt.mc.clearResult()
+        mc := stmt.mc
+        handleOk := stmt.mc.clearResult()
 
-	// Read Result
-	resLen, metadataFollows, err := handleOk.readResultSetHeaderPacket()
-	if err != nil {
-		return nil, err
-	}
+        // Read Result
+        resLen, metadataFollows, err := handleOk.readResultSetHeaderPacket()
+        if err != nil {
+            if me, ok := err.(*MySQLError); ok && me.Number == 1615 /* ER_NEED_REPREPARE */ {
+                if rerr := stmt.reprepare(); rerr == nil {
+                    // Retry once after successful reprepare
+                    continue
+                } else {
+                    return nil, rerr
+                }
+            }
+            return nil, err
+        }
 
-	if resLen > 0 {
-		// Columns
-		if metadataFollows && stmt.mc.extCapabilities&clientCacheMetadata != 0 {
-			// we can not skip column metadata because next stmt.Query() may use it.
-			if stmt.columns, err = mc.readColumns(resLen, stmt.columns); err != nil {
-				return nil, err
-			}
-		} else {
-			if err = mc.skipColumns(resLen); err != nil {
-				return nil, err
-			}
-		}
+        if resLen > 0 {
+            // Columns
+            if metadataFollows && stmt.mc.extCapabilities&clientCacheMetadata != 0 {
+                // we can not skip column metadata because next stmt.Query() may use it.
+                if stmt.columns, err = mc.readColumns(resLen, stmt.columns); err != nil {
+                    return nil, err
+                }
+            } else {
+                if err = mc.skipColumns(resLen); err != nil {
+                    return nil, err
+                }
+            }
 
-		// Rows
-		if err = mc.skipRows(); err != nil {
-			return nil, err
-		}
-	}
+            // Rows
+            if err = mc.skipRows(); err != nil {
+                return nil, err
+            }
+        }
 
-	if err := handleOk.discardResults(); err != nil {
-		return nil, err
-	}
+        if err := handleOk.discardResults(); err != nil {
+            return nil, err
+        }
 
-	copied := mc.result
-	return &copied, nil
+        copied := mc.result
+        return &copied, nil
+    }
+    // Should not reach here
+    return nil, ErrInvalidConn
 }
 
 func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
@@ -102,51 +115,90 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 }
 
 func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
-	if stmt.mc.closed.Load() {
-		return nil, driver.ErrBadConn
-	}
-	// Send command
-	err := stmt.writeExecutePacket(args)
-	if err != nil {
-		return nil, stmt.mc.markBadConn(err)
-	}
+    for attempt := 0; attempt < 2; attempt++ {
+        if stmt.mc.closed.Load() {
+            return nil, driver.ErrBadConn
+        }
+        // Send command
+        err := stmt.writeExecutePacket(args)
+        if err != nil {
+            return nil, stmt.mc.markBadConn(err)
+        }
 
-	mc := stmt.mc
+        mc := stmt.mc
 
-	// Read Result
-	handleOk := stmt.mc.clearResult()
-	resLen, metadataFollows, err := handleOk.readResultSetHeaderPacket()
-	if err != nil {
-		return nil, err
-	}
+        // Read Result
+        handleOk := stmt.mc.clearResult()
+        resLen, metadataFollows, err := handleOk.readResultSetHeaderPacket()
+        if err != nil {
+            if me, ok := err.(*MySQLError); ok && me.Number == 1615 /* ER_NEED_REPREPARE */ {
+                if rerr := stmt.reprepare(); rerr == nil {
+                    // Retry once after successful reprepare
+                    continue
+                } else {
+                    return nil, rerr
+                }
+            }
+            return nil, err
+        }
 
-	rows := new(binaryRows)
+        rows := new(binaryRows)
 
-	if resLen > 0 {
-		rows.mc = mc
-		if metadataFollows {
-			if rows.rs.columns, err = mc.readColumns(resLen, stmt.columns); err != nil {
-				return nil, err
-			}
-			stmt.columns = rows.rs.columns
-		} else {
-			if err = mc.skipEof(); err != nil {
-				return nil, err
-			}
-			rows.rs.columns = stmt.columns
-		}
-	} else {
-		rows.rs.done = true
+        if resLen > 0 {
+            rows.mc = mc
+            if metadataFollows {
+                if rows.rs.columns, err = mc.readColumns(resLen, stmt.columns); err != nil {
+                    return nil, err
+                }
+                stmt.columns = rows.rs.columns
+            } else {
+                if err = mc.skipEof(); err != nil {
+                    return nil, err
+                }
+                rows.rs.columns = stmt.columns
+            }
+        } else {
+            rows.rs.done = true
 
-		switch err := rows.NextResultSet(); err {
-		case nil, io.EOF:
-			return rows, nil
-		default:
-			return nil, err
-		}
-	}
+            switch err := rows.NextResultSet(); err {
+            case nil, io.EOF:
+                return rows, nil
+            default:
+                return nil, err
+            }
+        }
 
-	return rows, err
+        return rows, err
+    }
+    return nil, ErrInvalidConn
+}
+
+// reprepare closes the current prepared statement on the server and prepares it again.
+// It preserves the receiver so that callers can continue to use the same *mysqlStmt.
+func (stmt *mysqlStmt) reprepare() error {
+    if stmt.mc == nil || stmt.queryString == "" {
+        return ErrInvalidConn
+    }
+    // Prepare a new statement on the same connection.
+    newStmt, err := stmt.mc.Prepare(stmt.queryString)
+    if err != nil {
+        return err
+    }
+    // Close the old statement id on the server.
+    oldID := stmt.id
+    _ = stmt.mc.writeCommandPacketUint32(comStmtClose, oldID)
+
+    // Copy fields from the newly prepared statement into this receiver.
+    if ns, ok := newStmt.(*mysqlStmt); ok {
+        stmt.id = ns.id
+        stmt.paramCount = ns.paramCount
+        stmt.columns = ns.columns
+        // Detach the temporary stmt to avoid double-close semantics.
+        ns.mc = nil
+        return nil
+    }
+    // Should not happen as we control Prepare, but guard anyway.
+    return ErrInvalidConn
 }
 
 var jsonType = reflect.TypeOf(json.RawMessage{})
