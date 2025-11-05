@@ -92,7 +92,7 @@ func benchmarkQuery(b *testing.B, compr bool) {
 	defer wg.Wait()
 	b.StartTimer()
 
-	for i := 0; i < concurrencyLevel; i++ {
+	for range concurrencyLevel {
 		go func() {
 			for {
 				if atomic.AddInt64(&remain, -1) < 0 {
@@ -129,7 +129,7 @@ func BenchmarkExec(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < concurrencyLevel; i++ {
+	for range concurrencyLevel {
 		go func() {
 			for {
 				if atomic.AddInt64(&remain, -1) < 0 {
@@ -345,7 +345,7 @@ func BenchmarkQueryRawBytes(b *testing.B) {
 	for i := range blob {
 		blob[i] = 42
 	}
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		_, err := db.Exec("INSERT INTO bench_rawbytes VALUES (?, ?)", i, blob)
 		if err != nil {
 			b.Fatal(err)
@@ -404,7 +404,7 @@ func benchmark10kRows(b *testing.B, compress bool) {
 		args[i] = sval
 	}
 	for i := 0; i < 10000; i += 100 {
-		for j := 0; j < 100; j++ {
+		for j := range 100 {
 			args[j*2] = i + j
 		}
 		_, err := stmt.Exec(args...)
@@ -462,7 +462,7 @@ func BenchmarkReceiveMetadata(b *testing.B) {
 
 	// Create a table with 1000 integer fields
 	createTableQuery := "CREATE TABLE large_integer_table ("
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		createTableQuery += fmt.Sprintf("col_%d INT", i)
 		if i < 999 {
 			createTableQuery += ", "

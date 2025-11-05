@@ -176,7 +176,6 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	cleanupSql := "DROP TABLE IF EXISTS test"
 
 	for _, test := range tests {
-		test := test
 		t.Run("default", func(t *testing.T) {
 			dbt := &DBTest{t, db}
 			t.Cleanup(func() {
@@ -220,8 +219,6 @@ func runTestsParallel(t *testing.T, dsn string, tests ...func(dbt *DBTest, table
 
 	t.Parallel()
 	for _, test := range tests {
-		test := test
-
 		t.Run("default", func(t *testing.T) {
 			t.Parallel()
 
@@ -491,7 +488,6 @@ func TestMultiQuery(t *testing.T) {
 			dbt.Error("no data")
 		}
 		rows.Close()
-
 	})
 }
 
@@ -3071,7 +3067,7 @@ func TestRowsColumnTypes(t *testing.T) {
 	bx0 := []byte("\x00")
 	bx42 := []byte("\x42")
 
-	var columns = []struct {
+	columns := []struct {
 		name             string
 		fieldType        string // type used when creating table schema
 		databaseTypeName string // actual type used by MySQL
@@ -3284,7 +3280,7 @@ func TestRawBytesAreNotModified(t *testing.T) {
 	const blobSize = defaultBufSize * 3 / 4 // Second row overwrites first row.
 	const insertRows = 4
 
-	var sqlBlobs = [2]string{
+	sqlBlobs := [2]string{
 		strings.Repeat(blob, blobSize/len(blob)),
 		strings.Repeat(strings.ToUpper(blob), blobSize/len(blob)),
 	}
