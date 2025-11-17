@@ -434,7 +434,41 @@ Valid Values:   true, false, skip-verify, preferred, <name>
 Default:        false
 ```
 
-`tls=true` enables TLS / SSL encrypted connection to the server. Use `skip-verify` if you want to use a self-signed or invalid certificate (server side) or use `preferred` to use TLS only when advertised by the server. This is similar to `skip-verify`, but additionally allows a fallback to a connection which is not encrypted. Neither `skip-verify` nor `preferred` add any reliable security. You can use a custom TLS config after registering it with [`mysql.RegisterTLSConfig`](https://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).
+`tls=true` enables TLS / SSL encrypted connection to the server with full certificate verification (including hostname). Use `skip-verify` if you want to use a self-signed or invalid certificate (server-side) or use `preferred` to use TLS only when advertised by the server. This is similar to `skip-verify`, but additionally allows a fallback to a connection which is not encrypted. Neither `skip-verify` nor `preferred` add any reliable security. You can use a custom TLS config after registering it with [`mysql.RegisterTLSConfig`](https://godoc.org/github.com/go-sql-driver/mysql#RegisterTLSConfig).
+
+**TLS Verification Modes:**
+
+The `tls` parameter selects which CA certificates to use:
+- `tls=true`: Use system CA pool
+- `tls=<name>`: Use custom registered TLS config
+- `tls=skip-verify`: Accept any certificate (insecure)
+- `tls=preferred`: Attempt TLS, fall back to plaintext (insecure)
+
+The `tls-verify` parameter controls how certificates are verified (works with both `tls=true` and custom configs):
+- `tls-verify=identity` (default): Verifies CA and hostname - Most secure, equivalent to MySQL's VERIFY_IDENTITY
+- `tls-verify=ca`: Verifies CA only, skips hostname check - Equivalent to MySQL's VERIFY_CA mode
+
+**Examples:**
+```text
+?tls=true - System CA with full verification (default behavior)
+?tls=true&tls-verify=ca - System CA with CA-only verification
+?tls=custom - Custom CA with full verification (default behavior)
+?tls=custom&tls-verify=ca - Custom CA with CA-only verification
+```
+
+##### `tls-verify`
+
+```text
+Type:           string
+Valid Values:   identity, ca
+Default:        identity
+```
+
+Controls the TLS certificate verification level. This parameter works with the `tls` parameter:
+- `identity`: Full verification including hostname (default, most secure)
+- `ca`: CA verification only, without hostname checking (MySQL VERIFY_CA equivalent)
+
+This parameter only applies when `tls=true` or `tls=<custom-config>`. It has no effect with `tls=skip-verify` or `tls=preferred`.
 
 
 ##### `writeTimeout`

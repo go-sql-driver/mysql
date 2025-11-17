@@ -10,9 +10,11 @@ package mysql
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -80,6 +82,9 @@ var testDSNs = []struct {
 }, {
 	"foo:bar@tcp(192.168.1.50:3307)/baz?timeout=10s&connectionAttributes=program_name:MySQLGoDriver%2FTest,program_version:1.2.3",
 	&Config{User: "foo", Passwd: "bar", Net: "tcp", Addr: "192.168.1.50:3307", DBName: "baz", Loc: time.UTC, Timeout: 10 * time.Second, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, ConnectionAttributes: "program_name:MySQLGoDriver/Test,program_version:1.2.3"},
+}, {
+	"user:password@tcp(localhost:5555)/dbname?tls=true&tls-verify=identity",
+	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, TLSConfig: "true", TLSVerify: "identity"},
 },
 }
 
@@ -426,6 +431,226 @@ func TestNormalizeTLSConfig(t *testing.T) {
 					tc.want.InsecureSkipVerify, cfg.TLS.InsecureSkipVerify)
 			}
 		})
+	}
+}
+
+func TestTLSVerifySystemCA(t *testing.T) {
+	tests := []struct {
+		name string
+		dsn  string
+	}{
+		{"identity with system CA (explicit)", "tcp(example.com:1234)/?tls=true&tls-verify=identity"},
+		{"identity with system CA (default)", "tcp(example.com:1234)/?tls=true"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := ParseDSN(tc.dsn)
+			if err != nil {
+				t.Error(err.Error())
+			}
+			if cfg.TLS == nil {
+				t.Error("cfg.TLS should not be nil")
+			}
+
+			// identity (default) should set ServerName
+			if cfg.TLS.ServerName != "example.com" {
+				t.Errorf("identity mode should set ServerName to 'example.com', got %q", cfg.TLS.ServerName)
+			}
+			if cfg.TLS.VerifyPeerCertificate != nil {
+				t.Error("identity mode should not have VerifyPeerCertificate callback set")
+			}
+		})
+	}
+}
+
+func TestTLSVerifyCustomConfig(t *testing.T) {
+	// Register a custom TLS config
+	customConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		ServerName: "customServer",
+		RootCAs:    nil, // Use system CA pool for this test
+	}
+	RegisterTLSConfig("custom", customConfig)
+	defer DeregisterTLSConfig("custom")
+
+	tests := []struct {
+		name string
+		dsn  string
+	}{
+		{"ca with custom config", "tcp(example.com:1234)/?tls=custom&tls-verify=ca"},
+		{"identity with custom config (explicit)", "tcp(example.com:1234)/?tls=custom&tls-verify=identity"},
+		{"identity with custom config (default)", "tcp(example.com:1234)/?tls=custom"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := ParseDSN(tc.dsn)
+			if err != nil {
+				t.Error(err.Error())
+			}
+			if cfg.TLS == nil {
+				t.Error("cfg.TLS should not be nil")
+			}
+
+			if cfg.TLSVerify == "ca" {
+				if !cfg.TLS.InsecureSkipVerify {
+					t.Error("ca mode should have InsecureSkipVerify=true")
+				}
+				if cfg.TLS.VerifyPeerCertificate == nil {
+					t.Error("ca mode should have VerifyPeerCertificate callback set")
+				}
+				// ca mode should preserve custom config's ServerName for SNI
+				if cfg.TLS.ServerName != "customServer" {
+					t.Errorf("ca mode should preserve custom ServerName 'customServer', got %q", cfg.TLS.ServerName)
+				}
+			} else {
+				// identity (default) should preserve custom config's ServerName
+				if cfg.TLS.ServerName != "customServer" {
+					t.Errorf("identity mode should preserve custom ServerName 'customServer', got %q", cfg.TLS.ServerName)
+				}
+				if cfg.TLS.VerifyPeerCertificate != nil {
+					t.Error("identity mode should not have VerifyPeerCertificate callback set")
+				}
+			}
+		})
+	}
+}
+
+func TestTLSVerifyBackwardsCompatibility(t *testing.T) {
+	tests := []struct {
+		name             string
+		dsn              string
+		expectTLSVerify  string
+		expectServerName string
+	}{
+		{"tls=true defaults to identity", "tcp(example.com:1234)/?tls=true", "identity", "example.com"},
+		{"tls=false no TLS", "tcp(example.com:1234)/?tls=false", "identity", ""},
+		{"tls=skip-verify unchanged", "tcp(example.com:1234)/?tls=skip-verify", "identity", ""},
+		{"tls=preferred unchanged", "tcp(example.com:1234)/?tls=preferred", "identity", ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := ParseDSN(tc.dsn)
+			if err != nil {
+				t.Error(err.Error())
+			}
+
+			if cfg.TLSVerify != tc.expectTLSVerify {
+				t.Errorf("expected TLSVerify=%q, got %q", tc.expectTLSVerify, cfg.TLSVerify)
+			}
+
+			if tc.expectServerName == "" {
+				if cfg.TLS == nil {
+					return // Expected no TLS
+				}
+				if cfg.TLS.ServerName != "" {
+					t.Errorf("expected no ServerName, got %q", cfg.TLS.ServerName)
+				}
+			} else {
+				if cfg.TLS == nil {
+					t.Error("expected TLS config but got nil")
+					return
+				}
+				if cfg.TLS.ServerName != tc.expectServerName {
+					t.Errorf("expected ServerName=%q, got %q", tc.expectServerName, cfg.TLS.ServerName)
+				}
+			}
+		})
+	}
+}
+
+func TestTLSVerifyInvalidValue(t *testing.T) {
+	dsn := "tcp(example.com:1234)/?tls=true&tls-verify=invalid"
+	_, err := ParseDSN(dsn)
+	if err == nil {
+		t.Error("expected error for invalid tls-verify value")
+	}
+	expectedMsg := "invalid value for tls-verify"
+	if err != nil && !strings.Contains(err.Error(), expectedMsg) {
+		t.Errorf("error message should contain %q, got: %v", expectedMsg, err)
+	}
+}
+
+func TestTLSTrueWithVerifyCAIsRejected(t *testing.T) {
+	dsn := "tcp(example.com:1234)/?tls=true&tls-verify=ca"
+	_, err := ParseDSN(dsn)
+	if err == nil {
+		t.Error("expected error for tls=true with tls-verify=ca")
+	}
+	expectedMsg := "tls-verify=ca requires a custom TLS config"
+	if err != nil && !strings.Contains(err.Error(), expectedMsg) {
+		t.Errorf("error message should contain %q, got: %v", expectedMsg, err)
+	}
+}
+
+func TestTLSVerifyPreservesCustomConfig(t *testing.T) {
+	// Register a custom TLS config with various settings
+	customConfig := &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		MaxVersion:   tls.VersionTLS13,
+		ServerName:   "customServer",
+		CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
+		NextProtos:   []string{"h2", "http/1.1"},
+		RootCAs:      x509.NewCertPool(),
+	}
+	RegisterTLSConfig("custom-full", customConfig)
+	defer DeregisterTLSConfig("custom-full")
+
+	dsn := "tcp(example.com:1234)/?tls=custom-full&tls-verify=ca"
+	cfg, err := ParseDSN(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cfg.TLS == nil {
+		t.Fatal("cfg.TLS should not be nil")
+	}
+
+	// Verify VERIFY_CA mode is enabled
+	if !cfg.TLS.InsecureSkipVerify {
+		t.Error("ca mode should have InsecureSkipVerify=true")
+	}
+	if cfg.TLS.VerifyPeerCertificate == nil {
+		t.Error("ca mode should have VerifyPeerCertificate callback set")
+	}
+
+	// Verify all custom settings are preserved
+	if cfg.TLS.MinVersion != tls.VersionTLS12 {
+		t.Errorf("MinVersion not preserved: got %v, want %v", cfg.TLS.MinVersion, tls.VersionTLS12)
+	}
+	if cfg.TLS.MaxVersion != tls.VersionTLS13 {
+		t.Errorf("MaxVersion not preserved: got %v, want %v", cfg.TLS.MaxVersion, tls.VersionTLS13)
+	}
+	if cfg.TLS.ServerName != "customServer" {
+		t.Errorf("ServerName not preserved: got %q, want 'customServer'", cfg.TLS.ServerName)
+	}
+	if len(cfg.TLS.CipherSuites) != 1 || cfg.TLS.CipherSuites[0] != tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 {
+		t.Error("CipherSuites not preserved")
+	}
+	if len(cfg.TLS.NextProtos) != 2 || cfg.TLS.NextProtos[0] != "h2" || cfg.TLS.NextProtos[1] != "http/1.1" {
+		t.Error("NextProtos not preserved")
+	}
+	if cfg.TLS.RootCAs == nil {
+		t.Error("RootCAs not preserved")
+	}
+}
+
+func TestRegisterTLSConfigReservedKey(t *testing.T) {
+	reservedKeys := []string{
+		"true", "True", "TRUE",
+		"false", "False", "FALSE",
+		"skip-verify", "Skip-Verify", "SKIP-VERIFY",
+		"preferred", "Preferred", "PREFERRED",
+	}
+
+	for _, key := range reservedKeys {
+		err := RegisterTLSConfig(key, &tls.Config{})
+		if err == nil {
+			t.Errorf("RegisterTLSConfig should reject reserved key %q", key)
+		}
+		DeregisterTLSConfig(key) // Clean up in case it was registered
 	}
 }
 

@@ -49,6 +49,7 @@ type Config struct {
 	MaxAllowedPacket     int               // Max packet size allowed
 	ServerPubKey         string            // Server public key name
 	TLSConfig            string            // TLS configuration name
+	TLSVerify            string            // TLS verification level: "identity" (default) or "ca"
 	TLS                  *tls.Config       // TLS configuration, its priority is higher than TLSConfig
 	Timeout              time.Duration     // Dial timeout
 	ReadTimeout          time.Duration     // I/O read timeout
@@ -195,10 +196,20 @@ func (cfg *Config) normalize() error {
 	}
 
 	if cfg.TLS == nil {
+		// Default TLSVerify to identity if not specified
+		if cfg.TLSVerify == "" {
+			cfg.TLSVerify = "identity"
+		}
+
 		switch cfg.TLSConfig {
 		case "false", "":
 			// don't set anything
 		case "true":
+			// Reject tls=true with tls-verify=ca since it provides minimal security
+			if cfg.TLSVerify == "ca" {
+				return errors.New("tls-verify=ca requires a custom TLS config with specific CA certificates (use tls=<config-name>); tls=true is not supported with tls-verify=ca")
+			}
+			// System CA pool with full verification (identity check)
 			cfg.TLS = &tls.Config{}
 		case "skip-verify":
 			cfg.TLS = &tls.Config{InsecureSkipVerify: true}
@@ -206,9 +217,17 @@ func (cfg *Config) normalize() error {
 			cfg.TLS = &tls.Config{InsecureSkipVerify: true}
 			cfg.AllowFallbackToPlaintext = true
 		default:
+			// Custom registered TLS config
 			cfg.TLS = getTLSConfigClone(cfg.TLSConfig)
 			if cfg.TLS == nil {
 				return errors.New("invalid value / unknown config name: " + cfg.TLSConfig)
+			}
+
+			// Apply tls-verify to custom config
+			if cfg.TLSVerify == "ca" {
+				// Preserve all settings from custom config, only modify verification behavior
+				rootCAs := cfg.TLS.RootCAs
+				cfg.TLS = createVerifyCAConfig(cfg.TLS, rootCAs)
 			}
 		}
 	}
@@ -368,6 +387,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if len(cfg.TLSConfig) > 0 {
 		writeDSNParam(&buf, &hasParam, "tls", url.QueryEscape(cfg.TLSConfig))
+	}
+
+	if cfg.TLSVerify != "" && cfg.TLSVerify != "identity" {
+		writeDSNParam(&buf, &hasParam, "tls-verify", cfg.TLSVerify)
 	}
 
 	if cfg.WriteTimeout > 0 {
@@ -657,6 +680,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				}
 				cfg.TLSConfig = name
 			}
+
+		// TLS verification level
+		case "tls-verify":
+			mode := strings.ToLower(value)
+			if mode != "identity" && mode != "ca" {
+				return fmt.Errorf("invalid tls-verify value: %s (must be 'identity' or 'ca')", value)
+			}
+			cfg.TLSVerify = mode
 
 		// I/O write Timeout
 		case "writeTimeout":

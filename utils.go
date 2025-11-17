@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
@@ -85,6 +86,78 @@ func getTLSConfigClone(key string) (config *tls.Config) {
 	}
 	tlsConfigLock.RUnlock()
 	return
+}
+
+// createVerifyCAConfig creates or modifies a TLS config to verify the CA certificate
+// but not the hostname. This implements MySQL's VERIFY_CA mode.
+// It uses the recommended Go pattern from issues #21971, #31791, #31792, #35467:
+// 1. Set InsecureSkipVerify to disable default verification
+// 2. Use VerifyPeerCertificate callback to manually verify CA without hostname
+//
+// If baseConfig is nil, creates a new minimal config.
+// If baseConfig is provided, clones it and preserves all settings except verification.
+// The rootCAs parameter specifies which CA pool to use for verification.
+func createVerifyCAConfig(baseConfig *tls.Config, rootCAs *x509.CertPool) *tls.Config {
+	var cfg *tls.Config
+	if baseConfig != nil {
+		cfg = baseConfig.Clone()
+	} else {
+		cfg = &tls.Config{}
+	}
+
+	// Override only the verification-related fields for VERIFY_CA mode
+	cfg.InsecureSkipVerify = true
+	cfg.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		return verifyCACallback(rawCerts, verifiedChains, rootCAs)
+	}
+
+	return cfg
+}
+
+// verifyCACallback implements CA-only verification without hostname checking.
+// This verifies that the certificate chain is signed by a trusted CA but does
+// not validate the hostname matches the certificate. This is the standard
+// implementation pattern recommended by the Go team for VERIFY_CA behavior.
+//
+// If rootCAs is nil, the system's default CA pool will be used.
+// If rootCAs is provided, it will be used for verification instead.
+func verifyCACallback(rawCerts [][]byte, _ [][]*x509.Certificate, rootCAs *x509.CertPool) error {
+	if len(rawCerts) == 0 {
+		return errors.New("tls: no certificates from server")
+	}
+
+	// Parse all certificates in the chain
+	certs := make([]*x509.Certificate, len(rawCerts))
+	for i, rawCert := range rawCerts {
+		cert, err := x509.ParseCertificate(rawCert)
+		if err != nil {
+			return fmt.Errorf("tls: failed to parse certificate: %w", err)
+		}
+		certs[i] = cert
+	}
+
+	// Build intermediates pool from all certificates except the first (leaf)
+	intermediates := x509.NewCertPool()
+	for _, cert := range certs[1:] {
+		intermediates.AddCert(cert)
+	}
+
+	// Verify the certificate chain without hostname verification
+	// By not setting DNSName in VerifyOptions, we skip hostname validation
+	// This implements VERIFY_CA behavior (CA check only, no hostname check)
+	opts := x509.VerifyOptions{
+		Roots:         rootCAs, // nil = use system CA pool
+		Intermediates: intermediates,
+		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		// DNSName is intentionally not set to skip hostname verification
+	}
+
+	_, err := certs[0].Verify(opts)
+	if err != nil {
+		return fmt.Errorf("tls: failed to verify certificate: %w", err)
+	}
+
+	return nil
 }
 
 // Returns the bool value of the input.

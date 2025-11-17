@@ -1520,6 +1520,15 @@ func TestTLS(t *testing.T) {
 		InsecureSkipVerify: true,
 	})
 	runTests(t, dsn+"&tls=custom-skip-verify", tlsTestReq)
+
+	// Test tls-verify parameter with system CA
+	runTests(t, dsn+"&tls=true&tls-verify=identity", tlsTestReq)
+
+	// Test tls-verify parameter with custom TLS config
+	RegisterTLSConfig("custom-ca-verify", &tls.Config{
+		InsecureSkipVerify: true,
+	})
+	runTests(t, dsn+"&tls=custom-ca-verify&tls-verify=ca", tlsTestReq)
 }
 
 func TestReuseClosedConnection(t *testing.T) {

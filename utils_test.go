@@ -10,9 +10,15 @@ package mysql
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
+	"math/big"
 	"testing"
 	"time"
 )
@@ -517,4 +523,187 @@ func TestParseDateTimeFail(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestVerifyCACallback(t *testing.T) {
+	t.Run("no certificates", func(t *testing.T) {
+		err := verifyCACallback(nil, nil, nil)
+		if err == nil {
+			t.Error("expected error when no certificates provided")
+		}
+		if err.Error() != "tls: no certificates from server" {
+			t.Errorf("unexpected error message: %v", err)
+		}
+	})
+
+	t.Run("empty certificate list", func(t *testing.T) {
+		err := verifyCACallback([][]byte{}, nil, nil)
+		if err == nil {
+			t.Error("expected error when certificate list is empty")
+		}
+	})
+
+	t.Run("invalid certificate data", func(t *testing.T) {
+		invalidCert := []byte{0x00, 0x01, 0x02}
+		err := verifyCACallback([][]byte{invalidCert}, nil, nil)
+		if err == nil {
+			t.Error("expected error when certificate cannot be parsed")
+		}
+	})
+
+	t.Run("valid self-signed certificate", func(t *testing.T) {
+		// Create a minimal self-signed CA certificate for testing
+		caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			t.Fatalf("failed to generate CA key: %v", err)
+		}
+
+		caTemplate := &x509.Certificate{
+			SerialNumber: big.NewInt(1),
+			Subject: pkix.Name{
+				Organization: []string{"Test CA"},
+			},
+			NotBefore:             time.Now(),
+			NotAfter:              time.Now().Add(24 * time.Hour),
+			KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+			ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+			BasicConstraintsValid: true,
+			IsCA:                  true,
+		}
+
+		caCertDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
+		if err != nil {
+			t.Fatalf("failed to create CA certificate: %v", err)
+		}
+
+		caCert, err := x509.ParseCertificate(caCertDER)
+		if err != nil {
+			t.Fatalf("failed to parse CA certificate: %v", err)
+		}
+
+		// Create a CA pool with our test CA
+		caPool := x509.NewCertPool()
+		caPool.AddCert(caCert)
+
+		// Create a leaf certificate signed by the CA
+		leafKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			t.Fatalf("failed to generate leaf key: %v", err)
+		}
+
+		leafTemplate := &x509.Certificate{
+			SerialNumber: big.NewInt(2),
+			Subject: pkix.Name{
+				Organization: []string{"Test Server"},
+			},
+			NotBefore:   time.Now(),
+			NotAfter:    time.Now().Add(24 * time.Hour),
+			KeyUsage:    x509.KeyUsageDigitalSignature,
+			ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		}
+
+		leafCertDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, caCert, &leafKey.PublicKey, caKey)
+		if err != nil {
+			t.Fatalf("failed to create leaf certificate: %v", err)
+		}
+
+		// Test verification with the valid chain
+		err = verifyCACallback([][]byte{leafCertDER, caCertDER}, nil, caPool)
+		if err != nil {
+			t.Errorf("expected successful verification but got error: %v", err)
+		}
+	})
+}
+
+func TestCreateVerifyCAConfig(t *testing.T) {
+	t.Run("with system CA pool", func(t *testing.T) {
+		cfg := createVerifyCAConfig(nil, nil)
+
+		if cfg == nil {
+			t.Fatal("createVerifyCAConfig returned nil")
+		}
+
+		if !cfg.InsecureSkipVerify {
+			t.Error("CA-only verification config should have InsecureSkipVerify=true")
+		}
+
+		if cfg.VerifyPeerCertificate == nil {
+			t.Error("CA-only verification config should have VerifyPeerCertificate callback set")
+		}
+
+		// Verify it's the correct callback
+		err := cfg.VerifyPeerCertificate(nil, nil)
+		if err == nil {
+			t.Error("VerifyPeerCertificate callback should return error for nil certificates")
+		}
+	})
+
+	t.Run("with custom CA pool", func(t *testing.T) {
+		customPool := x509.NewCertPool()
+		cfg := createVerifyCAConfig(nil, customPool)
+
+		if cfg == nil {
+			t.Fatal("createVerifyCAConfig returned nil")
+		}
+
+		if !cfg.InsecureSkipVerify {
+			t.Error("CA-only verification config should have InsecureSkipVerify=true")
+		}
+
+		if cfg.VerifyPeerCertificate == nil {
+			t.Error("CA-only verification config should have VerifyPeerCertificate callback set")
+		}
+	})
+
+	t.Run("preserves base config settings", func(t *testing.T) {
+		baseConfig := &tls.Config{
+			MinVersion:   tls.VersionTLS12,
+			MaxVersion:   tls.VersionTLS13,
+			CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
+			ServerName:   "example.com",
+			NextProtos:   []string{"h2", "http/1.1"},
+			Certificates: []tls.Certificate{{}},
+		}
+
+		customPool := x509.NewCertPool()
+		cfg := createVerifyCAConfig(baseConfig, customPool)
+
+		if cfg == nil {
+			t.Fatal("createVerifyCAConfig returned nil")
+		}
+
+		// Verify verification fields are set correctly
+		if !cfg.InsecureSkipVerify {
+			t.Error("CA-only verification config should have InsecureSkipVerify=true")
+		}
+
+		if cfg.VerifyPeerCertificate == nil {
+			t.Error("CA-only verification config should have VerifyPeerCertificate callback set")
+		}
+
+		// Verify base config settings are preserved
+		if cfg.MinVersion != tls.VersionTLS12 {
+			t.Errorf("MinVersion not preserved: got %v, want %v", cfg.MinVersion, tls.VersionTLS12)
+		}
+
+		if cfg.MaxVersion != tls.VersionTLS13 {
+			t.Errorf("MaxVersion not preserved: got %v, want %v", cfg.MaxVersion, tls.VersionTLS13)
+		}
+
+		if len(cfg.CipherSuites) != 1 || cfg.CipherSuites[0] != tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 {
+			t.Error("CipherSuites not preserved")
+		}
+
+		if cfg.ServerName != "example.com" {
+			t.Errorf("ServerName not preserved: got %v, want example.com", cfg.ServerName)
+		}
+
+		if len(cfg.NextProtos) != 2 || cfg.NextProtos[0] != "h2" || cfg.NextProtos[1] != "http/1.1" {
+			t.Error("NextProtos not preserved")
+		}
+
+		if len(cfg.Certificates) != 1 {
+			t.Error("Certificates not preserved")
+		}
+	})
 }
