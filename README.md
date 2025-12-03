@@ -444,16 +444,17 @@ The `tls` parameter selects which CA certificates to use:
 - `tls=skip-verify`: Accept any certificate (insecure)
 - `tls=preferred`: Attempt TLS, fall back to plaintext (insecure)
 
-The `tls-verify` parameter controls how certificates are verified (works with both `tls=true` and custom configs):
+The `tls-verify` parameter controls how certificates are verified:
 - `tls-verify=identity` (default): Verifies CA and hostname - Most secure, equivalent to MySQL's VERIFY_IDENTITY
 - `tls-verify=ca`: Verifies CA only, skips hostname check - Equivalent to MySQL's VERIFY_CA mode
+
+**IMPORTANT:** The `tls-verify=ca` parameter **only works with custom TLS configs**, not with `tls=true` (system CAs). The combination `tls=true&tls-verify=ca` is explicitly rejected because it provides minimal security benefit - attackers can obtain valid certificates from any public CA, making CA-only verification ineffective. This matches MySQL CLI behavior, which requires `--ssl-ca` or `--ssl-capath` when using VERIFY_CA mode.
 
 **Examples:**
 ```text
 ?tls=true - System CA with full verification (default behavior)
-?tls=true&tls-verify=ca - System CA with CA-only verification
 ?tls=custom - Custom CA with full verification (default behavior)
-?tls=custom&tls-verify=ca - Custom CA with CA-only verification
+?tls=custom&tls-verify=ca - Custom CA with CA-only verification (VERIFY_CA mode)
 ```
 
 ##### `tls-verify`
@@ -464,11 +465,18 @@ Valid Values:   identity, ca
 Default:        identity
 ```
 
-Controls the TLS certificate verification level. This parameter works with the `tls` parameter:
+Controls the TLS certificate verification level:
 - `identity`: Full verification including hostname (default, most secure)
 - `ca`: CA verification only, without hostname checking (MySQL VERIFY_CA equivalent)
 
-This parameter only applies when `tls=true` or `tls=<custom-config>`. It has no effect with `tls=skip-verify` or `tls=preferred`.
+**IMPORTANT:** The `tls-verify=ca` option **only works with custom TLS configs** (e.g., `tls=<custom-config>`), not with `tls=true`.
+
+Use `tls-verify=ca` when:
+- You have a private CA with specific trusted certificates
+- Connecting to servers via IP addresses or dynamic hostnames
+- Working in environments where certificates don't include matching hostname/IP SANs
+
+This parameter has no effect with `tls=skip-verify` or `tls=preferred`.
 
 
 ##### `writeTimeout`
