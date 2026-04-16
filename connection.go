@@ -477,7 +477,12 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 
 		dest := make([]driver.Value, resLen)
 		if err = rows.readRow(dest); err == nil {
-			return dest[0].([]byte), mc.skipRows()
+			// Copy the value before reading more packets.
+			// dest[0] is a slice into the read buffer, and skipRows
+			// may call fill() which moves data in the buffer,
+			// invalidating previously returned slices.
+			val := append([]byte(nil), dest[0].([]byte)...)
+			return val, mc.skipRows()
 		}
 	}
 	return nil, err

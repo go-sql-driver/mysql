@@ -15,6 +15,7 @@ import (
 	"errors"
 	"net"
 	"testing"
+	"time"
 )
 
 func TestInterpolateParams(t *testing.T) {
@@ -203,4 +204,140 @@ func (bc badConnection) Write(b []byte) (n int, err error) {
 
 func (bc badConnection) Close() error {
 	return nil
+}
+
+// chunkedConn is a net.Conn that serves pre-built data chunks, one per Read
+// call. This simulates the behavior seen with TLS connections, where the
+// server's TLS library typically produces a separate TLS record per write
+// and Go's crypto/tls.Read returns one record at a time.
+type chunkedConn struct {
+	chunks    [][]byte
+	readCount int
+}
+
+func (c *chunkedConn) Read(b []byte) (int, error) {
+	if c.readCount >= len(c.chunks) {
+		return 0, errors.New("no more data")
+	}
+	n := copy(b, c.chunks[c.readCount])
+	c.readCount++
+	return n, nil
+}
+
+func (c *chunkedConn) Write(b []byte) (int, error)       { return len(b), nil } // swallow writes (e.g. COM_QUERY)
+func (c *chunkedConn) Close() error                       { return nil }
+func (c *chunkedConn) LocalAddr() net.Addr                { return nil }
+func (c *chunkedConn) RemoteAddr() net.Addr               { return nil }
+func (c *chunkedConn) SetDeadline(_ time.Time) error      { return nil }
+func (c *chunkedConn) SetReadDeadline(_ time.Time) error  { return nil }
+func (c *chunkedConn) SetWriteDeadline(_ time.Time) error { return nil }
+
+var _ net.Conn = (*chunkedConn)(nil)
+
+// makePacket wraps a payload in a MySQL protocol packet header.
+func makePacket(seq byte, payload []byte) []byte {
+	pkt := make([]byte, 4+len(payload))
+	pkt[0] = byte(len(payload))
+	pkt[1] = byte(len(payload) >> 8)
+	pkt[2] = byte(len(payload) >> 16)
+	pkt[3] = seq
+	copy(pkt[4:], payload)
+	return pkt
+}
+
+// TestGetSystemVarBufferReuse verifies that getSystemVar returns a value that
+// is not corrupted by the subsequent skipRows/readUntilEOF call.
+//
+// Background: getSystemVar sends "SELECT @@<name>" and reads the result using
+// the low-level packet API. The row value is returned as a []byte slice that
+// points directly into the read buffer (buffer.cachedBuf). After extracting
+// the value, getSystemVar calls skipRows/readUntilEOF to consume the trailing
+// EOF packet. If the EOF data is not already in the buffer, this triggers
+// buffer.fill(), which reads new network data into cachedBuf starting at
+// offset 0 — overwriting the memory the value slice still references.
+//
+// On plain TCP connections this bug is less commonly observed because
+// small back-to-back writes may be coalesced into a single TCP segment
+// (by Nagle's algorithm or kernel buffering), so both packets often
+// arrive in one Read and fill() is not called again. However, this is
+// not guaranteed — TCP_NODELAY (Go's default) disables Nagle, and
+// packet boundaries depend on timing.
+//
+// With TLS the bug is much more likely: the server's TLS library
+// typically produces a separate TLS record per write call, and Go's
+// crypto/tls.Read returns one record at a time, so the row data and
+// trailing EOF almost always arrive in separate Reads — triggering
+// fill() and corrupting the value.
+//
+// The test feeds each protocol packet as a separate Read call via chunkedConn
+// (mimicking TLS record boundaries), guaranteeing that fill() must be called
+// for the trailing EOF. After fill() reads the 9-byte EOF into
+// cachedBuf[0:8], it overwrites the row value which sits at cachedBuf[5:13]
+// (4-byte packet header + 1-byte length prefix = value starts at offset 5
+// within the 4096-byte cachedBuf).
+func TestGetSystemVarBufferReuse(t *testing.T) {
+	// Protocol response for: SELECT @@max_allowed_packet → "67108864"
+	//
+	// Sequence numbers start at 1 (client sent COM_QUERY as seq 0).
+	//
+	//   seq 1: column count = 1
+	//   seq 2: column definition (minimal valid)
+	//   seq 3: EOF (end of column defs)
+	//   seq 4: row data — length-encoded string "67108864"
+	//   seq 5: EOF (end of rows)
+
+	colCountPkt := makePacket(1, []byte{0x01})
+
+	colDef := []byte{
+		0x03, 'd', 'e', 'f', // catalog = "def"
+		0x00,                   // schema = ""
+		0x00,                   // table = ""
+		0x00,                   // org_table = ""
+		0x14,                   // name length = 20
+		'@', '@', 'm', 'a', 'x', '_', 'a', 'l', 'l', 'o',
+		'w', 'e', 'd', '_', 'p', 'a', 'c', 'k', 'e', 't',
+		0x00,               // org_name = ""
+		0x0c,               // length of fixed fields
+		0x3f, 0x00,         // charset = 63 (binary)
+		0x14, 0x00, 0x00, 0x00, // column_length = 20
+		0x0f,       // type = FIELD_TYPE_VARCHAR
+		0x00, 0x00, // flags
+		0x00,       // decimals
+		0x00, 0x00, // filler
+	}
+	colDefPkt := makePacket(2, colDef)
+
+	eof1 := makePacket(3, []byte{0xfe, 0x00, 0x00, 0x02, 0x00})
+
+	// Row: length-encoded string "67108864" (8 bytes → length prefix 0x08)
+	rowPkt := makePacket(4, []byte{0x08, '6', '7', '1', '0', '8', '8', '6', '4'})
+
+	eof2 := makePacket(5, []byte{0xfe, 0x00, 0x00, 0x02, 0x00})
+
+	// Each packet arrives in its own Read call, simulating TLS record
+	// boundaries where each server Write becomes a separate TLS record
+	// and each client Read returns exactly one record.
+	conn := &chunkedConn{chunks: [][]byte{colCountPkt, colDefPkt, eof1, rowPkt, eof2}}
+
+	mc := &mysqlConn{
+		netConn:          conn,
+		buf:              newBuffer(),
+		cfg:              NewConfig(),
+		closech:          make(chan struct{}),
+		maxAllowedPacket: defaultMaxAllowedPacket,
+		sequence:         1, // after COM_QUERY (seq 0)
+	}
+
+	val, err := mc.getSystemVar("max_allowed_packet")
+	if err != nil {
+		t.Fatalf("getSystemVar failed: %v", err)
+	}
+
+	const expected = "67108864"
+	if got := string(val); got != expected {
+		t.Fatalf("getSystemVar(max_allowed_packet) = %q (% 02x), want %q\n"+
+			"Value was likely corrupted by buffer.fill() overwriting the "+
+			"slice returned by readRow when reading the trailing EOF packet.",
+			got, val, expected)
+	}
 }
