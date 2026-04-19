@@ -211,16 +211,21 @@ func (bc badConnection) Close() error {
 // server's TLS library typically produces a separate TLS record per write
 // and Go's crypto/tls.Read returns one record at a time.
 type chunkedConn struct {
-	chunks    [][]byte
-	readCount int
+	chunks [][]byte
+	idx    int // current chunk index
+	off    int // offset within current chunk
 }
 
 func (c *chunkedConn) Read(b []byte) (int, error) {
-	if c.readCount >= len(c.chunks) {
+	if c.idx >= len(c.chunks) {
 		return 0, errors.New("no more data")
 	}
-	n := copy(b, c.chunks[c.readCount])
-	c.readCount++
+	n := copy(b, c.chunks[c.idx][c.off:])
+	c.off += n
+	if c.off >= len(c.chunks[c.idx]) {
+		c.idx++
+		c.off = 0
+	}
 	return n, nil
 }
 
@@ -246,35 +251,12 @@ func makePacket(seq byte, payload []byte) []byte {
 }
 
 // TestGetSystemVarBufferReuse verifies that getSystemVar returns a value that
-// is not corrupted by the subsequent skipRows/readUntilEOF call.
+// is not corrupted by the subsequent skipRows call.
 //
-// Background: getSystemVar sends "SELECT @@<name>" and reads the result using
-// the low-level packet API. The row value is returned as a []byte slice that
-// points directly into the read buffer (buffer.cachedBuf). After extracting
-// the value, getSystemVar calls skipRows/readUntilEOF to consume the trailing
-// EOF packet. If the EOF data is not already in the buffer, this triggers
-// buffer.fill(), which reads new network data into cachedBuf starting at
-// offset 0 — overwriting the memory the value slice still references.
-//
-// On plain TCP connections this bug is less commonly observed because
-// small back-to-back writes may be coalesced into a single TCP segment
-// (by Nagle's algorithm or kernel buffering), so both packets often
-// arrive in one Read and fill() is not called again. However, this is
-// not guaranteed — TCP_NODELAY (Go's default) disables Nagle, and
-// packet boundaries depend on timing.
-//
-// With TLS the bug is much more likely: the server's TLS library
-// typically produces a separate TLS record per write call, and Go's
-// crypto/tls.Read returns one record at a time, so the row data and
-// trailing EOF almost always arrive in separate Reads — triggering
-// fill() and corrupting the value.
-//
-// The test feeds each protocol packet as a separate Read call via chunkedConn
-// (mimicking TLS record boundaries), guaranteeing that fill() must be called
-// for the trailing EOF. After fill() reads the 9-byte EOF into
-// cachedBuf[0:8], it overwrites the row value which sits at cachedBuf[5:13]
-// (4-byte packet header + 1-byte length prefix = value starts at offset 5
-// within the 4096-byte cachedBuf).
+// The row value returned by readRow points into the read buffer. skipRows may
+// call fill(), which overwrites that memory. The test feeds each protocol
+// packet as a separate Read call via chunkedConn (mimicking TLS record
+// boundaries), guaranteeing that fill() is called for the trailing EOF.
 func TestGetSystemVarBufferReuse(t *testing.T) {
 	// Protocol response for: SELECT @@max_allowed_packet → "67108864"
 	//
@@ -334,10 +316,7 @@ func TestGetSystemVarBufferReuse(t *testing.T) {
 	}
 
 	const expected = "67108864"
-	if got := string(val); got != expected {
-		t.Fatalf("getSystemVar(max_allowed_packet) = %q (% 02x), want %q\n"+
-			"Value was likely corrupted by buffer.fill() overwriting the "+
-			"slice returned by readRow when reading the trailing EOF packet.",
-			got, val, expected)
+	if val != expected {
+		t.Fatalf("getSystemVar(max_allowed_packet) = %q, want %q", val, expected)
 	}
 }

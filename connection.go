@@ -453,12 +453,11 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 }
 
 // Gets the value of the given MySQL System Variable
-// The returned byte slice is only valid until the next read
-func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
+func (mc *mysqlConn) getSystemVar(name string) (string, error) {
 	// Send command
 	handleOk := mc.clearResult()
 	if err := mc.writeCommandPacketStr(comQuery, "SELECT @@"+name); err != nil {
-		return nil, err
+		return "", err
 	}
 
 	// Read Result
@@ -471,21 +470,19 @@ func (mc *mysqlConn) getSystemVar(name string) ([]byte, error) {
 		if resLen > 0 {
 			// Columns
 			if err := mc.skipColumns(resLen); err != nil {
-				return nil, err
+				return "", err
 			}
 		}
 
 		dest := make([]driver.Value, resLen)
 		if err = rows.readRow(dest); err == nil {
-			// Copy the value before reading more packets.
-			// dest[0] is a slice into the read buffer, and skipRows
-			// may call fill() which moves data in the buffer,
-			// invalidating previously returned slices.
-			val := append([]byte(nil), dest[0].([]byte)...)
+			// Convert to string before skipRows, which may
+			// overwrite the read buffer that dest[0] points into.
+			val := string(dest[0].([]byte))
 			return val, mc.skipRows()
 		}
 	}
-	return nil, err
+	return "", err
 }
 
 // cancel is called when the query has canceled.
