@@ -1499,7 +1499,7 @@ func TestTLS(t *testing.T) {
 				dbt.Fatal(err.Error())
 			}
 
-			if (*value == nil) || (len(*value) == 0) {
+			if len(*value) == 0 {
 				dbt.Fatalf("no Cipher")
 			} else {
 				dbt.Logf("Cipher: %s", *value)
