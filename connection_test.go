@@ -229,7 +229,7 @@ func (c *chunkedConn) Read(b []byte) (int, error) {
 	return n, nil
 }
 
-func (c *chunkedConn) Write(b []byte) (int, error)       { return len(b), nil } // swallow writes (e.g. COM_QUERY)
+func (c *chunkedConn) Write(b []byte) (int, error)        { return len(b), nil } // swallow writes (e.g. COM_QUERY)
 func (c *chunkedConn) Close() error                       { return nil }
 func (c *chunkedConn) LocalAddr() net.Addr                { return nil }
 func (c *chunkedConn) RemoteAddr() net.Addr               { return nil }
@@ -272,15 +272,15 @@ func TestGetSystemVarBufferReuse(t *testing.T) {
 
 	colDef := []byte{
 		0x03, 'd', 'e', 'f', // catalog = "def"
-		0x00,                   // schema = ""
-		0x00,                   // table = ""
-		0x00,                   // org_table = ""
-		0x14,                   // name length = 20
+		0x00, // schema = ""
+		0x00, // table = ""
+		0x00, // org_table = ""
+		0x14, // name length = 20
 		'@', '@', 'm', 'a', 'x', '_', 'a', 'l', 'l', 'o',
 		'w', 'e', 'd', '_', 'p', 'a', 'c', 'k', 'e', 't',
-		0x00,               // org_name = ""
-		0x0c,               // length of fixed fields
-		0x3f, 0x00,         // charset = 63 (binary)
+		0x00,       // org_name = ""
+		0x0c,       // length of fixed fields
+		0x3f, 0x00, // charset = 63 (binary)
 		0x14, 0x00, 0x00, 0x00, // column_length = 20
 		0x0f,       // type = FIELD_TYPE_VARCHAR
 		0x00, 0x00, // flags
