@@ -266,7 +266,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 		HASH_BYTE          = byte('#')
 		MINUS_BYTE         = byte('-')
 		LINE_FEED_BYTE     = byte('\n')
-		RADICAL_BYTE       = byte('`')
+		BACKTICK_BYTE      = byte('`')
 	)
 
 	buf, err := mc.buf.takeCompleteBuffer()
@@ -402,7 +402,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 				}
 				lastIdx = i + 1
 			}
-		case RADICAL_BYTE:
+		case BACKTICK_BYTE:
 			if state == stateBacktick {
 				state = stateNormal
 			} else if state == stateNormal {
