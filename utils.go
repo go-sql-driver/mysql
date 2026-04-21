@@ -647,8 +647,8 @@ func escapeStringBackslash(buf []byte, v string) []byte {
 	for i := 0; i < len(v); i++ {
 		c := v[i]
 		if esc := backslashEscapeTable[c]; esc != 0 {
-			buf[pos] = '\\'
 			buf[pos+1] = esc
+			buf[pos] = '\\'
 			pos += 2
 		} else {
 			buf[pos] = c
@@ -674,8 +674,8 @@ func escapeBytesBackslash(buf, v []byte, binary bool) []byte {
 	}
 	for _, c := range v {
 		if esc := backslashEscapeTable[c]; esc != 0 {
-			buf[pos] = '\\'
 			buf[pos+1] = esc
+			buf[pos] = '\\'
 			pos += 2
 		} else {
 			buf[pos] = c
@@ -701,8 +701,8 @@ func escapeBytesQuotes(buf, v []byte, binary bool) []byte {
 	}
 	for _, c := range v {
 		if c == '\'' {
-			buf[pos] = '\''
 			buf[pos+1] = '\''
+			buf[pos] = '\''
 			pos += 2
 		} else {
 			buf[pos] = c
@@ -723,8 +723,8 @@ func escapeStringQuotes(buf []byte, v string) []byte {
 	for i := range len(v) {
 		c := v[i]
 		if c == '\'' {
-			buf[pos] = '\''
 			buf[pos+1] = '\''
+			buf[pos] = '\''
 			pos += 2
 		} else {
 			buf[pos] = c
