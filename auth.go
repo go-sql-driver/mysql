@@ -109,12 +109,12 @@ func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, 
 				return fmt.Errorf("%w: malformed auth switch request", ErrMalformPkt)
 			}
 
-			authPlugin, exists := globalPluginRegistry.GetPlugin(plugin)
+			newPlugin, exists := globalPluginRegistry.GetPlugin(plugin)
 			if !exists {
-				return fmt.Errorf("this authentication plugin '%s' is not supported", plugin)
+				return fmt.Errorf("authentication plugin %q: %w", plugin, ErrUnknownPlugin)
 			}
 
-			initialAuthResponse, err := authPlugin.InitAuth(authData, mc.cfg)
+			initialAuthResponse, err := newPlugin.InitAuth(authData, mc.cfg)
 			if err != nil {
 				return err
 			}
@@ -127,7 +127,18 @@ func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, 
 			if remainingSwitch == 0 {
 				return fmt.Errorf("maximum of %d authentication switch reached", authMaximumSwitch)
 			}
-			return mc.handleAuthResult(remainingSwitch, authData, authPlugin)
+
+			// Continue iteratively with the new plugin and seed.
+			authPlugin = newPlugin
+			initialSeed = authData
+			data, err = mc.readPacket()
+			if err != nil {
+				return err
+			}
+			if len(data) == 0 {
+				return fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
+			}
+			continue
 		}
 
 		// Not a terminal packet, let the plugin process it

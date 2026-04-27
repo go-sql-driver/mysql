@@ -19,7 +19,10 @@ import (
 
 // Sha256PasswordPlugin implements the sha256_password authentication
 // This plugin provides secure password-based authentication using SHA256 and RSA encryption.
-type Sha256PasswordPlugin struct{ AuthPlugin }
+type Sha256PasswordPlugin struct{}
+
+// Compile-time assertion that Sha256PasswordPlugin implements AuthPlugin.
+var _ AuthPlugin = (*Sha256PasswordPlugin)(nil)
 
 func init() {
 	RegisterAuthPlugin(func() AuthPlugin { return &Sha256PasswordPlugin{} })
@@ -76,9 +79,12 @@ func (p *Sha256PasswordPlugin) ContinuationAuth(packet []byte, authData []byte, 
 	// So we receive the PEM-encoded public key directly
 
 	// Parse public key from PEM format
-	block, rest := pem.Decode(packet)
+	block, _ := pem.Decode(packet)
 	if block == nil {
-		return nil, false, fmt.Errorf("invalid PEM data in auth response: %q", rest)
+		return nil, false, fmt.Errorf("%w: invalid PEM data in auth response", ErrMalformPkt)
+	}
+	if block.Type != "PUBLIC KEY" {
+		return nil, false, fmt.Errorf("%w: unexpected PEM block type %q in auth response", ErrMalformPkt, block.Type)
 	}
 
 	// Parse the public key

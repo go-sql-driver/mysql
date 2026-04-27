@@ -26,9 +26,10 @@ const (
 // CachingSha2PasswordPlugin implements the caching_sha2_password authentication
 // This plugin provides secure password-based authentication using SHA256 and RSA encryption,
 // with server-side caching of password verifiers for improved performance.
-type CachingSha2PasswordPlugin struct {
-	AuthPlugin
-}
+type CachingSha2PasswordPlugin struct{}
+
+// Compile-time assertion that CachingSha2PasswordPlugin implements AuthPlugin.
+var _ AuthPlugin = (*CachingSha2PasswordPlugin)(nil)
 
 func init() {
 	RegisterAuthPlugin(func() AuthPlugin { return &CachingSha2PasswordPlugin{} })
@@ -102,9 +103,12 @@ func (p *CachingSha2PasswordPlugin) ContinuationAuth(packet []byte, authData []b
 
 	// This might be a public key response (PEM data)
 	// Parse public key from PEM format
-	block, rest := pem.Decode(packet)
+	block, _ := pem.Decode(packet)
 	if block == nil {
-		return nil, false, fmt.Errorf("invalid PEM data in auth response: %q", rest)
+		return nil, false, fmt.Errorf("%w: invalid PEM data in auth response", ErrMalformPkt)
+	}
+	if block.Type != "PUBLIC KEY" {
+		return nil, false, fmt.Errorf("%w: unexpected PEM block type %q in auth response", ErrMalformPkt, block.Type)
 	}
 
 	// Parse the public key

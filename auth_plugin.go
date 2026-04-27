@@ -15,9 +15,9 @@ type AuthPlugin interface {
 	// PluginName returns the name of the authentication plugin
 	PluginName() string
 
-	// InitAuth initializes the authentication process and returns the initial response
-	// authData is the challenge data from the server
-	// password is the password for authentication
+	// InitAuth initializes the authentication process and returns the initial response.
+	// authData is the challenge data from the server.
+	// cfg is the connection configuration (including the password).
 	InitAuth(authData []byte, cfg *Config) ([]byte, error)
 
 	// ContinuationAuth processes the authentication response from the server
@@ -46,7 +46,7 @@ type pluginRegistry struct {
 	plugins map[string]func() AuthPlugin
 }
 
-// NewPluginRegistry creates a new plugin registry
+// newPluginRegistry creates a new plugin registry.
 func newPluginRegistry() *pluginRegistry {
 	registry := &pluginRegistry{
 		plugins: make(map[string]func() AuthPlugin),
