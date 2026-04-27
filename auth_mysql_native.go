@@ -16,7 +16,7 @@ type NativePasswordPlugin struct {
 }
 
 func init() {
-	RegisterAuthPlugin(&NativePasswordPlugin{})
+	RegisterAuthPlugin(func() AuthPlugin { return &NativePasswordPlugin{} })
 }
 
 func (p *NativePasswordPlugin) PluginName() string {

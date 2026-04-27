@@ -12,7 +12,7 @@ package mysql
 type OldPasswordPlugin struct{ SimpleAuth }
 
 func init() {
-	RegisterAuthPlugin(&OldPasswordPlugin{})
+	RegisterAuthPlugin(func() AuthPlugin { return &OldPasswordPlugin{} })
 }
 
 func (p *OldPasswordPlugin) PluginName() string {

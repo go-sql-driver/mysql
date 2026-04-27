@@ -22,7 +22,7 @@ import (
 type Sha256PasswordPlugin struct{ AuthPlugin }
 
 func init() {
-	RegisterAuthPlugin(&Sha256PasswordPlugin{})
+	RegisterAuthPlugin(func() AuthPlugin { return &Sha256PasswordPlugin{} })
 }
 
 func (p *Sha256PasswordPlugin) PluginName() string {
@@ -67,14 +67,14 @@ func (p *Sha256PasswordPlugin) InitAuth(authData []byte, cfg *Config) ([]byte, e
 // 1. OK packet - Authentication successful
 // 2. Error packet - Authentication failed
 // 3. More data packet - Contains the server's public key for password encryption
-func (p *Sha256PasswordPlugin) continuationAuth(packet []byte, authData []byte, cfg *Config) ([]byte, bool, error) {
+func (p *Sha256PasswordPlugin) ContinuationAuth(packet []byte, authData []byte, cfg *Config) ([]byte, bool, error) {
 	if len(packet) == 0 {
 		return nil, false, fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
 	}
 
 	// Driver already checked for OK/ERR/EOF and stripped 0x01 continuation byte
 	// So we receive the PEM-encoded public key directly
-	
+
 	// Parse public key from PEM format
 	block, rest := pem.Decode(packet)
 	if block == nil {
@@ -112,6 +112,9 @@ func (p *Sha256PasswordPlugin) continuationAuth(packet []byte, authData []byte, 
 func encryptPassword(password string, seed []byte, pub *rsa.PublicKey) ([]byte, error) {
 	if pub == nil {
 		return nil, fmt.Errorf("public key is nil")
+	}
+	if len(seed) == 0 {
+		return nil, fmt.Errorf("%w: empty auth seed", ErrMalformPkt)
 	}
 
 	// Create the plaintext by XORing password with seed

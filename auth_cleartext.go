@@ -23,7 +23,7 @@ type ClearPasswordPlugin struct {
 }
 
 func init() {
-	RegisterAuthPlugin(&ClearPasswordPlugin{})
+	RegisterAuthPlugin(func() AuthPlugin { return &ClearPasswordPlugin{} })
 }
 
 func (p *ClearPasswordPlugin) PluginName() string {

@@ -105,6 +105,10 @@ func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, 
 			// Auth switch request
 			plugin, authData := mc.parseAuthSwitchData(data, initialSeed)
 
+			if plugin == "" {
+				return fmt.Errorf("%w: malformed auth switch request", ErrMalformPkt)
+			}
+
 			authPlugin, exists := globalPluginRegistry.GetPlugin(plugin)
 			if !exists {
 				return fmt.Errorf("this authentication plugin '%s' is not supported", plugin)
@@ -120,6 +124,9 @@ func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, 
 			}
 
 			remainingSwitch--
+			if remainingSwitch == 0 {
+				return fmt.Errorf("maximum of %d authentication switch reached", authMaximumSwitch)
+			}
 			return mc.handleAuthResult(remainingSwitch, authData, authPlugin)
 		}
 
@@ -133,7 +140,7 @@ func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, 
 			pluginData = data[1:]
 		}
 
-		nextPacket, done, err := authPlugin.continuationAuth(pluginData, initialSeed, mc.cfg)
+		nextPacket, done, err := authPlugin.ContinuationAuth(pluginData, initialSeed, mc.cfg)
 		if err != nil {
 			return err
 		}

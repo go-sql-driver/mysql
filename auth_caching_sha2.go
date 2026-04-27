@@ -18,8 +18,9 @@ import (
 
 // Authentication response constants
 const (
-	cachingSha2FastAuth       = 3 // Password found in cache
-	cachingSha2FullAuthNeeded = 4 // Full authentication needed
+	cachingSha2RequestPublicKey = 2 // Request server public key for RSA encryption
+	cachingSha2FastAuth         = 3 // Password found in cache
+	cachingSha2FullAuthNeeded   = 4 // Full authentication needed
 )
 
 // CachingSha2PasswordPlugin implements the caching_sha2_password authentication
@@ -30,7 +31,7 @@ type CachingSha2PasswordPlugin struct {
 }
 
 func init() {
-	RegisterAuthPlugin(&CachingSha2PasswordPlugin{})
+	RegisterAuthPlugin(func() AuthPlugin { return &CachingSha2PasswordPlugin{} })
 }
 
 func (p *CachingSha2PasswordPlugin) PluginName() string {
@@ -57,10 +58,10 @@ func (p *CachingSha2PasswordPlugin) InitAuth(authData []byte, cfg *Config) ([]by
 //     - Request server's public key if not cached
 //     - Encrypt password with RSA public key
 //     - Send encrypted password
-func (p *CachingSha2PasswordPlugin) continuationAuth(packet []byte, authData []byte, cfg *Config) ([]byte, bool, error) {
+func (p *CachingSha2PasswordPlugin) ContinuationAuth(packet []byte, authData []byte, cfg *Config) ([]byte, bool, error) {
 	// Driver already checked for OK/ERR/EOF and stripped 0x01 continuation byte
 	// So we receive the payload directly
-	
+
 	if len(packet) == 0 {
 		// Empty packet after stripping 0x01 means auth successful, need to read next packet
 		return nil, false, nil
@@ -83,8 +84,8 @@ func (p *CachingSha2PasswordPlugin) continuationAuth(packet []byte, authData []b
 			// For non-TLS connections, use RSA encryption
 			pubKey := cfg.pubKey
 			if pubKey == nil {
-				// Request public key from server (send packet with value 2)
-				return []byte{2}, false, nil
+				// Request public key from server
+				return []byte{cachingSha2RequestPublicKey}, false, nil
 			}
 
 			// Encrypt and send password

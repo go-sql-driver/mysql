@@ -146,6 +146,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 	authPlugin, exists := globalPluginRegistry.GetPlugin(plugin)
 	if !exists {
+		mc.cleanup()
 		return nil, fmt.Errorf("this authentication plugin '%s' is not supported", plugin)
 	}
 

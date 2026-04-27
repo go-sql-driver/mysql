@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"crypto/sha512"
+
 	"filippo.io/edwards25519"
 )
 
@@ -19,7 +20,7 @@ type ClientEd25519Plugin struct {
 }
 
 func init() {
-	RegisterAuthPlugin(&ClientEd25519Plugin{})
+	RegisterAuthPlugin(func() AuthPlugin { return &ClientEd25519Plugin{} })
 }
 
 func (p *ClientEd25519Plugin) PluginName() string {
