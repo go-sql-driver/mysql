@@ -256,7 +256,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 		stateBacktick
 	)
 
-	var (
+	const (
 		QUOTE_BYTE         = byte('\'')
 		DBL_QUOTE_BYTE     = byte('"')
 		BACKSLASH_BYTE     = byte('\\')
@@ -297,6 +297,10 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 		case SLASH_BYTE:
 			if state == stateSlashStarComment && lastChar == STAR_BYTE {
 				state = stateNormal
+				// Clear lastChar so the '/' that closed the comment isn't
+				// reused to start a new comment with a following '*'.
+				lastChar = 0
+				continue
 			}
 		case HASH_BYTE:
 			if state == stateNormal {
@@ -304,7 +308,15 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 			}
 		case MINUS_BYTE:
 			if state == stateNormal && lastChar == MINUS_BYTE {
-				state = stateEOLComment
+				// -- only starts a comment if followed by whitespace or control char
+				if i+1 < lenQuery {
+					nextChar := query[i+1]
+					if nextChar == ' ' || nextChar == '\t' || nextChar == '\n' || nextChar == '\r' {
+						state = stateEOLComment
+					}
+				} else {
+					state = stateEOLComment
+				}
 			}
 		case LINE_FEED_BYTE:
 			if state == stateEOLComment {

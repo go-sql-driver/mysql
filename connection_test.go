@@ -219,6 +219,12 @@ func TestInterpolateParamsWithComments(t *testing.T) {
 		{"SELECT '\\'?', col FROM tbl WHERE id = ? AND desc = 'foo\\'bar?'", []driver.Value{int64(42)}, "SELECT '\\'?', col FROM tbl WHERE id = 42 AND desc = 'foo\\'bar?'", false},
 		// Multiple comments and real placeholders
 		{"SELECT ? -- comment ?\n, ? /* ? */ , ? # ?\n, ?", []driver.Value{int64(1), int64(2), int64(3)}, "SELECT 1 -- comment ?\n, 2 /* ? */ , 3 # ?\n, ?", true},
+		// 2--1: -- followed by digit is NOT a comment (it's the number 2 minus minus 1)
+		{"SELECT ?--1", []driver.Value{int64(2)}, "SELECT 2--1", false},
+		// /* */*: After closing block comment, */* should NOT start a new comment
+		{"SELECT /* comment */* ?, ?", []driver.Value{int64(1), int64(2)}, "SELECT /* comment */* 1, 2", false},
+		// /* */*: More complex case with actual comment after
+		{"SELECT /* c1 */*/* c2 */ ?, ?", []driver.Value{int64(1), int64(2)}, "SELECT /* c1 */*/* c2 */ 1, 2", false},
 	}
 
 	for i, test := range tests {
