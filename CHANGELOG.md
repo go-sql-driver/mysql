@@ -19,9 +19,8 @@
 * `tx.Commit()` and `tx.Rollback()` returned `ErrInvalidConn` always.
   Now they return cached real error if present. (#1690)
 
-* Optimize reading small resultsets to fix performance regression
-  introduced by compression protocol support. (#1707)
-
+* Optimize reading small result sets to fix a performance regression
+  introduced by compression protocol support. (`#1707`)
 * Fix `db.Ping()` on compressed connection. (#1723)
 
 
