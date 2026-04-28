@@ -15,6 +15,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"maps"
 	"math/big"
 	"net"
 	"net/url"
@@ -157,9 +158,7 @@ func (cfg *Config) Clone() *Config {
 	}
 	if len(cp.Params) > 0 {
 		cp.Params = make(map[string]string, len(cfg.Params))
-		for k, v := range cfg.Params {
-			cp.Params[k] = v
-		}
+		maps.Copy(cp.Params, cfg.Params)
 	}
 	if cfg.pubKey != nil {
 		cp.pubKey = &rsa.PublicKey{
@@ -477,7 +476,7 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 // parseDSNParams parses the DSN "query string"
 // Values must be url.QueryEscape'ed
 func parseDSNParams(cfg *Config, params string) (err error) {
-	for _, v := range strings.Split(params, "&") {
+	for v := range strings.SplitSeq(params, "&") {
 		key, value, found := strings.Cut(v, "=")
 		if !found {
 			continue

@@ -282,7 +282,7 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 	lenQuery := len(query)
 	lastIdx := 0
 
-	for i := 0; i < lenQuery; i++ {
+	for i := range lenQuery {
 		currentChar := query[i]
 		if state == stateEscape && !((currentChar == QUOTE_BYTE && singleQuotes) || (currentChar == DBL_QUOTE_BYTE && !singleQuotes)) {
 			state = stateString

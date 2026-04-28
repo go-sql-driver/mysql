@@ -907,7 +907,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 }
 
 func (mc *mysqlConn) skipPackets(n int) error {
-	for i := 0; i < n; i++ {
+	for range n {
 		if _, err := mc.readPacket(); err != nil {
 			return err
 		}

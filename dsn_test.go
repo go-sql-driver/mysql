@@ -432,7 +432,7 @@ func TestNormalizeTLSConfig(t *testing.T) {
 func BenchmarkParseDSN(b *testing.B) {
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for _, tst := range testDSNs {
 			if _, err := ParseDSN(tst.in); err != nil {
 				b.Error(err.Error())

@@ -176,7 +176,6 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	cleanupSql := "DROP TABLE IF EXISTS test"
 
 	for _, test := range tests {
-		test := test
 		t.Run("default", func(t *testing.T) {
 			dbt := &DBTest{t, db}
 			t.Cleanup(func() {
@@ -220,7 +219,6 @@ func runTestsParallel(t *testing.T, dsn string, tests ...func(dbt *DBTest, table
 
 	t.Parallel()
 	for _, test := range tests {
-		test := test
 
 		t.Run("default", func(t *testing.T) {
 			t.Parallel()
