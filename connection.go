@@ -589,6 +589,10 @@ func (mc *mysqlConn) finish() {
 
 // Ping implements driver.Pinger interface
 func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
+	return mc.sendSimpleCommandOK(ctx, comPing)
+}
+
+func (mc *mysqlConn) sendSimpleCommandOK(ctx context.Context, cmd byte) (err error) {
 	if mc.closed.Load() {
 		return driver.ErrBadConn
 	}
@@ -599,7 +603,7 @@ func (mc *mysqlConn) Ping(ctx context.Context) (err error) {
 	defer mc.finish()
 
 	handleOk := mc.clearResult()
-	if err = mc.writeCommandPacket(comPing); err != nil {
+	if err = mc.writeCommandPacket(cmd); err != nil {
 		return mc.markBadConn(err)
 	}
 
@@ -765,6 +769,20 @@ func (mc *mysqlConn) startWatcher() {
 			}
 		}
 	}()
+}
+
+// Reset resets the server-side session state using COM_RESET_CONNECTION.
+// It clears most per-session state (e.g., user variables, prepared statements)
+// without re-authenticating.
+// Usage hint: call via database/sql.Conn.Raw using a method assertion:
+//   conn.Raw(func(c any) error {
+//     if r, ok := c.(interface{ Reset(context.Context) error }); ok {
+//       return r.Reset(ctx)
+//     }
+//     return nil
+//   })
+func (mc *mysqlConn) Reset(ctx context.Context) (err error) {
+	return mc.sendSimpleCommandOK(ctx, comResetConnection)
 }
 
 func (mc *mysqlConn) CheckNamedValue(nv *driver.NamedValue) (err error) {
