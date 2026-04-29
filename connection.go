@@ -216,9 +216,10 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 		return nil, driver.ErrBadConn
 	}
 
-	stmt := &mysqlStmt{
-		mc: mc,
-	}
+    stmt := &mysqlStmt{
+        mc:          mc,
+        queryString: query,
+    }
 
 	// Read Result
 	columnCount, err := stmt.readPrepareResultPacket()
