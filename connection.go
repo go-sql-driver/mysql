@@ -641,11 +641,14 @@ func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driv
 		return nil, err
 	}
 
+	ctx, traceEnd := mc.traceQuery(ctx, query, args)
 	rows, err := mc.query(query, dargs)
 	if err != nil {
+		traceEnd(err)
 		mc.finish()
 		return nil, err
 	}
+	traceEnd(nil)
 	rows.finish = mc.finish
 	return rows, err
 }
@@ -661,7 +664,10 @@ func (mc *mysqlConn) ExecContext(ctx context.Context, query string, args []drive
 	}
 	defer mc.finish()
 
-	return mc.Exec(query, dargs)
+	_, traceEnd := mc.traceQuery(ctx, query, args)
+	result, err := mc.Exec(query, dargs)
+	traceEnd(err)
+	return result, err
 }
 
 func (mc *mysqlConn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
@@ -681,6 +687,11 @@ func (mc *mysqlConn) PrepareContext(ctx context.Context, query string) (driver.S
 		stmt.Close()
 		return nil, ctx.Err()
 	}
+
+	// Store query string for tracing prepared statement execution.
+	if s, ok := stmt.(*mysqlStmt); ok {
+	s.queryStr = query
+	}
 	return stmt, nil
 }
 
@@ -694,11 +705,14 @@ func (stmt *mysqlStmt) QueryContext(ctx context.Context, args []driver.NamedValu
 		return nil, err
 	}
 
+	ctx, traceEnd := stmt.mc.traceQuery(ctx, stmt.queryStr, args)
 	rows, err := stmt.query(dargs)
 	if err != nil {
+		traceEnd(err)
 		stmt.mc.finish()
 		return nil, err
 	}
+	traceEnd(nil)
 	rows.finish = stmt.mc.finish
 	return rows, err
 }
@@ -714,7 +728,10 @@ func (stmt *mysqlStmt) ExecContext(ctx context.Context, args []driver.NamedValue
 	}
 	defer stmt.mc.finish()
 
-	return stmt.Exec(dargs)
+	_, traceEnd := stmt.mc.traceQuery(ctx, stmt.queryStr, args)
+	result, err := stmt.Exec(dargs)
+	traceEnd(err)
+	return result, err
 }
 
 func (mc *mysqlConn) watchCancel(ctx context.Context) error {
