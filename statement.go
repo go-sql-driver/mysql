@@ -21,6 +21,7 @@ type mysqlStmt struct {
 	id         uint32
 	paramCount int
 	columns    []mysqlField
+	queryStr   string // original query string, stored for tracing
 }
 
 func (stmt *mysqlStmt) Close() error {
