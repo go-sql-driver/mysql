@@ -224,20 +224,16 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	columnCount, err := stmt.readPrepareResultPacket()
 	if err == nil {
 		if stmt.paramCount > 0 {
-			if err = mc.skipColumns(stmt.paramCount); err != nil {
+			// Read parameter metadata instead of skipping it
+			if stmt.params, err = mc.readColumns(stmt.paramCount, nil); err != nil {
 				return nil, err
 			}
 		}
 
 		if columnCount > 0 {
-			if mc.extCapabilities&clientCacheMetadata != 0 {
-				if stmt.columns, err = mc.readColumns(int(columnCount), nil); err != nil {
-					return nil, err
-				}
-			} else {
-				if err = mc.skipColumns(int(columnCount)); err != nil {
-					return nil, err
-				}
+			// Always read column metadata
+			if stmt.columns, err = mc.readColumns(int(columnCount), stmt.columns); err != nil {
+				return nil, err
 			}
 		}
 	}
