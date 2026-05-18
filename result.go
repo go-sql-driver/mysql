@@ -36,10 +36,16 @@ type mysqlResult struct {
 }
 
 func (res *mysqlResult) LastInsertId() (int64, error) {
+	if len(res.insertIds) == 0 {
+		return 0, nil
+	}
 	return res.insertIds[len(res.insertIds)-1], nil
 }
 
 func (res *mysqlResult) RowsAffected() (int64, error) {
+	if len(res.affectedRows) == 0 {
+		return 0, nil
+	}
 	return res.affectedRows[len(res.affectedRows)-1], nil
 }
 
