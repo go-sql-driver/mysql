@@ -91,7 +91,6 @@ type Option func(*Config) error
 // NewConfig creates a new Config and sets default values.
 func NewConfig() *Config {
 	cfg := &Config{
-		Net:                  "tcp",
 		Loc:                  time.UTC,
 		MaxAllowedPacket:     defaultMaxAllowedPacket,
 		Logger:               defaultLogger,
@@ -264,14 +263,20 @@ func (cfg *Config) FormatDSN() string {
 		buf.WriteByte('@')
 	}
 
-	// [protocol[(address)]]. Skip the bare protocol when no address is
-	// set, otherwise FormatDSN(NewConfig()) would always print 'tcp/'
-	// even though there's nothing to connect to.
-	if len(cfg.Net) > 0 && len(cfg.Addr) > 0 {
-		buf.WriteString(cfg.Net)
+	// [protocol[(address)]]
+	if len(cfg.Addr) > 0 {
+		net := cfg.Net
+		if net == "" {
+			net = "tcp"
+		}
+		buf.WriteString(net)
 		buf.WriteByte('(')
 		buf.WriteString(cfg.Addr)
 		buf.WriteByte(')')
+	} else if cfg.Net != "" && cfg.Net != "tcp" {
+		// Preserve an explicit non-default protocol when there's no
+		// address, so e.g. Net="unix" still round-trips.
+		buf.WriteString(cfg.Net)
 	}
 
 	// /dbname
