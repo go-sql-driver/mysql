@@ -355,6 +355,18 @@ func TestFormatDSN_NetWithoutAddr(t *testing.T) {
 	}
 }
 
+func TestFormatDSN_AddrWithoutNet(t *testing.T) {
+	// Direct check of the bug from #1616: an Addr-only Config should
+	// format with the default tcp protocol so it round-trips.
+	cfg := NewConfig()
+	cfg.Addr = "myhost:3306"
+	got := cfg.FormatDSN()
+	want := "tcp(myhost:3306)/"
+	if got != want {
+		t.Errorf("FormatDSN() = %q, want %q", got, want)
+	}
+}
+
 func TestParamsAreSorted(t *testing.T) {
 	expected := "/dbname?interpolateParams=true&foobar=baz&quux=loo"
 	cfg := NewConfig()
