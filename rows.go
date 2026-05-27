@@ -22,9 +22,10 @@ type resultSet struct {
 }
 
 type mysqlRows struct {
-	mc     *mysqlConn
-	rs     resultSet
-	finish func()
+	mc         *mysqlConn
+	rs         resultSet
+	finish     func()
+	currentRow []driver.Value // used by RowsColumnScanner (Go 1.27+)
 }
 
 type binaryRows struct {
