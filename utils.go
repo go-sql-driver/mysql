@@ -227,7 +227,7 @@ func bToi(b byte) (int, error) {
 	return int(b - '0'), nil
 }
 
-func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Value, error) {
+func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (time.Time, error) {
 	switch num {
 	case 0:
 		return time.Time{}, nil
@@ -262,7 +262,7 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 			loc,
 		), nil
 	}
-	return nil, fmt.Errorf("invalid DATETIME packet length %d", num)
+	return time.Time{}, fmt.Errorf("invalid DATETIME packet length %d", num)
 }
 
 func appendDateTime(buf []byte, t time.Time, timeTruncate time.Duration) ([]byte, error) {

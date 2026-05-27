@@ -23,9 +23,10 @@ type resultSet struct {
 }
 
 type mysqlRows struct {
-	mc     *mysqlConn
-	rs     resultSet
-	finish func()
+	mc      *mysqlConn
+	rs      resultSet
+	finish  func()
+	rawCols [][]byte // buffered per-column raw bytes for RowsColumnScanner (Go 1.27+)
 }
 
 type binaryRows struct {
