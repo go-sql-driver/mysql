@@ -39,7 +39,6 @@ jobs:
               '8.4', # LTS
               '8.0',
               '5.7',
-              'mariadb-13.0',
               'mariadb-12.3',   # LTS
               'mariadb-11.8',   # LTS
               'mariadb-11.4',   # LTS
