@@ -1424,6 +1424,7 @@ func TestMultiAuthSimpleSwitch(t *testing.T) {
 	mc.cfg.Passwd = "secret"
 	mc.cfg.AllowCleartextPasswords = true
 	mc.cfg.pubKey = testPubKeyRSA
+	mc.cfg.Net = "unix"
 
 	// auth switch request
 	conn.data = []byte{38, 0, 0, 2, 254, 115, 104, 97, 50, 53, 54, 95, 112, 97,
@@ -1460,6 +1461,10 @@ func TestMultiAuthSwitch(t *testing.T) {
 	conn, mc := newRWMockConn(2)
 	mc.cfg.Passwd = "secret"
 	mc.cfg.AllowCleartextPasswords = true
+	// The switch chain ends in mysql_clear_password; that plugin is only allowed
+	// over a secure transport. Use a unix socket (sha256_password ignores Net, so
+	// its public-key request/encryption flow below is unaffected).
+	mc.cfg.Net = "unix"
 
 	// auth switch request
 	conn.data = []byte{38, 0, 0, 2, 254, 115, 104, 97, 50, 53, 54, 95, 112, 97,
