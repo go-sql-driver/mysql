@@ -14,8 +14,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dominikh/staticcheck-action@v1.3.1
+      - uses: actions/checkout@v6
+      - uses: dominikh/staticcheck-action@v1.4.1
 
   list:
     runs-on: ubuntu-latest
@@ -29,19 +29,19 @@ jobs:
           import os
           go = [
               # Keep the most recent production release at the top
-              '1.24',
+              '1.26',
               # Older production releases
-              '1.23',
-              '1.22',
+              '1.25',
+              '1.24',
           ]
           mysql = [
               '9.0',
               '8.4', # LTS
               '8.0',
               '5.7',
+              'mariadb-12.3',   # LTS
+              'mariadb-11.8',   # LTS
               'mariadb-11.4',   # LTS
-              'mariadb-11.2',
-              'mariadb-11.1',
               'mariadb-10.11',  # LTS
               'mariadb-10.6',   # LTS
               'mariadb-10.5',   # LTS
@@ -71,8 +71,8 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.list.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go }}
       - uses: shogo82148/actions-setup-mysql@v1

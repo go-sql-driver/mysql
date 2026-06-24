@@ -176,7 +176,6 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 	cleanupSql := "DROP TABLE IF EXISTS test"
 
 	for _, test := range tests {
-		test := test
 		t.Run("default", func(t *testing.T) {
 			dbt := &DBTest{t, db}
 			t.Cleanup(func() {
@@ -220,7 +219,6 @@ func runTestsParallel(t *testing.T, dsn string, tests ...func(dbt *DBTest, table
 
 	t.Parallel()
 	for _, test := range tests {
-		test := test
 
 		t.Run("default", func(t *testing.T) {
 			t.Parallel()
@@ -1499,7 +1497,7 @@ func TestTLS(t *testing.T) {
 				dbt.Fatal(err.Error())
 			}
 
-			if (*value == nil) || (len(*value) == 0) {
+			if len(*value) == 0 {
 				dbt.Fatalf("no Cipher")
 			} else {
 				dbt.Logf("Cipher: %s", *value)

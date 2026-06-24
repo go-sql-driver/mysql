@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.10.0 (2026-04-28)
+
+* Fix `getSystemVar("max_allowed_packet")` potentially returned wrong value. (#1754)
+  This affects only when `maxAllowedPacket=0` is set.
+
+* Bump filippo.io/edwards25519 from 1.1.1 to 1.2.0. (#1756)
+  While older versions have reported CVEs, they do not affect go-mysql.
+
+* Update Go versions to 1.24-1.26. (#1763)
+
+* Enhance interpolateParams to correctly handle placeholders. (#1732)
+  The question mark (?) within strings and comments will no longer be treated as a placeholder.
+
+
+## v1.9.3 (2025-06-13)
+
+* `tx.Commit()` and `tx.Rollback()` returned `ErrInvalidConn` always.
+  Now they return cached real error if present. (#1690)
+
+* Optimize reading small result sets to fix a performance regression
+  introduced by compression protocol support. (`#1707`)
+* Fix `db.Ping()` on compressed connection. (#1723)
+
+
 ## v1.9.2 (2025-04-07)
 
 v1.9.2 is a re-release of v1.9.1 due to a release process issue; no changes were made to the content.

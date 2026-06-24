@@ -92,7 +92,7 @@ func benchmarkQuery(b *testing.B, compr bool) {
 	defer wg.Wait()
 	b.StartTimer()
 
-	for i := 0; i < concurrencyLevel; i++ {
+	for range concurrencyLevel {
 		go func() {
 			for {
 				if atomic.AddInt64(&remain, -1) < 0 {
@@ -129,7 +129,7 @@ func BenchmarkExec(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < concurrencyLevel; i++ {
+	for range concurrencyLevel {
 		go func() {
 			for {
 				if atomic.AddInt64(&remain, -1) < 0 {
@@ -164,10 +164,9 @@ func BenchmarkRoundtripTxt(b *testing.B) {
 	defer db.Close()
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
 	var result string
-	for i := 0; i < b.N; i++ {
+	for i := 0; b.Loop(); i++ {
 		length := min + i
 		if length > max {
 			length = max
@@ -200,9 +199,9 @@ func BenchmarkRoundtripBin(b *testing.B) {
 	defer stmt.Close()
 
 	b.ReportAllocs()
-	b.ResetTimer()
+
 	var result sql.RawBytes
-	for i := 0; i < b.N; i++ {
+	for i := 0; b.Loop(); i++ {
 		length := min + i
 		if length > max {
 			length = max
@@ -248,8 +247,8 @@ func BenchmarkInterpolation(b *testing.B) {
 	q := "SELECT ?, ?, ?, ?, ?, ?"
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		_, err := mc.interpolateParams(q, args)
 		if err != nil {
 			b.Fatal(err)
@@ -345,7 +344,7 @@ func BenchmarkQueryRawBytes(b *testing.B) {
 	for i := range blob {
 		blob[i] = 42
 	}
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		_, err := db.Exec("INSERT INTO bench_rawbytes VALUES (?, ?)", i, blob)
 		if err != nil {
 			b.Fatal(err)
@@ -404,7 +403,7 @@ func benchmark10kRows(b *testing.B, compress bool) {
 		args[i] = sval
 	}
 	for i := 0; i < 10000; i += 100 {
-		for j := 0; j < 100; j++ {
+		for j := range 100 {
 			args[j*2] = i + j
 		}
 		_, err := stmt.Exec(args...)
@@ -461,19 +460,20 @@ func BenchmarkReceiveMetadata(b *testing.B) {
 	tb := (*TB)(b)
 
 	// Create a table with 1000 integer fields
-	createTableQuery := "CREATE TABLE large_integer_table ("
-	for i := 0; i < 1000; i++ {
-		createTableQuery += fmt.Sprintf("col_%d INT", i)
+	var createTableQuery strings.Builder
+	createTableQuery.WriteString("CREATE TABLE large_integer_table (")
+	for i := range 1000 {
+		createTableQuery.WriteString(fmt.Sprintf("col_%d INT", i))
 		if i < 999 {
-			createTableQuery += ", "
+			createTableQuery.WriteString(", ")
 		}
 	}
-	createTableQuery += ")"
+	createTableQuery.WriteString(")")
 
 	// Initialize database
 	db := initDB(b, false,
 		"DROP TABLE IF EXISTS large_integer_table",
-		createTableQuery,
+		createTableQuery.String(),
 		"INSERT INTO large_integer_table VALUES ("+
 			strings.Repeat("0,", 999)+"0)", // Insert a row of zeros
 	)

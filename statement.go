@@ -149,7 +149,7 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 	return rows, err
 }
 
-var jsonType = reflect.TypeOf(json.RawMessage{})
+var jsonType = reflect.TypeFor[json.RawMessage]()
 
 type converter struct{}
 
@@ -211,7 +211,7 @@ func (c converter) ConvertValue(v any) (driver.Value, error) {
 	return nil, fmt.Errorf("unsupported type %T, a %s", v, rv.Kind())
 }
 
-var valuerReflectType = reflect.TypeOf((*driver.Valuer)(nil)).Elem()
+var valuerReflectType = reflect.TypeFor[driver.Valuer]()
 
 // callValuerValue returns vr.Value(), with one exception:
 // If vr.Value is an auto-generated method on a pointer type and the

@@ -46,7 +46,7 @@ func encodeConnectionAttributes(cfg *Config) string {
 	}
 
 	// user-defined connection attributes
-	for _, connAttr := range strings.Split(cfg.ConnectionAttributes, ",") {
+	for connAttr := range strings.SplitSeq(cfg.ConnectionAttributes, ",") {
 		k, v, found := strings.Cut(connAttr, ":")
 		if !found {
 			continue
@@ -191,7 +191,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 			mc.Close()
 			return nil, err
 		}
-		n, err := strconv.Atoi(string(maxap))
+		n, err := strconv.Atoi(maxap)
 		if err != nil {
 			mc.Close()
 			return nil, fmt.Errorf("invalid max_allowed_packet value (%q): %w", maxap, err)
