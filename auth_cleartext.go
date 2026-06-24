@@ -30,6 +30,10 @@ func (p *ClearPasswordPlugin) PluginName() string {
 	return "mysql_clear_password"
 }
 
+func (p *ClearPasswordPlugin) RequireSecure(cfg *Config) bool {
+	return len(cfg.Passwd) > 0
+}
+
 // InitAuth implements the cleartext password authentication.
 // It will return an error if AllowCleartextPasswords is false.
 //

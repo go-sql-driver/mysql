@@ -156,6 +156,12 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		mc.cleanup()
 		return nil, err
 	}
+	
+	if err := requireSecureTransport(authPlugin, mc.cfg); err != nil {
+		mc.cleanup()
+		return nil, err
+	}
+	
 	mc.initCapabilities(serverCapabilities, serverExtCapabilities, mc.cfg)
 	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
 		mc.cleanup()

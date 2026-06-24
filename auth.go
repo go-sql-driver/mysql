@@ -119,6 +119,10 @@ func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, 
 				return err
 			}
 
+			if err := requireSecureTransport(newPlugin, mc.cfg); err != nil {
+				return err
+			}
+
 			if err := mc.writeAuthSwitchPacket(initialAuthResponse); err != nil {
 				return err
 			}

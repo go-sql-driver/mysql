@@ -31,6 +31,15 @@ type AuthPlugin interface {
 	ContinuationAuth(packet []byte, authData []byte, cfg *Config) (nextPacket []byte, done bool, err error)
 }
 
+// SecureTransportRequirer is an optional interface an AuthPlugin may implement
+// to demand that it only run over a secure transport: TLS or a local unix
+// socket.
+type SecureTransportRequirer interface {
+	// RequireSecure reports whether, for the given configuration, the plugin
+	// must only be used over a secure transport.
+	RequireSecure(cfg *Config) bool
+}
+
 type SimpleAuth struct {
 	AuthPlugin
 }
@@ -38,6 +47,27 @@ type SimpleAuth struct {
 func (s SimpleAuth) ContinuationAuth(packet []byte, authData []byte, cfg *Config) ([]byte, bool, error) {
 	// Simple auth plugins are done after the first packet
 	return nil, true, nil
+}
+
+// RequireSecure provides the default for plugins embedding SimpleAuth: they do
+// not require a secure transport unless they override this method.
+func (s SimpleAuth) RequireSecure(cfg *Config) bool {
+	return false
+}
+
+// requireSecureTransport returns ErrSecureTransport when plugin opts into
+// SecureTransportRequirer and demands a secure transport, but the connection is
+// neither using TLS nor a local unix socket. Plugins that do not implement the
+// interface are allowed over any transport.
+func requireSecureTransport(plugin AuthPlugin, cfg *Config) error {
+	sr, ok := plugin.(SecureTransportRequirer)
+	if !ok || !sr.RequireSecure(cfg) {
+		return nil
+	}
+	if cfg.TLS == nil && cfg.Net != "unix" {
+		return ErrSecureTransport
+	}
+	return nil
 }
 
 // pluginRegistry is a registry of available authentication plugins

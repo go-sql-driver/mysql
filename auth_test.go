@@ -920,6 +920,9 @@ func TestAuthSwitchCleartextPassword(t *testing.T) {
 	conn, mc := newRWMockConn(2)
 	mc.cfg.AllowCleartextPasswords = true
 	mc.cfg.Passwd = "secret"
+	// mysql_clear_password sends the password in clear text, so it is only
+	// permitted over a secure transport. Mark the connection as secure.
+	mc.cfg.TLS = &tls.Config{InsecureSkipVerify: true}
 
 	// auth switch request
 	conn.data = []byte{22, 0, 0, 2, 254, 109, 121, 115, 113, 108, 95, 99, 108,
@@ -937,6 +940,89 @@ func TestAuthSwitchCleartextPassword(t *testing.T) {
 	expectedReply := []byte{7, 0, 0, 3, 115, 101, 99, 114, 101, 116, 0}
 	if !bytes.Equal(conn.written, expectedReply) {
 		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
+// TestAuthSwitchCleartextPasswordInsecure verifies that the driver refuses an
+// auth-switch to mysql_clear_password over an insecure transport, so a malicious
+// or man-in-the-middle server cannot harvest the cleartext password. Regression
+// test for the secure-transport requirement (cf. MariaDB CONJ-1320).
+func TestAuthSwitchCleartextPasswordInsecure(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.AllowCleartextPasswords = true
+	mc.cfg.Passwd = "secret"
+	// No TLS and not a unix socket: the connection is insecure.
+
+	// auth switch request to mysql_clear_password
+	conn.data = []byte{22, 0, 0, 2, 254, 109, 121, 115, 113, 108, 95, 99, 108,
+		101, 97, 114, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0}
+	conn.maxReads = 1
+
+	authData := []byte{123, 87, 15, 84, 20, 58, 37, 121, 91, 117, 51, 24, 19,
+		47, 43, 9, 41, 112, 67, 110}
+	err := mc.handleAuthResult(5, authData, &NativePasswordPlugin{})
+	if err != ErrSecureTransport {
+		t.Errorf("expected ErrSecureTransport, got %v", err)
+	}
+	// The password must not have been written to the connection.
+	if bytes.Contains(conn.written, []byte("secret")) {
+		t.Errorf("cleartext password leaked over insecure transport: %v", conn.written)
+	}
+}
+
+// TestAuthSwitchCleartextPasswordUnixSocket verifies that a local unix socket
+// counts as a secure transport for mysql_clear_password.
+func TestAuthSwitchCleartextPasswordUnixSocket(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.AllowCleartextPasswords = true
+	mc.cfg.Passwd = "secret"
+	mc.cfg.Net = "unix"
+
+	// auth switch request
+	conn.data = []byte{22, 0, 0, 2, 254, 109, 121, 115, 113, 108, 95, 99, 108,
+		101, 97, 114, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0}
+	conn.queuedReplies = [][]byte{{7, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0}}
+	conn.maxReads = 2
+
+	authData := []byte{123, 87, 15, 84, 20, 58, 37, 121, 91, 117, 51, 24, 19,
+		47, 43, 9, 41, 112, 67, 110}
+	if err := mc.handleAuthResult(5, authData, &NativePasswordPlugin{}); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+	expectedReply := []byte{7, 0, 0, 3, 115, 101, 99, 114, 101, 116, 0}
+	if !bytes.Equal(conn.written, expectedReply) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
+// TestRequireSecureTransport exercises the secure-transport gate directly across
+// plugins and transports.
+func TestRequireSecureTransport(t *testing.T) {
+	cleartext := &ClearPasswordPlugin{}
+	secureCfg := &Config{Passwd: "secret", TLS: &tls.Config{InsecureSkipVerify: true}}
+	unixCfg := &Config{Passwd: "secret", Net: "unix"}
+	insecureCfg := &Config{Passwd: "secret"}
+	emptyInsecureCfg := &Config{Passwd: ""}
+
+	if err := requireSecureTransport(cleartext, secureCfg); err != nil {
+		t.Errorf("cleartext over TLS should be allowed, got %v", err)
+	}
+	if err := requireSecureTransport(cleartext, unixCfg); err != nil {
+		t.Errorf("cleartext over unix socket should be allowed, got %v", err)
+	}
+	if err := requireSecureTransport(cleartext, insecureCfg); err != ErrSecureTransport {
+		t.Errorf("cleartext over insecure transport should be refused, got %v", err)
+	}
+	// An empty password carries no secret and is exempt.
+	if err := requireSecureTransport(cleartext, emptyInsecureCfg); err != nil {
+		t.Errorf("empty cleartext password should be allowed, got %v", err)
+	}
+	// Plugins that do not require a secure transport are always allowed.
+	if err := requireSecureTransport(&NativePasswordPlugin{}, insecureCfg); err != nil {
+		t.Errorf("native password over insecure transport should be allowed, got %v", err)
+	}
+	if err := requireSecureTransport(&CachingSha2PasswordPlugin{}, insecureCfg); err != nil {
+		t.Errorf("caching_sha2 over insecure transport should be allowed, got %v", err)
 	}
 }
 
