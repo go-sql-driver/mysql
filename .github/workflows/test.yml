@@ -14,8 +14,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dominikh/staticcheck-action@v1.4.1
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dominikh/staticcheck-action@9716614d4101e79b4340dd97b10e54d68234e431 # v1.4.1
 
   list:
     runs-on: ubuntu-latest
@@ -71,11 +71,11 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.list.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: ${{ matrix.go }}
-      - uses: shogo82148/actions-setup-mysql@v1
+      - uses: shogo82148/actions-setup-mysql@076e636c45996ec8cb1a455c65f9f5364aeebd8a # v1.52.1
         with:
           mysql-version: ${{ matrix.mysql }}
           user: ${{ env.MYSQL_TEST_USER }}
@@ -101,7 +101,7 @@ jobs:
           go test -run '^$' -bench .
 
       - name: Send coverage
-        uses: shogo82148/actions-goveralls@v1
+        uses: shogo82148/actions-goveralls@9606dbc5ac5cf888a0e9ef901515c3cd516a2790 # v1.11.0
         with:
           path-to-profile: coverage.out
           flag-name: ${{ runner.os }}-Go-${{ matrix.go }}-DB-${{ matrix.mysql }}
@@ -113,6 +113,6 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: shogo82148/actions-goveralls@v1
+      - uses: shogo82148/actions-goveralls@9606dbc5ac5cf888a0e9ef901515c3cd516a2790 # v1.11.0
         with:
           parallel-finished: true
