@@ -81,10 +81,6 @@ func getServerPubKey(name string) (pubKey *rsa.PublicKey) {
 // authentication flow. It reads the first authentication packet and hands off processing
 // to the appropriate auth plugin.
 func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, authPlugin AuthPlugin) error {
-	if remainingSwitch == 0 {
-		return fmt.Errorf("maximum of %d authentication switch reached", authMaximumSwitch)
-	}
-
 	data, err := mc.readPacket()
 	if err != nil {
 		return err
@@ -102,7 +98,14 @@ func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, 
 		case iERR:
 			return mc.handleErrorPacket(data)
 		case iEOF:
-			// Auth switch request
+			// Auth switch request. Enforce the switch limit before doing any
+			// work. remainingSwitch is unsigned, so check before decrementing
+			// to avoid wrapping around on underflow.
+			if remainingSwitch == 0 {
+				return fmt.Errorf("maximum of %d authentication switch reached", authMaximumSwitch)
+			}
+			remainingSwitch--
+
 			plugin, authData := mc.parseAuthSwitchData(data, initialSeed)
 
 			if plugin == "" {
@@ -125,11 +128,6 @@ func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, 
 
 			if err := mc.writeAuthSwitchPacket(initialAuthResponse); err != nil {
 				return err
-			}
-
-			remainingSwitch--
-			if remainingSwitch == 0 {
-				return fmt.Errorf("maximum of %d authentication switch reached", authMaximumSwitch)
 			}
 
 			// Continue iteratively with the new plugin and seed.

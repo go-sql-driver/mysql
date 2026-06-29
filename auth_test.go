@@ -1121,6 +1121,50 @@ func TestAuthSwitchNativePasswordEmpty(t *testing.T) {
 	}
 }
 
+// TestAuthSwitchExceedsMaximum verifies that handleAuthResult gives up with an
+// error once the server requests more than authMaximumSwitch plugin switches,
+// rather than switching forever.
+func TestAuthSwitchExceedsMaximum(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.AllowNativePasswords = true
+	mc.cfg.Passwd = "secret"
+
+	authData := []byte{96, 71, 63, 8, 1, 58, 75, 12, 69, 95, 66, 60, 117, 31,
+		48, 31, 89, 39, 55, 31}
+
+	// Build a mysql_native_password auth switch request with the given sequence
+	// number. The server replies to every switch response with another switch
+	// request, forcing the driver to switch plugins again and again.
+	switchReq := func(seq byte) []byte {
+		payload := []byte{iEOF}
+		payload = append(payload, "mysql_native_password"...)
+		payload = append(payload, 0)
+		payload = append(payload, authData...)
+		payload = append(payload, 0)
+		return append([]byte{byte(len(payload)), 0, 0, seq}, payload...)
+	}
+
+	// The first request is read directly; each later one is delivered as the
+	// reply to the driver's switch response. authMaximumSwitch+1 requests are
+	// needed to trip the limit. A read and a write advance the sequence number
+	// by two per switch round. Generate from the constant so the test keeps
+	// working if the limit changes.
+	conn.data = switchReq(2)
+	for i := uint(0); i < authMaximumSwitch; i++ {
+		conn.queuedReplies = append(conn.queuedReplies, switchReq(byte(4+2*i)))
+	}
+	conn.maxReads = int(authMaximumSwitch) + 5
+
+	err := mc.handleAuthResult(authMaximumSwitch, authData, &NativePasswordPlugin{})
+	if err == nil {
+		t.Fatal("expected an error once the auth switch limit is exceeded, got nil")
+	}
+	expected := fmt.Sprintf("maximum of %d authentication switch reached", authMaximumSwitch)
+	if err.Error() != expected {
+		t.Errorf("expected error %q, got %q", expected, err)
+	}
+}
+
 func TestAuthSwitchOldPasswordNotAllowed(t *testing.T) {
 	conn, mc := newRWMockConn(2)
 
