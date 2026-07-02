@@ -1947,6 +1947,13 @@ func TestConcurrent(t *testing.T) {
 		// 	t.Skip(`TODO: "fix commands out of sync. Did you run multiple statements at once?" on MariaDB`)
 		// }
 
+		// Release idle connections after this subtest so subsequent subtests can
+		// use the server's full connection budget.  Without this, the default pool
+		// retains a few idle connections that eat into max_connections, causing
+		// Windows to return a TCP timeout instead of MySQL error 1040 when the
+		// next subtest tries to open connections.
+		defer dbt.db.SetMaxIdleConns(0)
+
 		var max int
 		err := dbt.db.QueryRow("SELECT @@max_connections").Scan(&max)
 		if err != nil {
