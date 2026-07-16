@@ -72,7 +72,7 @@ jobs:
       matrix: ${{ fromJSON(needs.list.outputs.matrix) }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ matrix.go }}
       - uses: shogo82148/actions-setup-mysql@076e636c45996ec8cb1a455c65f9f5364aeebd8a # v1.52.1
