@@ -40,6 +40,7 @@ type mysqlConn struct {
 	compressSequence uint8
 	parseTime        bool
 	compress         bool
+	serverVersion    [3]int
 
 	// for context support (Go 1.8+)
 	watching bool
@@ -433,6 +434,10 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 }
 
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
+	return mc.execArgs(query, args, nil)
+}
+
+func (mc *mysqlConn) execArgs(query string, args []driver.Value, attrs []QueryAttribute) (driver.Result, error) {
 	if mc.closed.Load() {
 		return nil, driver.ErrBadConn
 	}
@@ -448,48 +453,53 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		query = prepared
 	}
 
-	err := mc.exec(query)
-	if err == nil {
-		copied := mc.result
-		return &copied, err
-	}
-	return nil, mc.markBadConn(err)
-}
-
-// Internal function to execute commands
-func (mc *mysqlConn) exec(query string) error {
 	handleOk := mc.clearResult()
 	// Send command
-	if err := mc.writeCommandPacketStr(comQuery, query); err != nil {
-		return mc.markBadConn(err)
+	if err := mc.writeQueryPacket(query, attrs); err != nil {
+		return nil, mc.markBadConn(err)
 	}
 
 	// Read Result
 	resLen, _, err := handleOk.readResultSetHeaderPacket()
 	if err != nil {
-		return err
+		return nil, mc.markBadConn(err)
 	}
 
 	if resLen > 0 {
 		// columns
 		if err := mc.skipColumns(resLen); err != nil {
-			return err
+			return nil, mc.markBadConn(err)
 		}
 
 		// rows
 		if err := mc.skipRows(); err != nil {
-			return err
+			return nil, mc.markBadConn(err)
 		}
 	}
 
-	return handleOk.discardResults()
+	if err := handleOk.discardResults(); err != nil {
+		return nil, mc.markBadConn(err)
+	}
+
+	copied := mc.result
+	return &copied, nil
+}
+
+// Internal function to execute commands
+func (mc *mysqlConn) exec(query string) error {
+	_, err := mc.execArgs(query, nil, nil)
+	return err
 }
 
 func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, error) {
-	return mc.query(query, args)
+	return mc.queryWithAttributes(query, args, nil)
 }
 
 func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error) {
+	return mc.queryWithAttributes(query, args, nil)
+}
+
+func (mc *mysqlConn) queryWithAttributes(query string, args []driver.Value, attrs []QueryAttribute) (*textRows, error) {
 	handleOk := mc.clearResult()
 
 	if mc.closed.Load() {
@@ -507,7 +517,7 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 		query = prepared
 	}
 	// Send command
-	err := mc.writeCommandPacketStr(comQuery, query)
+	err := mc.writeQueryPacket(query, attrs)
 	if err != nil {
 		return nil, mc.markBadConn(err)
 	}
@@ -542,7 +552,7 @@ func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error)
 func (mc *mysqlConn) getSystemVar(name string) (string, error) {
 	// Send command
 	handleOk := mc.clearResult()
-	if err := mc.writeCommandPacketStr(comQuery, "SELECT @@"+name); err != nil {
+	if err := mc.writeQueryPacket("SELECT @@"+name, nil); err != nil {
 		return "", err
 	}
 
@@ -634,7 +644,7 @@ func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 }
 
 func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
-	dargs, err := namedValueToValue(args)
+	dargs, attrs, err := namedValueToValue(args)
 	if err != nil {
 		return nil, err
 	}
@@ -643,7 +653,7 @@ func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driv
 		return nil, err
 	}
 
-	rows, err := mc.query(query, dargs)
+	rows, err := mc.queryWithAttributes(query, dargs, attrs)
 	if err != nil {
 		mc.finish()
 		return nil, err
@@ -653,7 +663,7 @@ func (mc *mysqlConn) QueryContext(ctx context.Context, query string, args []driv
 }
 
 func (mc *mysqlConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	dargs, err := namedValueToValue(args)
+	dargs, attrs, err := namedValueToValue(args)
 	if err != nil {
 		return nil, err
 	}
@@ -663,7 +673,7 @@ func (mc *mysqlConn) ExecContext(ctx context.Context, query string, args []drive
 	}
 	defer mc.finish()
 
-	return mc.Exec(query, dargs)
+	return mc.execArgs(query, dargs, attrs)
 }
 
 func (mc *mysqlConn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
@@ -687,7 +697,7 @@ func (mc *mysqlConn) PrepareContext(ctx context.Context, query string) (driver.S
 }
 
 func (stmt *mysqlStmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driver.Rows, error) {
-	dargs, err := namedValueToValue(args)
+	dargs, attrs, err := namedValueToValue(args)
 	if err != nil {
 		return nil, err
 	}
@@ -696,7 +706,7 @@ func (stmt *mysqlStmt) QueryContext(ctx context.Context, args []driver.NamedValu
 		return nil, err
 	}
 
-	rows, err := stmt.query(dargs)
+	rows, err := stmt.queryWithAttributes(dargs, attrs)
 	if err != nil {
 		stmt.mc.finish()
 		return nil, err
@@ -706,7 +716,7 @@ func (stmt *mysqlStmt) QueryContext(ctx context.Context, args []driver.NamedValu
 }
 
 func (stmt *mysqlStmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
-	dargs, err := namedValueToValue(args)
+	dargs, attrs, err := namedValueToValue(args)
 	if err != nil {
 		return nil, err
 	}
@@ -716,7 +726,7 @@ func (stmt *mysqlStmt) ExecContext(ctx context.Context, args []driver.NamedValue
 	}
 	defer stmt.mc.finish()
 
-	return stmt.Exec(dargs)
+	return stmt.execWithAttributes(dargs, attrs)
 }
 
 func (mc *mysqlConn) watchCancel(ctx context.Context) error {
@@ -770,6 +780,9 @@ func (mc *mysqlConn) startWatcher() {
 }
 
 func (mc *mysqlConn) CheckNamedValue(nv *driver.NamedValue) (err error) {
+	if attr, ok := nv.Value.(QueryAttribute); ok {
+		return validateQueryAttribute(attr)
+	}
 	nv.Value, err = converter{}.ConvertValue(nv.Value)
 	return
 }
@@ -806,6 +819,24 @@ func (mc *mysqlConn) ResetSession(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// supportsPreparedQueryAttributes checks whether query attributes are fully supported.
+func (mc *mysqlConn) supportsPreparedQueryAttributes() bool {
+	if mc.capabilities&clientQueryAttributes == 0 {
+		return false
+	}
+
+	// MySQL < 8.0.26 had some bugs in processing query attributes
+	// The official client doesn't send query attributes for these versions, so we do the same
+	// check: https://github.com/mysql/mysql-server/blob/d229bb760c49b65e19ec28342236961ad961d7fe/libmysql/libmysql.cc#L1846-L1858
+	// send_param_count: https://github.com/mysql/mysql-server/blob/d229bb760c49b65e19ec28342236961ad961d7fe/libmysql/libmysql.cc#L1986-L1987
+	// which is checked against MySQL 8.0.26:
+	// https://github.com/mysql/mysql-server/blob/d229bb760c49b65e19ec28342236961ad961d7fe/libmysql/libmysql.cc#L1944-L1945
+
+	version := mc.serverVersion
+	return version[0] > 8 ||
+		(version[0] == 8 && (version[1] > 0 || version[1] == 0 && version[2] >= 26))
 }
 
 // IsValid implements driver.Validator interface

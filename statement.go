@@ -39,7 +39,9 @@ func (stmt *mysqlStmt) Close() error {
 }
 
 func (stmt *mysqlStmt) NumInput() int {
-	return stmt.paramCount
+	// QueryAttribute arguments are removed from the bind parameters by the
+	// driver, so database/sql cannot validate the argument count itself.
+	return -1
 }
 
 func (stmt *mysqlStmt) ColumnConverter(idx int) driver.ValueConverter {
@@ -47,16 +49,23 @@ func (stmt *mysqlStmt) ColumnConverter(idx int) driver.ValueConverter {
 }
 
 func (stmt *mysqlStmt) CheckNamedValue(nv *driver.NamedValue) (err error) {
+	if attr, ok := nv.Value.(QueryAttribute); ok {
+		return validateQueryAttribute(attr)
+	}
 	nv.Value, err = converter{}.ConvertValue(nv.Value)
 	return
 }
 
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
+	return stmt.execWithAttributes(args, nil)
+}
+
+func (stmt *mysqlStmt) execWithAttributes(args []driver.Value, attrs []QueryAttribute) (driver.Result, error) {
 	if stmt.mc.closed.Load() {
 		return nil, driver.ErrBadConn
 	}
 	// Send command
-	err := stmt.writeExecutePacket(args)
+	err := stmt.writeExecutePacket(args, attrs)
 	if err != nil {
 		return nil, stmt.mc.markBadConn(err)
 	}
@@ -98,15 +107,19 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 }
 
 func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
-	return stmt.query(args)
+	return stmt.queryWithAttributes(args, nil)
 }
 
 func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
+	return stmt.queryWithAttributes(args, nil)
+}
+
+func (stmt *mysqlStmt) queryWithAttributes(args []driver.Value, attrs []QueryAttribute) (*binaryRows, error) {
 	if stmt.mc.closed.Load() {
 		return nil, driver.ErrBadConn
 	}
 	// Send command
-	err := stmt.writeExecutePacket(args)
+	err := stmt.writeExecutePacket(args, attrs)
 	if err != nil {
 		return nil, stmt.mc.markBadConn(err)
 	}

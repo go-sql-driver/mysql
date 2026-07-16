@@ -72,7 +72,12 @@ const (
 	clientCanHandleExpiredPasswords
 	clientSessionTrack
 	clientDeprecateEOF
+	clientOptionalResultsetMetadata
+	clientZstdCompressionAlgorithm
+	clientQueryAttributes
 )
+
+const parameterCountAvailable byte = 0x08
 
 // https://mariadb.com/kb/en/connection/#capabilities
 type extendedCapabilityFlag uint32

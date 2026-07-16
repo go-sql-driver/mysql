@@ -202,8 +202,13 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 	}
 
 	// server version [null terminated string]
+	versionEnd := bytes.IndexByte(data[1:], 0x00)
+	if versionEnd < 0 {
+		return nil, 0, 0, "", ErrMalformPkt
+	}
+	mc.serverVersion = parseServerVersion(string(data[1 : 1+versionEnd]))
 	// connection id [4 bytes]
-	pos := 1 + bytes.IndexByte(data[1:], 0x00) + 1 + 4
+	pos := 1 + versionEnd + 1 + 4
 
 	// first part of the password cipher [8 bytes]
 	authData := data[pos : pos+8]
@@ -289,7 +294,8 @@ func (mc *mysqlConn) initCapabilities(serverCapabilities capabilityFlag, serverE
 			clientPluginAuth |
 			clientMultiResults |
 			clientConnectAttrs |
-			clientDeprecateEOF
+			clientDeprecateEOF |
+			clientQueryAttributes
 
 	if cfg.ClientFoundRows {
 		clientCapabilities |= clientFoundRows
@@ -467,6 +473,39 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	copy(data[5:], arg)
 
 	// Send CMD packet
+	err = mc.writePacket(data)
+	mc.syncSequence()
+	return err
+}
+
+func (mc *mysqlConn) writeQueryPacket(query string, attrs []QueryAttribute) error {
+	if mc.capabilities&clientQueryAttributes == 0 {
+		// N.B. even if we have no attrs, if we've negotiated
+		// clientQueryAttributes, we must send the full extended packet below
+		return mc.writeCommandPacketStr(comQuery, query)
+	}
+
+	mc.resetSequence()
+	data, err := mc.buf.takeCompleteBuffer()
+	if err != nil {
+		return err
+	}
+	data = data[:5]
+	data[4] = comQuery
+	data = appendLengthEncodedInteger(data, uint64(len(attrs)))
+	data = appendLengthEncodedInteger(data, 1)
+	if len(attrs) > 0 {
+		data = append(data, make([]byte, (len(attrs)+7)/8)...)
+		data = append(data, 1)
+		for _, attr := range attrs {
+			data = append(data, byte(fieldTypeString), 0)
+			data = appendLengthEncodedString(data, attr.Name)
+		}
+		for _, attr := range attrs {
+			data = appendLengthEncodedString(data, attr.Value.(string))
+		}
+	}
+	data = append(data, query...)
 	err = mc.writePacket(data)
 	mc.syncSequence()
 	return err
@@ -1042,7 +1081,7 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 
 // Execute Prepared Statement
 // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_stmt_execute.html
-func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
+func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value, attrs []QueryAttribute) error {
 	if len(args) != stmt.paramCount {
 		return fmt.Errorf(
 			"argument count mismatch (got: %d; has: %d)",
@@ -1053,6 +1092,10 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 	const minPktLen = 4 + 1 + 4 + 1 + 4
 	mc := stmt.mc
+	if !mc.supportsPreparedQueryAttributes() {
+		attrs = nil
+	}
+	parameterCount := len(args) + len(attrs)
 
 	// Determine threshold dynamically to avoid packet size shortage.
 	longDataSize := max(mc.maxAllowedPacket/(stmt.paramCount+1), 64)
@@ -1063,7 +1106,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	var data []byte
 	var err error
 
-	if len(args) == 0 {
+	if parameterCount == 0 {
 		data, err = mc.buf.takeBuffer(minPktLen)
 	} else {
 		data, err = mc.buf.takeCompleteBuffer()
@@ -1081,26 +1124,35 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 	// flags (0: CURSOR_TYPE_NO_CURSOR) [1 byte]
 	data[9] = 0x00
+	if len(attrs) > 0 {
+		data[9] |= parameterCountAvailable
+	}
 
 	// iteration_count (uint32(1)) [4 bytes]
 	binary.LittleEndian.PutUint32(data[10:], 1)
 
-	if len(args) > 0 {
+	if parameterCount > 0 {
 		pos := minPktLen
+		if mc.capabilities&clientQueryAttributes != 0 {
+			data = appendLengthEncodedInteger(data[:pos], uint64(parameterCount))
+			pos = len(data)
+		}
 
+		maskLen := (parameterCount + 7) / 8
 		var nullMask []byte
-		if maskLen, typesLen := (len(args)+7)/8, 1+2*len(args); pos+maskLen+typesLen >= cap(data) {
+		if pos+maskLen+1 > cap(data) {
 			// buffer has to be extended but we don't know by how much so
 			// we depend on append after all data with known sizes fit.
 			// We stop at that because we deal with a lot of columns here
 			// which makes the required allocation size hard to guess.
-			tmp := make([]byte, pos+maskLen+typesLen)
+			tmp := make([]byte, pos+maskLen+1)
 			copy(tmp[:pos], data[:pos])
 			data = tmp
 			nullMask = data[pos : pos+maskLen]
 			// No need to clean nullMask as make ensures that.
 			pos += maskLen
 		} else {
+			data = data[:pos+maskLen+1]
 			nullMask = data[pos : pos+maskLen]
 			for i := range nullMask {
 				nullMask[i] = 0
@@ -1112,20 +1164,19 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 		data[pos] = 0x01
 		pos++
 
-		// type of each parameter [len(args)*2 bytes]
-		paramTypes := data[pos:]
-		pos += len(args) * 2
-
-		// value of each parameter [n bytes]
-		paramValues := data[pos:pos]
-		valuesCap := cap(paramValues)
+		paramTypes := make([]byte, 0, parameterCount*3)
+		paramValues := make([]byte, 0)
 
 		for i, arg := range args {
+			typePos := len(paramTypes)
+			paramTypes = append(paramTypes, 0, 0)
+			if mc.capabilities&clientQueryAttributes != 0 {
+				paramTypes = append(paramTypes, 0) // empty parameter name
+			}
 			// build NULL-bitmap
 			if arg == nil {
 				nullMask[i/8] |= 1 << (uint(i) & 7)
-				paramTypes[i+i] = byte(fieldTypeNULL)
-				paramTypes[i+i+1] = 0x00
+				paramTypes[typePos] = byte(fieldTypeNULL)
 				continue
 			}
 
@@ -1135,23 +1186,20 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			// cache types and values
 			switch v := arg.(type) {
 			case int64:
-				paramTypes[i+i] = byte(fieldTypeLongLong)
-				paramTypes[i+i+1] = 0x00
+				paramTypes[typePos] = byte(fieldTypeLongLong)
 				paramValues = binary.LittleEndian.AppendUint64(paramValues, uint64(v))
 
 			case uint64:
-				paramTypes[i+i] = byte(fieldTypeLongLong)
-				paramTypes[i+i+1] = 0x80 // type is unsigned
+				paramTypes[typePos] = byte(fieldTypeLongLong)
+				paramTypes[typePos+1] = 0x80 // type is unsigned
 				paramValues = binary.LittleEndian.AppendUint64(paramValues, uint64(v))
 
 			case float64:
-				paramTypes[i+i] = byte(fieldTypeDouble)
-				paramTypes[i+i+1] = 0x00
+				paramTypes[typePos] = byte(fieldTypeDouble)
 				paramValues = binary.LittleEndian.AppendUint64(paramValues, math.Float64bits(v))
 
 			case bool:
-				paramTypes[i+i] = byte(fieldTypeTiny)
-				paramTypes[i+i+1] = 0x00
+				paramTypes[typePos] = byte(fieldTypeTiny)
 
 				if v {
 					paramValues = append(paramValues, 0x01)
@@ -1162,8 +1210,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			case []byte:
 				// Common case (non-nil value) first
 				if v != nil {
-					paramTypes[i+i] = byte(fieldTypeString)
-					paramTypes[i+i+1] = 0x00
+					paramTypes[typePos] = byte(fieldTypeString)
 
 					if len(v) < longDataSize {
 						paramValues = appendLengthEncodedInteger(paramValues,
@@ -1180,12 +1227,10 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 				// Handle []byte(nil) as a NULL value
 				nullMask[i/8] |= 1 << (uint(i) & 7)
-				paramTypes[i+i] = byte(fieldTypeNULL)
-				paramTypes[i+i+1] = 0x00
+				paramTypes[typePos] = byte(fieldTypeNULL)
 
 			case string:
-				paramTypes[i+i] = byte(fieldTypeString)
-				paramTypes[i+i+1] = 0x00
+				paramTypes[typePos] = byte(fieldTypeString)
 
 				if len(v) < longDataSize {
 					paramValues = appendLengthEncodedInteger(paramValues,
@@ -1199,8 +1244,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 				}
 
 			case time.Time:
-				paramTypes[i+i] = byte(fieldTypeString)
-				paramTypes[i+i+1] = 0x00
+				paramTypes[typePos] = byte(fieldTypeString)
 
 				var a [64]byte
 				var b = a[:0]
@@ -1224,15 +1268,15 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 			}
 		}
 
-		// Check if param values exceeded the available buffer
-		// In that case we must build the data packet with the new values buffer
-		if valuesCap != cap(paramValues) {
-			data = append(data[:pos], paramValues...)
-			mc.buf.store(data) // allow this buffer to be reused
+		for _, attr := range attrs {
+			paramTypes = append(paramTypes, byte(fieldTypeString), 0)
+			paramTypes = appendLengthEncodedString(paramTypes, attr.Name)
+			paramValues = appendLengthEncodedString(paramValues, attr.Value.(string))
 		}
 
-		pos += len(paramValues)
-		data = data[:pos]
+		data = append(data[:pos], paramTypes...)
+		data = append(data, paramValues...)
+		mc.buf.store(data)
 	}
 
 	err = mc.writePacket(data)

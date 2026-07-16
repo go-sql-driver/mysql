@@ -777,16 +777,47 @@ func (ae *atomicError) Value() error {
 	return nil
 }
 
-func namedValueToValue(named []driver.NamedValue) ([]driver.Value, error) {
-	dargs := make([]driver.Value, len(named))
-	for n, param := range named {
+func namedValueToValue(named []driver.NamedValue) ([]driver.Value, []QueryAttribute, error) {
+	dargs := make([]driver.Value, 0, len(named))
+	var attrs []QueryAttribute
+	for _, param := range named {
+		if attr, ok := param.Value.(QueryAttribute); ok {
+			if err := validateQueryAttribute(attr); err != nil {
+				return nil, nil, err
+			}
+			attrs = append(attrs, attr)
+			continue
+		}
 		if len(param.Name) > 0 {
 			// TODO: support the use of Named Parameters #561
-			return nil, errors.New("mysql: driver does not support the use of Named Parameters")
+			return nil, nil, errors.New("mysql: driver does not support the use of Named Parameters")
 		}
-		dargs[n] = param.Value
+		dargs = append(dargs, param.Value)
 	}
-	return dargs, nil
+	return dargs, attrs, nil
+}
+
+func parseServerVersion(version string) [3]int {
+	parsed := [3]int{-1, -1, -1}
+	for i := range parsed {
+		end := 0
+		for end < len(version) && version[end] >= '0' && version[end] <= '9' {
+			end++
+		}
+		if end == 0 {
+			return [3]int{-1, -1, -1}
+		}
+		n, err := strconv.Atoi(version[:end])
+		if err != nil {
+			return [3]int{-1, -1, -1}
+		}
+		parsed[i] = n
+		if end == len(version) || version[end] != '.' {
+			break
+		}
+		version = version[end+1:]
+	}
+	return parsed
 }
 
 func mapIsolationLevel(level driver.IsolationLevel) (string, error) {
