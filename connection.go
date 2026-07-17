@@ -492,7 +492,7 @@ func (mc *mysqlConn) exec(query string) error {
 }
 
 func (mc *mysqlConn) Query(query string, args []driver.Value) (driver.Rows, error) {
-	return mc.queryWithAttributes(query, args, nil)
+	return mc.query(query, args)
 }
 
 func (mc *mysqlConn) query(query string, args []driver.Value) (*textRows, error) {
@@ -781,7 +781,7 @@ func (mc *mysqlConn) startWatcher() {
 
 func (mc *mysqlConn) CheckNamedValue(nv *driver.NamedValue) (err error) {
 	if attr, ok := nv.Value.(QueryAttribute); ok {
-		return validateQueryAttribute(attr)
+		return attr.validate()
 	}
 	nv.Value, err = converter{}.ConvertValue(nv.Value)
 	return

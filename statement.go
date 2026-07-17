@@ -50,7 +50,7 @@ func (stmt *mysqlStmt) ColumnConverter(idx int) driver.ValueConverter {
 
 func (stmt *mysqlStmt) CheckNamedValue(nv *driver.NamedValue) (err error) {
 	if attr, ok := nv.Value.(QueryAttribute); ok {
-		return validateQueryAttribute(attr)
+		return attr.validate()
 	}
 	nv.Value, err = converter{}.ConvertValue(nv.Value)
 	return

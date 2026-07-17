@@ -20,7 +20,7 @@ type QueryAttribute struct {
 	Value any
 }
 
-func validateQueryAttribute(attr QueryAttribute) error {
+func (attr *QueryAttribute) validate() error {
 	if attr.Name == "" {
 		return fmt.Errorf("mysql: query attribute name must not be empty")
 	}

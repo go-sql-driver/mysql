@@ -782,7 +782,7 @@ func namedValueToValue(named []driver.NamedValue) ([]driver.Value, []QueryAttrib
 	var attrs []QueryAttribute
 	for _, param := range named {
 		if attr, ok := param.Value.(QueryAttribute); ok {
-			if err := validateQueryAttribute(attr); err != nil {
+			if err := attr.validate(); err != nil {
 				return nil, nil, err
 			}
 			attrs = append(attrs, attr)
