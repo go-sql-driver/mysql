@@ -203,7 +203,10 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 
 	// server version [null terminated string]
 	versionEnd := bytes.IndexByte(data[1:], 0x00)
-	if versionEnd < 0 {
+	// check that the packet is long enough to contain the remaining
+	// fields: null terminator, then the other fields listed below
+	const fixedHandshakeSuffix = 1 + 4 + 8 + 1 + 2
+	if versionEnd < 0 || 1+versionEnd+fixedHandshakeSuffix > len(data) {
 		return nil, 0, 0, "", ErrMalformPkt
 	}
 	mc.serverVersion = parseServerVersion(string(data[1 : 1+versionEnd]))

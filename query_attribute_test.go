@@ -232,6 +232,10 @@ func TestQueryAttributesLive(t *testing.T) {
 	if version[0] < 8 || version[0] == 8 && version[1] == 0 && version[2] < 26 {
 		t.Skipf("query attributes in prepared statements require MySQL 8.0.26 or newer; got %s", versionString)
 	}
+	var componentProbe sql.NullString
+	if err := conn.QueryRowContext(ctx, "SELECT mysql_query_attribute_string('trace_id')").Scan(&componentProbe); err != nil {
+		t.Skipf("query_attributes component is unavailable: %v", err)
+	}
 
 	_, err = conn.ExecContext(ctx, "CREATE TEMPORARY TABLE query_attributes_live (attribute_value VARCHAR(255), bound_value VARCHAR(255))")
 	if err != nil {
