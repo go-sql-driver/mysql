@@ -205,7 +205,7 @@ func TestPrepareBusyBuffer(t *testing.T) {
 		t.Fatalf("expected ErrBusyBuffer, got %#v", err)
 	}
 
-	const want = "connection is busy with a previous result set; close it before reusing the connection"
+	const want = "busy buffer: unread data remains on the connection"
 	if err.Error() != want {
 		t.Fatalf("expected %q, got %q", want, err)
 	}
