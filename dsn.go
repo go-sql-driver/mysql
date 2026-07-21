@@ -398,7 +398,13 @@ func (cfg *Config) FormatDSN() string {
 	return buf.String()
 }
 
-// ParseDSN parses the DSN string to a Config
+// ParseDSN parses the DSN string to a Config.
+//
+// The DSN format is [user[:password]@][net[(addr)]]/dbname[?params].
+// Because the colon is used as the user/password separator, usernames that
+// contain a colon cannot be represented unambiguously in the DSN string format.
+// If your username contains a colon, use [NewConfig] and set the fields directly
+// instead of constructing a DSN string.
 func ParseDSN(dsn string) (cfg *Config, err error) {
 	// New config with some default values
 	cfg = NewConfig()
