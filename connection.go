@@ -211,6 +211,9 @@ func (mc *mysqlConn) Prepare(query string) (driver.Stmt, error) {
 	// Send command
 	err := mc.writeCommandPacketStr(comStmtPrepare, query)
 	if err != nil {
+		if err == ErrBusyBuffer {
+			return nil, fmt.Errorf("%w: unread data remains on the connection", err)
+		}
 		// STMT_PREPARE is safe to retry.  So we can return ErrBadConn here.
 		mc.log(err)
 		return nil, driver.ErrBadConn
