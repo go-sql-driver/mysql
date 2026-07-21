@@ -134,65 +134,98 @@ func TestCheckNamedValue(t *testing.T) {
 	}
 }
 
-// TestCleanCancel tests passed context is cancelled at start.
+// TestSimpleCommandOKCleanCancel tests passed context is cancelled at start.
 // No packet should be sent.  Connection should keep current status.
-func TestCleanCancel(t *testing.T) {
-	mc := &mysqlConn{
-		closech: make(chan struct{}),
-	}
-	mc.startWatcher()
-	defer mc.cleanup()
+func TestSimpleCommandOKCleanCancel(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		funcToCall func(ctx context.Context, mc *mysqlConn) error
+	} {
+		{name: "Ping", funcToCall: func(ctx context.Context, mc *mysqlConn) error { return mc.Ping(ctx) }},
+		{name: "Reset", funcToCall: func(ctx context.Context, mc *mysqlConn) error { return mc.Reset(ctx) }},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			mc := &mysqlConn{
+				closech: make(chan struct{}),
+			}
+			mc.startWatcher()
+			defer mc.cleanup()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
 
-	for range 3 { // Repeat same behavior
-		err := mc.Ping(ctx)
-		if err != context.Canceled {
-			t.Errorf("expected context.Canceled, got %#v", err)
-		}
+			for range 3 { // Repeat same behavior
+				err := test.funcToCall(ctx, mc)
+				if err != context.Canceled {
+					t.Errorf("expected context.Canceled, got %#v", err)
+				}
 
-		if mc.closed.Load() {
-			t.Error("expected mc is not closed, closed actually")
-		}
+				if mc.closed.Load() {
+					t.Error("expected mc is not closed, closed actually")
+				}
 
-		if mc.watching {
-			t.Error("expected watching is false, but true")
-		}
-	}
-}
-
-func TestPingMarkBadConnection(t *testing.T) {
-	nc := badConnection{err: errors.New("boom")}
-	mc := &mysqlConn{
-		netConn:          nc,
-		buf:              newBuffer(),
-		maxAllowedPacket: defaultMaxAllowedPacket,
-		closech:          make(chan struct{}),
-		cfg:              NewConfig(),
-	}
-
-	err := mc.Ping(context.Background())
-
-	if err != driver.ErrBadConn {
-		t.Errorf("expected driver.ErrBadConn, got  %#v", err)
+				if mc.watching {
+					t.Error("expected watching is false, but true")
+				}
+			}
+		})
 	}
 }
 
-func TestPingErrInvalidConn(t *testing.T) {
-	nc := badConnection{err: errors.New("failed to write"), n: 10}
-	mc := &mysqlConn{
-		netConn:          nc,
-		buf:              newBuffer(),
-		maxAllowedPacket: defaultMaxAllowedPacket,
-		closech:          make(chan struct{}),
-		cfg:              NewConfig(),
+func TestSimpleCommandOKMarkBadConnection(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		funcToCall func(mc *mysqlConn) error
+	} {
+		{name: "Ping", funcToCall: func(mc *mysqlConn) error { return mc.Ping(context.Background()) }},
+		{name: "Reset", funcToCall: func(mc *mysqlConn) error { return mc.Reset(context.Background()) }},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			nc := badConnection{err: errors.New("boom")}
+			mc := &mysqlConn{
+				netConn:          nc,
+				buf:              newBuffer(),
+				maxAllowedPacket: defaultMaxAllowedPacket,
+				closech:          make(chan struct{}),
+				cfg:              NewConfig(),
+			}
+
+			err := test.funcToCall(mc)
+
+			if err != driver.ErrBadConn {
+				t.Errorf("expected driver.ErrBadConn, got  %#v", err)
+			}
+		})
 	}
+}
 
-	err := mc.Ping(context.Background())
+func TestSimpleCommandOKErrInvalidConn(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		funcToCall func(mc *mysqlConn) error
+	} {
+		{name: "Ping", funcToCall: func(mc *mysqlConn) error { return mc.Ping(context.Background()) }},
+		{name: "Reset", funcToCall: func(mc *mysqlConn) error { return mc.Reset(context.Background()) }},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			nc := badConnection{err: errors.New("failed to write"), n: 10}
+			mc := &mysqlConn{
+				netConn:          nc,
+				buf:              newBuffer(),
+				maxAllowedPacket: defaultMaxAllowedPacket,
+				closech:          make(chan struct{}),
+				cfg:              NewConfig(),
+			}
 
-	if err != nc.err {
-		t.Errorf("expected %#v, got  %#v", nc.err, err)
+			err := test.funcToCall(mc)
+
+			if err != nc.err {
+				t.Errorf("expected %#v, got  %#v", nc.err, err)
+			}
+		})
 	}
 }
 
