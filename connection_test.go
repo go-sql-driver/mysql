@@ -196,6 +196,21 @@ func TestPingErrInvalidConn(t *testing.T) {
 	}
 }
 
+func TestPrepareBusyBuffer(t *testing.T) {
+	mc := &mysqlConn{buf: newBuffer()}
+	mc.buf.buf = []byte{1}
+
+	_, err := mc.Prepare("SELECT 1")
+	if !errors.Is(err, ErrBusyBuffer) {
+		t.Fatalf("expected ErrBusyBuffer, got %#v", err)
+	}
+
+	const want = "connection is busy with a previous result set; close it before reusing the connection"
+	if err.Error() != want {
+		t.Fatalf("expected %q, got %q", want, err)
+	}
+}
+
 type badConnection struct {
 	n   int
 	err error
