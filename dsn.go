@@ -152,6 +152,9 @@ func Charset(charset, collation string) Option {
 }
 
 func (cfg *Config) Clone() *Config {
+	if cfg == nil {
+		return nil
+	}
 	cp := *cfg
 	if cp.TLS != nil {
 		cp.TLS = cfg.TLS.Clone()
