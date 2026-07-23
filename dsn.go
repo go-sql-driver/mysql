@@ -605,14 +605,14 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// time.Time truncation
 		case "timeTruncate":
-			cfg.timeTruncate, err = time.ParseDuration(value)
+			cfg.timeTruncate, err = parseNonNegDuration(value)
 			if err != nil {
 				return fmt.Errorf("invalid timeTruncate value: %v, error: %w", value, err)
 			}
 
 		// I/O read Timeout
 		case "readTimeout":
-			cfg.ReadTimeout, err = time.ParseDuration(value)
+			cfg.ReadTimeout, err = parseNonNegDuration(value)
 			if err != nil {
 				return
 			}
@@ -639,7 +639,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// Dial Timeout
 		case "timeout":
-			cfg.Timeout, err = time.ParseDuration(value)
+			cfg.Timeout, err = parseNonNegDuration(value)
 			if err != nil {
 				return
 			}
@@ -665,7 +665,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// I/O write Timeout
 		case "writeTimeout":
-			cfg.WriteTimeout, err = time.ParseDuration(value)
+			cfg.WriteTimeout, err = parseNonNegDuration(value)
 			if err != nil {
 				return
 			}
@@ -703,4 +703,16 @@ func ensureHavePort(addr string) string {
 		return net.JoinHostPort(addr, "3306")
 	}
 	return addr
+}
+
+// parseNonNegDuration trims surrounding space and rejects negative durations.
+func parseNonNegDuration(value string) (time.Duration, error) {
+	d, err := time.ParseDuration(strings.TrimSpace(value))
+	if err != nil {
+		return 0, err
+	}
+	if d < 0 {
+		return 0, fmt.Errorf("duration must be >= 0: %q", value)
+	}
+	return d, nil
 }
