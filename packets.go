@@ -872,7 +872,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 			fieldTypeDate,
 			fieldTypeNewDate:
 			if mc.parseTime {
-				dest[i], err = parseDateTime(buf, mc.cfg.Loc)
+				dest[i], err = ParseDateTime(buf, mc.cfg.Loc)
 			} else {
 				dest[i] = buf
 			}
@@ -1411,9 +1411,9 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 						rows.rs.columns[i].decimals,
 					)
 				}
-				dest[i], err = formatBinaryTime(data[pos:pos+int(num)], dstlen)
+				dest[i], err = FormatBinaryTime(data[pos:pos+int(num)], dstlen)
 			case rows.mc.parseTime:
-				dest[i], err = parseBinaryDateTime(num, data[pos:], rows.mc.cfg.Loc)
+				dest[i], err = ParseBinaryDateTime(num, data[pos:], rows.mc.cfg.Loc)
 			default:
 				var dstlen uint8
 				if rows.rs.columns[i].fieldType == fieldTypeDate {
@@ -1431,7 +1431,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 						)
 					}
 				}
-				dest[i], err = formatBinaryDateTime(data[pos:pos+int(num)], dstlen)
+				dest[i], err = FormatBinaryDateTime(data[pos:pos+int(num)], dstlen)
 			}
 
 			if err == nil {
