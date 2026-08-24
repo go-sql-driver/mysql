@@ -105,7 +105,10 @@ func readBool(input string) (value bool, valid bool) {
 *                           Time related utils                                *
 ******************************************************************************/
 
-func parseDateTime(b []byte, loc *time.Location) (time.Time, error) {
+// ParseDateTime parses the textual representation of a MySQL DATE, DATETIME,
+// or TIMESTAMP value, as returned over the text protocol, into a time.Time
+// using loc as the value's time zone.
+func ParseDateTime(b []byte, loc *time.Location) (time.Time, error) {
 	const base = "0000-00-00 00:00:00.000000"
 	switch len(b) {
 	case 10, 19, 21, 22, 23, 24, 25, 26: // up to "YYYY-MM-DD HH:MM:SS.MMMMMM"
@@ -227,7 +230,11 @@ func bToi(b byte) (int, error) {
 	return int(b - '0'), nil
 }
 
-func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Value, error) {
+// ParseBinaryDateTime parses the binary protocol representation of a MySQL
+// DATE, DATETIME, or TIMESTAMP value into a time.Time using loc as the
+// value's time zone. num is the number of bytes of data that make up the
+// value, as sent by the server (0, 4, 7, or 11).
+func ParseBinaryDateTime(num uint64, data []byte, loc *time.Location) (time.Time, error) {
 	switch num {
 	case 0:
 		return time.Time{}, nil
@@ -262,7 +269,7 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 			loc,
 		), nil
 	}
-	return nil, fmt.Errorf("invalid DATETIME packet length %d", num)
+	return time.Time{}, fmt.Errorf("invalid DATETIME packet length %d", num)
 }
 
 func appendDateTime(buf []byte, t time.Time, timeTruncate time.Duration) ([]byte, error) {
@@ -327,7 +334,7 @@ func appendDateTime(buf []byte, t time.Time, timeTruncate time.Duration) ([]byte
 	return append(buf, localBuf[:n]...), nil
 }
 
-// zeroDateTime is used in formatBinaryDateTime to avoid an allocation
+// zeroDateTime is used in FormatBinaryDateTime to avoid an allocation
 // if the DATE or DATETIME has the zero value.
 // It must never be changed.
 // The current behavior depends on database/sql copying the result.
@@ -385,9 +392,13 @@ func appendMicrosecs(dst, src []byte, decimals int) []byte {
 	}
 }
 
-func formatBinaryDateTime(src []byte, length uint8) (driver.Value, error) {
-	// length expects the deterministic length of the zero value,
-	// negative time and 100+ hours are automatically added if needed
+// FormatBinaryDateTime formats the binary protocol representation of a MySQL
+// DATE, DATETIME, or TIMESTAMP value (src) into its textual representation,
+// as used by the text protocol. length is the deterministic length of the
+// zero value for the column (e.g. 10 for DATE, 19 for DATETIME/TIMESTAMP
+// with no fractional seconds, or 19+1+decimals with fractional seconds);
+// negative time and 100+ hours are automatically added if needed.
+func FormatBinaryDateTime(src []byte, length uint8) ([]byte, error) {
 	if len(src) == 0 {
 		return zeroDateTime[:length], nil
 	}
@@ -444,9 +455,13 @@ func formatBinaryDateTime(src []byte, length uint8) (driver.Value, error) {
 	return appendMicrosecs(dst, src[2:], int(length)-20), nil
 }
 
-func formatBinaryTime(src []byte, length uint8) (driver.Value, error) {
-	// length expects the deterministic length of the zero value,
-	// negative time and 100+ hours are automatically added if needed
+// FormatBinaryTime formats the binary protocol representation of a MySQL
+// TIME value (src) into its textual representation, as used by the text
+// protocol. length is the deterministic length of the zero value for the
+// column (e.g. 8 for TIME with no fractional seconds, or 8+1+decimals with
+// fractional seconds); negative time and 100+ hours are automatically added
+// if needed.
+func FormatBinaryTime(src []byte, length uint8) ([]byte, error) {
 	if len(src) == 0 {
 		return zeroDateTime[11 : 11+length], nil
 	}
