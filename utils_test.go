@@ -64,12 +64,8 @@ func TestFormatBinaryDateTime(t *testing.T) {
 	rawDate[6] = 23                                    // seconds
 	binary.LittleEndian.PutUint32(rawDate[7:], 987654) // microseconds
 	expect := func(expected string, inlen, outlen uint8) {
-		actual, _ := formatBinaryDateTime(rawDate[:inlen], outlen)
-		bytes, ok := actual.([]byte)
-		if !ok {
-			t.Errorf("formatBinaryDateTime must return []byte, was %T", actual)
-		}
-		if string(bytes) != expected {
+		actual, _ := FormatBinaryDateTime(rawDate[:inlen], outlen)
+		if string(actual) != expected {
 			t.Errorf(
 				"expected %q, got %q for length in %d, out %d",
 				expected, actual, inlen, outlen,
@@ -85,12 +81,8 @@ func TestFormatBinaryDateTime(t *testing.T) {
 
 func TestFormatBinaryTime(t *testing.T) {
 	expect := func(expected string, src []byte, outlen uint8) {
-		actual, _ := formatBinaryTime(src, outlen)
-		bytes, ok := actual.([]byte)
-		if !ok {
-			t.Errorf("formatBinaryDateTime must return []byte, was %T", actual)
-		}
-		if string(bytes) != expected {
+		actual, _ := FormatBinaryTime(src, outlen)
+		if string(actual) != expected {
 			t.Errorf(
 				"expected %q, got %q for src=%q and outlen=%d",
 				expected, actual, src, outlen)
@@ -445,7 +437,7 @@ func TestParseDateTime(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				got, err := parseDateTime([]byte(cc.str), loc)
+				got, err := ParseDateTime([]byte(cc.str), loc)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -473,7 +465,7 @@ func TestInvalidDateTime(t *testing.T) {
 
 	for _, cc := range cases {
 		t.Run(cc.name, func(t *testing.T) {
-			got, err := parseDateTime([]byte(cc.str), time.UTC)
+			got, err := ParseDateTime([]byte(cc.str), time.UTC)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -540,7 +532,7 @@ func TestParseDateTimeFail(t *testing.T) {
 
 	for _, cc := range cases {
 		t.Run(cc.name, func(t *testing.T) {
-			got, err := parseDateTime([]byte(cc.str), time.UTC)
+			got, err := ParseDateTime([]byte(cc.str), time.UTC)
 			if err == nil {
 				t.Fatal("want error")
 			}
