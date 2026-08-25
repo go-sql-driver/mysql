@@ -235,6 +235,9 @@ func bToi(b byte) (int, error) {
 // value's time zone. num is the number of bytes of data that make up the
 // value, as sent by the server (0, 4, 7, or 11).
 func ParseBinaryDateTime(num uint64, data []byte, loc *time.Location) (time.Time, error) {
+	if num > 0 && uint64(len(data)) < num {
+		return time.Time{}, fmt.Errorf("invalid DATETIME packet length %d: got %d bytes", num, len(data))
+	}
 	switch num {
 	case 0:
 		return time.Time{}, nil
@@ -334,10 +337,9 @@ func appendDateTime(buf []byte, t time.Time, timeTruncate time.Duration) ([]byte
 	return append(buf, localBuf[:n]...), nil
 }
 
-// zeroDateTime is used in FormatBinaryDateTime to avoid an allocation
-// if the DATE or DATETIME has the zero value.
-// It must never be changed.
-// The current behavior depends on database/sql copying the result.
+// zeroDateTime backs the zero-value fast paths in FormatBinaryDateTime and
+// FormatBinaryTime. It must never be changed: callers only ever receive a
+// copy of a subslice of it, never a reference to it directly.
 var zeroDateTime = []byte("0000-00-00 00:00:00.000000")
 
 const digits01 = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
@@ -399,12 +401,6 @@ func appendMicrosecs(dst, src []byte, decimals int) []byte {
 // with no fractional seconds, or 19+1+decimals with fractional seconds);
 // negative time and 100+ hours are automatically added if needed.
 func FormatBinaryDateTime(src []byte, length uint8) ([]byte, error) {
-	if len(src) == 0 {
-		return zeroDateTime[:length], nil
-	}
-	var dst []byte      // return value
-	var p1, p2, p3 byte // current digit pair
-
 	switch length {
 	case 10, 19, 21, 22, 23, 24, 25, 26:
 	default:
@@ -414,6 +410,12 @@ func FormatBinaryDateTime(src []byte, length uint8) ([]byte, error) {
 		}
 		return nil, fmt.Errorf("illegal %s length %d", t, length)
 	}
+	if len(src) == 0 {
+		return append([]byte(nil), zeroDateTime[:length]...), nil
+	}
+	var dst []byte      // return value
+	var p1, p2, p3 byte // current digit pair
+
 	switch len(src) {
 	case 4, 7, 11:
 	default:
@@ -462,11 +464,6 @@ func FormatBinaryDateTime(src []byte, length uint8) ([]byte, error) {
 // fractional seconds); negative time and 100+ hours are automatically added
 // if needed.
 func FormatBinaryTime(src []byte, length uint8) ([]byte, error) {
-	if len(src) == 0 {
-		return zeroDateTime[11 : 11+length], nil
-	}
-	var dst []byte // return value
-
 	switch length {
 	case
 		8,                      // time (can be up to 10 when negative and 100+ hours)
@@ -474,6 +471,11 @@ func FormatBinaryTime(src []byte, length uint8) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("illegal TIME length %d", length)
 	}
+	if len(src) == 0 {
+		return append([]byte(nil), zeroDateTime[11:11+length]...), nil
+	}
+	var dst []byte // return value
+
 	switch len(src) {
 	case 8, 12:
 	default:
