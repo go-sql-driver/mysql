@@ -82,6 +82,7 @@ type Config struct {
 	pubKey        *rsa.PublicKey                       // Server public key
 	timeTruncate  time.Duration                        // Truncate time.Time values to the specified duration
 	charsets      []string                             // Connection charset. When set, this will be set in SET NAMES <charset> query
+	tracer        QueryTracer                          // Tracer for SQL query tracing
 }
 
 // Functional Options Pattern
@@ -132,6 +133,16 @@ func BeforeConnect(fn func(context.Context, *Config) error) Option {
 func EnableCompression(yes bool) Option {
 	return func(cfg *Config) error {
 		cfg.compress = yes
+		return nil
+	}
+}
+
+// WithTracer sets the query tracer for tracing SQL query execution.
+// The tracer is called before and after each query with the query string,
+// arguments, error, and execution duration.
+func WithTracer(tracer QueryTracer) Option {
+	return func(cfg *Config) error {
+		cfg.tracer = tracer
 		return nil
 	}
 }
