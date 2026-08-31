@@ -126,10 +126,10 @@ func (mc *mysqlConn) handleParams() (err error) {
 	return
 }
 
-// markBadConn replaces errBadConnNoWrite with driver.ErrBadConn.
+// markBadConn replaces ErrBadConnNoWrite with driver.ErrBadConn.
 // This function is used to return driver.ErrBadConn only when safe to retry.
 func (mc *mysqlConn) markBadConn(err error) error {
-	if err == errBadConnNoWrite {
+	if err == ErrBadConnNoWrite {
 		return driver.ErrBadConn
 	}
 	return err

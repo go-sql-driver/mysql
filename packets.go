@@ -153,7 +153,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			if n == 0 && pktLen == len(data)-4 {
 				// only for the first loop iteration when nothing was written yet
 				mc.log(err)
-				return errBadConnNoWrite
+				return ErrBadConnNoWrite
 			} else {
 				return err
 			}
