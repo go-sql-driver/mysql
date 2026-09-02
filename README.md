@@ -319,6 +319,18 @@ Default:        0
 > [!NOTE]
 > `time.Time` arguments are sent with up to nanosecond precision, so a value from `time.Now()` usually has more fractional-second digits than a `DATETIME(N)` or `TIMESTAMP(N)` column stores. On MariaDB, comparing such a value against an indexed column can prevent an index range scan, turning it into a full index scan. Truncating to the column's precision (`1us` for `DATETIME(6)`) avoids this. Only arguments sent to the server are truncated; values read from the server are not affected.
 
+##### `tinyInt1IsBool`
+
+```
+Type:           bool
+Valid Values:   true, false
+Default:        true
+```
+
+When `tinyInt1IsBool=true`, signed `TINYINT(1)` columns are treated as boolean values. Zero is returned as `false`, and non-zero values are returned as `true`. Their database type name is reported as `BOOLEAN`, and their scan type is `bool` for non-nullable columns or `sql.NullBool` for nullable columns.
+
+Unsigned and `ZEROFILL` columns are not converted. Set `tinyInt1IsBool=false` to preserve the numeric `TINYINT` behavior.
+
 ##### `maxAllowedPacket`
 ```
 Type:          decimal number

@@ -58,7 +58,8 @@ func TestTinyInt1IsBool(t *testing.T) {
 		dbt.mustExec("INSERT INTO " + tbl + " VALUES " +
 			"(1, 0, NULL, 2, 1), " +
 			"(2, 1, 0, 2, 1), " +
-			"(3, 2, -1, 2, 1)")
+			"(3, 2, -1, 2, 1), " +
+			"(4, 0, 0, 2, 1)")
 
 		rows := dbt.mustQuery("SELECT b, bn, n, u FROM " + tbl + " ORDER BY id")
 		defer rows.Close()
@@ -87,11 +88,17 @@ func TestTinyInt1IsBool(t *testing.T) {
 			{false, nil, int64(2), int64(1)},
 			{true, false, int64(2), int64(1)},
 			{true, true, int64(2), int64(1)},
+			{false, false, int64(2), int64(1)},
 		}
-		for row := 0; rows.Next(); row++ {
+		row := 0
+		for ; rows.Next(); row++ {
 			var got [4]any
 			if err := rows.Scan(&got[0], &got[1], &got[2], &got[3]); err != nil {
 				dbt.Fatal(err)
+			}
+			if row >= len(want) {
+				dbt.Errorf("unexpected row %d = %#v", row, got)
+				continue
 			}
 			if !reflect.DeepEqual(got, want[row]) {
 				dbt.Errorf("row %d = %#v; want %#v", row, got, want[row])
@@ -100,6 +107,9 @@ func TestTinyInt1IsBool(t *testing.T) {
 		if err := rows.Err(); err != nil {
 			dbt.Fatal(err)
 		}
+		if row != len(want) {
+			dbt.Errorf("got %d rows; want %d", row, len(want))
+		}
 
 		stmt, err := dbt.db.Prepare("SELECT b, bn, n, u FROM " + tbl + " WHERE id = ?")
 		if err != nil {
@@ -107,12 +117,14 @@ func TestTinyInt1IsBool(t *testing.T) {
 		}
 		defer stmt.Close()
 
-		var got [4]any
-		if err := stmt.QueryRow(3).Scan(&got[0], &got[1], &got[2], &got[3]); err != nil {
-			dbt.Fatal(err)
-		}
-		if !reflect.DeepEqual(got, want[2]) {
-			dbt.Errorf("prepared statement row = %#v; want %#v", got, want[2])
+		for _, id := range []int{3, 4} {
+			var got [4]any
+			if err := stmt.QueryRow(id).Scan(&got[0], &got[1], &got[2], &got[3]); err != nil {
+				dbt.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, want[id-1]) {
+				dbt.Errorf("prepared statement row %d = %#v; want %#v", id, got, want[id-1])
+			}
 		}
 	})
 }
@@ -122,8 +134,14 @@ func TestTinyInt1IsBoolDisabled(t *testing.T) {
 		dbt.mustExec("CREATE TABLE " + tbl + " (b TINYINT(1) NOT NULL)")
 		dbt.mustExec("INSERT INTO " + tbl + " VALUES (2)")
 
+		stmt, err := dbt.db.Prepare("SELECT b FROM " + tbl + " WHERE b = ?")
+		if err != nil {
+			dbt.Fatal(err)
+		}
+		defer stmt.Close()
+
 		var got any
-		if err := dbt.db.QueryRow("SELECT b FROM " + tbl).Scan(&got); err != nil {
+		if err := stmt.QueryRow(2).Scan(&got); err != nil {
 			dbt.Fatal(err)
 		}
 		if got != int64(2) {
