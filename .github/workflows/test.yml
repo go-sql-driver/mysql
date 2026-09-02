@@ -29,22 +29,19 @@ jobs:
           import os
           go = [
               # Keep the most recent production release at the top
-              '1.26',
+              '1.27',
               # Older production releases
+              '1.26',
               '1.25',
-              '1.24',
           ]
-          mysql = [
-              '9.0',
-              '8.4', # LTS
+          mysql = [  # LTS versions
+              '9.7',
+              '8.4',
               '8.0',
-              '5.7',
-              'mariadb-12.3',   # LTS
-              'mariadb-11.8',   # LTS
-              'mariadb-11.4',   # LTS
-              'mariadb-10.11',  # LTS
-              'mariadb-10.6',   # LTS
-              'mariadb-10.5',   # LTS
+              'mariadb-12.3',
+              'mariadb-11.8',
+              'mariadb-11.4',
+              'mariadb-10.11',
           ]
 
           includes = []
