@@ -17,70 +17,217 @@ import (
 	"time"
 )
 
+// newTestConfig builds the expected ParseDSN result. Keep the defaults explicit
+// instead of calling NewConfig so these tests can detect default regressions.
+func newTestConfig(update func(*Config)) *Config {
+	cfg := &Config{
+		Net:                  "tcp",
+		Addr:                 "127.0.0.1:3306",
+		Loc:                  time.UTC,
+		MaxAllowedPacket:     defaultMaxAllowedPacket,
+		Logger:               defaultLogger,
+		AllowNativePasswords: true,
+		CheckConnLiveness:    true,
+		tinyInt1IsBool:       true,
+	}
+	if update != nil {
+		update(cfg)
+	}
+	return cfg
+}
+
 var testDSNs = []struct {
 	in  string
 	out *Config
-}{{
-	"username:password@protocol(address)/dbname?param=value",
-	&Config{User: "username", Passwd: "password", Net: "protocol", Addr: "address", DBName: "dbname", Params: map[string]string{"param": "value"}, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true, paramOrder: []string{"param"}},
-}, {
-	"username:password@protocol(address)/dbname?param=value&columnsWithAlias=true",
-	&Config{User: "username", Passwd: "password", Net: "protocol", Addr: "address", DBName: "dbname", Params: map[string]string{"param": "value"}, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true, ColumnsWithAlias: true, paramOrder: []string{"param"}},
-}, {
-	"username:password@protocol(address)/dbname?param=value&columnsWithAlias=true&multiStatements=true",
-	&Config{User: "username", Passwd: "password", Net: "protocol", Addr: "address", DBName: "dbname", Params: map[string]string{"param": "value"}, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true, ColumnsWithAlias: true, MultiStatements: true, paramOrder: []string{"param"}},
-}, {
-	"user@unix(/path/to/socket)/dbname?charset=utf8",
-	&Config{User: "user", Net: "unix", Addr: "/path/to/socket", DBName: "dbname", charsets: []string{"utf8"}, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true},
-}, {
-	"user:password@tcp(localhost:5555)/dbname?charset=utf8&tls=true",
-	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", charsets: []string{"utf8"}, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true, TLSConfig: "true"},
-}, {
-	"user:password@tcp(localhost:5555)/dbname?charset=utf8mb4,utf8&tls=skip-verify",
-	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "localhost:5555", DBName: "dbname", charsets: []string{"utf8mb4", "utf8"}, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true, TLSConfig: "skip-verify"},
-}, {
-	"user:password@/dbname?loc=UTC&timeout=30s&readTimeout=1s&writeTimeout=1s&allowAllFiles=1&clientFoundRows=true&allowOldPasswords=TRUE&collation=utf8mb4_unicode_ci&maxAllowedPacket=16777216&tls=false&allowCleartextPasswords=true&parseTime=true&rejectReadOnly=true",
-	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Collation: "utf8mb4_unicode_ci", Loc: time.UTC, TLSConfig: "false", AllowCleartextPasswords: true, AllowNativePasswords: true, Timeout: 30 * time.Second, ReadTimeout: time.Second, WriteTimeout: time.Second, Logger: defaultLogger, AllowAllFiles: true, AllowOldPasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true, ClientFoundRows: true, MaxAllowedPacket: 16777216, ParseTime: true, RejectReadOnly: true},
-}, {
-	"user:password@/dbname?allowNativePasswords=false&checkConnLiveness=false&maxAllowedPacket=0&allowFallbackToPlaintext=true",
-	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Loc: time.UTC, MaxAllowedPacket: 0, Logger: defaultLogger, AllowFallbackToPlaintext: true, AllowNativePasswords: false, CheckConnLiveness: false, tinyInt1IsBool: true},
-}, {
-	"user:p@ss(word)@tcp([de:ad:be:ef::ca:fe]:80)/dbname?loc=Local",
-	&Config{User: "user", Passwd: "p@ss(word)", Net: "tcp", Addr: "[de:ad:be:ef::ca:fe]:80", DBName: "dbname", Loc: time.Local, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true},
-}, {
-	"/dbname",
-	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true},
-}, {
-	"/dbname%2Fwithslash",
-	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname/withslash", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true},
-}, {
-	"@/",
-	&Config{Net: "tcp", Addr: "127.0.0.1:3306", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true},
-}, {
-	"/",
-	&Config{Net: "tcp", Addr: "127.0.0.1:3306", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true},
-}, {
-	"",
-	&Config{Net: "tcp", Addr: "127.0.0.1:3306", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true},
-}, {
-	"user:p@/ssword@/",
-	&Config{User: "user", Passwd: "p@/ssword", Net: "tcp", Addr: "127.0.0.1:3306", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true},
-}, {
-	"unix/?arg=%2Fsome%2Fpath.ext",
-	&Config{Net: "unix", Addr: "/tmp/mysql.sock", Params: map[string]string{"arg": "/some/path.ext"}, Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true, paramOrder: []string{"arg"}},
-}, {
-	"tcp(127.0.0.1)/dbname",
-	&Config{Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true},
-}, {
-	"tcp(de:ad:be:ef::ca:fe)/dbname",
-	&Config{Net: "tcp", Addr: "[de:ad:be:ef::ca:fe]:3306", DBName: "dbname", Loc: time.UTC, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true},
-}, {
-	"user:password@/dbname?loc=UTC&timeout=30s&parseTime=true&timeTruncate=1h",
-	&Config{User: "user", Passwd: "password", Net: "tcp", Addr: "127.0.0.1:3306", DBName: "dbname", Loc: time.UTC, Timeout: 30 * time.Second, ParseTime: true, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true, timeTruncate: time.Hour},
-}, {
-	"foo:bar@tcp(192.168.1.50:3307)/baz?timeout=10s&connectionAttributes=program_name:MySQLGoDriver%2FTest,program_version:1.2.3",
-	&Config{User: "foo", Passwd: "bar", Net: "tcp", Addr: "192.168.1.50:3307", DBName: "baz", Loc: time.UTC, Timeout: 10 * time.Second, MaxAllowedPacket: defaultMaxAllowedPacket, Logger: defaultLogger, AllowNativePasswords: true, CheckConnLiveness: true, tinyInt1IsBool: true, ConnectionAttributes: "program_name:MySQLGoDriver/Test,program_version:1.2.3"},
-},
+}{
+	{
+		in: "username:password@protocol(address)/dbname?param=value",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.User = "username"
+			cfg.Passwd = "password"
+			cfg.Net = "protocol"
+			cfg.Addr = "address"
+			cfg.DBName = "dbname"
+			cfg.Params = map[string]string{"param": "value"}
+			cfg.paramOrder = []string{"param"}
+		}),
+	},
+	{
+		in: "username:password@protocol(address)/dbname?param=value&columnsWithAlias=true",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.User = "username"
+			cfg.Passwd = "password"
+			cfg.Net = "protocol"
+			cfg.Addr = "address"
+			cfg.DBName = "dbname"
+			cfg.Params = map[string]string{"param": "value"}
+			cfg.ColumnsWithAlias = true
+			cfg.paramOrder = []string{"param"}
+		}),
+	},
+	{
+		in: "username:password@protocol(address)/dbname?param=value&columnsWithAlias=true&multiStatements=true",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.User = "username"
+			cfg.Passwd = "password"
+			cfg.Net = "protocol"
+			cfg.Addr = "address"
+			cfg.DBName = "dbname"
+			cfg.Params = map[string]string{"param": "value"}
+			cfg.ColumnsWithAlias = true
+			cfg.MultiStatements = true
+			cfg.paramOrder = []string{"param"}
+		}),
+	},
+	{
+		in: "user@unix(/path/to/socket)/dbname?charset=utf8",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.User = "user"
+			cfg.Net = "unix"
+			cfg.Addr = "/path/to/socket"
+			cfg.DBName = "dbname"
+			cfg.charsets = []string{"utf8"}
+		}),
+	},
+	{
+		in: "user:password@tcp(localhost:5555)/dbname?charset=utf8&tls=true",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.User = "user"
+			cfg.Passwd = "password"
+			cfg.Addr = "localhost:5555"
+			cfg.DBName = "dbname"
+			cfg.TLSConfig = "true"
+			cfg.charsets = []string{"utf8"}
+		}),
+	},
+	{
+		in: "user:password@tcp(localhost:5555)/dbname?charset=utf8mb4,utf8&tls=skip-verify",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.User = "user"
+			cfg.Passwd = "password"
+			cfg.Addr = "localhost:5555"
+			cfg.DBName = "dbname"
+			cfg.TLSConfig = "skip-verify"
+			cfg.charsets = []string{"utf8mb4", "utf8"}
+		}),
+	},
+	{
+		in: "user:password@/dbname?loc=UTC&timeout=30s&readTimeout=1s&writeTimeout=1s&allowAllFiles=1&clientFoundRows=true&allowOldPasswords=TRUE&collation=utf8mb4_unicode_ci&maxAllowedPacket=16777216&tls=false&allowCleartextPasswords=true&parseTime=true&rejectReadOnly=true",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.User = "user"
+			cfg.Passwd = "password"
+			cfg.DBName = "dbname"
+			cfg.Collation = "utf8mb4_unicode_ci"
+			cfg.MaxAllowedPacket = 16777216
+			cfg.TLSConfig = "false"
+			cfg.Timeout = 30 * time.Second
+			cfg.ReadTimeout = time.Second
+			cfg.WriteTimeout = time.Second
+			cfg.AllowAllFiles = true
+			cfg.AllowCleartextPasswords = true
+			cfg.AllowOldPasswords = true
+			cfg.ClientFoundRows = true
+			cfg.ParseTime = true
+			cfg.RejectReadOnly = true
+		}),
+	},
+	{
+		in: "user:password@/dbname?allowNativePasswords=false&checkConnLiveness=false&maxAllowedPacket=0&allowFallbackToPlaintext=true",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.User = "user"
+			cfg.Passwd = "password"
+			cfg.DBName = "dbname"
+			cfg.MaxAllowedPacket = 0
+			cfg.AllowFallbackToPlaintext = true
+			cfg.AllowNativePasswords = false
+			cfg.CheckConnLiveness = false
+		}),
+	},
+	{
+		in: "user:p@ss(word)@tcp([de:ad:be:ef::ca:fe]:80)/dbname?loc=Local",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.User = "user"
+			cfg.Passwd = "p@ss(word)"
+			cfg.Addr = "[de:ad:be:ef::ca:fe]:80"
+			cfg.DBName = "dbname"
+			cfg.Loc = time.Local
+		}),
+	},
+	{
+		in: "/dbname",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.DBName = "dbname"
+		}),
+	},
+	{
+		in: "/dbname%2Fwithslash",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.DBName = "dbname/withslash"
+		}),
+	},
+	{
+		in:  "@/",
+		out: newTestConfig(nil),
+	},
+	{
+		in:  "/",
+		out: newTestConfig(nil),
+	},
+	{
+		in:  "",
+		out: newTestConfig(nil),
+	},
+	{
+		in: "user:p@/ssword@/",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.User = "user"
+			cfg.Passwd = "p@/ssword"
+		}),
+	},
+	{
+		in: "unix/?arg=%2Fsome%2Fpath.ext",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.Net = "unix"
+			cfg.Addr = "/tmp/mysql.sock"
+			cfg.Params = map[string]string{"arg": "/some/path.ext"}
+			cfg.paramOrder = []string{"arg"}
+		}),
+	},
+	{
+		in: "tcp(127.0.0.1)/dbname",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.DBName = "dbname"
+		}),
+	},
+	{
+		in: "tcp(de:ad:be:ef::ca:fe)/dbname",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.Addr = "[de:ad:be:ef::ca:fe]:3306"
+			cfg.DBName = "dbname"
+		}),
+	},
+	{
+		in: "user:password@/dbname?loc=UTC&timeout=30s&parseTime=true&timeTruncate=1h",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.User = "user"
+			cfg.Passwd = "password"
+			cfg.DBName = "dbname"
+			cfg.Timeout = 30 * time.Second
+			cfg.ParseTime = true
+			cfg.timeTruncate = time.Hour
+		}),
+	},
+	{
+		in: "foo:bar@tcp(192.168.1.50:3307)/baz?timeout=10s&connectionAttributes=program_name:MySQLGoDriver%2FTest,program_version:1.2.3",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.User = "foo"
+			cfg.Passwd = "bar"
+			cfg.Addr = "192.168.1.50:3307"
+			cfg.DBName = "baz"
+			cfg.ConnectionAttributes = "program_name:MySQLGoDriver/Test,program_version:1.2.3"
+			cfg.Timeout = 10 * time.Second
+		}),
+	},
 }
 
 func TestDSNParser(t *testing.T) {
