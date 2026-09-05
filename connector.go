@@ -75,6 +75,9 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Use the callback's configuration and regenerate connection attributes
+		// without changing the shared connector.
+		c = newConnector(cfg)
 	}
 
 	// New mysqlConn

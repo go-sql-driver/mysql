@@ -121,6 +121,9 @@ func TimeTruncate(d time.Duration) Option {
 }
 
 // BeforeConnect sets the function to be invoked before a connection is established.
+// If the function changes [Config.Addr] while [Config.TLS] is non-nil and its
+// InsecureSkipVerify field is false, it must also update ServerName to match
+// the hostname in the new address.
 func BeforeConnect(fn func(context.Context, *Config) error) Option {
 	return func(cfg *Config) error {
 		cfg.beforeConnect = fn
