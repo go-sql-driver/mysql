@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"bytes"
+	"database/sql/driver"
 	"errors"
 	"net"
 	"testing"
@@ -35,6 +36,7 @@ type mockConn struct {
 	writes        int
 	maxReads      int
 	maxWrites     int
+	writeErrors   map[int]error
 }
 
 func (m *mockConn) Read(b []byte) (n int, err error) {
@@ -58,6 +60,9 @@ func (m *mockConn) Write(b []byte) (n int, err error) {
 	}
 
 	m.writes++
+	if err := m.writeErrors[m.writes]; err != nil {
+		return 0, err
+	}
 	if m.maxWrites > 0 && m.writes > m.maxWrites {
 		return 0, errConnTooManyWrites
 	}
@@ -109,6 +114,115 @@ func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
 		sequence:         sequence,
 	}
 	return conn, mc
+}
+
+func TestWriteExecutePacketValidatesArgsBeforeWriting(t *testing.T) {
+	conn, mc := newRWMockConn(42)
+	mc.maxAllowedPacket = 128
+	stmt := mysqlStmt{mc: mc, id: 1, paramCount: 2}
+
+	err := stmt.writeExecutePacket([]driver.Value{
+		bytes.Repeat([]byte{'a'}, 64), // 64 'a' bytes, large enough to use long data.
+		time.Date(10000, time.January, 1, 0, 0, 0, 0, time.UTC),
+	})
+	if err == nil {
+		t.Fatal("expected invalid time error")
+	}
+	if got, want := err.Error(), "year is not in the range [1, 9999]: 10000"; got != want {
+		t.Fatalf("unexpected error: got %q, want %q", got, want)
+	}
+	if conn.writes != 0 {
+		t.Fatalf("unexpected writes before all arguments were validated: %d", conn.writes)
+	}
+	if mc.sequence != 42 {
+		t.Fatalf("packet sequence changed before all arguments were validated: got %d, want 42", mc.sequence)
+	}
+}
+
+func TestWriteExecutePacketValidatesSizeBeforeWriting(t *testing.T) {
+	conn, mc := newRWMockConn(42)
+	mc.maxAllowedPacket = 16
+	stmt := mysqlStmt{mc: mc, id: 1, paramCount: 2}
+
+	err := stmt.writeExecutePacket([]driver.Value{
+		bytes.Repeat([]byte{'a'}, 64), // 64 'a' bytes, large enough to use long data.
+		int64(1),
+	})
+	if err != ErrPktTooLarge {
+		t.Fatalf("unexpected error: got %v, want %v", err, ErrPktTooLarge)
+	}
+	if conn.writes != 0 {
+		t.Fatalf("unexpected writes before packet size was validated: %d", conn.writes)
+	}
+	if mc.sequence != 42 {
+		t.Fatalf("packet sequence changed before packet size was validated: got %d, want 42", mc.sequence)
+	}
+}
+
+func TestWriteExecutePacketSendsLongDataBeforeExecute(t *testing.T) {
+	conn, mc := newRWMockConn(42)
+	mc.maxAllowedPacket = 128
+	stmt := mysqlStmt{mc: mc, id: 1, paramCount: 2}
+
+	err := stmt.writeExecutePacket([]driver.Value{
+		bytes.Repeat([]byte{'a'}, 64),         // 64 'a' bytes as a []byte long-data parameter.
+		string(bytes.Repeat([]byte{'b'}, 64)), // 64 'b' bytes as a string long-data parameter.
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var commands []byte
+	for written := conn.written; len(written) > 0; {
+		packetLen := 4 + getUint24(written)
+		if packetLen > len(written) {
+			t.Fatalf("invalid packet length: got %d, remaining bytes %d", packetLen, len(written))
+		}
+		commands = append(commands, written[4]) // The command is the first byte after the packet header.
+		written = written[packetLen:]
+	}
+	if want := []byte{comStmtSendLongData, comStmtSendLongData, comStmtExecute}; !bytes.Equal(commands, want) {
+		t.Fatalf("unexpected command order: got %v, want %v", commands, want)
+	}
+}
+
+func TestWriteExecutePacketResetsStmtAfterLongDataError(t *testing.T) {
+	conn, mc := newRWMockConn(42)
+	mc.maxAllowedPacket = 128
+	stmt := mysqlStmt{mc: mc, id: 1, paramCount: 2}
+	conn.writeErrors = map[int]error{2: errors.New("long data write failed")}
+	conn.queuedReplies = [][]byte{{
+		0x07, 0x00, 0x00, 0x01, // Packet header: 7-byte payload, sequence 1.
+		iOK,        // OK packet header.
+		0x00,       // Zero affected rows.
+		0x00,       // Zero last insert ID.
+		0x02, 0x00, // SERVER_STATUS_AUTOCOMMIT.
+		0x00, 0x00, // Zero warnings.
+	}}
+
+	err := stmt.writeExecutePacket([]driver.Value{
+		bytes.Repeat([]byte{'a'}, 64), // 64 'a' bytes sent successfully as long data.
+		bytes.Repeat([]byte{'b'}, 64), // 64 'b' bytes whose long-data write fails.
+	})
+	if err != errBadConnNoWrite {
+		t.Fatalf("unexpected error: got %v, want %v", err, errBadConnNoWrite)
+	}
+
+	var commands []byte
+	for written := conn.written; len(written) > 0; {
+		packetLen := 4 + getUint24(written)
+		if packetLen > len(written) {
+			t.Fatalf("invalid packet length: got %d, remaining bytes %d", packetLen, len(written))
+		}
+		commands = append(commands, written[4]) // The command is the first byte after the packet header.
+		written = written[packetLen:]
+	}
+	if want := []byte{comStmtSendLongData, comStmtReset}; !bytes.Equal(commands, want) {
+		t.Fatalf("unexpected command order: got %v, want %v", commands, want)
+	}
+	if len(conn.data) != 0 {
+		t.Fatal("COM_STMT_RESET response was not consumed")
+	}
 }
 
 func TestReadPacketSingleByte(t *testing.T) {
