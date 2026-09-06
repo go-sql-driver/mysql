@@ -1040,6 +1040,20 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 	return nil
 }
 
+func (stmt *mysqlStmt) reset() error {
+	handleOk := stmt.mc.clearResult()
+	if err := stmt.mc.writeCommandPacketUint32(comStmtReset, stmt.id); err != nil {
+		return err
+	}
+	return handleOk.readResultOK()
+}
+
+type stmtLongData struct {
+	paramID int
+	data    []byte
+	text    string
+}
+
 // Execute Prepared Statement
 // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_stmt_execute.html
 func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
@@ -1057,11 +1071,9 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	// Determine threshold dynamically to avoid packet size shortage.
 	longDataSize := max(mc.maxAllowedPacket/(stmt.paramCount+1), 64)
 
-	// Reset packet-sequence
-	mc.resetSequence()
-
 	var data []byte
 	var err error
+	var longData []stmtLongData
 
 	if len(args) == 0 {
 		data, err = mc.buf.takeBuffer(minPktLen)
@@ -1171,9 +1183,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 						)
 						paramValues = append(paramValues, v...)
 					} else {
-						if err := stmt.writeCommandLongData(i, v); err != nil {
-							return err
-						}
+						longData = append(longData, stmtLongData{paramID: i, data: v})
 					}
 					continue
 				}
@@ -1193,9 +1203,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 					)
 					paramValues = append(paramValues, v...)
 				} else {
-					if err := stmt.writeCommandLongData(i, []byte(v)); err != nil {
-						return err
-					}
+					longData = append(longData, stmtLongData{paramID: i, text: v})
 				}
 
 			case time.Time:
@@ -1233,6 +1241,29 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 		pos += len(paramValues)
 		data = data[:pos]
+	}
+
+	// Validate the execute packet size before long data is sent.
+	if len(data)-4 > mc.maxAllowedPacket {
+		return ErrPktTooLarge
+	}
+
+	// All parameters have now been validated and normalized. Only start writing
+	// after this point so a validation error cannot leave partial long data
+	// associated with the statement on the server.
+	mc.resetSequence()
+	for _, param := range longData {
+		if param.data != nil {
+			err = stmt.writeCommandLongData(param.paramID, param.data)
+		} else {
+			err = stmt.writeCommandLongData(param.paramID, []byte(param.text))
+		}
+		if err != nil {
+			if resetErr := stmt.reset(); resetErr != nil {
+				mc.close()
+			}
+			return err
+		}
 	}
 
 	err = mc.writePacket(data)
