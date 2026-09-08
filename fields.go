@@ -150,6 +150,38 @@ type mysqlField struct {
 	charSet   uint8
 }
 
+// FieldMetadata represents metadata about a column or parameter from a prepared statement.
+// This is a public struct that exposes the metadata from mysqlField.
+type FieldMetadata struct {
+	// TableName is the name of the table this field belongs to (may be empty for expressions)
+	TableName string
+	// Name is the name or alias of the field
+	Name string
+	// Length is the maximum length of the field
+	Length uint32
+	// Decimals is the number of decimals for numeric types
+	Decimals byte
+	// DatabaseTypeName returns the MySQL type name (e.g., "INT", "VARCHAR", "TEXT")
+	DatabaseTypeName string
+	// Nullable indicates whether the field can be NULL
+	Nullable bool
+	// Unsigned indicates whether a numeric field is unsigned
+	Unsigned bool
+}
+
+// toFieldMetadata converts an internal mysqlField to a public FieldMetadata
+func (mf *mysqlField) toFieldMetadata() FieldMetadata {
+	return FieldMetadata{
+		TableName:        mf.tableName,
+		Name:             mf.name,
+		Length:           mf.length,
+		Decimals:         mf.decimals,
+		DatabaseTypeName: mf.typeDatabaseName(),
+		Nullable:         mf.flags&flagNotNULL == 0,
+		Unsigned:         mf.flags&flagUnsigned != 0,
+	}
+}
+
 func (mf *mysqlField) scanType() reflect.Type {
 	switch mf.fieldType {
 	case fieldTypeTiny:
