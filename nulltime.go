@@ -49,11 +49,11 @@ func (nt *NullTime) Scan(value any) (err error) {
 		nt.Time, nt.Valid = v, true
 		return
 	case []byte:
-		nt.Time, err = parseDateTime(v, time.UTC)
+		nt.Time, err = ParseDateTime(v, time.UTC)
 		nt.Valid = (err == nil)
 		return
 	case string:
-		nt.Time, err = parseDateTime([]byte(v), time.UTC)
+		nt.Time, err = ParseDateTime([]byte(v), time.UTC)
 		nt.Valid = (err == nil)
 		return
 	}
