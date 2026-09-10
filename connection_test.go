@@ -196,6 +196,23 @@ func TestPingErrInvalidConn(t *testing.T) {
 	}
 }
 
+func TestCloseErrBadConnNoWrite(t *testing.T) {
+	nc := badConnection{err: errors.New("failed to write"), n: 0}
+	mc := &mysqlConn{
+		netConn:          nc,
+		buf:              newBuffer(),
+		maxAllowedPacket: defaultMaxAllowedPacket,
+		closech:          make(chan struct{}),
+		cfg:              NewConfig(),
+	}
+
+	err := mc.Close()
+
+	if !errors.Is(err, ErrBadConnNoWrite) {
+		t.Errorf("expected errors.Is(err, ErrBadConnNoWrite) to be true, got err=%#v", err)
+	}
+}
+
 type badConnection struct {
 	n   int
 	err error

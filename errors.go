@@ -30,11 +30,14 @@ var (
 	ErrPktTooLarge       = errors.New("packet for query is too large. Try adjusting the `Config.MaxAllowedPacket`")
 	ErrBusyBuffer        = errors.New("busy buffer")
 
-	// errBadConnNoWrite is used for connection errors where nothing was sent to the database yet.
+	// ErrBadConnNoWrite is used for connection errors where nothing was sent to the database yet.
 	// If this happens first in a function starting a database interaction, it should be replaced by driver.ErrBadConn
 	// to trigger a resend. Use mc.markBadConn(err) to do this.
 	// See https://github.com/go-sql-driver/mysql/pull/302
-	errBadConnNoWrite = errors.New("bad connection")
+	//
+	// It is also returned as-is from Conn.Close when the peer closed the connection before
+	// COM_QUIT could be sent; check for it with errors.Is if you need to distinguish that case.
+	ErrBadConnNoWrite = errors.New("bad connection")
 )
 
 var defaultLogger = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime))
