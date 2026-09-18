@@ -137,6 +137,8 @@ Alternatively, [Config.FormatDSN](https://godoc.org/github.com/go-sql-driver/mys
 #### Password
 Passwords can consist of any character. Escaping is **not** necessary.
 
+Usernames that contain `:` (the user/password separator) must percent-encode it as `%3A`, for example `user%3Aname:password@protocol(address)/dbname`. Prefer [NewConfig](https://pkg.go.dev/github.com/go-sql-driver/mysql#NewConfig) / [NewConnector](https://pkg.go.dev/github.com/go-sql-driver/mysql#NewConnector) when credentials can hold reserved DSN characters.
+
 #### Protocol
 See [net.Dial](https://golang.org/pkg/net/#Dial) for more information which networks are available.
 In general you should use a Unix domain socket if available and TCP otherwise for best performance.

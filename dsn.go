@@ -294,10 +294,10 @@ func (cfg *Config) FormatDSN() string {
 
 	// [username[:password]@]
 	if len(cfg.User) > 0 {
-		buf.WriteString(cfg.User)
+		buf.WriteString(escapeUserinfo(cfg.User))
 		if len(cfg.Passwd) > 0 {
 			buf.WriteByte(':')
-			buf.WriteString(cfg.Passwd)
+			buf.WriteString(escapeUserinfo(cfg.Passwd))
 		}
 		buf.WriteByte('@')
 	}
@@ -483,11 +483,11 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 						// Find the first ':' in dsn[:j]
 						for k = 0; k < j; k++ { // We cannot use k = range j here, because we use dsn[:k] below
 							if dsn[k] == ':' {
-								cfg.Passwd = dsn[k+1 : j]
+								cfg.Passwd = unescapeUserinfo(dsn[k+1 : j])
 								break
 							}
 						}
-						cfg.User = dsn[:k]
+						cfg.User = unescapeUserinfo(dsn[:k])
 
 						break
 					}
@@ -539,6 +539,41 @@ func ParseDSN(dsn string) (cfg *Config, err error) {
 		return nil, err
 	}
 	return
+}
+
+// unescapeUserinfo percent-decodes a DSN username or password. Invalid
+// escapes are left as-is so a literal '%' in a credential still parses.
+func unescapeUserinfo(s string) string {
+	u, err := url.PathUnescape(s)
+	if err != nil {
+		return s
+	}
+	return u
+}
+
+// escapeUserinfo percent-encodes DSN delimiters so FormatDSN round-trips
+// credentials that contain ':', '@', or '/'.
+func escapeUserinfo(s string) string {
+	if !strings.ContainsAny(s, "%:@/") {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s) + 4)
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '%':
+			b.WriteString("%25")
+		case ':':
+			b.WriteString("%3A")
+		case '@':
+			b.WriteString("%40")
+		case '/':
+			b.WriteString("%2F")
+		default:
+			b.WriteByte(s[i])
+		}
+	}
+	return b.String()
 }
 
 // parseDSNParams parses the DSN "query string"
