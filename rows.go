@@ -91,10 +91,14 @@ func (rows *mysqlRows) ColumnTypePrecisionScale(i int) (int64, int64, bool) {
 
 	switch column.fieldType {
 	case fieldTypeDecimal, fieldTypeNewDecimal:
-		if decimals > 0 {
-			return int64(column.length) - 2, decimals, true
+		precision := int64(column.length)
+		if column.flags&flagUnsigned == 0 {
+			precision-- // signed decimals include space for the sign
 		}
-		return int64(column.length) - 1, decimals, true
+		if decimals > 0 {
+			precision-- // decimals with a scale include a decimal point
+		}
+		return precision, decimals, true
 	case fieldTypeTimestamp, fieldTypeDateTime, fieldTypeTime:
 		return decimals, decimals, true
 	case fieldTypeFloat, fieldTypeDouble:
