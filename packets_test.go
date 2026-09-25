@@ -502,3 +502,48 @@ func TestReadColumnsCollation(t *testing.T) {
 		})
 	}
 }
+
+// https://github.com/go-sql-driver/mysql/issues/878
+// handleOkPacket must not panic on a truncated/malformed OK packet; it
+// should return ErrMalformPkt instead. Reported example: a server that
+// sends an OK packet with just the 0x00 header byte and nothing else.
+func TestRegression878(t *testing.T) {
+	// A well-formed minimal OK packet: header, affected_rows=5,
+	// insert_id=0, status_flags=statusInTrans (2 bytes).
+	full := []byte{iOK, 5, 0, byte(statusInTrans), 0}
+
+	// Truncating the packet at any point before the end (but keeping at
+	// least the header byte, which readPacket guarantees) must yield
+	// ErrMalformPkt, never a panic.
+	for n := 1; n < len(full); n++ {
+		data := full[:n]
+		mc := &mysqlConn{cfg: new(Config)}
+		if err := mc.clearResult().handleOkPacket(data); err != ErrMalformPkt {
+			t.Errorf("data=%v: expected ErrMalformPkt, got %v", data, err)
+		}
+	}
+
+	// Multi-byte length-encoded integers cut short must not panic either.
+	for _, data := range [][]byte{
+		{iOK, 0xfc, 1},
+		{iOK, 0xfd, 1, 0},
+		{iOK, 0xfe, 1, 0, 0, 0, 0, 0, 0},
+		{iOK, 0, 0xfc, 1},
+		{iOK, 0, 0xfd, 1, 0},
+		{iOK, 0, 0xfe, 1, 0, 0, 0, 0, 0, 0},
+	} {
+		mc := &mysqlConn{cfg: new(Config)}
+		if err := mc.clearResult().handleOkPacket(data); err != ErrMalformPkt {
+			t.Errorf("data=%v: expected ErrMalformPkt, got %v", data, err)
+		}
+	}
+
+	// A complete, well-formed packet must still parse successfully.
+	mc := &mysqlConn{cfg: new(Config)}
+	if err := mc.clearResult().handleOkPacket(full); err != nil {
+		t.Fatalf("unexpected error for well-formed packet: %v", err)
+	}
+	if mc.status != statusInTrans {
+		t.Errorf("expected status %v, got %v", statusInTrans, mc.status)
+	}
+}
