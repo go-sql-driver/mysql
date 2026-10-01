@@ -165,12 +165,11 @@ func (r *binaryRowReader) readVariableColumn(fieldType fieldType) ([]byte, error
 func formatBinaryColumnDateTime(col mysqlField, raw []byte) (driver.Value, error) {
 	length := uint8(19)
 	switch col.fieldType {
-	case fieldTypeDate:
+	case fieldTypeDate, fieldTypeNewDate:
 		length = 10
 	case fieldTypeTime:
 		length = 8
 	}
-	// Preserve Next's DATETIME formatting for fieldTypeNewDate.
 	if length != 10 {
 		switch col.decimals {
 		case 0, 0x1f:

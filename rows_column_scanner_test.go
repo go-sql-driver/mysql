@@ -268,13 +268,10 @@ func TestRowsColumnScannerNewDate(t *testing.T) {
 		for _, zero := range []bool{false, true} {
 			t.Run(fmt.Sprintf("decimals=%d/zero=%v", decimals, zero), func(t *testing.T) {
 				payload := []byte{0, 0, 4, 0xea, 7, 9, 30}
-				want := "2026-09-30 00:00:00"
+				want := "2026-09-30"
 				if zero {
 					payload = []byte{0, 0, 0}
-					want = "0000-00-00 00:00:00"
-				}
-				if decimals == 6 {
-					want += ".000000"
+					want = "0000-00-00"
 				}
 				columns := []mysqlField{{fieldType: fieldTypeNewDate, decimals: decimals}}
 				old, _, _ := scannerTestRows(true, columns, payload, false)

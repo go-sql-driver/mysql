@@ -59,7 +59,7 @@ func TestRowsDecodedValues(t *testing.T) {
 		{mysqlField{fieldType: fieldTypeBLOB}, []byte{0, 255}, []byte{0, 255}, []byte{0, 255}, []byte{0, 255}},
 		{mysqlField{fieldType: fieldTypeNULL}, nil, nil, nil, nil},
 		{mysqlField{fieldType: fieldTypeDate}, []byte("2026-09-30"), []byte{0xea, 7, 9, 30}, []byte("2026-09-30"), []byte("2026-09-30")},
-		{mysqlField{fieldType: fieldTypeNewDate}, []byte("2026-09-30"), []byte{0xea, 7, 9, 30}, []byte("2026-09-30"), []byte("2026-09-30 00:00:00")},
+		{mysqlField{fieldType: fieldTypeNewDate}, []byte("2026-09-30"), []byte{0xea, 7, 9, 30}, []byte("2026-09-30"), []byte("2026-09-30")},
 		{mysqlField{fieldType: fieldTypeTime}, []byte("-49:02:03"), []byte{1, 2, 0, 0, 0, 1, 2, 3}, []byte("-49:02:03"), []byte("-49:02:03")},
 	}
 	for _, bp := range []bool{false, true} {
