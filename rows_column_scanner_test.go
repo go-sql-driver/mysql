@@ -25,14 +25,8 @@ import (
 )
 
 func scannerTestRows(binaryProtocol bool, columns []mysqlField, payload []byte, parseTime bool) (driver.RowsColumnScanner, *mockConn, *mysqlConn) {
-	conn, mc := newRWMockConn(0)
-	mc.parseTime = parseTime
-	conn.data = append([]byte{byte(len(payload)), byte(len(payload) >> 8), byte(len(payload) >> 16), 0}, payload...)
-	rows := mysqlRows{mc: mc, rs: resultSet{columns: columns}}
-	if binaryProtocol {
-		return &binaryRows{rows}, conn, mc
-	}
-	return &textRows{rows}, conn, mc
+	rows, conn, mc := rowsTestPacket(binaryProtocol, columns, payload, parseTime)
+	return rows.(driver.RowsColumnScanner), conn, mc
 }
 
 // Retain the exact source type passed to a custom Scanner.

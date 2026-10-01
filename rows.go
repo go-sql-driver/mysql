@@ -232,19 +232,11 @@ func (rows *binaryRows) NextResultSet() error {
 }
 
 func (rows *binaryRows) Next(dest []driver.Value) error {
-	if mc := rows.mc; mc != nil {
-		if err := mc.error(); err != nil {
-			return err
-		}
-
-		// Fetch next row from stream
-		if err := rows.readRow(dest); err != nil {
-			return err
-		}
-		rows.convertTinyInt1ToBool(dest)
-		return nil
+	if err := rows.readRow(dest); err != nil {
+		return err
 	}
-	return io.EOF
+	rows.convertTinyInt1ToBool(dest)
+	return nil
 }
 
 func (rows *textRows) NextResultSet() (err error) {
@@ -258,17 +250,9 @@ func (rows *textRows) NextResultSet() (err error) {
 }
 
 func (rows *textRows) Next(dest []driver.Value) error {
-	if mc := rows.mc; mc != nil {
-		if err := mc.error(); err != nil {
-			return err
-		}
-
-		// Fetch next row from stream
-		if err := rows.readRow(dest); err != nil {
-			return err
-		}
-		rows.convertTinyInt1ToBool(dest)
-		return nil
+	if err := rows.readRow(dest); err != nil {
+		return err
 	}
-	return io.EOF
+	rows.convertTinyInt1ToBool(dest)
+	return nil
 }
