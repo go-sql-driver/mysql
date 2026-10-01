@@ -16,6 +16,7 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"reflect"
@@ -170,6 +171,138 @@ func TestRowsColumnScannerBytesOwnership(t *testing.T) {
 			if err := rows.ScanColumn(driver.ScanContext{}, 0, dest); err == nil {
 				t.Fatalf("accepted %T(nil)", dest)
 			}
+		}
+	}
+}
+
+func TestRowsColumnScannerNilDestinations(t *testing.T) {
+	tests := []struct {
+		name   string
+		column mysqlField
+		text   []byte
+		binary []byte
+		value  driver.Value
+		dest   any
+	}{
+		{"int", mysqlField{fieldType: fieldTypeLong}, []byte("42"), binary.LittleEndian.AppendUint32(nil, 42), int64(42), (*int)(nil)},
+		{"int64", mysqlField{fieldType: fieldTypeLongLong}, []byte("42"), binary.LittleEndian.AppendUint64(nil, 42), int64(42), (*int64)(nil)},
+		{"uint64", mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("42"), binary.LittleEndian.AppendUint64(nil, 42), uint64(42), (*uint64)(nil)},
+		{"float32", mysqlField{fieldType: fieldTypeFloat}, []byte("1.25"), binary.LittleEndian.AppendUint32(nil, math.Float32bits(1.25)), float32(1.25), (*float32)(nil)},
+		{"float64", mysqlField{fieldType: fieldTypeDouble}, []byte("1.25"), binary.LittleEndian.AppendUint64(nil, math.Float64bits(1.25)), float64(1.25), (*float64)(nil)},
+		{"bool", mysqlField{fieldType: fieldTypeTiny, length: 1}, []byte("1"), []byte{1}, true, (*bool)(nil)},
+		{"time", mysqlField{fieldType: fieldTypeDate}, []byte("2026-09-30"), []byte{0xea, 7, 9, 30}, time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC), (*time.Time)(nil)},
+	}
+	for _, tt := range tests {
+		for _, bp := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/binary=%v", tt.name, bp), func(t *testing.T) {
+				_, mc := newRWMockConn(0)
+				mc.parseTime = true
+				raw := tt.text
+				if bp {
+					raw = tt.binary
+				}
+				base := mysqlRows{mc: mc, rs: resultSet{columns: []mysqlField{tt.column}}, rawCols: [][]byte{raw}}
+				var rows driver.RowsColumnScanner = &textRows{base}
+				if bp {
+					rows = &binaryRows{base}
+				}
+				want := "destination pointer is nil"
+				switch tt.value.(type) {
+				case bool, time.Time:
+					// ConvertAssign can panic for these typed-nil destinations.
+					// Reject them with an error instead of reproducing the panic.
+				default:
+					err := sql.ConvertAssign(driver.ScanContext{}, tt.dest, tt.value)
+					if err == nil {
+						t.Fatal("ConvertAssign accepted a nil destination")
+					}
+					want = err.Error()
+				}
+				if err := rows.ScanColumn(driver.ScanContext{}, 0, tt.dest); err == nil || err.Error() != want {
+					t.Fatalf("ScanColumn error = %v, want %q", err, want)
+				}
+			})
+		}
+	}
+}
+
+func TestRowsColumnScannerInvalidation(t *testing.T) {
+	for _, bp := range []bool{false, true} {
+		for _, closeRows := range []bool{false, true} {
+			for _, connError := range []bool{false, true} {
+				t.Run(fmt.Sprintf("binary=%v/close=%v/error=%v", bp, closeRows, connError), func(t *testing.T) {
+					payload := appendLengthEncodedString(nil, "2026-09-30")
+					if bp {
+						payload = []byte{0, 0, 4, 0xea, 7, 9, 30}
+					}
+					rows, conn, mc := scannerTestRows(bp, []mysqlField{{fieldType: fieldTypeDate}}, payload, true)
+					conn.data = append(conn.data, 5, 0, 0, 1, iEOF, 0, 0, 0, 0)
+					if err := rows.NextRow(); err != nil {
+						t.Fatal(err)
+					}
+					var date time.Time
+					if err := rows.ScanColumn(driver.ScanContext{}, 0, &date); err != nil {
+						t.Fatal(err)
+					}
+					if connError {
+						mc.closed.Store(true)
+					}
+					var err, want error
+					if closeRows {
+						err = rows.Close()
+					} else {
+						err = rows.(driver.RowsNextResultSet).NextResultSet()
+						want = io.EOF
+					}
+					if connError {
+						want = ErrInvalidConn
+					}
+					if !errors.Is(err, want) {
+						t.Fatalf("row transition error = %v, want %v", err, want)
+					}
+					if err := rows.ScanColumn(driver.ScanContext{}, 0, &date); err == nil {
+						t.Fatal("ScanColumn accepted the previous row after a row transition")
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestRowsColumnScannerNewDate(t *testing.T) {
+	for _, decimals := range []uint8{0, 6, 0x1f} {
+		for _, zero := range []bool{false, true} {
+			t.Run(fmt.Sprintf("decimals=%d/zero=%v", decimals, zero), func(t *testing.T) {
+				payload := []byte{0, 0, 4, 0xea, 7, 9, 30}
+				want := "2026-09-30 00:00:00"
+				if zero {
+					payload = []byte{0, 0, 0}
+					want = "0000-00-00 00:00:00"
+				}
+				if decimals == 6 {
+					want += ".000000"
+				}
+				columns := []mysqlField{{fieldType: fieldTypeNewDate, decimals: decimals}}
+				old, _, _ := scannerTestRows(true, columns, payload, false)
+				values := make([]driver.Value, 1)
+				if err := old.Next(values); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(values[0], []byte(want)) {
+					t.Fatalf("Next value = %#v, want %q", values[0], want)
+				}
+				rows, _, _ := scannerTestRows(true, columns, payload, false)
+				if err := rows.NextRow(); err != nil {
+					t.Fatal(err)
+				}
+				var got any
+				if err := rows.ScanColumn(driver.ScanContext{}, 0, &got); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(got, []byte(want)) {
+					t.Fatalf("ScanColumn value = %#v, want %q", got, want)
+				}
+			})
 		}
 	}
 }

@@ -364,11 +364,12 @@ func (rows *binaryRows) ScanColumn(ctx driver.ScanContext, i int, dest any) erro
 		}
 		length := uint8(19)
 		switch col.fieldType {
-		case fieldTypeDate, fieldTypeNewDate:
+		case fieldTypeDate:
 			length = 10
 		case fieldTypeTime:
 			length = 8
 		}
+		// Preserve Next's DATETIME formatting for fieldTypeNewDate.
 		if length != 10 {
 			switch col.decimals {
 			case 0, 0x1f:

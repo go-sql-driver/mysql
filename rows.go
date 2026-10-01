@@ -137,6 +137,7 @@ func (rows *mysqlRows) convertTinyInt1ToBool(dest []driver.Value) {
 }
 
 func (rows *mysqlRows) Close() (err error) {
+	rows.rawCols = nil
 	if f := rows.finish; f != nil {
 		f()
 		rows.finish = nil
@@ -173,6 +174,7 @@ func (rows *mysqlRows) HasNextResultSet() (b bool) {
 }
 
 func (rows *mysqlRows) nextResultSet() (int, error) {
+	rows.rawCols = rows.rawCols[:0]
 	if rows.mc == nil {
 		return 0, io.EOF
 	}
