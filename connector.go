@@ -77,13 +77,8 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		cfg.encodedAttributes = encodeConnectionAttributes(cfg)
 	}
 
-	if cfg.openIDConnect {
-		if cfg.openIDToken == "" {
-			return nil, ErrOpenIDConnectToken
-		}
-		if cfg.TLS == nil {
-			return nil, ErrOpenIDConnectTLS
-		}
+	if cfg.openIDToken != "" && cfg.TLS == nil {
+		return nil, ErrOpenIDConnectTLS
 	}
 
 	// New mysqlConn
@@ -148,12 +143,12 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if plugin == "" {
 		plugin = defaultAuthPlugin
 	}
-	if mc.cfg.TLS != nil && serverCapabilities&clientSSL == 0 && (!mc.cfg.AllowFallbackToPlaintext || cfg.openIDConnect) {
+	if mc.cfg.TLS != nil && serverCapabilities&clientSSL == 0 && (!mc.cfg.AllowFallbackToPlaintext || cfg.openIDToken != "") {
 		mc.cleanup()
 		return nil, ErrNoTLS
 	}
 
-	if cfg.openIDConnect {
+	if cfg.openIDToken != "" {
 		plugin = openIDConnectPlugin
 		if serverCapabilities&(clientPluginAuth|clientPluginAuthLenEncClientData) != clientPluginAuth|clientPluginAuthLenEncClientData {
 			mc.cleanup()
@@ -185,7 +180,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	auth := newAuthContext(mc.cfg, mc.cfg.Passwd, tlsEstablished)
 	var authPlugin AuthPlugin
 	var authResp []byte
-	if cfg.openIDConnect {
+	if cfg.openIDToken != "" {
 		authPlugin = &openIDConnectAuthPlugin{token: cfg.openIDToken}
 		authResp, err = authPlugin.InitAuth(ctx, authData, auth)
 	} else {

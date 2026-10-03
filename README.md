@@ -596,7 +596,7 @@ server authentication is required. See Go's [`tls.Config`](https://pkg.go.dev/cr
 
 ### OpenID Connect authentication
 
-Use `Config.Apply(mysql.OpenIDConnectToken(token))` with `mysql.NewConnector`
+Use `Config.Apply(mysql.OIDCToken(token))` with `mysql.NewConnector`
 and `sql.OpenDB` to authenticate using an actual OIDC JWT. There is no OIDC DSN
 parameter or token-file handling. `FormatDSN` does not include the token and
 cannot preserve this option; pass the `Config` directly to `NewConnector`.
@@ -606,14 +606,13 @@ cfg := mysql.NewConfig()
 cfg.User = "oidc_user"
 cfg.Addr = "database.example:3306"
 cfg.TLS = &tls.Config{ServerName: "database.example"}
-if err := cfg.Apply(mysql.OpenIDConnectToken(initialToken),
-    mysql.BeforeConnect(func(ctx context.Context, cfg *mysql.Config) error {
-        token, err := tokenSource(ctx) // Application-provided token retrieval.
-        if err != nil {
-            return err
-        }
-        return cfg.Apply(mysql.OpenIDConnectToken(token))
-    })); err != nil {
+if err := cfg.Apply(mysql.BeforeConnect(func(ctx context.Context, cfg *mysql.Config) error {
+    token, err := tokenSource(ctx) // Application-provided token retrieval.
+    if err != nil {
+        return err
+    }
+    return cfg.Apply(mysql.OIDCToken(token))
+})); err != nil {
     return err
 }
 connector, err := mysql.NewConnector(cfg)
@@ -627,9 +626,10 @@ defer db.Close()
 `BeforeConnect` receives a private configuration copy for each new connection;
 it may run concurrently and the application must make token retrieval safe for
 concurrent use. Refreshing a token affects new connections, not existing pooled
-sessions. Applying an empty token still enables OIDC: `Connect` returns
-`ErrOpenIDConnectToken`. It never disables OIDC or falls back to a password, even
-if an empty refresh result is applied. Tokens are sent exactly as supplied.
+sessions. Applying an empty token returns `ErrOpenIDConnectToken` without changing
+the configuration. Always handle `Apply` errors: returning that error from
+`BeforeConnect`, as above, aborts the connection rather than using a stale token
+or another authentication method. Tokens are sent exactly as supplied.
 
 The initial response always names `authentication_openid_connect_client`, even
 when the server greeting advertises another plugin. It contains capability byte

@@ -78,7 +78,6 @@ type Config struct {
 	// boolean first. alphabetical order.
 
 	compress       bool // Enable zlib compression
-	openIDConnect  bool // Authenticate using an explicitly configured token
 	tinyInt1IsBool bool // Treat signed TINYINT(1) as boolean
 
 	beforeConnect     func(context.Context, *Config) error // Invoked before a connection is established
@@ -148,19 +147,16 @@ func TimeTruncate(d time.Duration) Option {
 	}
 }
 
-// OpenIDConnectToken enables OpenID Connect authentication with token (a JWT).
-// The token is sent in the initial handshake response, regardless of the plugin
-// in the server greeting. Authentication switches and password fallback are
-// rejected. An empty token keeps this mode enabled but makes Connect fail.
-// Use [BeforeConnect] to apply a fresh token for each connection.
-// The token is not included in [Config.FormatDSN].
-//
-// OIDC requires driver-managed TLS. The application must configure server
-// authentication in Config.TLS; the driver does not assess custom verification
-// policies. AllowCleartextPasswords and plaintext fallback cannot bypass TLS.
-func OpenIDConnectToken(token string) Option {
+// OIDCToken sets the JWT for OpenID Connect authentication.
+// Empty tokens return ErrOpenIDConnectToken without changing the configuration.
+// Use [BeforeConnect] to refresh the token with cfg.Apply(OIDCToken(token)).
+// The token is omitted from [Config.FormatDSN]. OIDC requires driver-managed TLS
+// with application-configured server verification and rejects authentication switches.
+func OIDCToken(token string) Option {
 	return func(cfg *Config) error {
-		cfg.openIDConnect = true
+		if token == "" {
+			return ErrOpenIDConnectToken
+		}
 		cfg.openIDToken = token
 		return nil
 	}

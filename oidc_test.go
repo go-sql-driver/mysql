@@ -210,7 +210,7 @@ func TestOpenIDConnectProtocol(t *testing.T) {
 				cfg.Addr = address
 				cfg.TLS = verified.Clone()
 				cfg.AllowNativePasswords = false
-				cfg.Apply(OpenIDConnectToken(token))
+				cfg.Apply(OIDCToken(token))
 				c, err := NewConnector(cfg)
 				if err != nil {
 					t.Fatal(err)
@@ -305,7 +305,7 @@ func TestOpenIDConnectTLS(t *testing.T) {
 			var logs bytes.Buffer
 			cfg.Logger = log.New(&logs, "", 0)
 			cfg.AllowCleartextPasswords = true
-			cfg.Apply(OpenIDConnectToken(token))
+			cfg.Apply(OIDCToken(token))
 			address, results := oidcTestServer(t, serverTLS, "mysql_native_password", caps, oidcTestOK, 1)
 			cfg.Addr = address
 			c, err := NewConnector(cfg)
@@ -357,7 +357,7 @@ func TestOpenIDConnectRejectSwitch(t *testing.T) {
 			cfg.TLS = verified.Clone()
 			cfg.Passwd = "must-not-be-sent"
 			cfg.AllowCleartextPasswords = true
-			cfg.Apply(OpenIDConnectToken("test-token"))
+			cfg.Apply(OIDCToken("test-token"))
 			c, err := NewConnector(cfg)
 			if err != nil {
 				t.Fatal(err)
@@ -384,9 +384,9 @@ func TestOpenIDConnectConfig(t *testing.T) {
 	cfg := NewConfig()
 	cfg.Passwd = "existing-password"
 	before := cfg.FormatDSN()
-	cfg.Apply(OpenIDConnectToken("test-token"))
+	cfg.Apply(OIDCToken("test-token"))
 	clone := cfg.Clone()
-	clone.Apply(OpenIDConnectToken("rotated-token"))
+	clone.Apply(OIDCToken("rotated-token"))
 	if cfg.openIDToken != "test-token" || clone.openIDToken != "rotated-token" {
 		t.Fatal("clone changed original")
 	}
@@ -397,27 +397,33 @@ func TestOpenIDConnectConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if parsed.openIDConnect {
+	if parsed.openIDToken != "" {
 		t.Fatal("OIDC unexpectedly survived DSN round trip")
 	}
-	for _, token := range []string{"", "non-empty"} {
-		cfg.Apply(OpenIDConnectToken(token))
-		cfg.DialFunc = func(context.Context, string, string) (net.Conn, error) {
-			t.Error("invalid config dialed")
-			return nil, errors.New("unexpected dial")
+	for _, current := range []string{"", "test-token"} {
+		candidate := NewConfig()
+		if current != "" {
+			if err := candidate.Apply(OIDCToken(current)); err != nil {
+				t.Fatal(err)
+			}
 		}
-		c, err := NewConnector(cfg)
-		if err != nil {
-			t.Fatal(err)
+		if err := candidate.Apply(OIDCToken("")); !errors.Is(err, ErrOpenIDConnectToken) {
+			t.Fatalf("empty token: got %v", err)
 		}
-		_, err = c.Connect(context.Background())
-		want := ErrOpenIDConnectTLS
-		if token == "" {
-			want = ErrOpenIDConnectToken
+		if candidate.openIDToken != current {
+			t.Fatal("empty token changed configuration")
 		}
-		if !errors.Is(err, want) {
-			t.Fatalf("got %v, want %v", err, want)
-		}
+	}
+	cfg.DialFunc = func(context.Context, string, string) (net.Conn, error) {
+		t.Error("invalid config dialed")
+		return nil, errors.New("unexpected dial")
+	}
+	c, err := NewConnector(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = c.Connect(context.Background()); !errors.Is(err, ErrOpenIDConnectTLS) {
+		t.Fatalf("got %v, want %v", err, ErrOpenIDConnectTLS)
 	}
 }
 
@@ -428,9 +434,9 @@ func TestOpenIDConnectBeforeConnectConcurrent(t *testing.T) {
 	cfg := NewConfig()
 	cfg.Addr = address
 	var serial atomic.Int32
-	cfg.Apply(OpenIDConnectToken(""), BeforeConnect(func(_ context.Context, effective *Config) error {
+	cfg.Apply(BeforeConnect(func(_ context.Context, effective *Config) error {
 		effective.TLS = verified.Clone()
-		return effective.Apply(OpenIDConnectToken(fmt.Sprintf("rotated-%02d", serial.Add(1))))
+		return effective.Apply(OIDCToken(fmt.Sprintf("rotated-%02d", serial.Add(1))))
 	}))
 	c, err := NewConnector(cfg)
 	if err != nil {
@@ -483,7 +489,7 @@ func TestOpenIDConnectConcurrentFallback(t *testing.T) {
 	cfg := NewConfig()
 	cfg.TLS = verified.Clone()
 	cfg.AllowFallbackToPlaintext = true
-	cfg.Apply(OpenIDConnectToken("concurrent-test-token"))
+	cfg.Apply(OIDCToken("concurrent-test-token"))
 	var serial atomic.Int32
 	// A custom dialer carrying the normal MySQL TLS upgrade is supported.
 	cfg.DialFunc = func(ctx context.Context, network, _ string) (net.Conn, error) {
@@ -547,7 +553,7 @@ func TestOpenIDConnectRequiresDriverTLS(t *testing.T) {
 				t.Error("dialer called without driver TLS configuration")
 				return nil, errors.New("unexpected")
 			}
-			cfg.Apply(OpenIDConnectToken("test-token"))
+			cfg.Apply(OIDCToken("test-token"))
 			c, err := NewConnector(cfg)
 			if err != nil {
 				t.Fatal(err)
@@ -561,7 +567,7 @@ func TestOpenIDConnectRequiresDriverTLS(t *testing.T) {
 
 func TestOpenIDConnectBeforeConnectEmpty(t *testing.T) {
 	cfg := NewConfig()
-	cfg.Apply(OpenIDConnectToken("stale-token"), BeforeConnect(func(_ context.Context, cfg *Config) error { return cfg.Apply(OpenIDConnectToken("")) }))
+	cfg.Apply(OIDCToken("stale-token"), BeforeConnect(func(_ context.Context, cfg *Config) error { return cfg.Apply(OIDCToken("")) }))
 	cfg.DialFunc = func(context.Context, string, string) (net.Conn, error) {
 		t.Error("dialed after empty refresh")
 		return nil, errors.New("unexpected")
@@ -595,7 +601,7 @@ func TestOpenIDConnectAuthResult(t *testing.T) {
 			cfg := NewConfig()
 			cfg.Addr = address
 			cfg.TLS = verified.Clone()
-			cfg.Apply(OpenIDConnectToken(token))
+			cfg.Apply(OIDCToken(token))
 			c, err := NewConnector(cfg)
 			if err != nil {
 				t.Fatal(err)

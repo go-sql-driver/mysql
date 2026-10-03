@@ -144,7 +144,7 @@ func (mc *mysqlConn) handleAuthResult(ctx context.Context, initialSeed []byte, a
 			return mc.resultUnchanged().handleOkPacket(data)
 		case iERR:
 			err := mc.handleErrorPacket(data)
-			if mc.cfg.openIDConnect && mc.cfg.openIDToken != "" {
+			if mc.cfg.openIDToken != "" {
 				// Preserve the server error code without exposing an echoed token.
 				if serverErr, ok := err.(*MySQLError); ok {
 					serverErr.Message = strings.ReplaceAll(serverErr.Message, mc.cfg.openIDToken, "[redacted]")
@@ -152,7 +152,7 @@ func (mc *mysqlConn) handleAuthResult(ctx context.Context, initialSeed []byte, a
 			}
 			return err
 		case iEOF:
-			if mc.cfg.openIDConnect {
+			if mc.cfg.openIDToken != "" {
 				return ErrOpenIDConnectSwitch
 			}
 			// Auth switch request. Enforce the switch limit before doing any
