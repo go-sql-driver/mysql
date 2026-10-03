@@ -592,11 +592,21 @@ server address, update `ServerName` when the expected server identity changes.
 #### Certificate-chain verification without a server name (VERIFY_CA)
 
 VERIFY_CA authenticates a server by its certificate chain without matching a
-hostname. This can authenticate the intended server when an **exclusive private
-CA** issues certificates only to that server or to a deliberately trusted server
-group. Every server certificate accepted by that CA is eligible: using broad
-public roots or a CA shared with unrelated services does not identify the
-intended database. Prefer name verification when the CA's scope is broader.
+hostname. This is a safe way to authenticate the intended server when the client
+trusts only that server's self-signed certificate, or an exclusive private CA,
+and it is known that the signing key has not issued certificates to other users
+or unrelated servers. In that case, successful certificate verification and
+proof of possession of the server's private key identify the intended server;
+a hostname check is not necessary. Obtain the trusted certificate through a
+trusted channel and keep the signing key private.
+
+Self-signing alone is not the reason this works: the restricted trust anchor and
+its issuance policy are what identify the server. If the same CA issues
+certificates to a deliberately trusted server group, VERIFY_CA authenticates
+membership in that group, not a particular host. A broad public root pool or a CA
+shared with unrelated services does not identify the intended database without
+name verification. This is the distinction between a safe use of MySQL's
+VERIFY_CA mode and merely disabling server verification.
 
 Go's `InsecureSkipVerify` alone disables both chain and name verification.
 Setting `RootCAs` alongside it does not restore verification. To implement
