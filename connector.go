@@ -134,13 +134,19 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 
-	if plugin == "" {
+	if mc.cfg.DefaultAuthPlugin != "" {
+		plugin = mc.cfg.DefaultAuthPlugin
+	} else if plugin == "" {
 		plugin = defaultAuthPlugin
 	}
 
 	// Send Client Authentication Packet
 	authResp, err := mc.auth(authData, plugin)
-	if err != nil {
+	if err != nil && mc.cfg.DefaultAuthPlugin != "" {
+		// the plugin was explicitly requested, do not silently fall back
+		mc.cleanup()
+		return nil, err
+	} else if err != nil {
 		// try the default auth plugin, if using the requested plugin failed
 		mc.cfg.Logger.Print("could not use requested auth plugin '"+plugin+"': ", err.Error())
 		plugin = defaultAuthPlugin

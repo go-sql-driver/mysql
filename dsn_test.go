@@ -54,6 +54,16 @@ var testDSNs = []struct {
 		}),
 	},
 	{
+		in: "user:jwt@tcp(localhost:9030)/?defaultAuthPlugin=authentication_openid_connect_client&openidTokenFile=%2Fvar%2Frun%2Ftoken",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.User = "user"
+			cfg.Passwd = "jwt"
+			cfg.Addr = "localhost:9030"
+			cfg.DefaultAuthPlugin = "authentication_openid_connect_client"
+			cfg.OpenIDTokenFile = "/var/run/token"
+		}),
+	},
+	{
 		in: "username:password@protocol(address)/dbname?param=value&columnsWithAlias=true",
 		out: newTestConfig(func(cfg *Config) {
 			cfg.User = "username"

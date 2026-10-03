@@ -17,6 +17,9 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io"
+	"os"
+	"strings"
 	"sync"
 
 	"filippo.io/edwards25519"
@@ -274,6 +277,26 @@ func (mc *mysqlConn) sendEncryptedPassword(seed []byte, pub *rsa.PublicKey) erro
 	return mc.writeAuthSwitchPacket(enc)
 }
 
+// maxOpenIDTokenSize is the maximum size of an OpenID Connect token file,
+// the same limit as in the MySQL client.
+const maxOpenIDTokenSize = 10000
+
+func readOpenIDTokenFile(name string) (string, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return "", fmt.Errorf("could not read OpenID Connect token file: %w", err)
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, maxOpenIDTokenSize+1))
+	if err != nil {
+		return "", fmt.Errorf("could not read OpenID Connect token file: %w", err)
+	}
+	if len(b) > maxOpenIDTokenSize {
+		return "", fmt.Errorf("OpenID Connect token file %s is larger than %d bytes", name, maxOpenIDTokenSize)
+	}
+	return strings.TrimRight(string(b), "\r\n"), nil
+}
+
 func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 	switch plugin {
 	case "caching_sha2_password":
@@ -336,6 +359,31 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 			return nil, ErrMalformPkt
 		}
 		return authEd25519(authData, mc.cfg.Passwd)
+
+	case "authentication_openid_connect_client":
+		// https://dev.mysql.com/doc/refman/en/openid-pluggable-authentication.html
+		// The ID token (JWT) is sent unencrypted, so a secure transport is
+		// required unless cleartext passwords are explicitly allowed.
+		if mc.cfg.TLS == nil && mc.cfg.Net != "unix" && !mc.cfg.AllowCleartextPasswords {
+			return nil, ErrOpenIDConnectInsecure
+		}
+		token := mc.cfg.Passwd
+		if mc.cfg.OpenIDTokenFile != "" {
+			// read on every connect, so the file can be refreshed externally
+			var err error
+			if token, err = readOpenIDTokenFile(mc.cfg.OpenIDTokenFile); err != nil {
+				return nil, err
+			}
+		}
+		if len(token) == 0 {
+			return nil, ErrOpenIDConnectNoToken
+		}
+		// [1 byte capability flag] [length encoded ID token]
+		authResp := make([]byte, 0, 1+9+len(token))
+		authResp = append(authResp, 1)
+		authResp = appendLengthEncodedInteger(authResp, uint64(len(token)))
+		authResp = append(authResp, token...)
+		return authResp, nil
 
 	default:
 		mc.log("unknown auth plugin:", plugin)

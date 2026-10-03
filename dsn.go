@@ -50,6 +50,8 @@ type Config struct {
 	Loc                  *time.Location    // Location for time.Time values
 	MaxAllowedPacket     int               // Max packet size allowed
 	ServerPubKey         string            // Server public key name
+	DefaultAuthPlugin    string            // Auth plugin for the initial handshake response, overriding the one announced by the server
+	OpenIDTokenFile      string            // Path to a file containing the OpenID Connect ID token (JWT), read on every connect
 	TLSConfig            string            // TLS configuration name
 	TLS                  *tls.Config       // TLS configuration, its priority is higher than TLSConfig
 	Timeout              time.Duration     // Dial timeout
@@ -374,6 +376,10 @@ func (cfg *Config) FormatDSN() string {
 		writeDSNParam(&buf, &hasParam, "compress", "true")
 	}
 
+	if cfg.DefaultAuthPlugin != "" {
+		writeDSNParam(&buf, &hasParam, "defaultAuthPlugin", url.QueryEscape(cfg.DefaultAuthPlugin))
+	}
+
 	if cfg.InterpolateParams {
 		writeDSNParam(&buf, &hasParam, "interpolateParams", "true")
 	}
@@ -384,6 +390,10 @@ func (cfg *Config) FormatDSN() string {
 
 	if cfg.MultiStatements {
 		writeDSNParam(&buf, &hasParam, "multiStatements", "true")
+	}
+
+	if cfg.OpenIDTokenFile != "" {
+		writeDSNParam(&buf, &hasParam, "openidTokenFile", url.QueryEscape(cfg.OpenIDTokenFile))
 	}
 
 	if cfg.ParseTime {
@@ -631,6 +641,12 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 				return errors.New("invalid bool value: " + value)
 			}
 
+		// Auth plugin for the initial handshake response
+		case "defaultAuthPlugin":
+			if cfg.DefaultAuthPlugin, err = url.QueryUnescape(value); err != nil {
+				return fmt.Errorf("invalid value for defaultAuthPlugin: %v", err)
+			}
+
 		// Enable client side placeholder substitution
 		case "interpolateParams":
 			var isBool bool
@@ -655,6 +671,12 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			cfg.MultiStatements, isBool = readBool(value)
 			if !isBool {
 				return errors.New("invalid bool value: " + value)
+			}
+
+		// OpenID Connect ID token file
+		case "openidTokenFile":
+			if cfg.OpenIDTokenFile, err = url.QueryUnescape(value); err != nil {
+				return fmt.Errorf("invalid value for openidTokenFile: %v", err)
 			}
 
 		// time.Time parsing

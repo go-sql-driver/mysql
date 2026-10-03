@@ -144,3 +144,91 @@ func TestBeforeConnectUsesEffectiveDialerAndAttributes(t *testing.T) {
 		t.Fatalf("handshake response does not contain callback server host: %q", mock.written)
 	}
 }
+
+// openIDTestHandshake is a server greeting without the SSL capability. Mocks
+// using it allow only one read, so any unexpected read fails immediately.
+var openIDTestHandshake = []byte(
+	"\x48\x00\x00\x00" + // Packet header: 72-byte payload, sequence 0.
+		"\x0a" + // Protocol version 10.
+		"5.5.8\x00" + // NUL-terminated server version.
+		"\xa5\x00\x00\x00" + // Connection ID 165.
+		"<F?:Dh\"a" + // First 8 bytes of the authentication scramble.
+		"\x00" + // Filler.
+		"\xdf\xf7" + // Lower 2 bytes of the server capability flags (no CLIENT_SSL).
+		"\x21" + // utf8_general_ci character set.
+		"\x02\x00" + // SERVER_STATUS_AUTOCOMMIT.
+		"\x1f\x80" + // Upper 2 bytes of the server capability flags.
+		"\x15" + // Authentication plugin data length: 21 bytes.
+		"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" + // Reserved.
+		"bxr/UKmc3M2@\x00" + // Remaining authentication scramble.
+		"mysql_native_password", // Authentication plugin name.
+)
+
+func TestConnectorDefaultAuthPluginNoFallback(t *testing.T) {
+	mock := &mockConn{data: openIDTestHandshake, maxReads: 1}
+
+	cfg := NewConfig()
+	cfg.Passwd = "a.b.c"
+	cfg.DefaultAuthPlugin = "authentication_openid_connect_client"
+	cfg.DialFunc = func(context.Context, string, string) (net.Conn, error) {
+		return mock, nil
+	}
+	connector, err := NewConnector(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// insecure transport: the error must be returned instead of falling
+	// back to mysql_native_password
+	if _, err := connector.Connect(context.Background()); err != ErrOpenIDConnectInsecure {
+		t.Fatalf("Connect() error = %v, want %v", err, ErrOpenIDConnectInsecure)
+	}
+	if len(mock.written) != 0 {
+		t.Fatalf("handshake response was sent: %q", mock.written)
+	}
+}
+
+func TestConnectorBeforeConnectDefaultAuthPlugin(t *testing.T) {
+	mock := &mockConn{data: openIDTestHandshake, maxReads: 1}
+
+	cfg := NewConfig()
+	cfg.DialFunc = func(context.Context, string, string) (net.Conn, error) {
+		return mock, nil
+	}
+	if err := cfg.Apply(BeforeConnect(func(_ context.Context, cfg *Config) error {
+		cfg.Passwd = "a.b.c"
+		cfg.DefaultAuthPlugin = "authentication_openid_connect_client"
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	connector, err := NewConnector(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// the plugin set by the callback must be used, and fail on the
+	// insecure transport
+	if _, err := connector.Connect(context.Background()); err != ErrOpenIDConnectInsecure {
+		t.Fatalf("Connect() error = %v, want %v", err, ErrOpenIDConnectInsecure)
+	}
+}
+
+func TestConnectorFallbackToPlaintextOpenIDConnect(t *testing.T) {
+	cfg := NewConfig()
+	cfg.TLSConfig = "preferred"
+	cfg.Passwd = "a.b.c"
+	cfg.DefaultAuthPlugin = "authentication_openid_connect_client"
+	cfg.DialFunc = func(context.Context, string, string) (net.Conn, error) {
+		return &mockConn{data: openIDTestHandshake, maxReads: 1}, nil
+	}
+	c, err := NewConnector(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// the server does not support TLS, so the token must not be sent
+	if _, err := c.Connect(context.Background()); err != ErrOpenIDConnectInsecure {
+		t.Fatalf("Connect() error = %v, want %v", err, ErrOpenIDConnectInsecure)
+	}
+}

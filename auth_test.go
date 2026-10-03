@@ -14,7 +14,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -1377,5 +1381,159 @@ func TestEd25519Auth(t *testing.T) {
 	// Handle response to auth packet
 	if err := mc.handleAuthResult(authData, plugin); err != nil {
 		t.Errorf("got error: %v", err)
+	}
+}
+
+func TestAuthFastOpenIDConnect(t *testing.T) {
+	conn, mc := newRWMockConn(1)
+	mc.cfg.User = "alice"
+	mc.cfg.TLS = &tls.Config{}
+	plugin := "authentication_openid_connect_client"
+
+	// [capability flag 0x01] [length encoded token] [token]
+	for _, tc := range []struct {
+		token  string
+		prefix []byte
+	}{
+		{"a.b.c", []byte{1, 5}},                                 // 1 byte length
+		{strings.Repeat("x", 300), []byte{1, 0xfc, 0x2c, 0x01}}, // 0xfc + 2 byte length
+	} {
+		mc.cfg.Passwd = tc.token
+		authResp, err := mc.auth(nil, plugin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected := append(tc.prefix, tc.token...)
+		if !bytes.Equal(authResp, expected) {
+			t.Fatalf("unexpected auth response for %d byte token: %v", len(tc.token), authResp)
+		}
+	}
+
+	// the plugin name must be written in full
+	mc.cfg.TLS = nil
+	mc.cfg.Net = "unix"
+	authResp, err := mc.auth(nil, plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasSuffix(conn.written, append([]byte(plugin), 0)) {
+		t.Fatalf("plugin name missing from handshake response: %q", conn.written)
+	}
+}
+
+func TestAuthFastOpenIDConnectTokenFile(t *testing.T) {
+	_, mc := newRWMockConn(1)
+	mc.cfg.Net = "unix"
+	mc.cfg.Passwd = "ignored"
+	mc.cfg.OpenIDTokenFile = filepath.Join(t.TempDir(), "token")
+	plugin := "authentication_openid_connect_client"
+
+	// the file takes precedence over the password and is re-read on every call
+	for _, token := range []string{"a.b.c", "d.e.f"} {
+		if err := os.WriteFile(mc.cfg.OpenIDTokenFile, []byte(token+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		authResp, err := mc.auth(nil, plugin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected := append([]byte{1, 5}, token...)
+		if !bytes.Equal(authResp, expected) {
+			t.Fatalf("unexpected auth response: %q", authResp)
+		}
+	}
+
+	if err := os.WriteFile(mc.cfg.OpenIDTokenFile, []byte("\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mc.auth(nil, plugin); err != ErrOpenIDConnectNoToken {
+		t.Errorf("expected ErrOpenIDConnectNoToken, got %v", err)
+	}
+
+	if err := os.WriteFile(mc.cfg.OpenIDTokenFile, bytes.Repeat([]byte("x"), maxOpenIDTokenSize+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mc.auth(nil, plugin); err == nil || !strings.Contains(err.Error(), "larger than") {
+		t.Errorf("expected size limit error, got %v", err)
+	}
+
+	mc.cfg.OpenIDTokenFile = filepath.Join(t.TempDir(), "missing")
+	if _, err := mc.auth(nil, plugin); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("expected os.ErrNotExist, got %v", err)
+	}
+}
+
+func TestAuthFastOpenIDConnectErrors(t *testing.T) {
+	_, mc := newRWMockConn(1)
+	plugin := "authentication_openid_connect_client"
+
+	// a secure transport is mandatory, unless allowCleartextPasswords is set
+	mc.cfg.Passwd = "a.b.c"
+	if _, err := mc.auth(nil, plugin); err != ErrOpenIDConnectInsecure {
+		t.Errorf("expected ErrOpenIDConnectInsecure, got %v", err)
+	}
+	mc.cfg.AllowCleartextPasswords = true
+	if _, err := mc.auth(nil, plugin); err != nil {
+		t.Errorf("expected no error with allowCleartextPasswords, got %v", err)
+	}
+
+	mc.cfg.Net = "unix"
+	mc.cfg.Passwd = ""
+	if _, err := mc.auth(nil, plugin); err != ErrOpenIDConnectNoToken {
+		t.Errorf("expected ErrOpenIDConnectNoToken, got %v", err)
+	}
+}
+
+func TestAuthSwitchOpenIDConnect(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.Net = "unix"
+	mc.cfg.Passwd = "a.b.c"
+
+	// auth switch request
+	plugin := "authentication_openid_connect_client"
+	conn.data = append([]byte{byte(2 + len(plugin)), 0, 0, 2, 254}, plugin...)
+	conn.data = append(conn.data, 0)
+
+	// auth response
+	conn.queuedReplies = [][]byte{{7, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0}}
+	conn.maxReads = 2
+
+	authData := []byte{123, 87, 15, 84, 20, 58, 37, 121, 91, 117, 51, 24, 19,
+		47, 43, 9, 41, 112, 67, 110}
+	if err := mc.handleAuthResult(authData, "caching_sha2_password"); err != nil {
+		t.Errorf("got error: %v", err)
+	}
+
+	expectedReply := []byte{7, 0, 0, 3, 1, 5, 'a', '.', 'b', '.', 'c'}
+	if !bytes.Equal(conn.written, expectedReply) {
+		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
+func TestAuthSwitchOpenIDConnectError(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.Net = "unix"
+	mc.cfg.Passwd = "a.b.c"
+
+	// auth switch request
+	plugin := "authentication_openid_connect_client"
+	conn.data = append([]byte{byte(2 + len(plugin)), 0, 0, 2, 254}, plugin...)
+	conn.data = append(conn.data, 0)
+
+	// ERR 1045 (28000): JWT expired
+	errPacket := []byte{0xff, 0x15, 0x04, '#', '2', '8', '0', '0', '0'}
+	errPacket = append(errPacket, "JWT expired"...)
+	conn.queuedReplies = [][]byte{append([]byte{byte(len(errPacket)), 0, 0, 4}, errPacket...)}
+	conn.maxReads = 2
+
+	authData := []byte{123, 87, 15, 84, 20, 58, 37, 121, 91, 117, 51, 24, 19,
+		47, 43, 9, 41, 112, 67, 110}
+	err := mc.handleAuthResult(authData, "caching_sha2_password")
+	var mysqlErr *MySQLError
+	if !errors.As(err, &mysqlErr) || mysqlErr.Number != 1045 || mysqlErr.Message != "JWT expired" {
+		t.Errorf("expected error 1045 (JWT expired), got %v", err)
 	}
 }

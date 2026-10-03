@@ -175,6 +175,8 @@ Default:        false
 
 `allowCleartextPasswords=true` allows using the [cleartext client side plugin](https://dev.mysql.com/doc/en/cleartext-pluggable-authentication.html) if required by an account, such as one defined with the [PAM authentication plugin](http://dev.mysql.com/doc/en/pam-authentication-plugin.html). Sending passwords in clear text may be a security problem in some configurations. To avoid problems if there is any possibility that the password would be intercepted, clients should connect to MySQL Server using a method that protects the password. Possibilities include [TLS / SSL](#tls), IPsec, or a private network.
 
+This also allows the [OpenID Connect plugin](#openidtokenfile) to send the ID token over a connection that is neither TLS nor a unix socket.
+
 
 ##### `allowFallbackToPlaintext`
 
@@ -281,6 +283,16 @@ Default:        false
 
 Toggles zlib compression. false by default.
 
+##### `defaultAuthPlugin`
+
+```
+Type:           string
+Valid Values:   <name>
+Default:        ""
+```
+
+Auth plugin used for the initial handshake response, instead of the one announced by the server, similar to `DEFAULT_AUTH` in Connector/ODBC. This is usually not needed, as servers request an auth switch to the plugin required by the account, but it saves a round trip when the plugin is known in advance, e.g. `defaultAuthPlugin=authentication_openid_connect_client`. If the requested plugin cannot be used, the connection fails instead of falling back to `mysql_native_password`.
+
 ##### `interpolateParams`
 
 ```
@@ -366,6 +378,16 @@ conn.Raw(func(conn any) error {
   log.Print(res.(mysql.Result).AllLastInsertIds())
 })
 ```
+
+##### `openidTokenFile`
+
+```
+Type:           string
+Valid Values:   <path>
+Default:        ""
+```
+
+Path to a file containing the ID token (JWT) for the [OpenID Connect plugin](https://dev.mysql.com/doc/refman/en/openid-pluggable-authentication.html) (`authentication_openid_connect_client`). The file is read on every new connection, so it can be refreshed externally; trailing newlines are ignored. If not set, the password is used as the ID token. Since ID tokens are short-lived, either keep this file up to date or set a fresh password for every new connection with the `BeforeConnect` option (see `Config.Apply`). The ID token is sent unencrypted, so OpenID Connect authentication requires [TLS](#tls) or a unix socket, unless [`allowCleartextPasswords`](#allowcleartextpasswords) is set.
 
 ##### `parseTime`
 
