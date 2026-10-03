@@ -18,6 +18,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
       * [Address](#address)
       * [Parameters](#parameters)
       * [Examples](#examples)
+    * [Verifying Server](#verifying-server)
     * [Connection pool and timeouts](#connection-pool-and-timeouts)
     * [context.Context Support](#contextcontext-support)
     * [ColumnType Support](#columntype-support)
@@ -539,6 +540,104 @@ No Database preselected:
 user:password@/
 ```
 
+
+### Verifying Server
+
+TLS encryption protects credentials and queries only when the client also
+authenticates the intended server. Prefer certificate-chain **and server-name
+verification**. With `tls=true`, the driver uses Go's system trust roots and
+verifies the host in the connection address. An IP address must match an IP
+subject alternative name in the certificate; it does not match a DNS name.
+
+For a private CA or when dialing an IP address for a DNS-named server, configure
+`Config.TLS` explicitly and pass the configuration to `mysql.NewConnector` and
+`sql.OpenDB`. Load only trusted CA certificates, check loading errors, and keep
+the configuration and certificate pool immutable once used:
+
+```go
+caPEM, err := os.ReadFile("database-ca.pem")
+if err != nil {
+    return err
+}
+roots := x509.NewCertPool()
+if !roots.AppendCertsFromPEM(caPEM) {
+    return errors.New("database-ca.pem contains no CA certificates")
+}
+
+cfg := mysql.NewConfig()
+cfg.User = "app"
+cfg.Passwd = password
+cfg.Addr = "192.0.2.10:3306"
+cfg.TLS = &tls.Config{
+    RootCAs:    roots,
+    ServerName: "database.example", // The expected certificate DNS name, without a port.
+}
+connector, err := mysql.NewConnector(cfg)
+if err != nil {
+    return err
+}
+db := sql.OpenDB(connector)
+defer db.Close()
+if err := db.PingContext(ctx); err != nil {
+    return err
+}
+```
+
+This checks the certificate chain, validity period, server-auth usage, and
+expected DNS name. Do not set `InsecureSkipVerify` for this mode. For DSN-based
+connections, register the same TLS configuration with `mysql.RegisterTLSConfig`
+and use its name in the DSN's `tls` parameter. If `BeforeConnect` changes the
+server address, update `ServerName` when the expected server identity changes.
+
+#### Certificate-chain verification without a server name (VERIFY_CA)
+
+VERIFY_CA authenticates a server by its certificate chain without matching a
+hostname. This can authenticate the intended server when an **exclusive private
+CA** issues certificates only to that server or to a deliberately trusted server
+group. Every server certificate accepted by that CA is eligible: using broad
+public roots or a CA shared with unrelated services does not identify the
+intended database. Prefer name verification when the CA's scope is broader.
+
+Go's `InsecureSkipVerify` alone disables both chain and name verification.
+Setting `RootCAs` alongside it does not restore verification. To implement
+VERIFY_CA, replace the TLS configuration in the preceding example with an
+explicit verification callback using the same restricted `roots` pool:
+
+```go
+cfg.TLS = &tls.Config{
+    InsecureSkipVerify: true, // Replaced by chain verification below; intentionally no hostname check.
+    VerifyConnection: func(state tls.ConnectionState) error {
+        if len(state.PeerCertificates) == 0 {
+            return errors.New("server did not provide a certificate")
+        }
+        intermediates := x509.NewCertPool()
+        for _, cert := range state.PeerCertificates[1:] {
+            intermediates.AddCert(cert)
+        }
+        _, err := state.PeerCertificates[0].Verify(x509.VerifyOptions{
+            Roots:         roots,
+            Intermediates: intermediates,
+            KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+            // DNSName is intentionally empty for VERIFY_CA.
+        })
+        return err
+    },
+}
+```
+
+`VerifyConnection` runs on resumed TLS sessions as well as full handshakes.
+Always return verification failures; a callback that returns `nil` without
+checking the certificate does not authenticate the server. The driver relies on
+the application's TLS policy and does not determine whether custom verification
+or pinning is correct. See Go's [`tls.Config`](https://pkg.go.dev/crypto/tls#Config)
+and [`x509.VerifyOptions`](https://pkg.go.dev/crypto/x509#VerifyOptions) documentation.
+
+Neither `tls=skip-verify` nor `tls=preferred` verifies the server by default, and
+`preferred` also permits plaintext fallback. Use `tls=true` or a correctly
+configured custom TLS configuration for authenticated TLS, and leave
+`AllowFallbackToPlaintext` disabled when TLS is required. A custom dialer must
+preserve the intended endpoint and verification policy; the driver cannot infer
+the security of a tunnel hidden behind a `net.Conn`.
 
 ### Connection pool and timeouts
 The connection pool is managed by Go's database/sql package. For details on how to configure the size of the pool and how long connections stay in the pool see `*DB.SetMaxOpenConns`, `*DB.SetMaxIdleConns`, and `*DB.SetConnMaxLifetime` in the [database/sql documentation](https://golang.org/pkg/database/sql/). The read, write, and dial timeouts for each individual connection are configured with the DSN parameters [`readTimeout`](#readtimeout), [`writeTimeout`](#writetimeout), and [`timeout`](#timeout), respectively.
