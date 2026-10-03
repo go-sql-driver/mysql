@@ -64,12 +64,8 @@ func TestFormatBinaryDateTime(t *testing.T) {
 	rawDate[6] = 23                                    // seconds
 	binary.LittleEndian.PutUint32(rawDate[7:], 987654) // microseconds
 	expect := func(expected string, inlen, outlen uint8) {
-		actual, _ := formatBinaryDateTime(rawDate[:inlen], outlen)
-		bytes, ok := actual.([]byte)
-		if !ok {
-			t.Errorf("formatBinaryDateTime must return []byte, was %T", actual)
-		}
-		if string(bytes) != expected {
+		actual, _ := FormatBinaryDateTime(rawDate[:inlen], outlen)
+		if string(actual) != expected {
 			t.Errorf(
 				"expected %q, got %q for length in %d, out %d",
 				expected, actual, inlen, outlen,
@@ -81,16 +77,29 @@ func TestFormatBinaryDateTime(t *testing.T) {
 	expect("1978-12-30", 4, 10)
 	expect("1978-12-30 15:46:23", 7, 19)
 	expect("1978-12-30 15:46:23.987654", 11, 26)
+
+	// an illegal length must be rejected even on the zero-value fast
+	// path, rather than returning truncated/garbage output or panicking
+	if _, err := FormatBinaryDateTime(nil, 9); err == nil {
+		t.Fatal("want error for illegal length 9, got nil")
+	}
+	if _, err := FormatBinaryDateTime(nil, 27); err == nil {
+		t.Fatal("want error for illegal length 27, got nil")
+	}
+
+	// the zero-value fast path must return an independent copy, not a
+	// reference to the shared zeroDateTime buffer
+	zero, _ := FormatBinaryDateTime(nil, 10)
+	zero[0] = 'X'
+	if again, _ := FormatBinaryDateTime(nil, 10); string(again) != "0000-00-00" {
+		t.Fatalf("mutating a previous result corrupted a later result: %q", again)
+	}
 }
 
 func TestFormatBinaryTime(t *testing.T) {
 	expect := func(expected string, src []byte, outlen uint8) {
-		actual, _ := formatBinaryTime(src, outlen)
-		bytes, ok := actual.([]byte)
-		if !ok {
-			t.Errorf("formatBinaryDateTime must return []byte, was %T", actual)
-		}
-		if string(bytes) != expected {
+		actual, _ := FormatBinaryTime(src, outlen)
+		if string(actual) != expected {
 			t.Errorf(
 				"expected %q, got %q for src=%q and outlen=%d",
 				expected, actual, src, outlen)
@@ -116,6 +125,34 @@ func TestFormatBinaryTime(t *testing.T) {
 	// With micro(4)
 	expect("12:34:56.00", []byte{0, 0, 0, 0, 0, 12, 34, 56, 99, 0, 0, 0}, 11)
 	expect("12:34:56.000099", []byte{0, 0, 0, 0, 0, 12, 34, 56, 99, 0, 0, 0}, 15)
+
+	// an illegal length must be rejected even on the zero-value fast
+	// path, rather than returning truncated/garbage output or panicking
+	if _, err := FormatBinaryTime(nil, 5); err == nil {
+		t.Fatal("want error for illegal length 5, got nil")
+	}
+	if _, err := FormatBinaryTime(nil, 16); err == nil {
+		t.Fatal("want error for illegal length 16, got nil")
+	}
+
+	// the zero-value fast path must return an independent copy, not a
+	// reference to the shared zeroDateTime buffer
+	zero, _ := FormatBinaryTime(nil, 8)
+	zero[0] = 'X'
+	if again, _ := FormatBinaryTime(nil, 8); string(again) != "00:00:00" {
+		t.Fatalf("mutating a previous result corrupted a later result: %q", again)
+	}
+}
+
+func TestParseBinaryDateTime(t *testing.T) {
+	// truncated data must return an error, not panic, since the caller
+	// controls num and data independently once this func is exported
+	if _, err := ParseBinaryDateTime(4, nil, time.UTC); err == nil {
+		t.Fatal("want error for truncated DATETIME packet, got nil")
+	}
+	if _, err := ParseBinaryDateTime(11, []byte{1, 2, 3}, time.UTC); err == nil {
+		t.Fatal("want error for truncated DATETIME packet, got nil")
+	}
 }
 
 func TestEscapeBackslash(t *testing.T) {
@@ -445,7 +482,7 @@ func TestParseDateTime(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				got, err := parseDateTime([]byte(cc.str), loc)
+				got, err := ParseDateTime([]byte(cc.str), loc)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -473,7 +510,7 @@ func TestInvalidDateTime(t *testing.T) {
 
 	for _, cc := range cases {
 		t.Run(cc.name, func(t *testing.T) {
-			got, err := parseDateTime([]byte(cc.str), time.UTC)
+			got, err := ParseDateTime([]byte(cc.str), time.UTC)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -540,7 +577,7 @@ func TestParseDateTimeFail(t *testing.T) {
 
 	for _, cc := range cases {
 		t.Run(cc.name, func(t *testing.T) {
-			got, err := parseDateTime([]byte(cc.str), time.UTC)
+			got, err := ParseDateTime([]byte(cc.str), time.UTC)
 			if err == nil {
 				t.Fatal("want error")
 			}
