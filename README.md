@@ -19,6 +19,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
       * [Parameters](#parameters)
       * [Examples](#examples)
     * [Verifying Server](#verifying-server)
+    * [OpenID Connect authentication](#openid-connect-authentication)
     * [Connection pool and timeouts](#connection-pool-and-timeouts)
     * [context.Context Support](#contextcontext-support)
     * [ColumnType Support](#columntype-support)
@@ -592,6 +593,63 @@ Pass `cfg` to `mysql.NewConnector` and `sql.OpenDB`. For DSNs, register the TLS
 configuration with `mysql.RegisterTLSConfig` and use its name in `tls`.
 Avoid `tls=skip-verify`, `tls=preferred`, and `AllowFallbackToPlaintext` when
 server authentication is required. See Go's [`tls.Config`](https://pkg.go.dev/crypto/tls#Config).
+
+### OpenID Connect authentication
+
+Use `Config.Apply(mysql.OpenIDConnectToken(token))` with `mysql.NewConnector`
+and `sql.OpenDB` to authenticate using an actual OIDC JWT. There is no OIDC DSN
+parameter or token-file handling. `FormatDSN` does not include the token and
+cannot preserve this option; pass the `Config` directly to `NewConnector`.
+
+```go
+cfg := mysql.NewConfig()
+cfg.User = "oidc_user"
+cfg.Addr = "database.example:3306"
+cfg.TLS = &tls.Config{ServerName: "database.example"}
+if err := cfg.Apply(mysql.OpenIDConnectToken(initialToken),
+    mysql.BeforeConnect(func(ctx context.Context, cfg *mysql.Config) error {
+        token, err := tokenSource(ctx) // Application-provided token retrieval.
+        if err != nil {
+            return err
+        }
+        return cfg.Apply(mysql.OpenIDConnectToken(token))
+    })); err != nil {
+    return err
+}
+connector, err := mysql.NewConnector(cfg)
+if err != nil {
+    return err
+}
+db := sql.OpenDB(connector)
+defer db.Close()
+```
+
+`BeforeConnect` receives a private configuration copy for each new connection;
+it may run concurrently and the application must make token retrieval safe for
+concurrent use. Refreshing a token affects new connections, not existing pooled
+sessions. Applying an empty token still enables OIDC: `Connect` returns
+`ErrOpenIDConnectToken`. It never disables OIDC or falls back to a password, even
+if an empty refresh result is applied. Tokens are sent exactly as supplied.
+
+The initial response always names `authentication_openid_connect_client`, even
+when the server greeting advertises another plugin. It contains capability byte
+`0x01` followed by the length-encoded JWT. Servers must support plugin
+authentication and length-encoded authentication data. Any authentication switch
+is rejected, including a switch back to OIDC. `Passwd` is not used in this mode.
+
+The bearer token is assembled and sent only after the driver's MySQL TLS upgrade
+succeeds, including any configured verification callbacks. The application is
+responsible for authenticating the intended server through `Config.TLS`. Normal
+certificate and hostname verification, custom CA verification, and pinning can
+all be used. The driver does not assess whether a custom verification policy is
+correct; `InsecureSkipVerify` without proper replacement verification exposes
+the token to server impersonation.
+
+A custom `DialFunc` may carry the normal MySQL TLS upgrade, but TLS or another
+secure tunnel provided solely by the dialer is not sufficient: configure
+`Config.TLS` for the driver-managed upgrade. Plain Unix sockets are not an
+exception. Neither `AllowCleartextPasswords` nor plaintext fallback bypasses the
+TLS requirement; servers without TLS are rejected, including with `tls=preferred`.
 
 ### Connection pool and timeouts
 The connection pool is managed by Go's database/sql package. For details on how to configure the size of the pool and how long connections stay in the pool see `*DB.SetMaxOpenConns`, `*DB.SetMaxIdleConns`, and `*DB.SetConnMaxLifetime` in the [database/sql documentation](https://golang.org/pkg/database/sql/). The read, write, and dial timeouts for each individual connection are configured with the DSN parameters [`readTimeout`](#readtimeout), [`writeTimeout`](#writetimeout), and [`timeout`](#timeout), respectively.
