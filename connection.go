@@ -30,7 +30,6 @@ type mysqlConn struct {
 	result           mysqlResult // managed by clearResult() and handleOkPacket().
 	compIO           *compIO
 	cfg              *Config
-	connector        *connector
 	maxAllowedPacket int
 	maxWriteSize     int
 	capabilities     capabilityFlag
@@ -103,13 +102,21 @@ func (mc *mysqlConn) syncSequence() {
 }
 
 // Handles parameters set in DSN after the connection is established
-func (mc *mysqlConn) handleParams() (err error) {
+func (mc *mysqlConn) handleParams() error {
+	cmdSet := mc.cfg.setParamsCommand()
+	if cmdSet == "" {
+		return nil
+	}
+	return mc.exec(cmdSet)
+}
+
+func (cfg *Config) setParamsCommand() string {
 	var cmdSet strings.Builder
 
-	for param, val := range mc.cfg.Params {
+	writeParam := func(param, val string) {
 		if cmdSet.Len() == 0 {
 			// Heuristic: 29 chars for each other key=value to reduce reallocations
-			cmdSet.Grow(4 + len(param) + 3 + len(val) + 30*(len(mc.cfg.Params)-1))
+			cmdSet.Grow(4 + len(param) + 3 + len(val) + 30*(len(cfg.Params)-1))
 			cmdSet.WriteString("SET ")
 		} else {
 			cmdSet.WriteString(", ")
@@ -119,11 +126,11 @@ func (mc *mysqlConn) handleParams() (err error) {
 		cmdSet.WriteString(val)
 	}
 
-	if cmdSet.Len() > 0 {
-		err = mc.exec(cmdSet.String())
+	for _, param := range cfg.orderedParams() {
+		writeParam(param, cfg.Params[param])
 	}
 
-	return
+	return cmdSet.String()
 }
 
 // markBadConn replaces errBadConnNoWrite with driver.ErrBadConn.
@@ -384,7 +391,9 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 						buf = append(buf, '\'')
 					}
 				case json.RawMessage:
-					if noBackslashEscapes {
+					if v == nil {
+						buf = append(buf, "NULL"...)
+					} else if noBackslashEscapes {
 						buf = escapeBytesQuotes(buf, v, false)
 					} else {
 						buf = escapeBytesBackslash(buf, v, false)

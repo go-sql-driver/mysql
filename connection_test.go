@@ -65,6 +65,28 @@ func TestInterpolateParamsJSONRawMessage(t *testing.T) {
 	}
 }
 
+func TestInterpolateParamsJSONRawMessageNil(t *testing.T) {
+	mc := &mysqlConn{
+		buf:              newBuffer(),
+		maxAllowedPacket: maxPacketSize,
+		cfg: &Config{
+			InterpolateParams: true,
+		},
+	}
+
+	// A typed nil json.RawMessage must be interpolated as NULL, not as an
+	// empty quoted string. See https://github.com/go-sql-driver/mysql/issues/1781
+	q, err := mc.interpolateParams("SELECT ?", []driver.Value{json.RawMessage(nil)})
+	if err != nil {
+		t.Errorf("Expected err=nil, got %#v", err)
+		return
+	}
+	expected := `SELECT NULL`
+	if q != expected {
+		t.Errorf("Expected: %q\nGot: %q", expected, q)
+	}
+}
+
 func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
 	mc := &mysqlConn{
 		buf:              newBuffer(),

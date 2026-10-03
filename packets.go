@@ -277,7 +277,7 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 }
 
 // initCapabilities initializes the capabilities based on server support and configuration
-func (mc *mysqlConn) initCapabilities(serverCapabilities capabilityFlag, serverExtCapabilities extendedCapabilityFlag, cfg *Config) {
+func (mc *mysqlConn) initCapabilities(serverCapabilities capabilityFlag, serverExtCapabilities extendedCapabilityFlag) {
 	clientCapabilities :=
 		clientMySQL |
 			clientLongFlag |
@@ -291,10 +291,10 @@ func (mc *mysqlConn) initCapabilities(serverCapabilities capabilityFlag, serverE
 			clientConnectAttrs |
 			clientDeprecateEOF
 
-	if cfg.ClientFoundRows {
+	if mc.cfg.ClientFoundRows {
 		clientCapabilities |= clientFoundRows
 	}
-	if cfg.compress {
+	if mc.cfg.compress {
 		clientCapabilities |= clientCompress
 	}
 	// To enable TLS / SSL
@@ -305,7 +305,7 @@ func (mc *mysqlConn) initCapabilities(serverCapabilities capabilityFlag, serverE
 	if mc.cfg.MultiStatements {
 		clientCapabilities |= clientMultiStatements
 	}
-	if n := len(cfg.DBName); n > 0 {
+	if n := len(mc.cfg.DBName); n > 0 {
 		clientCapabilities |= clientConnectWithDB
 	}
 
@@ -405,9 +405,9 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 
 	// Connection Attributes
 	if mc.capabilities&clientConnectAttrs != 0 {
-		connAttrsLen := len(mc.connector.encodedAttributes)
+		connAttrsLen := len(mc.cfg.encodedAttributes)
 		data = appendLengthEncodedInteger(data, uint64(connAttrsLen))
-		data = append(data, mc.connector.encodedAttributes...)
+		data = append(data, mc.cfg.encodedAttributes...)
 	}
 
 	// Send Auth packet
@@ -1002,6 +1002,20 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 	return nil
 }
 
+func (stmt *mysqlStmt) reset() error {
+	handleOk := stmt.mc.clearResult()
+	if err := stmt.mc.writeCommandPacketUint32(comStmtReset, stmt.id); err != nil {
+		return err
+	}
+	return handleOk.readResultOK()
+}
+
+type stmtLongData struct {
+	paramID int
+	data    []byte
+	text    string
+}
+
 // Execute Prepared Statement
 // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_stmt_execute.html
 func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
@@ -1019,11 +1033,9 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 	// Determine threshold dynamically to avoid packet size shortage.
 	longDataSize := max(mc.maxAllowedPacket/(stmt.paramCount+1), 64)
 
-	// Reset packet-sequence
-	mc.resetSequence()
-
 	var data []byte
 	var err error
+	var longData []stmtLongData
 
 	if len(args) == 0 {
 		data, err = mc.buf.takeBuffer(minPktLen)
@@ -1133,9 +1145,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 						)
 						paramValues = append(paramValues, v...)
 					} else {
-						if err := stmt.writeCommandLongData(i, v); err != nil {
-							return err
-						}
+						longData = append(longData, stmtLongData{paramID: i, data: v})
 					}
 					continue
 				}
@@ -1155,9 +1165,7 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 					)
 					paramValues = append(paramValues, v...)
 				} else {
-					if err := stmt.writeCommandLongData(i, []byte(v)); err != nil {
-						return err
-					}
+					longData = append(longData, stmtLongData{paramID: i, text: v})
 				}
 
 			case time.Time:
@@ -1195,6 +1203,29 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 		pos += len(paramValues)
 		data = data[:pos]
+	}
+
+	// Validate the execute packet size before long data is sent.
+	if len(data)-4 > mc.maxAllowedPacket {
+		return ErrPktTooLarge
+	}
+
+	// All parameters have now been validated and normalized. Only start writing
+	// after this point so a validation error cannot leave partial long data
+	// associated with the statement on the server.
+	mc.resetSequence()
+	for _, param := range longData {
+		if param.data != nil {
+			err = stmt.writeCommandLongData(param.paramID, param.data)
+		} else {
+			err = stmt.writeCommandLongData(param.paramID, []byte(param.text))
+		}
+		if err != nil {
+			if resetErr := stmt.reset(); resetErr != nil {
+				mc.close()
+			}
+			return err
+		}
 	}
 
 	err = mc.writePacket(data)

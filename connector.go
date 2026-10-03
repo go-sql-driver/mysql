@@ -23,8 +23,7 @@ const (
 )
 
 type connector struct {
-	cfg               *Config // immutable private copy.
-	encodedAttributes string  // Encoded connection attributes.
+	cfg *Config // immutable private copy.
 }
 
 func encodeConnectionAttributes(cfg *Config) string {
@@ -59,10 +58,8 @@ func encodeConnectionAttributes(cfg *Config) string {
 }
 
 func newConnector(cfg *Config) *connector {
-	encodedAttributes := encodeConnectionAttributes(cfg)
 	return &connector{
-		cfg:               cfg,
-		encodedAttributes: encodedAttributes,
+		cfg: cfg,
 	}
 }
 
@@ -79,6 +76,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
+		cfg.encodedAttributes = encodeConnectionAttributes(cfg)
 	}
 
 	// New mysqlConn
@@ -87,7 +85,6 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		maxWriteSize:     maxPacketSize - 1,
 		closech:          make(chan struct{}),
 		cfg:              cfg,
-		connector:        c,
 	}
 	mc.parseTime = mc.cfg.ParseTime
 
@@ -95,12 +92,12 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	dctx := ctx
 	if mc.cfg.Timeout > 0 {
 		var cancel context.CancelFunc
-		dctx, cancel = context.WithTimeout(ctx, c.cfg.Timeout)
+		dctx, cancel = context.WithTimeout(ctx, mc.cfg.Timeout)
 		defer cancel()
 	}
 
-	if c.cfg.DialFunc != nil {
-		mc.netConn, err = c.cfg.DialFunc(dctx, mc.cfg.Net, mc.cfg.Addr)
+	if mc.cfg.DialFunc != nil {
+		mc.netConn, err = mc.cfg.DialFunc(dctx, mc.cfg.Net, mc.cfg.Addr)
 	} else {
 		dialsLock.RLock()
 		dial, ok := dials[mc.cfg.Net]
@@ -120,7 +117,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	// Enable TCP Keepalives on TCP connections
 	if tc, ok := mc.netConn.(*net.TCPConn); ok {
 		if err := tc.SetKeepAlive(true); err != nil {
-			c.cfg.Logger.Print(err)
+			mc.cfg.Logger.Print(err)
 		}
 	}
 
@@ -156,13 +153,13 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		mc.cleanup()
 		return nil, err
 	}
-	
+
 	if err := requireSecureTransport(authPlugin, mc.cfg); err != nil {
 		mc.cleanup()
 		return nil, err
 	}
-	
-	mc.initCapabilities(serverCapabilities, serverExtCapabilities, mc.cfg)
+
+	mc.initCapabilities(serverCapabilities, serverExtCapabilities)
 	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
 		mc.cleanup()
 		return nil, err

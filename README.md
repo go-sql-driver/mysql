@@ -18,6 +18,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
       * [Address](#address)
       * [Parameters](#parameters)
       * [Examples](#examples)
+    * [Verifying Server](#verifying-server)
     * [Connection pool and timeouts](#connection-pool-and-timeouts)
     * [context.Context Support](#contextcontext-support)
     * [ColumnType Support](#columntype-support)
@@ -45,8 +46,8 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
 
 ## Requirements
 
-* Go 1.24 or higher. We aim to support the 3 latest versions of Go.
-* MySQL (5.7+) and MariaDB (10.5+) are supported by maintainers.
+* Go 1.25 or higher. We aim to support the 3 latest versions of Go.
+* MySQL (8.0+) and MariaDB (10.11+) are supported by maintainers.
 * [TiDB](https://github.com/pingcap/tidb) is supported by PingCAP.
   * Do not ask questions about TiDB in our issue tracker or forum.
   * [Document](https://docs.pingcap.com/tidb/v6.1/dev-guide-sample-application-golang)
@@ -314,7 +315,22 @@ Type:           duration
 Default:        0
 ```
 
-[Truncate time values](https://pkg.go.dev/time#Duration.Truncate) to the specified duration. The value must be a decimal number with a unit suffix (*"ms"*, *"s"*, *"m"*, *"h"*), such as *"30s"*, *"0.5m"* or *"1m30s"*.
+[Truncate time values](https://pkg.go.dev/time#Duration.Truncate) in query arguments to the specified duration. The value must be a decimal number with a unit suffix (*"ns"*, *"us"*, *"ms"*, etc...), such as "1us", "1ms", or "10ns".
+
+> [!NOTE]
+> `time.Time` arguments are sent with up to nanosecond precision, so a value from `time.Now()` usually has more fractional-second digits than a `DATETIME(N)` or `TIMESTAMP(N)` column stores. On MariaDB, comparing such a value against an indexed column can prevent an index range scan, turning it into a full index scan. Truncating to the column's precision (`1us` for `DATETIME(6)`) avoids this. Only arguments sent to the server are truncated; values read from the server are not affected.
+
+##### `tinyInt1IsBool`
+
+```
+Type:           bool
+Valid Values:   true, false
+Default:        true
+```
+
+When `tinyInt1IsBool=true`, signed `TINYINT(1)` columns are treated as boolean values. Zero is returned as `false`, and non-zero values are returned as `true`. Their database type name is reported as `BOOLEAN`, and their scan type is `bool` for non-nullable columns or `sql.NullBool` for nullable columns.
+
+Unsigned and `ZEROFILL` columns are not converted. Set `tinyInt1IsBool=false` to preserve the numeric `TINYINT` behavior.
 
 ##### `maxAllowedPacket`
 ```
@@ -467,6 +483,8 @@ Rules:
 * The values for string variables must be quoted with `'`.
 * The values must also be [url.QueryEscape](http://golang.org/pkg/net/url/#QueryEscape)'ed!
  (which implies values of string variables must be wrapped with `%27`).
+* System variables are set and retained by `FormatDSN` in the order they appear in the DSN.
+  Use `Config.Apply(AddParam(name, value))` to preserve order when adding them programmatically.
 
 Examples:
   * `autocommit=1`: `SET autocommit=1`
@@ -522,6 +540,58 @@ No Database preselected:
 user:password@/
 ```
 
+
+### Verifying Server
+
+With system trust roots, use `tls=true` to verify the certificate chain and the
+server name in the connection address. When dialing an IP for a DNS-named server,
+set the expected name explicitly:
+
+```go
+cfg.TLS = &tls.Config{ServerName: "database.example"}
+```
+
+#### Private CA (VERIFY_CA)
+
+For an exclusive private CA or the intended server's self-signed certificate,
+verify the certificate chain without checking the server name:
+
+```go
+roots := x509.NewCertPool()
+if !roots.AppendCertsFromPEM(caPEM) { // Obtain the trusted certificate through a trusted channel.
+    return errors.New("no CA certificates found")
+}
+cfg.TLS = &tls.Config{
+    InsecureSkipVerify: true, // Replace default verification with VERIFY_CA below.
+    VerifyConnection: func(state tls.ConnectionState) error {
+        if len(state.PeerCertificates) == 0 {
+            return errors.New("server did not provide a certificate")
+        }
+        intermediates := x509.NewCertPool()
+        for _, cert := range state.PeerCertificates[1:] {
+            intermediates.AddCert(cert)
+        }
+        _, err := state.PeerCertificates[0].Verify(x509.VerifyOptions{
+            Roots:         roots,
+            Intermediates: intermediates,
+            KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+            // Omit DNSName for VERIFY_CA.
+        })
+        return err
+    },
+}
+```
+
+This safely authenticates the intended server without hostname verification when
+the trusted signing key is kept private and has not issued certificates to other
+users or unrelated servers. A CA shared with unrelated services does not provide
+that guarantee. `InsecureSkipVerify` plus `RootCAs` alone does **not** verify
+certificates; keep the callback and propagate its errors.
+
+Pass `cfg` to `mysql.NewConnector` and `sql.OpenDB`. For DSNs, register the TLS
+configuration with `mysql.RegisterTLSConfig` and use its name in `tls`.
+Avoid `tls=skip-verify`, `tls=preferred`, and `AllowFallbackToPlaintext` when
+server authentication is required. See Go's [`tls.Config`](https://pkg.go.dev/crypto/tls#Config).
 
 ### Connection pool and timeouts
 The connection pool is managed by Go's database/sql package. For details on how to configure the size of the pool and how long connections stay in the pool see `*DB.SetMaxOpenConns`, `*DB.SetMaxIdleConns`, and `*DB.SetConnMaxLifetime` in the [database/sql documentation](https://golang.org/pkg/database/sql/). The read, write, and dial timeouts for each individual connection are configured with the DSN parameters [`readTimeout`](#readtimeout), [`writeTimeout`](#writetimeout), and [`timeout`](#timeout), respectively.

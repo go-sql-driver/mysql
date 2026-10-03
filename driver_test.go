@@ -421,8 +421,8 @@ func TestNumbersToAny(t *testing.T) {
 		if err != nil {
 			dbt.Fatal(err)
 		}
-		if b.(int64) != 1 {
-			dbt.Errorf("b != 1")
+		if b != true {
+			dbt.Errorf("b = %#v; want true", b)
 		}
 		if i8.(int64) != 127 {
 			dbt.Errorf("i8 != 127")
@@ -1947,6 +1947,13 @@ func TestConcurrent(t *testing.T) {
 		// 	t.Skip(`TODO: "fix commands out of sync. Did you run multiple statements at once?" on MariaDB`)
 		// }
 
+		// Release idle connections after this subtest so subsequent subtests can
+		// use the server's full connection budget.  Without this, the default pool
+		// retains a few idle connections that eat into max_connections, causing
+		// Windows to return a TCP timeout instead of MySQL error 1040 when the
+		// next subtest tries to open connections.
+		defer dbt.db.SetMaxIdleConns(0)
+
 		var max int
 		err := dbt.db.QueryRow("SELECT @@max_connections").Scan(&max)
 		if err != nil {
@@ -3046,6 +3053,9 @@ func TestRowsColumnTypes(t *testing.T) {
 	ni0 := sql.NullInt64{Int64: 0, Valid: true}
 	ni1 := sql.NullInt64{Int64: 1, Valid: true}
 	ni42 := sql.NullInt64{Int64: 42, Valid: true}
+	nbNULL := sql.NullBool{Bool: false, Valid: false}
+	nb0 := sql.NullBool{Bool: false, Valid: true}
+	nb1 := sql.NullBool{Bool: true, Valid: true}
 	nfNULL := sql.NullFloat64{Float64: 0.0, Valid: false}
 	nf0 := sql.NullFloat64{Float64: 0.0, Valid: true}
 	nf1337 := sql.NullFloat64{Float64: 13.37, Valid: true}
@@ -3081,8 +3091,8 @@ func TestRowsColumnTypes(t *testing.T) {
 		valuesOut        [3]any
 	}{
 		{"bit8null", "BIT(8)", "BIT", scanTypeBytes, true, 0, 0, [3]string{"0x0", "NULL", "0x42"}, [3]any{bx0, bNULL, bx42}},
-		{"boolnull", "BOOL", "TINYINT", scanTypeNullInt, true, 0, 0, [3]string{"NULL", "true", "0"}, [3]any{niNULL, ni1, ni0}},
-		{"bool", "BOOL NOT NULL", "TINYINT", scanTypeInt8, false, 0, 0, [3]string{"1", "0", "FALSE"}, [3]any{int8(1), int8(0), int8(0)}},
+		{"boolnull", "BOOL", "BOOLEAN", reflect.TypeFor[sql.NullBool](), true, 0, 0, [3]string{"NULL", "true", "0"}, [3]any{nbNULL, nb1, nb0}},
+		{"bool", "BOOL NOT NULL", "BOOLEAN", reflect.TypeFor[bool](), false, 0, 0, [3]string{"1", "0", "FALSE"}, [3]any{true, false, false}},
 		{"intnull", "INTEGER", "INT", scanTypeNullInt, true, 0, 0, [3]string{"0", "NULL", "42"}, [3]any{ni0, niNULL, ni42}},
 		{"smallint", "SMALLINT NOT NULL", "SMALLINT", scanTypeInt16, false, 0, 0, [3]string{"0", "-32768", "32767"}, [3]any{int16(0), int16(-32768), int16(32767)}},
 		{"smallintnull", "SMALLINT", "SMALLINT", scanTypeNullInt, true, 0, 0, [3]string{"0", "NULL", "42"}, [3]any{ni0, niNULL, ni42}},
@@ -3107,6 +3117,10 @@ func TestRowsColumnTypes(t *testing.T) {
 		{"decimal2null", "DECIMAL(8,4)", "DECIMAL", scanTypeNullString, true, 8, 4, [3]string{"0", "NULL", "1234.123456"}, [3]any{ns("0.0000"), nsNULL, ns("1234.1235")}},
 		{"decimal3", "DECIMAL(5,0) NOT NULL", "DECIMAL", scanTypeString, false, 5, 0, [3]string{"0", "13.37", "-12345.123456"}, [3]any{"0", "13", "-12345"}},
 		{"decimal3null", "DECIMAL(5,0)", "DECIMAL", scanTypeNullString, true, 5, 0, [3]string{"0", "NULL", "-12345.123456"}, [3]any{ns0, nsNULL, ns("-12345")}},
+		{"decimalunsigned", "DECIMAL(10,6) UNSIGNED NOT NULL", "DECIMAL", scanTypeString, false, 10, 6, [3]string{"0", "13.37", "1234.123456"}, [3]any{"0.000000", "13.370000", "1234.123456"}},
+		{"decimalunsignednull", "DECIMAL(10,6) UNSIGNED", "DECIMAL", scanTypeNullString, true, 10, 6, [3]string{"0", "NULL", "1234.123456"}, [3]any{ns("0.000000"), nsNULL, ns("1234.123456")}},
+		{"decimalunsignedzero", "DECIMAL(5,0) UNSIGNED NOT NULL", "DECIMAL", scanTypeString, false, 5, 0, [3]string{"0", "13.37", "12345.123456"}, [3]any{"0", "13", "12345"}},
+		{"decimalunsignedzeronull", "DECIMAL(5,0) UNSIGNED", "DECIMAL", scanTypeNullString, true, 5, 0, [3]string{"0", "NULL", "12345.123456"}, [3]any{ns0, nsNULL, ns("12345")}},
 		{"char25null", "CHAR(25)", "CHAR", scanTypeNullString, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]any{ns0, nsNULL, nsTest}},
 		{"varchar42", "VARCHAR(42) NOT NULL", "VARCHAR", scanTypeString, false, 0, 0, [3]string{"0", "'Test'", "42"}, [3]any{"0", "Test", "42"}},
 		{"binary4null", "BINARY(4)", "BINARY", scanTypeBytes, true, 0, 0, [3]string{"0", "NULL", "'Test'"}, [3]any{b0pad4, bNULL, bTest}},
