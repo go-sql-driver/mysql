@@ -543,37 +543,24 @@ user:password@/
 
 ### Verifying Server
 
-Use `tls=true` to verify the certificate chain against system roots and match the
-server name to the connection address. For a private CA or when dialing an IP
-for a DNS-named server, set `Config.TLS` and use `mysql.NewConnector` with `sql.OpenDB`:
+With system trust roots, use `tls=true` to verify the certificate chain and the
+server name in the connection address. When dialing an IP for a DNS-named server,
+set the expected name explicitly:
+
+```go
+cfg.TLS = &tls.Config{ServerName: "database.example"}
+```
+
+#### Private CA (VERIFY_CA)
+
+For an exclusive private CA or the intended server's self-signed certificate,
+verify the certificate chain without checking the server name:
 
 ```go
 roots := x509.NewCertPool()
-if !roots.AppendCertsFromPEM(caPEM) { // CA certificates obtained through a trusted channel.
+if !roots.AppendCertsFromPEM(caPEM) { // Obtain the trusted certificate through a trusted channel.
     return errors.New("no CA certificates found")
 }
-cfg.TLS = &tls.Config{
-    RootCAs:    roots,
-    ServerName: "database.example", // Expected certificate name, without a port.
-}
-```
-
-Leave `InsecureSkipVerify` false for certificate-chain and server-name verification.
-When using a DSN, register this configuration with `mysql.RegisterTLSConfig` and
-use its name in the `tls` parameter.
-
-#### VERIFY_CA
-
-Hostname verification is unnecessary when you trust only the intended server's
-self-signed certificate or an exclusive private CA, and know that its signing
-key has not issued certificates to other users or unrelated servers. With the
-signing key kept private, certificate verification authenticates the intended
-server. This is a safe use of MySQL's VERIFY_CA mode. A shared CA instead
-identifies its trusted server group; use name verification to distinguish hosts.
-
-For VERIFY_CA, use the restricted `roots` pool above with this configuration:
-
-```go
 cfg.TLS = &tls.Config{
     InsecureSkipVerify: true, // Replace default verification with VERIFY_CA below.
     VerifyConnection: func(state tls.ConnectionState) error {
@@ -595,11 +582,16 @@ cfg.TLS = &tls.Config{
 }
 ```
 
-`InsecureSkipVerify` plus `RootCAs` alone does **not** verify certificates.
-`VerifyConnection` also runs on resumed sessions; always propagate its errors.
+This safely authenticates the intended server without hostname verification when
+the trusted signing key is kept private and has not issued certificates to other
+users or unrelated servers. A CA shared with unrelated services does not provide
+that guarantee. `InsecureSkipVerify` plus `RootCAs` alone does **not** verify
+certificates; keep the callback and propagate its errors.
+
+Pass `cfg` to `mysql.NewConnector` and `sql.OpenDB`. For DSNs, register the TLS
+configuration with `mysql.RegisterTLSConfig` and use its name in `tls`.
 Avoid `tls=skip-verify`, `tls=preferred`, and `AllowFallbackToPlaintext` when
-server authentication is required. See Go's [`tls.Config`](https://pkg.go.dev/crypto/tls#Config)
-and [`x509.VerifyOptions`](https://pkg.go.dev/crypto/x509#VerifyOptions).
+server authentication is required. See Go's [`tls.Config`](https://pkg.go.dev/crypto/tls#Config).
 
 ### Connection pool and timeouts
 The connection pool is managed by Go's database/sql package. For details on how to configure the size of the pool and how long connections stay in the pool see `*DB.SetMaxOpenConns`, `*DB.SetMaxIdleConns`, and `*DB.SetConnMaxLifetime` in the [database/sql documentation](https://golang.org/pkg/database/sql/). The read, write, and dial timeouts for each individual connection are configured with the DSN parameters [`readTimeout`](#readtimeout), [`writeTimeout`](#writetimeout), and [`timeout`](#timeout), respectively.
