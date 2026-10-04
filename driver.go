@@ -39,9 +39,8 @@ type DialFunc func(addr string) (net.Conn, error)
 type DialContextFunc func(ctx context.Context, addr string) (net.Conn, error)
 
 var (
-	dialsLock            sync.RWMutex
-	dials                map[string]DialContextFunc
-	globalPluginRegistry = newPluginRegistry()
+	dialsLock sync.RWMutex
+	dials     map[string]DialContextFunc
 )
 
 // RegisterDialContext registers a custom dial function. It can then be used by the

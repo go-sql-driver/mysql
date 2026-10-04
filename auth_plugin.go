@@ -52,6 +52,8 @@ type pluginRegistry struct {
 	plugins map[string]func() AuthPlugin
 }
 
+var globalPluginRegistry = newPluginRegistry()
+
 // newPluginRegistry creates a new plugin registry.
 func newPluginRegistry() *pluginRegistry {
 	registry := &pluginRegistry{
