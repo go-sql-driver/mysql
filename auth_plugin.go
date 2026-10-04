@@ -25,10 +25,9 @@ type AuthPlugin interface {
 	// authData is the initial auth data from the server
 	// cfg is the connection configuration
 	// Returns:
-	//   - nextPacket: the next packet to send to the server (nil if plugin is done processing)
-	//   - done: true if authentication processing is complete (OK/ERR/EOF received)
+	//   - nextPacket: the next packet to send to the server (nil to read the next server packet without sending)
 	//   - error: any error that occurred
-	ContinuationAuth(packet []byte, authData []byte, cfg *Config) (nextPacket []byte, done bool, err error)
+	ContinuationAuth(packet []byte, authData []byte, cfg *Config) (nextPacket []byte, err error)
 }
 
 // SecureTransportRequirer is an optional interface an AuthPlugin may implement
@@ -40,13 +39,16 @@ type SecureTransportRequirer interface {
 	RequireSecure(cfg *Config) bool
 }
 
+// SimpleAuth provides the default continuation behavior for authentication
+// plugins that complete after their initial response. The driver handles OK,
+// ERR, and authentication switch packets before dispatching to the plugin, so
+// any call to ContinuationAuth represents an unexpected packet.
 type SimpleAuth struct {
 	AuthPlugin
 }
 
-func (s SimpleAuth) ContinuationAuth(packet []byte, authData []byte, cfg *Config) ([]byte, bool, error) {
-	// Simple auth plugins are done after the first packet
-	return nil, true, nil
+func (s SimpleAuth) ContinuationAuth(packet []byte, authData []byte, cfg *Config) ([]byte, error) {
+	return nil, ErrMalformPkt
 }
 
 // RequireSecure provides the default for plugins embedding SimpleAuth: they do
@@ -86,17 +88,19 @@ func newPluginRegistry() *pluginRegistry {
 
 // Register adds a plugin factory to the registry
 func (r *pluginRegistry) Register(factory func() AuthPlugin) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	plugin := factory()
-	r.plugins[plugin.PluginName()] = factory
+	name := plugin.PluginName()
+
+	r.mu.Lock()
+	r.plugins[name] = factory
+	r.mu.Unlock()
 }
 
 // GetPlugin returns a new plugin instance for the given name
 func (r *pluginRegistry) GetPlugin(name string) (AuthPlugin, bool) {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
 	factory, ok := r.plugins[name]
+	r.mu.RUnlock()
 	if !ok {
 		return nil, false
 	}

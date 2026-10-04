@@ -70,9 +70,9 @@ func (p *Sha256PasswordPlugin) InitAuth(authData []byte, cfg *Config) ([]byte, e
 // 1. OK packet - Authentication successful
 // 2. Error packet - Authentication failed
 // 3. More data packet - Contains the server's public key for password encryption
-func (p *Sha256PasswordPlugin) ContinuationAuth(packet []byte, authData []byte, cfg *Config) ([]byte, bool, error) {
+func (p *Sha256PasswordPlugin) ContinuationAuth(packet []byte, authData []byte, cfg *Config) ([]byte, error) {
 	if len(packet) == 0 {
-		return nil, false, fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
+		return nil, fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
 	}
 
 	// Driver already checked for OK/ERR/EOF and stripped 0x01 continuation byte
@@ -81,31 +81,31 @@ func (p *Sha256PasswordPlugin) ContinuationAuth(packet []byte, authData []byte, 
 	// Parse public key from PEM format
 	block, _ := pem.Decode(packet)
 	if block == nil {
-		return nil, false, fmt.Errorf("%w: invalid PEM data in auth response", ErrMalformPkt)
+		return nil, fmt.Errorf("%w: invalid PEM data in auth response", ErrMalformPkt)
 	}
 	if block.Type != "PUBLIC KEY" {
-		return nil, false, fmt.Errorf("%w: unexpected PEM block type %q in auth response", ErrMalformPkt, block.Type)
+		return nil, fmt.Errorf("%w: unexpected PEM block type %q in auth response", ErrMalformPkt, block.Type)
 	}
 
 	// Parse the public key
 	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to parse public key: %w", err)
+		return nil, fmt.Errorf("failed to parse public key: %w", err)
 	}
 
 	pubKey, ok := pub.(*rsa.PublicKey)
 	if !ok {
-		return nil, false, fmt.Errorf("server sent an invalid public key type: %T", pub)
+		return nil, fmt.Errorf("server sent an invalid public key type: %T", pub)
 	}
 
 	// Encrypt and send password
 	enc, err := encryptPassword(cfg.Passwd, authData, pubKey)
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to encrypt password with server key: %w", err)
+		return nil, fmt.Errorf("failed to encrypt password with server key: %w", err)
 	}
 
 	// Return encrypted password to be sent
-	return enc, false, nil
+	return enc, nil
 }
 
 // encryptPassword encrypts the password using RSA-OAEP with SHA1 hash.

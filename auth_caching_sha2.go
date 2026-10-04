@@ -59,13 +59,13 @@ func (p *CachingSha2PasswordPlugin) InitAuth(authData []byte, cfg *Config) ([]by
 //     - Request server's public key if not cached
 //     - Encrypt password with RSA public key
 //     - Send encrypted password
-func (p *CachingSha2PasswordPlugin) ContinuationAuth(packet []byte, authData []byte, cfg *Config) ([]byte, bool, error) {
+func (p *CachingSha2PasswordPlugin) ContinuationAuth(packet []byte, authData []byte, cfg *Config) ([]byte, error) {
 	// Driver already checked for OK/ERR/EOF and stripped 0x01 continuation byte
 	// So we receive the payload directly
 
 	if len(packet) == 0 {
 		// Empty packet after stripping 0x01 means auth successful, need to read next packet
-		return nil, false, nil
+		return nil, nil
 	}
 
 	if len(packet) == 1 {
@@ -73,31 +73,31 @@ func (p *CachingSha2PasswordPlugin) ContinuationAuth(packet []byte, authData []b
 		case cachingSha2FastAuth:
 			// the password was found in the server's cache
 			// Need to read next packet
-			return nil, false, nil
+			return nil, nil
 
 		case cachingSha2FullAuthNeeded:
 			// indicates full authentication is needed
 			// For TLS connections or Unix socket, send cleartext password
 			if cfg.TLS != nil || cfg.Net == "unix" {
-				return append([]byte(cfg.Passwd), 0), false, nil
+				return append([]byte(cfg.Passwd), 0), nil
 			}
 
 			// For non-TLS connections, use RSA encryption
 			pubKey := cfg.pubKey
 			if pubKey == nil {
 				// Request public key from server
-				return []byte{cachingSha2RequestPublicKey}, false, nil
+				return []byte{cachingSha2RequestPublicKey}, nil
 			}
 
 			// Encrypt and send password
 			enc, err := encryptPassword(cfg.Passwd, authData, pubKey)
 			if err != nil {
-				return nil, false, fmt.Errorf("failed to encrypt password: %w", err)
+				return nil, fmt.Errorf("failed to encrypt password: %w", err)
 			}
-			return enc, false, nil
+			return enc, nil
 
 		default:
-			return nil, false, fmt.Errorf("%w: unknown auth state %d", ErrMalformPkt, packet[0])
+			return nil, fmt.Errorf("%w: unknown auth state %d", ErrMalformPkt, packet[0])
 		}
 	}
 
@@ -105,29 +105,29 @@ func (p *CachingSha2PasswordPlugin) ContinuationAuth(packet []byte, authData []b
 	// Parse public key from PEM format
 	block, _ := pem.Decode(packet)
 	if block == nil {
-		return nil, false, fmt.Errorf("%w: invalid PEM data in auth response", ErrMalformPkt)
+		return nil, fmt.Errorf("%w: invalid PEM data in auth response", ErrMalformPkt)
 	}
 	if block.Type != "PUBLIC KEY" {
-		return nil, false, fmt.Errorf("%w: unexpected PEM block type %q in auth response", ErrMalformPkt, block.Type)
+		return nil, fmt.Errorf("%w: unexpected PEM block type %q in auth response", ErrMalformPkt, block.Type)
 	}
 
 	// Parse the public key
 	pkix, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to parse public key: %w", err)
+		return nil, fmt.Errorf("failed to parse public key: %w", err)
 	}
 
 	pubKey, ok := pkix.(*rsa.PublicKey)
 	if !ok {
-		return nil, false, fmt.Errorf("server sent an invalid public key type: %T", pkix)
+		return nil, fmt.Errorf("server sent an invalid public key type: %T", pkix)
 	}
 
 	// Encrypt and send password
 	enc, err := encryptPassword(cfg.Passwd, authData, pubKey)
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to encrypt password: %w", err)
+		return nil, fmt.Errorf("failed to encrypt password: %w", err)
 	}
-	return enc, false, nil
+	return enc, nil
 }
 
 // scrambleSHA256Password implements MySQL 8+ password scrambling.

@@ -153,7 +153,7 @@ func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, 
 			pluginData = data[1:]
 		}
 
-		nextPacket, done, err := authPlugin.ContinuationAuth(pluginData, initialSeed, mc.cfg)
+		nextPacket, err := authPlugin.ContinuationAuth(pluginData, initialSeed, mc.cfg)
 		if err != nil {
 			return err
 		}
@@ -171,11 +171,6 @@ func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, 
 				return fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
 			}
 			continue
-		}
-
-		// If plugin signals done but we haven't hit a terminal packet, that's an error
-		if done {
-			return fmt.Errorf("%w: plugin signaled done but no terminal packet received", ErrMalformPkt)
 		}
 
 		// Plugin wants to read the next packet
