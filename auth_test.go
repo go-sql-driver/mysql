@@ -14,6 +14,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"testing"
 )
@@ -51,7 +52,6 @@ func TestScrambleOldPass(t *testing.T) {
 		{"C0mpl!ca ted#PASS123", "5d5d554849584a45"},
 	}
 
-	// Send Client Authentication Packet
 	authPlugin := oldPasswordPlugin{}
 
 	for _, tuple := range vectors {
@@ -1034,7 +1034,7 @@ func TestAuthSwitchNativePasswordEmpty(t *testing.T) {
 // error once the server requests more than authMaximumSwitch plugin switches,
 // rather than switching forever.
 func TestAuthSwitchExceedsMaximum(t *testing.T) {
-	const authMaximumSwitch = 2
+	const authMaximumSwitch = 5
 	conn, mc := newRWMockConn(2)
 	mc.cfg.AllowNativePasswords = true
 	mc.cfg.Passwd = "secret"
@@ -1377,13 +1377,13 @@ func TestMultiAuthSimpleSwitch(t *testing.T) {
 	mc.cfg.pubKey = testPubKeyRSA
 	mc.cfg.Net = "unix"
 
-	// auth switch request
+	// auth switch request: sha256_password
 	conn.data = []byte{38, 0, 0, 2, 254, 115, 104, 97, 50, 53, 54, 95, 112, 97,
 		115, 115, 119, 111, 114, 100, 0, 78, 82, 62, 40, 100, 1, 59, 31, 44, 69,
 		33, 112, 8, 81, 51, 96, 65, 82, 16, 114, 0}
 
 	conn.queuedReplies = [][]byte{
-		// cleartext password
+		// auth switch request: mysql_clear_password
 		{22, 0, 0, 4, 254, 109, 121, 115, 113, 108, 95, 99, 108,
 			101, 97, 114, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0},
 
@@ -1396,24 +1396,22 @@ func TestMultiAuthSimpleSwitch(t *testing.T) {
 		t.Errorf("got error: %v", err)
 	}
 
-	// caching_sha2_password
 	if !bytes.HasPrefix(conn.written, []byte{0, 1, 0, 3}) {
 		t.Errorf("got unexpected data: %v", conn.written)
 	}
-
-	if !bytes.HasSuffix(conn.written, []byte{7, 0, 0, 5, 115, 101, 99, 114, 101, 116, 0}) { // cleartext password
+	// Packet: cleartext password "secret\x00", sequence ID 5.
+	if !bytes.HasSuffix(conn.written, []byte{7, 0, 0, 5, 115, 101, 99, 114, 101, 116, 0}) {
 		t.Errorf("got unexpected data: %v", conn.written)
 	}
-
 }
 
-// test 2 authentication switch
+// Test an unknown plugin during a sequence of authentication switches.
 func TestMultiAuthSwitch(t *testing.T) {
 	conn, mc := newRWMockConn(2)
 	mc.cfg.Passwd = "secret"
 	mc.cfg.AllowCleartextPasswords = true
 
-	// auth switch request
+	// auth switch request: sha256_password
 	conn.data = []byte{38, 0, 0, 2, 254, 115, 104, 97, 50, 53, 54, 95, 112, 97,
 		115, 115, 119, 111, 114, 100, 0, 78, 82, 62, 40, 100, 1, 59, 31, 44, 69,
 		33, 112, 8, 81, 51, 96, 65, 82, 16, 114, 0}
@@ -1422,17 +1420,21 @@ func TestMultiAuthSwitch(t *testing.T) {
 		// Pub Key Response
 		append([]byte{byte(1 + len(testPubKey)), 1, 0, 4, 1}, testPubKey...),
 
-		// cleartext password
-		{22, 0, 0, 6, 254, 109, 121, 115, 113, 108, 95, 99, 108,
+		// auth switch request: unknown_auth_plugin
+		append([]byte{21, 0, 0, 6, iEOF}, "unknown_auth_plugin\x00"...),
+
+		// auth switch request: mysql_clear_password
+		{22, 0, 0, 8, 254, 109, 121, 115, 113, 108, 95, 99, 108,
 			101, 97, 114, 95, 112, 97, 115, 115, 119, 111, 114, 100, 0},
 
 		// OK
-		{7, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0},
+		{7, 0, 0, 10, 0, 0, 0, 2, 0, 0, 0},
 	}
 	conn.maxReads = 5
 
-	if err := mc.handleAuthResult(context.Background(), []byte{}, &nativePasswordPlugin{}, newAuthContext(mc.cfg, mc.cfg.Passwd, false)); err != nil {
-		t.Errorf("got error: %v", err)
+	err := mc.handleAuthResult(context.Background(), []byte{}, &nativePasswordPlugin{}, newAuthContext(mc.cfg, mc.cfg.Passwd, false))
+	if !errors.Is(err, ErrUnknownPlugin) {
+		t.Fatalf("got error %v, want ErrUnknownPlugin", err)
 	}
 
 	expectedReplyPrefix := []byte{
@@ -1445,7 +1447,7 @@ func TestMultiAuthSwitch(t *testing.T) {
 	if !bytes.HasPrefix(conn.written, expectedReplyPrefix) {
 		t.Errorf("got unexpected data: %v", conn.written)
 	}
-	if !bytes.HasSuffix(conn.written, []byte{7, 0, 0, 7, 115, 101, 99, 114, 101, 116, 0}) { // cleartext password
-		t.Errorf("got unexpected data: %v", conn.written)
+	if conn.writes != 2 {
+		t.Errorf("got %d writes, want 2 before rejecting unknown plugin", conn.writes)
 	}
 }

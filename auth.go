@@ -121,8 +121,8 @@ func (mc *mysqlConn) handleAuthResult(ctx context.Context, initialSeed []byte, a
 		return fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
 	}
 
-	const authMaximumSwitch = 2
-	remainingSwitch := authMaximumSwitch
+	const maxSwitch = 5
+	remainingSwitch := maxSwitch
 
 	// Process continuations and auth switches until we receive OK or ERR.
 	for {
@@ -137,10 +137,9 @@ func (mc *mysqlConn) handleAuthResult(ctx context.Context, initialSeed []byte, a
 			return mc.handleErrorPacket(data)
 		case iEOF:
 			// Auth switch request. Enforce the switch limit before doing any
-			// work. remainingSwitch is unsigned, so check before decrementing
-			// to avoid wrapping around on underflow.
+			// work.
 			if remainingSwitch == 0 {
-				return fmt.Errorf("maximum of %d authentication switch reached", authMaximumSwitch)
+				return fmt.Errorf("maximum of %d authentication switch reached", maxSwitch)
 			}
 			remainingSwitch--
 
