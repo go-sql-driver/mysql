@@ -179,7 +179,7 @@ func TestAuthPluginCancellation(t *testing.T) {
 					_, _, err := mc.initAuth(ctx, name, nil, auth)
 					result <- err
 				} else {
-					result <- mc.handleAuthResult(ctx, authMaximumSwitch, nil, factory(), auth)
+					result <- mc.handleAuthResult(ctx, nil, factory(), auth)
 				}
 			}()
 			select {
@@ -240,7 +240,7 @@ func TestAuthSwitchContextSnapshot(t *testing.T) {
 		makePacket(5, []byte{0, 0, 0, 2, 0, 0, 0})...,
 	)}
 	conn.maxReads = 2
-	if err := mc.handleAuthResult(ctx, authMaximumSwitch, nil, &nativePasswordPlugin{}, auth); err != nil {
+	if err := mc.handleAuthResult(ctx, nil, &nativePasswordPlugin{}, auth); err != nil {
 		t.Fatal(err)
 	}
 	if !continued || conn.writes != 1 {

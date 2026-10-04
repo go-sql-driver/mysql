@@ -20,10 +20,6 @@ import (
 	"strings"
 )
 
-const (
-	authMaximumSwitch = 5
-)
-
 type connector struct {
 	cfg *Config // immutable private copy.
 }
@@ -192,7 +188,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	// Handle response to auth packet, switch methods if possible
-	if err = mc.handleAuthResult(ctx, authMaximumSwitch, authData, authPlugin, auth); err != nil {
+	if err = mc.handleAuthResult(ctx, authData, authPlugin, auth); err != nil {
 		// Authentication failed and MySQL has already closed the connection
 		// (https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase.html#sect_protocol_connection_phase_fast_path_fails).
 		// Do not send COM_QUIT, just cleanup and return the error.

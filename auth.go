@@ -112,7 +112,7 @@ func (mc *mysqlConn) initAuth(ctx context.Context, plugin string, authData []byt
 // handleAuthResult processes the initial authentication packet and manages subsequent
 // authentication flow. It reads the first authentication packet and hands off processing
 // to the appropriate auth plugin.
-func (mc *mysqlConn) handleAuthResult(ctx context.Context, remainingSwitch uint, initialSeed []byte, authPlugin AuthPlugin, auth *AuthContext) error {
+func (mc *mysqlConn) handleAuthResult(ctx context.Context, initialSeed []byte, authPlugin AuthPlugin, auth *AuthContext) error {
 	data, err := mc.readPacket()
 	if err != nil {
 		return err
@@ -120,6 +120,9 @@ func (mc *mysqlConn) handleAuthResult(ctx context.Context, remainingSwitch uint,
 	if len(data) == 0 {
 		return fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
 	}
+
+	const authMaximumSwitch = 2
+	remainingSwitch := authMaximumSwitch
 
 	// Process continuations and auth switches until we receive OK or ERR.
 	for {
