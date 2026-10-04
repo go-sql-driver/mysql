@@ -493,7 +493,7 @@ func TestReadColumnsCollation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := columns[0].charSet; got != tc.collation {
+			if got := uint16(columns[0].charSet); got != tc.collation {
 				t.Errorf("collation = %d; want %d", got, tc.collation)
 			}
 			if got := columns[0].typeDatabaseName(); got != tc.databaseType {
