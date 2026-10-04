@@ -114,6 +114,11 @@ func scanColumnBytes(ctx driver.ScanContext, dest any, raw []byte) error {
 			*d = bytes.Clone(raw)
 			return nil
 		}
+	case *any:
+		if d != nil {
+			*d = bytes.Clone(raw)
+			return nil
+		}
 	case *sql.RawBytes:
 		if d != nil {
 			*d = raw
@@ -255,7 +260,7 @@ func (rows *binaryRows) ScanColumn(ctx driver.ScanContext, i int, dest any) erro
 		if err != nil {
 			return err
 		}
-		return sql.ConvertAssign(ctx, dest, value)
+		return scanColumnBytes(ctx, dest, value)
 
 	default:
 		return fmt.Errorf("unknown field type %d", col.fieldType)

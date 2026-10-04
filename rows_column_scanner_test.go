@@ -454,3 +454,138 @@ func TestRowsColumnScannerRawBytes(t *testing.T) {
 		})
 	}
 }
+
+// Include packet decoding, every column assignment, and the per-result column
+// slice. Reuse the connection and destinations, as database/sql callers can do.
+func BenchmarkRowsScan(b *testing.B) {
+	date := []byte{0xea, 7, 9, 30, 12, 34, 56}
+	cases := []struct {
+		name      string
+		field     fieldType
+		text      string
+		binary    []byte
+		parseTime bool
+		dest      func() any
+	}{
+		{"int64", fieldTypeLongLong, "123456789", binary.LittleEndian.AppendUint64(nil, 123456789), false, func() any { return new(int64) }},
+		{"null-int64", fieldTypeLongLong, "123456789", binary.LittleEndian.AppendUint64(nil, 123456789), false, func() any { return new(sql.NullInt64) }},
+		{"string", fieldTypeString, "hello world", []byte("hello world"), false, func() any { return new(string) }},
+		{"bytes", fieldTypeString, "hello world", []byte("hello world"), false, func() any { return new([]byte) }},
+		{"any", fieldTypeString, "hello world", []byte("hello world"), false, func() any { return new(any) }},
+		{"date-string", fieldTypeDate, "2026-09-30", date[:4], false, func() any { return new(string) }},
+		{"date-bytes", fieldTypeDate, "2026-09-30", date[:4], false, func() any { return new([]byte) }},
+		{"date-raw", fieldTypeDate, "2026-09-30", date[:4], false, func() any { return new(sql.RawBytes) }},
+		{"date-any", fieldTypeDate, "2026-09-30", date[:4], false, func() any { return new(any) }},
+		{"datetime-string", fieldTypeDateTime, "2026-09-30 12:34:56", date, false, func() any { return new(string) }},
+		{"datetime-time", fieldTypeDateTime, "2026-09-30 12:34:56", date, true, func() any { return new(time.Time) }},
+		{"datetime-nulltime", fieldTypeDateTime, "2026-09-30 12:34:56", date, true, func() any { return new(sql.NullTime) }},
+		{"time-string", fieldTypeTime, "12:34:56", []byte{0, 0, 0, 0, 0, 12, 34, 56}, false, func() any { return new(string) }},
+	}
+	for _, tt := range cases {
+		for _, bp := range []bool{false, true} {
+			for _, count := range []int{1, 100} {
+				for _, direct := range []bool{false, true} {
+					b.Run(fmt.Sprintf("%s/binary=%v/rows=%d/direct=%v", tt.name, bp, count, direct), func(b *testing.B) {
+						payload := appendLengthEncodedString(nil, tt.text)
+						if bp {
+							payload = []byte{0, 0}
+							if tt.field != fieldTypeLongLong {
+								payload = appendLengthEncodedInteger(payload, uint64(len(tt.binary)))
+							}
+							payload = append(payload, tt.binary...)
+						}
+						rows, conn, mc := scannerTestRows(bp, []mysqlField{{fieldType: tt.field}}, payload, tt.parseTime)
+						packet := conn.data
+						var base *mysqlRows
+						if bp {
+							base = &rows.(*binaryRows).mysqlRows
+						} else {
+							base = &rows.(*textRows).mysqlRows
+						}
+						dest := tt.dest()
+						b.ReportAllocs()
+						b.ResetTimer()
+						for range b.N {
+							// Both APIs allocate their column slice once per result.
+							var values []driver.Value
+							if direct {
+								base.rawCols = nil
+							} else {
+								values = make([]driver.Value, 1)
+							}
+							for range count {
+								conn.data = packet
+								mc.sequence = 0
+								if direct {
+									if err := rows.NextRow(); err != nil {
+										b.Fatal(err)
+									}
+									if err := rows.ScanColumn(driver.ScanContext{}, 0, dest); err != nil {
+										b.Fatal(err)
+									}
+								} else {
+									if err := rows.Next(values); err != nil {
+										b.Fatal(err)
+									}
+									if err := sql.ConvertAssign(driver.ScanContext{}, dest, values[0]); err != nil {
+										b.Fatal(err)
+									}
+								}
+							}
+						}
+					})
+				}
+			}
+		}
+	}
+}
+
+func TestScanColumnBytesAnyOwnership(t *testing.T) {
+	for _, raw := range [][]byte{nil, {}, []byte("abc")} {
+		var first, second any
+		if err := scanColumnBytes(driver.ScanContext{}, &first, raw); err != nil {
+			t.Fatal(err)
+		}
+		if err := scanColumnBytes(driver.ScanContext{}, &second, raw); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(first, raw) || !reflect.DeepEqual(second, raw) {
+			t.Fatalf("copies = %#v, %#v; want %#v", first, second, raw)
+		}
+		if len(raw) > 0 {
+			second.([]byte)[0] = 'x'
+			if !bytes.Equal(first.([]byte), raw) || string(raw) != "abc" {
+				t.Fatal("any destination aliases source or previous destination")
+			}
+		}
+	}
+	if err := scanColumnBytes(driver.ScanContext{}, (*any)(nil), []byte("abc")); err == nil {
+		t.Fatal("accepted nil destination")
+	}
+}
+
+func TestRowsColumnScannerZeroDateTimeOwnership(t *testing.T) {
+	for _, field := range []fieldType{fieldTypeDate, fieldTypeDateTime, fieldTypeTime} {
+		rows, _, _ := scannerTestRows(true, []mysqlField{{fieldType: field}}, []byte{0, 0, 0}, false)
+		if err := rows.NextRow(); err != nil {
+			t.Fatal(err)
+		}
+		original := bytes.Clone(zeroDateTime)
+		var buf []byte
+		var value any
+		for _, dest := range []any{&buf, &value} {
+			if err := rows.ScanColumn(driver.ScanContext{}, 0, dest); err != nil {
+				t.Fatal(err)
+			}
+			got := buf
+			if dest == &value {
+				got = value.([]byte)
+			}
+			got[0] = 'x'
+			if !bytes.Equal(zeroDateTime, original) {
+				copy(zeroDateTime, original)
+				t.Fatal("destination aliases shared zero datetime")
+			}
+		}
+	}
+}

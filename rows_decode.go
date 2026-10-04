@@ -162,7 +162,19 @@ func (r *binaryRowReader) readVariableColumn(fieldType fieldType) ([]byte, error
 	}
 }
 
-func formatBinaryColumnDateTime(col mysqlField, raw []byte) (driver.Value, error) {
+// The legacy Next path needs a boxed value, or an untyped nil on error.
+// Keep the boxing code out of readRow's numeric hot loop.
+//
+//go:noinline
+func formatBinaryColumnDateTimeValue(col mysqlField, raw []byte) (driver.Value, error) {
+	value, err := formatBinaryColumnDateTime(col, raw)
+	if err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+func formatBinaryColumnDateTime(col mysqlField, raw []byte) ([]byte, error) {
 	length := uint8(19)
 	switch col.fieldType {
 	case fieldTypeDate, fieldTypeNewDate:

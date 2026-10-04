@@ -1314,7 +1314,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 			if col.fieldType != fieldTypeTime && rows.mc.parseTime {
 				dest[i], err = parseBinaryDateTime(uint64(len(raw)), raw, rows.mc.cfg.Loc)
 			} else {
-				dest[i], err = formatBinaryColumnDateTime(*col, raw)
+				dest[i], err = formatBinaryColumnDateTimeValue(*col, raw)
 			}
 			if err != nil {
 				return err
