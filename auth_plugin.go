@@ -8,35 +8,43 @@
 
 package mysql
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
 
-// AuthPlugin represents an authentication plugin for MySQL/MariaDB
+// AuthPlugin represents an authentication plugin for MySQL/MariaDB.
+// The driver creates an instance for each authentication exchange and calls its
+// methods sequentially. ctx is the connection's context and may be canceled
+// while a method is running. Plugins should use it to cancel blocking work.
 type AuthPlugin interface {
 	// PluginName returns the name of the authentication plugin
 	PluginName() string
 
 	// InitAuth initializes the authentication process and returns the initial response.
-	// authData is the challenge data from the server.
-	// cfg is the connection configuration (including the password).
-	InitAuth(authData []byte, cfg *Config) ([]byte, error)
+	// authData is the challenge data from the server. It must not be modified
+	// and must be copied if retained after the call.
+	// auth is the snapshot for this exchange, shared with ContinuationAuth.
+	// A nil or empty response sends an empty authentication response.
+	InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error)
 
-	// ContinuationAuth processes the authentication response from the server
-	// packet is the data from the server's auth response
-	// authData is the initial auth data from the server
-	// cfg is the connection configuration
-	// Returns:
-	//   - nextPacket: the next packet to send to the server (nil to read the next server packet without sending)
-	//   - error: any error that occurred
-	ContinuationAuth(packet []byte, authData []byte, cfg *Config) (nextPacket []byte, err error)
+	// ContinuationAuth processes the server's continuation payload after the
+	// driver has handled OK, ERR, and auth switch packets and stripped any
+	// AuthMoreData prefix. authData is the challenge passed to InitAuth.
+	// Neither slice may be modified; copy them if retaining them after the call.
+	// A nil response reads the next server packet without sending. A non-nil
+	// empty response sends an empty packet. An error aborts authentication.
+	// Only a server OK packet completes authentication successfully.
+	ContinuationAuth(ctx context.Context, packet, authData []byte, auth *AuthContext) (nextPacket []byte, err error)
 }
 
 // SecureTransportRequirer is an optional interface an AuthPlugin may implement
 // to demand that it only run over a secure transport: TLS or a local unix
 // socket.
 type SecureTransportRequirer interface {
-	// RequireSecure reports whether, for the given configuration, the plugin
+	// RequireSecure reports whether, for the given authentication exchange, the plugin
 	// must only be used over a secure transport.
-	RequireSecure(cfg *Config) bool
+	RequireSecure(auth *AuthContext) bool
 }
 
 // SimpleAuth provides the default continuation behavior for authentication
@@ -47,7 +55,7 @@ type SimpleAuth struct {
 	AuthPlugin
 }
 
-func (s SimpleAuth) ContinuationAuth(packet []byte, authData []byte, cfg *Config) ([]byte, error) {
+func (s SimpleAuth) ContinuationAuth(ctx context.Context, packet, authData []byte, auth *AuthContext) ([]byte, error) {
 	return nil, ErrMalformPkt
 }
 
@@ -55,12 +63,12 @@ func (s SimpleAuth) ContinuationAuth(packet []byte, authData []byte, cfg *Config
 // SecureTransportRequirer and demands a secure transport, but the connection is
 // neither using TLS nor a local unix socket. Plugins that do not implement the
 // interface are allowed over any transport.
-func requireSecureTransport(plugin AuthPlugin, cfg *Config) error {
+func requireSecureTransport(plugin AuthPlugin, auth *AuthContext) error {
 	sr, ok := plugin.(SecureTransportRequirer)
-	if !ok || !sr.RequireSecure(cfg) {
+	if !ok || !sr.RequireSecure(auth) {
 		return nil
 	}
-	if cfg.TLS == nil && cfg.Net != "unix" {
+	if !auth.TLS() && !auth.UnixSocket() {
 		return ErrSecureTransport
 	}
 	return nil

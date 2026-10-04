@@ -8,7 +8,10 @@
 
 package mysql
 
-import "crypto/sha1"
+import (
+	"context"
+	"crypto/sha1"
+)
 
 // NativePasswordPlugin implements the mysql_native_password authentication
 type NativePasswordPlugin struct {
@@ -23,14 +26,11 @@ func (p *NativePasswordPlugin) PluginName() string {
 	return "mysql_native_password"
 }
 
-func (p *NativePasswordPlugin) InitAuth(authData []byte, cfg *Config) ([]byte, error) {
-	if !cfg.AllowNativePasswords {
-		return nil, ErrNativePassword
-	}
-	if cfg.Passwd == "" {
+func (p *NativePasswordPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
+	if auth.Password() == "" {
 		return nil, nil
 	}
-	return p.scramblePassword(authData[:20], cfg.Passwd), nil
+	return p.scramblePassword(authData[:20], auth.Password()), nil
 }
 
 // Hash password using 4.1+ method (SHA1)

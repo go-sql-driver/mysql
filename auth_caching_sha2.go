@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"context"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -45,8 +46,8 @@ func (p *CachingSha2PasswordPlugin) PluginName() string {
 // 1. SHA256(password)
 // 2. SHA256(SHA256(password))
 // 3. XOR(SHA256(password), SHA256(SHA256(SHA256(password)), scramble))
-func (p *CachingSha2PasswordPlugin) InitAuth(authData []byte, cfg *Config) ([]byte, error) {
-	return scrambleSHA256Password(authData, cfg.Passwd), nil
+func (p *CachingSha2PasswordPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
+	return scrambleSHA256Password(authData, auth.Password()), nil
 }
 
 // ContinuationAuth processes the server's response to our authentication attempt.
@@ -59,12 +60,12 @@ func (p *CachingSha2PasswordPlugin) InitAuth(authData []byte, cfg *Config) ([]by
 //     - Request server's public key if not cached
 //     - Encrypt password with RSA public key
 //     - Send encrypted password
-func (p *CachingSha2PasswordPlugin) ContinuationAuth(packet []byte, authData []byte, cfg *Config) ([]byte, error) {
+func (p *CachingSha2PasswordPlugin) ContinuationAuth(ctx context.Context, packet, authData []byte, auth *AuthContext) ([]byte, error) {
 	// Driver already checked for OK/ERR/EOF and stripped 0x01 continuation byte
 	// So we receive the payload directly
 
 	if len(packet) == 0 {
-		// Empty packet after stripping 0x01 means auth successful, need to read next packet
+		// Read the next packet; only a server OK completes authentication.
 		return nil, nil
 	}
 
@@ -78,19 +79,19 @@ func (p *CachingSha2PasswordPlugin) ContinuationAuth(packet []byte, authData []b
 		case cachingSha2FullAuthNeeded:
 			// indicates full authentication is needed
 			// For TLS connections or Unix socket, send cleartext password
-			if cfg.TLS != nil || cfg.Net == "unix" {
-				return append([]byte(cfg.Passwd), 0), nil
+			if auth.TLS() || auth.UnixSocket() {
+				return append([]byte(auth.Password()), 0), nil
 			}
 
 			// For non-TLS connections, use RSA encryption
-			pubKey := cfg.pubKey
+			pubKey := auth.ServerPublicKey()
 			if pubKey == nil {
 				// Request public key from server
 				return []byte{cachingSha2RequestPublicKey}, nil
 			}
 
 			// Encrypt and send password
-			enc, err := encryptPassword(cfg.Passwd, authData, pubKey)
+			enc, err := encryptPassword(auth.Password(), authData, pubKey)
 			if err != nil {
 				return nil, fmt.Errorf("failed to encrypt password: %w", err)
 			}
@@ -123,7 +124,7 @@ func (p *CachingSha2PasswordPlugin) ContinuationAuth(packet []byte, authData []b
 	}
 
 	// Encrypt and send password
-	enc, err := encryptPassword(cfg.Passwd, authData, pubKey)
+	enc, err := encryptPassword(auth.Password(), authData, pubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt password: %w", err)
 	}

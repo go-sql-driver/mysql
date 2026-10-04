@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"bytes"
+	"context"
 	"crypto/rsa"
 	"fmt"
 	"sync"
@@ -77,10 +78,44 @@ func getServerPubKey(name string) (pubKey *rsa.PublicKey) {
 	return
 }
 
+// initAuth enforces the connection's authentication policy before invoking a
+// plugin. The same checks apply to the server greeting and every auth switch.
+func (mc *mysqlConn) initAuth(ctx context.Context, plugin string, authData []byte, auth *AuthContext) (AuthPlugin, []byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+	switch plugin {
+	case "mysql_native_password":
+		if !mc.cfg.AllowNativePasswords {
+			return nil, nil, ErrNativePassword
+		}
+	case "mysql_old_password":
+		if !mc.cfg.AllowOldPasswords {
+			return nil, nil, ErrOldPassword
+		}
+	case "mysql_clear_password":
+		if !mc.cfg.AllowCleartextPasswords {
+			return nil, nil, ErrCleartextPassword
+		}
+	}
+	pluginImpl, exists := globalPluginRegistry.GetPlugin(plugin)
+	if !exists {
+		return nil, nil, fmt.Errorf("authentication plugin %q: %w", plugin, ErrUnknownPlugin)
+	}
+	if err := requireSecureTransport(pluginImpl, auth); err != nil {
+		return nil, nil, err
+	}
+	response, err := pluginImpl.InitAuth(ctx, authData, auth)
+	if err == nil {
+		err = ctx.Err()
+	}
+	return pluginImpl, response, err
+}
+
 // handleAuthResult processes the initial authentication packet and manages subsequent
 // authentication flow. It reads the first authentication packet and hands off processing
 // to the appropriate auth plugin.
-func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, authPlugin AuthPlugin) error {
+func (mc *mysqlConn) handleAuthResult(ctx context.Context, remainingSwitch uint, initialSeed []byte, authPlugin AuthPlugin, auth *AuthContext) error {
 	data, err := mc.readPacket()
 	if err != nil {
 		return err
@@ -89,8 +124,11 @@ func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, 
 		return fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
 	}
 
-	// Loop on continuationAuth until we receive a terminal packet (OK/ERR/EOF)
+	// Process continuations and auth switches until we receive OK or ERR.
 	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		// Check for terminal packets first
 		switch data[0] {
 		case iOK:
@@ -112,17 +150,11 @@ func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, 
 				return fmt.Errorf("%w: malformed auth switch request", ErrMalformPkt)
 			}
 
-			newPlugin, exists := globalPluginRegistry.GetPlugin(plugin)
-			if !exists {
-				return fmt.Errorf("authentication plugin %q: %w", plugin, ErrUnknownPlugin)
-			}
-
-			initialAuthResponse, err := newPlugin.InitAuth(authData, mc.cfg)
+			// A switch stays within the current factor. Keep its selected password
+			// and transport information, but give the new plugin its own snapshot.
+			nextAuth := *auth
+			newPlugin, initialAuthResponse, err := mc.initAuth(ctx, plugin, authData, &nextAuth)
 			if err != nil {
-				return err
-			}
-
-			if err := requireSecureTransport(newPlugin, mc.cfg); err != nil {
 				return err
 			}
 
@@ -132,6 +164,7 @@ func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, 
 
 			// Continue iteratively with the new plugin and seed.
 			authPlugin = newPlugin
+			auth = &nextAuth
 			initialSeed = authData
 			data, err = mc.readPacket()
 			if err != nil {
@@ -153,8 +186,11 @@ func (mc *mysqlConn) handleAuthResult(remainingSwitch uint, initialSeed []byte, 
 			pluginData = data[1:]
 		}
 
-		nextPacket, err := authPlugin.ContinuationAuth(pluginData, initialSeed, mc.cfg)
+		nextPacket, err := authPlugin.ContinuationAuth(ctx, pluginData, initialSeed, auth)
 		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 

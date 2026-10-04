@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -39,25 +40,26 @@ func (p *Sha256PasswordPlugin) PluginName() string {
 // 2. If TLS is enabled, sends the password in cleartext
 // 3. If a public key is available, encrypts the password and sends it
 // 4. Otherwise, requests the server's public key
-func (p *Sha256PasswordPlugin) InitAuth(authData []byte, cfg *Config) ([]byte, error) {
-	if len(cfg.Passwd) == 0 {
+func (p *Sha256PasswordPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
+	if len(auth.Password()) == 0 {
 		return []byte{0}, nil
 	}
 
 	// Unlike caching_sha2_password, sha256_password does not accept
 	// cleartext password on unix transport.
-	if cfg.TLS != nil {
+	if auth.TLS() {
 		// Write cleartext auth packet
-		return append([]byte(cfg.Passwd), 0), nil
+		return append([]byte(auth.Password()), 0), nil
 	}
 
-	if cfg.pubKey == nil {
+	pubKey := auth.ServerPublicKey()
+	if pubKey == nil {
 		// Request public key from server
 		return []byte{1}, nil
 	}
 
 	// Encrypt password using the public key
-	enc, err := encryptPassword(cfg.Passwd, authData, cfg.pubKey)
+	enc, err := encryptPassword(auth.Password(), authData, pubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt password: %w", err)
 	}
@@ -70,7 +72,7 @@ func (p *Sha256PasswordPlugin) InitAuth(authData []byte, cfg *Config) ([]byte, e
 // 1. OK packet - Authentication successful
 // 2. Error packet - Authentication failed
 // 3. More data packet - Contains the server's public key for password encryption
-func (p *Sha256PasswordPlugin) ContinuationAuth(packet []byte, authData []byte, cfg *Config) ([]byte, error) {
+func (p *Sha256PasswordPlugin) ContinuationAuth(ctx context.Context, packet, authData []byte, auth *AuthContext) ([]byte, error) {
 	if len(packet) == 0 {
 		return nil, fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
 	}
@@ -99,7 +101,7 @@ func (p *Sha256PasswordPlugin) ContinuationAuth(packet []byte, authData []byte, 
 	}
 
 	// Encrypt and send password
-	enc, err := encryptPassword(cfg.Passwd, authData, pubKey)
+	enc, err := encryptPassword(auth.Password(), authData, pubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt password with server key: %w", err)
 	}

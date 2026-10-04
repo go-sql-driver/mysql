@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"context"
+	"crypto/tls"
 	"database/sql/driver"
 	"fmt"
 	"net"
@@ -141,32 +142,46 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if plugin == "" {
 		plugin = defaultAuthPlugin
 	}
-	authPlugin, exists := globalPluginRegistry.GetPlugin(plugin)
-	if !exists {
+	if mc.cfg.TLS != nil && serverCapabilities&clientSSL == 0 && !mc.cfg.AllowFallbackToPlaintext {
 		mc.cleanup()
-		return nil, fmt.Errorf("authentication plugin %q: %w", plugin, ErrUnknownPlugin)
+		return nil, ErrNoTLS
 	}
 
-	// Send Client Authentication Packet
-	authResp, err := authPlugin.InitAuth(authData, mc.cfg)
+	// Establish TLS before starting the authentication plugin, so its context
+	// describes the transport that will actually carry its responses.
+	mc.initCapabilities(serverCapabilities, serverExtCapabilities)
+	tlsEstablished := false
+	if mc.capabilities&clientSSL != 0 {
+		if err := mc.writeSSLRequestPacket(); err != nil {
+			mc.cleanup()
+			return nil, err
+		}
+		tlsConn := tls.Client(mc.netConn, mc.cfg.TLS)
+		if err := tlsConn.HandshakeContext(ctx); err != nil {
+			mc.cleanup()
+			if cerr := mc.canceled.Value(); cerr != nil {
+				return nil, cerr
+			}
+			return nil, err
+		}
+		mc.netConn = tlsConn
+		tlsEstablished = true
+	}
+
+	auth := newAuthContext(mc.cfg, mc.cfg.Passwd, tlsEstablished)
+	authPlugin, authResp, err := mc.initAuth(ctx, plugin, authData, auth)
 	if err != nil {
 		mc.cleanup()
 		return nil, err
 	}
 
-	if err := requireSecureTransport(authPlugin, mc.cfg); err != nil {
-		mc.cleanup()
-		return nil, err
-	}
-
-	mc.initCapabilities(serverCapabilities, serverExtCapabilities)
 	if err = mc.writeHandshakeResponsePacket(authResp, plugin); err != nil {
 		mc.cleanup()
 		return nil, err
 	}
 
 	// Handle response to auth packet, switch methods if possible
-	if err = mc.handleAuthResult(authMaximumSwitch, authData, authPlugin); err != nil {
+	if err = mc.handleAuthResult(ctx, authMaximumSwitch, authData, authPlugin, auth); err != nil {
 		// Authentication failed and MySQL has already closed the connection
 		// (https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase.html#sect_protocol_connection_phase_fast_path_fails).
 		// Do not send COM_QUIT, just cleanup and return the error.

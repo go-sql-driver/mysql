@@ -8,6 +8,8 @@
 
 package mysql
 
+import "context"
+
 // OldPasswordPlugin implements the mysql_old_password authentication
 type OldPasswordPlugin struct{ SimpleAuth }
 
@@ -19,17 +21,14 @@ func (p *OldPasswordPlugin) PluginName() string {
 	return "mysql_old_password"
 }
 
-func (p *OldPasswordPlugin) InitAuth(authData []byte, cfg *Config) ([]byte, error) {
-	if !cfg.AllowOldPasswords {
-		return nil, ErrOldPassword
-	}
-	if cfg.Passwd == "" {
+func (p *OldPasswordPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
+	if auth.Password() == "" {
 		return nil, nil
 	}
 	// Note: there are edge cases where this should work but doesn't;
 	// this is currently "wontfix":
 	// https://github.com/go-sql-driver/mysql/issues/184
-	return append(p.scrambleOldPassword(authData[:8], cfg.Passwd), 0), nil
+	return append(p.scrambleOldPassword(authData[:8], auth.Password()), 0), nil
 }
 
 // Hash password using insecure pre 4.1 method

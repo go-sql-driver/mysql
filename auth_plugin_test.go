@@ -9,8 +9,13 @@
 package mysql
 
 import (
+	"context"
+	"crypto/rsa"
 	"crypto/tls"
+	"errors"
+	"math/big"
 	"testing"
+	"time"
 )
 
 type secureTestAuthPlugin struct {
@@ -21,16 +26,16 @@ func (p *secureTestAuthPlugin) PluginName() string {
 	return "secure_test"
 }
 
-func (p *secureTestAuthPlugin) InitAuth(authData []byte, cfg *Config) ([]byte, error) {
+func (p *secureTestAuthPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
 	return nil, nil
 }
 
-func (p *secureTestAuthPlugin) RequireSecure(cfg *Config) bool {
+func (p *secureTestAuthPlugin) RequireSecure(auth *AuthContext) bool {
 	return true
 }
 
 func TestSimpleAuthRejectsContinuation(t *testing.T) {
-	nextPacket, err := (SimpleAuth{}).ContinuationAuth(nil, nil, NewConfig())
+	nextPacket, err := (SimpleAuth{}).ContinuationAuth(context.Background(), nil, nil, &AuthContext{})
 	if err != ErrMalformPkt {
 		t.Fatalf("expected ErrMalformPkt, got %v", err)
 	}
@@ -42,19 +47,182 @@ func TestSimpleAuthRejectsContinuation(t *testing.T) {
 func TestRequireSecureTransport(t *testing.T) {
 	plugin := &secureTestAuthPlugin{}
 
-	if err := requireSecureTransport(plugin, &Config{}); err != ErrSecureTransport {
+	if err := requireSecureTransport(plugin, &AuthContext{}); err != ErrSecureTransport {
 		t.Errorf("expected ErrSecureTransport, got %v", err)
 	}
-	if err := requireSecureTransport(plugin, &Config{TLS: &tls.Config{}}); err != nil {
+	if err := requireSecureTransport(plugin, &AuthContext{tls: true}); err != nil {
 		t.Errorf("secure transport over TLS should be allowed, got %v", err)
 	}
-	if err := requireSecureTransport(plugin, &Config{Net: "unix"}); err != nil {
+	if err := requireSecureTransport(plugin, &AuthContext{unixSocket: true}); err != nil {
 		t.Errorf("secure transport over unix socket should be allowed, got %v", err)
 	}
 	if _, ok := any(&ClearPasswordPlugin{}).(SecureTransportRequirer); ok {
 		t.Error("cleartext plugin must not require a secure transport")
 	}
-	if err := requireSecureTransport(&ClearPasswordPlugin{}, &Config{}); err != nil {
+	if err := requireSecureTransport(&ClearPasswordPlugin{}, &AuthContext{}); err != nil {
 		t.Errorf("cleartext plugin should not require a secure transport, got %v", err)
+	}
+}
+
+func TestAuthContextSnapshot(t *testing.T) {
+	cfg := NewConfig()
+	cfg.User = "user"
+	cfg.Passwd = "first-factor"
+	cfg.Net = "unix"
+	cfg.TLS = &tls.Config{}
+	cfg.pubKey = &rsa.PublicKey{N: big.NewInt(12345), E: 65537}
+	auth := newAuthContext(cfg, "selected-factor", false)
+
+	// Later configuration changes must not change an active exchange.
+	cfg.User = "changed"
+	cfg.Passwd = "changed"
+	cfg.Net = "tcp"
+	cfg.pubKey.N.SetInt64(99)
+	cfg.pubKey.E = 3
+	if auth.User() != "user" || auth.Password() != "selected-factor" || !auth.UnixSocket() {
+		t.Fatal("authentication snapshot changed with the configuration")
+	}
+	if auth.TLS() {
+		t.Fatal("configured TLS must not be reported as an established TLS connection")
+	}
+	key := auth.ServerPublicKey()
+	if key.N.Int64() != 12345 || key.E != 65537 {
+		t.Fatal("authentication snapshot shares the configured RSA key")
+	}
+	key.N.SetInt64(42)
+	key.E = 17
+	key = auth.ServerPublicKey()
+	if key.N.Int64() != 12345 || key.E != 65537 {
+		t.Fatal("ServerPublicKey returned a mutable reference into the snapshot")
+	}
+	if (&AuthContext{}).ServerPublicKey() != nil {
+		t.Fatal("expected nil for an unconfigured RSA key")
+	}
+}
+
+func TestInitAuthPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		plugin string
+		want   error
+	}{
+		{"mysql_native_password", ErrNativePassword},
+		{"mysql_old_password", ErrOldPassword},
+		{"mysql_clear_password", ErrCleartextPassword},
+	} {
+		t.Run(tc.plugin, func(t *testing.T) {
+			_, mc := newRWMockConn(1)
+			mc.cfg.AllowNativePasswords = false
+			mc.cfg.Passwd = "password"
+			auth := newAuthContext(mc.cfg, mc.cfg.Passwd, false)
+			plugin, response, err := mc.initAuth(context.Background(), tc.plugin, nil, auth)
+			if err != tc.want || plugin != nil || response != nil {
+				t.Fatalf("initAuth() = (%T, %v, %v), want (nil, nil, %v)", plugin, response, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestAuthPluginCancellation(t *testing.T) {
+	for _, stage := range []string{"initial", "continuation"} {
+		t.Run(stage, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			entered := make(chan struct{})
+			waitForCancel := func(gotCtx context.Context, _ []byte, _ *AuthContext) ([]byte, error) {
+				if gotCtx != ctx {
+					return nil, errors.New("plugin did not receive the connection context")
+				}
+				close(entered)
+				<-gotCtx.Done()
+				return nil, gotCtx.Err()
+			}
+			const name = "test_auth_cancel"
+			factory := func() AuthPlugin {
+				return &authTestPlugin{
+					name: name,
+					init: waitForCancel,
+					next: func(ctx context.Context, packet, _ []byte, auth *AuthContext) ([]byte, error) {
+						return waitForCancel(ctx, packet, auth)
+					},
+				}
+			}
+			registerTestAuthPlugin(t, name, factory)
+			conn, mc := newRWMockConn(2)
+			auth := newAuthContext(mc.cfg, mc.cfg.Passwd, false)
+			conn.data = makePacket(2, []byte{iAuthMoreData, 7})
+			conn.maxReads = 1
+			result := make(chan error, 1)
+			go func() {
+				if stage == "initial" {
+					_, _, err := mc.initAuth(ctx, name, nil, auth)
+					result <- err
+				} else {
+					result <- mc.handleAuthResult(ctx, authMaximumSwitch, nil, factory(), auth)
+				}
+			}()
+			select {
+			case <-entered:
+				cancel()
+			case err := <-result:
+				t.Fatalf("plugin returned without waiting for cancellation: %v", err)
+			case <-ctx.Done():
+				t.Fatal("plugin was not called")
+			}
+			if err := <-result; err != context.Canceled {
+				t.Fatalf("got %v, want context.Canceled", err)
+			}
+			if len(conn.written) != 0 {
+				t.Error("sent authentication data after cancellation")
+			}
+		})
+	}
+}
+
+func TestAuthSwitchContextSnapshot(t *testing.T) {
+	conn, mc := newRWMockConn(2)
+	mc.cfg.User = "user"
+	mc.cfg.Passwd = "configured-password"
+	auth := newAuthContext(mc.cfg, "selected-password", true)
+	// A switch must keep the selected credentials and established transport,
+	// even if the original configuration changes.
+	mc.cfg.User = "changed"
+	mc.cfg.Passwd = "changed"
+	ctx := t.Context()
+	var switchedAuth *AuthContext
+	continued := false
+	const name = "test_auth_switch_context"
+	registerTestAuthPlugin(t, name, func() AuthPlugin {
+		return &authTestPlugin{
+			name: name,
+			init: func(gotCtx context.Context, seed []byte, gotAuth *AuthContext) ([]byte, error) {
+				if gotCtx != ctx || gotAuth == auth || gotAuth.User() != "user" || gotAuth.Password() != "selected-password" || !gotAuth.TLS() || string(seed) != "challenge" {
+					return nil, errors.New("auth switch did not preserve the authentication snapshot")
+				}
+				switchedAuth = gotAuth
+				return []byte{42}, nil
+			},
+			next: func(gotCtx context.Context, packet, seed []byte, gotAuth *AuthContext) ([]byte, error) {
+				if gotCtx != ctx || gotAuth != switchedAuth || string(seed) != "challenge" {
+					return nil, errors.New("continuation did not retain the switched context")
+				}
+				continued = true
+				return nil, nil // Read the queued OK without sending a response.
+			},
+		}
+	})
+	payload := append([]byte{iEOF}, name...)
+	payload = append(payload, 0)
+	payload = append(payload, "challenge\x00"...)
+	conn.data = makePacket(2, payload)
+	conn.queuedReplies = [][]byte{append(
+		makePacket(4, []byte{iAuthMoreData, 7}),
+		makePacket(5, []byte{0, 0, 0, 2, 0, 0, 0})...,
+	)}
+	conn.maxReads = 2
+	if err := mc.handleAuthResult(ctx, authMaximumSwitch, nil, &NativePasswordPlugin{}, auth); err != nil {
+		t.Fatal(err)
+	}
+	if !continued || conn.writes != 1 {
+		t.Fatalf("continued = %v, writes = %d; want true, 1", continued, conn.writes)
 	}
 }

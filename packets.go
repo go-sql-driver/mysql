@@ -10,7 +10,6 @@ package mysql
 
 import (
 	"bytes"
-	"crypto/tls"
 	"database/sql/driver"
 	"encoding/binary"
 	"encoding/json"
@@ -216,13 +215,6 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 	if capabilities&clientProtocol41 == 0 {
 		return nil, capabilities, 0, "", ErrOldProtocol
 	}
-	if capabilities&clientSSL == 0 && mc.cfg.TLS != nil {
-		if mc.cfg.AllowFallbackToPlaintext {
-			mc.cfg.TLS = nil
-		} else {
-			return nil, capabilities, 0, "", ErrNoTLS
-		}
-	}
 	pos += 2
 
 	if len(data) > pos {
@@ -316,9 +308,9 @@ func (mc *mysqlConn) initCapabilities(serverCapabilities capabilityFlag, serverE
 	mc.extCapabilities = clientCacheMetadata & serverExtCapabilities
 }
 
-// Client Authentication Packet
-// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase_packets_protocol_handshake_response.html
-func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string) error {
+// handshakeResponseHeader builds the common header for SSLRequest and
+// HandshakeResponse. The returned buffer is valid until the next buffer use.
+func (mc *mysqlConn) handshakeResponseHeader() ([]byte, error) {
 	// packet header  4
 	// capabilities   4
 	// maxPacketSize  4
@@ -327,7 +319,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	data, err := mc.buf.takeSmallBuffer(4*3 + 24)
 	if err != nil {
 		mc.cleanup()
-		return err
+		return nil, err
 	}
 	_ = data[4*3+23] // boundery check
 
@@ -345,7 +337,7 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 			data[12] = colID
 		} else if len(mc.cfg.charsets) > 0 {
 			// When cfg.charset is set, the collation is set by `SET NAMES <charset> COLLATE <collation>`.
-			return fmt.Errorf("unknown collation: %q", cname)
+			return nil, fmt.Errorf("unknown collation: %q", cname)
 		}
 	}
 
@@ -364,24 +356,24 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		}
 	}
 
-	// SSL Connection Request Packet
-	// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase_packets_protocol_ssl_request.html
-	// https://mariadb.com/kb/en/connection/#sslrequest-packet
-	if mc.cfg.TLS != nil {
-		// Send TLS / SSL request packet
-		if err := mc.writePacket(data); err != nil {
-			return err
-		}
+	return data, nil
+}
 
-		// Switch to TLS
-		tlsConn := tls.Client(mc.netConn, mc.cfg.TLS)
-		if err := tlsConn.Handshake(); err != nil {
-			if cerr := mc.canceled.Value(); cerr != nil {
-				return cerr
-			}
-			return err
-		}
-		mc.netConn = tlsConn
+// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase_packets_protocol_ssl_request.html
+func (mc *mysqlConn) writeSSLRequestPacket() error {
+	data, err := mc.handshakeResponseHeader()
+	if err != nil {
+		return err
+	}
+	return mc.writePacket(data)
+}
+
+// Client Authentication Packet, sent after any TLS handshake has completed.
+// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase_packets_protocol_handshake_response.html
+func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string) error {
+	data, err := mc.handshakeResponseHeader()
+	if err != nil {
+		return err
 	}
 
 	// User [null terminated string]
