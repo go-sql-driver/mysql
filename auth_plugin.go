@@ -51,12 +51,6 @@ func (s SimpleAuth) ContinuationAuth(packet []byte, authData []byte, cfg *Config
 	return nil, ErrMalformPkt
 }
 
-// RequireSecure provides the default for plugins embedding SimpleAuth: they do
-// not require a secure transport unless they override this method.
-func (s SimpleAuth) RequireSecure(cfg *Config) bool {
-	return false
-}
-
 // requireSecureTransport returns ErrSecureTransport when plugin opts into
 // SecureTransportRequirer and demands a secure transport, but the connection is
 // neither using TLS nor a local unix socket. Plugins that do not implement the
