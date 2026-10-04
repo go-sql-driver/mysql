@@ -471,3 +471,34 @@ func TestRegression801(t *testing.T) {
 		t.Errorf("expected authData '%v', got '%v'", expectedAuthData, authData)
 	}
 }
+
+// ColumnDefinition41 carries a two-byte collation ID, unlike the handshake.
+func TestReadColumnsCollation(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		collation    uint16
+		databaseType string
+	}{
+		{"binary", 63, "VARBINARY"},
+		{"utf8mb4_bg_0900_as_cs", 319, "VARCHAR"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, mc := newRWMockConn(0)
+			column := []byte{3, 'd', 'e', 'f', 0, 0, 0, 1, 'v', 0, 12,
+				byte(tc.collation), byte(tc.collation >> 8), 16, 0, 0, 0,
+				byte(fieldTypeVarString), byte(flagNotNULL), 0, 0, 0, 0}
+			conn.data = append([]byte{byte(len(column)), 0, 0, 0}, column...)
+			conn.data = append(conn.data, 5, 0, 0, 1, 0xfe, 0, 0, 2, 0)
+			columns, err := mc.readColumns(1, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := uint16(columns[0].charSet); got != tc.collation {
+				t.Errorf("collation = %d; want %d", got, tc.collation)
+			}
+			if got := columns[0].typeDatabaseName(); got != tc.databaseType {
+				t.Errorf("DatabaseTypeName = %s; want %s", got, tc.databaseType)
+			}
+		})
+	}
+}
