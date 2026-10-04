@@ -15,20 +15,16 @@ import (
 	"filippo.io/edwards25519"
 )
 
-// ClientEd25519Plugin implements the client_ed25519 authentication
-type ClientEd25519Plugin struct {
-	SimpleAuth
+// clientEd25519Plugin implements the client_ed25519 authentication
+type clientEd25519Plugin struct {
+	simpleAuth
 }
 
 func init() {
-	RegisterAuthPlugin(func() AuthPlugin { return &ClientEd25519Plugin{} })
+	RegisterAuthPlugin("client_ed25519", func() AuthPlugin { return &clientEd25519Plugin{} })
 }
 
-func (p *ClientEd25519Plugin) PluginName() string {
-	return "client_ed25519"
-}
-
-func (p *ClientEd25519Plugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
+func (p *clientEd25519Plugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
 	// Derived from https://github.com/MariaDB/server/blob/d8e6bb00888b1f82c031938f4c8ac5d97f6874c3/plugin/auth_ed25519/ref10/sign.c
 	// Code style is from https://cs.opensource.google/go/go/+/refs/tags/go1.21.5:src/crypto/ed25519/ed25519.go;l=207
 	h := sha512.Sum512([]byte(auth.Password()))

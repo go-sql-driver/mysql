@@ -13,28 +13,27 @@ import (
 	"crypto/sha1"
 )
 
-// NativePasswordPlugin implements the mysql_native_password authentication
-type NativePasswordPlugin struct {
-	SimpleAuth
+// nativePasswordPlugin implements the mysql_native_password authentication
+type nativePasswordPlugin struct {
+	simpleAuth
 }
 
 func init() {
-	RegisterAuthPlugin(func() AuthPlugin { return &NativePasswordPlugin{} })
+	RegisterAuthPlugin("mysql_native_password", func() AuthPlugin { return &nativePasswordPlugin{} })
 }
 
-func (p *NativePasswordPlugin) PluginName() string {
-	return "mysql_native_password"
-}
-
-func (p *NativePasswordPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
+func (p *nativePasswordPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
 	if auth.Password() == "" {
 		return nil, nil
+	}
+	if len(authData) < 20 {
+		return nil, ErrMalformPkt
 	}
 	return p.scramblePassword(authData[:20], auth.Password()), nil
 }
 
 // Hash password using 4.1+ method (SHA1)
-func (p *NativePasswordPlugin) scramblePassword(scramble []byte, password string) []byte {
+func (p *nativePasswordPlugin) scramblePassword(scramble []byte, password string) []byte {
 	if len(password) == 0 {
 		return nil
 	}

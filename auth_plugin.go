@@ -18,14 +18,12 @@ import (
 // methods sequentially. ctx is the connection's context and may be canceled
 // while a method is running. Plugins should use it to cancel blocking work.
 type AuthPlugin interface {
-	// PluginName returns the name of the authentication plugin
-	PluginName() string
-
 	// InitAuth initializes the authentication process and returns the initial response.
 	// authData is the challenge data from the server. It must not be modified
 	// and must be copied if retained after the call.
 	// auth is the snapshot for this exchange, shared with ContinuationAuth.
 	// A nil or empty response sends an empty authentication response.
+	// Plugins must check any transport requirements here before returning credentials.
 	InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error)
 
 	// ContinuationAuth processes the server's continuation payload after the
@@ -38,40 +36,14 @@ type AuthPlugin interface {
 	ContinuationAuth(ctx context.Context, packet, authData []byte, auth *AuthContext) (nextPacket []byte, err error)
 }
 
-// SecureTransportRequirer is an optional interface an AuthPlugin may implement
-// to demand that it only run over a secure transport: TLS or a local unix
-// socket.
-type SecureTransportRequirer interface {
-	// RequireSecure reports whether, for the given authentication exchange, the plugin
-	// must only be used over a secure transport.
-	RequireSecure(auth *AuthContext) bool
-}
-
-// SimpleAuth provides the default continuation behavior for authentication
+// simpleAuth provides the default continuation behavior for authentication
 // plugins that complete after their initial response. The driver handles OK,
 // ERR, and authentication switch packets before dispatching to the plugin, so
 // any call to ContinuationAuth represents an unexpected packet.
-type SimpleAuth struct {
-	AuthPlugin
-}
+type simpleAuth struct{}
 
-func (s SimpleAuth) ContinuationAuth(ctx context.Context, packet, authData []byte, auth *AuthContext) ([]byte, error) {
+func (s simpleAuth) ContinuationAuth(ctx context.Context, packet, authData []byte, auth *AuthContext) ([]byte, error) {
 	return nil, ErrMalformPkt
-}
-
-// requireSecureTransport returns ErrSecureTransport when plugin opts into
-// SecureTransportRequirer and demands a secure transport, but the connection is
-// neither using TLS nor a local unix socket. Plugins that do not implement the
-// interface are allowed over any transport.
-func requireSecureTransport(plugin AuthPlugin, auth *AuthContext) error {
-	sr, ok := plugin.(SecureTransportRequirer)
-	if !ok || !sr.RequireSecure(auth) {
-		return nil
-	}
-	if !auth.TLS() && !auth.UnixSocket() {
-		return ErrSecureTransport
-	}
-	return nil
 }
 
 // pluginRegistry is a registry of available authentication plugins
@@ -89,10 +61,7 @@ func newPluginRegistry() *pluginRegistry {
 }
 
 // Register adds a plugin factory to the registry
-func (r *pluginRegistry) Register(factory func() AuthPlugin) {
-	plugin := factory()
-	name := plugin.PluginName()
-
+func (r *pluginRegistry) Register(name string, factory func() AuthPlugin) {
 	r.mu.Lock()
 	r.plugins[name] = factory
 	r.mu.Unlock()
@@ -109,7 +78,11 @@ func (r *pluginRegistry) GetPlugin(name string) (AuthPlugin, bool) {
 	return factory(), true
 }
 
-// RegisterAuthPlugin registers the plugin factory to the global plugin registry
-func RegisterAuthPlugin(factory func() AuthPlugin) {
-	globalPluginRegistry.Register(factory)
+// RegisterAuthPlugin registers a factory for the server's authentication plugin
+// name, replacing any existing registration for that name. It does not call the
+// factory. The driver calls factory for each authentication exchange, possibly
+// concurrently for different connections. The factory must return a new, non-nil
+// AuthPlugin whose mutable state is not shared with other exchanges.
+func RegisterAuthPlugin(name string, factory func() AuthPlugin) {
+	globalPluginRegistry.Register(name, factory)
 }

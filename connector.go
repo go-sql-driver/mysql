@@ -12,6 +12,7 @@ import (
 	"context"
 	"crypto/tls"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -170,6 +171,16 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 
 	auth := newAuthContext(mc.cfg, mc.cfg.Passwd, tlsEstablished)
 	authPlugin, authResp, err := mc.initAuth(ctx, plugin, authData, auth)
+	// The greeting names the server's default plugin, not necessarily the
+	// connecting account's plugin. If it is unavailable or disabled, advertise
+	// our default and let the server select the account's plugin with a switch.
+	// Do not hide cancellation or errors from a plugin that actually ran.
+	if err != nil && plugin != defaultAuthPlugin && ctx.Err() == nil && authPlugin == nil &&
+		(errors.Is(err, ErrUnknownPlugin) || errors.Is(err, ErrOldPassword) || errors.Is(err, ErrCleartextPassword)) {
+		mc.cfg.Logger.Print("could not use requested auth plugin '"+plugin+"': ", err.Error())
+		plugin = defaultAuthPlugin
+		authPlugin, authResp, err = mc.initAuth(ctx, plugin, authData, auth)
+	}
 	if err != nil {
 		mc.cleanup()
 		return nil, err

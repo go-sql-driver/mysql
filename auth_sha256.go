@@ -18,19 +18,17 @@ import (
 	"fmt"
 )
 
-// Sha256PasswordPlugin implements the sha256_password authentication
+// sha256PasswordPlugin implements the sha256_password authentication
 // This plugin provides secure password-based authentication using SHA256 and RSA encryption.
-type Sha256PasswordPlugin struct{}
-
-// Compile-time assertion that Sha256PasswordPlugin implements AuthPlugin.
-var _ AuthPlugin = (*Sha256PasswordPlugin)(nil)
-
-func init() {
-	RegisterAuthPlugin(func() AuthPlugin { return &Sha256PasswordPlugin{} })
+type sha256PasswordPlugin struct {
+	awaitingPublicKey bool
 }
 
-func (p *Sha256PasswordPlugin) PluginName() string {
-	return "sha256_password"
+// Compile-time assertion that sha256PasswordPlugin implements AuthPlugin.
+var _ AuthPlugin = (*sha256PasswordPlugin)(nil)
+
+func init() {
+	RegisterAuthPlugin("sha256_password", func() AuthPlugin { return &sha256PasswordPlugin{} })
 }
 
 // InitAuth initializes the authentication process.
@@ -40,7 +38,8 @@ func (p *Sha256PasswordPlugin) PluginName() string {
 // 2. If TLS is enabled, sends the password in cleartext
 // 3. If a public key is available, encrypts the password and sends it
 // 4. Otherwise, requests the server's public key
-func (p *Sha256PasswordPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
+func (p *sha256PasswordPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
+	p.awaitingPublicKey = false
 	if len(auth.Password()) == 0 {
 		return []byte{0}, nil
 	}
@@ -55,6 +54,7 @@ func (p *Sha256PasswordPlugin) InitAuth(ctx context.Context, authData []byte, au
 	pubKey := auth.ServerPublicKey()
 	if pubKey == nil {
 		// Request public key from server
+		p.awaitingPublicKey = true
 		return []byte{1}, nil
 	}
 
@@ -72,7 +72,11 @@ func (p *Sha256PasswordPlugin) InitAuth(ctx context.Context, authData []byte, au
 // 1. OK packet - Authentication successful
 // 2. Error packet - Authentication failed
 // 3. More data packet - Contains the server's public key for password encryption
-func (p *Sha256PasswordPlugin) ContinuationAuth(ctx context.Context, packet, authData []byte, auth *AuthContext) ([]byte, error) {
+func (p *sha256PasswordPlugin) ContinuationAuth(ctx context.Context, packet, authData []byte, auth *AuthContext) ([]byte, error) {
+	if !p.awaitingPublicKey {
+		return nil, ErrMalformPkt
+	}
+	p.awaitingPublicKey = false
 	if len(packet) == 0 {
 		return nil, fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
 	}

@@ -102,9 +102,6 @@ func (mc *mysqlConn) initAuth(ctx context.Context, plugin string, authData []byt
 	if !exists {
 		return nil, nil, fmt.Errorf("authentication plugin %q: %w", plugin, ErrUnknownPlugin)
 	}
-	if err := requireSecureTransport(pluginImpl, auth); err != nil {
-		return nil, nil, err
-	}
 	response, err := pluginImpl.InitAuth(ctx, authData, auth)
 	if err == nil {
 		err = ctx.Err()

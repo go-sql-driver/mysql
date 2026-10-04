@@ -14,28 +14,14 @@ import (
 	"crypto/tls"
 	"errors"
 	"math/big"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
-type secureTestAuthPlugin struct {
-	SimpleAuth
-}
-
-func (p *secureTestAuthPlugin) PluginName() string {
-	return "secure_test"
-}
-
-func (p *secureTestAuthPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
-	return nil, nil
-}
-
-func (p *secureTestAuthPlugin) RequireSecure(auth *AuthContext) bool {
-	return true
-}
-
 func TestSimpleAuthRejectsContinuation(t *testing.T) {
-	nextPacket, err := (SimpleAuth{}).ContinuationAuth(context.Background(), nil, nil, &AuthContext{})
+	nextPacket, err := (simpleAuth{}).ContinuationAuth(context.Background(), nil, nil, &AuthContext{})
 	if err != ErrMalformPkt {
 		t.Fatalf("expected ErrMalformPkt, got %v", err)
 	}
@@ -44,23 +30,60 @@ func TestSimpleAuthRejectsContinuation(t *testing.T) {
 	}
 }
 
-func TestRequireSecureTransport(t *testing.T) {
-	plugin := &secureTestAuthPlugin{}
+func TestRegisterAuthPluginFactoryLifetime(t *testing.T) {
+	var calls atomic.Int32
+	const name = "test_auth_factory_lifetime"
+	registerTestAuthPlugin(t, name, func() AuthPlugin {
+		calls.Add(1)
+		return &authTestPlugin{}
+	})
+	if calls.Load() != 0 {
+		t.Fatal("registration called the factory")
+	}
+	one, ok := globalPluginRegistry.GetPlugin(name)
+	if !ok {
+		t.Fatal("plugin was not registered")
+	}
+	two, ok := globalPluginRegistry.GetPlugin(name)
+	if !ok || one == two || calls.Load() != 2 {
+		t.Fatal("lookups did not create independent plugin instances")
+	}
+	RegisterAuthPlugin(name, func() AuthPlugin { return &nativePasswordPlugin{} })
+	if plugin, ok := globalPluginRegistry.GetPlugin(name); !ok {
+		t.Fatal("replacement was not registered")
+	} else if _, ok := plugin.(*nativePasswordPlugin); !ok {
+		t.Fatalf("replacement returned %T", plugin)
+	}
+}
 
-	if err := requireSecureTransport(plugin, &AuthContext{}); err != ErrSecureTransport {
-		t.Errorf("expected ErrSecureTransport, got %v", err)
+func TestAuthPluginFactoryOutsideLock(t *testing.T) {
+	r := newPluginRegistry()
+	var calls atomic.Int32
+	r.Register("outer", func() AuthPlugin {
+		// Factories may consult or update the registry, even when multiple
+		// connections start authentication concurrently.
+		r.Register("inner", func() AuthPlugin { return &nativePasswordPlugin{} })
+		plugin, _ := r.GetPlugin("inner")
+		calls.Add(1)
+		return plugin
+	})
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			r.GetPlugin("outer")
+		}()
 	}
-	if err := requireSecureTransport(plugin, &AuthContext{tls: true}); err != nil {
-		t.Errorf("secure transport over TLS should be allowed, got %v", err)
-	}
-	if err := requireSecureTransport(plugin, &AuthContext{unixSocket: true}); err != nil {
-		t.Errorf("secure transport over unix socket should be allowed, got %v", err)
-	}
-	if _, ok := any(&ClearPasswordPlugin{}).(SecureTransportRequirer); ok {
-		t.Error("cleartext plugin must not require a secure transport")
-	}
-	if err := requireSecureTransport(&ClearPasswordPlugin{}, &AuthContext{}); err != nil {
-		t.Errorf("cleartext plugin should not require a secure transport, got %v", err)
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+		if calls.Load() != 20 {
+			t.Fatalf("factory calls = %d, want 20", calls.Load())
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("factory was called with the registry locked")
 	}
 }
 
@@ -139,7 +162,6 @@ func TestAuthPluginCancellation(t *testing.T) {
 			const name = "test_auth_cancel"
 			factory := func() AuthPlugin {
 				return &authTestPlugin{
-					name: name,
 					init: waitForCancel,
 					next: func(ctx context.Context, packet, _ []byte, auth *AuthContext) ([]byte, error) {
 						return waitForCancel(ctx, packet, auth)
@@ -193,7 +215,6 @@ func TestAuthSwitchContextSnapshot(t *testing.T) {
 	const name = "test_auth_switch_context"
 	registerTestAuthPlugin(t, name, func() AuthPlugin {
 		return &authTestPlugin{
-			name: name,
 			init: func(gotCtx context.Context, seed []byte, gotAuth *AuthContext) ([]byte, error) {
 				if gotCtx != ctx || gotAuth == auth || gotAuth.User() != "user" || gotAuth.Password() != "selected-password" || !gotAuth.TLS() || string(seed) != "challenge" {
 					return nil, errors.New("auth switch did not preserve the authentication snapshot")
@@ -219,7 +240,7 @@ func TestAuthSwitchContextSnapshot(t *testing.T) {
 		makePacket(5, []byte{0, 0, 0, 2, 0, 0, 0})...,
 	)}
 	conn.maxReads = 2
-	if err := mc.handleAuthResult(ctx, authMaximumSwitch, nil, &NativePasswordPlugin{}, auth); err != nil {
+	if err := mc.handleAuthResult(ctx, authMaximumSwitch, nil, &nativePasswordPlugin{}, auth); err != nil {
 		t.Fatal(err)
 	}
 	if !continued || conn.writes != 1 {

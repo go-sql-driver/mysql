@@ -20,12 +20,9 @@ import (
 )
 
 type authTestPlugin struct {
-	name string
 	init func(context.Context, []byte, *AuthContext) ([]byte, error)
 	next func(context.Context, []byte, []byte, *AuthContext) ([]byte, error)
 }
-
-func (p *authTestPlugin) PluginName() string { return p.name }
 
 func (p *authTestPlugin) InitAuth(ctx context.Context, seed []byte, auth *AuthContext) ([]byte, error) {
 	return p.init(ctx, seed, auth)
@@ -37,7 +34,7 @@ func (p *authTestPlugin) ContinuationAuth(ctx context.Context, packet, seed []by
 
 func registerTestAuthPlugin(t *testing.T, name string, factory func() AuthPlugin) {
 	t.Helper()
-	RegisterAuthPlugin(factory)
+	RegisterAuthPlugin(name, factory)
 	t.Cleanup(func() {
 		globalPluginRegistry.mu.Lock()
 		delete(globalPluginRegistry.plugins, name)
@@ -128,7 +125,6 @@ func TestConnectorAuthTransport(t *testing.T) {
 			continued := false
 			registerTestAuthPlugin(t, pluginName, func() AuthPlugin {
 				return &authTestPlugin{
-					name: pluginName,
 					init: func(gotCtx context.Context, seed []byte, auth *AuthContext) ([]byte, error) {
 						initial = auth
 						if gotCtx != ctx || auth.User() != "user" || auth.Password() != "password" || auth.UnixSocket() {

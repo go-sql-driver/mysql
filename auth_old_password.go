@@ -10,20 +10,19 @@ package mysql
 
 import "context"
 
-// OldPasswordPlugin implements the mysql_old_password authentication
-type OldPasswordPlugin struct{ SimpleAuth }
+// oldPasswordPlugin implements the mysql_old_password authentication
+type oldPasswordPlugin struct{ simpleAuth }
 
 func init() {
-	RegisterAuthPlugin(func() AuthPlugin { return &OldPasswordPlugin{} })
+	RegisterAuthPlugin("mysql_old_password", func() AuthPlugin { return &oldPasswordPlugin{} })
 }
 
-func (p *OldPasswordPlugin) PluginName() string {
-	return "mysql_old_password"
-}
-
-func (p *OldPasswordPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
+func (p *oldPasswordPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
 	if auth.Password() == "" {
 		return nil, nil
+	}
+	if len(authData) < 8 {
+		return nil, ErrMalformPkt
 	}
 	// Note: there are edge cases where this should work but doesn't;
 	// this is currently "wontfix":
@@ -32,7 +31,7 @@ func (p *OldPasswordPlugin) InitAuth(ctx context.Context, authData []byte, auth 
 }
 
 // Hash password using insecure pre 4.1 method
-func (p *OldPasswordPlugin) scrambleOldPassword(scramble []byte, password string) []byte {
+func (p *oldPasswordPlugin) scrambleOldPassword(scramble []byte, password string) []byte {
 	scramble = scramble[:8]
 
 	hashPw := pwHash([]byte(password))

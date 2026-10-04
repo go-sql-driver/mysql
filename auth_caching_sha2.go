@@ -24,20 +24,26 @@ const (
 	cachingSha2FullAuthNeeded   = 4 // Full authentication needed
 )
 
-// CachingSha2PasswordPlugin implements the caching_sha2_password authentication
+// cachingSha2PasswordPlugin implements the caching_sha2_password authentication
 // This plugin provides secure password-based authentication using SHA256 and RSA encryption,
 // with server-side caching of password verifiers for improved performance.
-type CachingSha2PasswordPlugin struct{}
-
-// Compile-time assertion that CachingSha2PasswordPlugin implements AuthPlugin.
-var _ AuthPlugin = (*CachingSha2PasswordPlugin)(nil)
-
-func init() {
-	RegisterAuthPlugin(func() AuthPlugin { return &CachingSha2PasswordPlugin{} })
+type cachingSha2PasswordPlugin struct {
+	state cachingSha2State
 }
 
-func (p *CachingSha2PasswordPlugin) PluginName() string {
-	return "caching_sha2_password"
+type cachingSha2State uint8
+
+const (
+	cachingSha2Initial cachingSha2State = iota
+	cachingSha2PublicKey
+	cachingSha2Result
+)
+
+// Compile-time assertion that cachingSha2PasswordPlugin implements AuthPlugin.
+var _ AuthPlugin = (*cachingSha2PasswordPlugin)(nil)
+
+func init() {
+	RegisterAuthPlugin("caching_sha2_password", func() AuthPlugin { return &cachingSha2PasswordPlugin{} })
 }
 
 // InitAuth initializes the authentication process by scrambling the password.
@@ -46,7 +52,8 @@ func (p *CachingSha2PasswordPlugin) PluginName() string {
 // 1. SHA256(password)
 // 2. SHA256(SHA256(password))
 // 3. XOR(SHA256(password), SHA256(SHA256(SHA256(password)), scramble))
-func (p *CachingSha2PasswordPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
+func (p *cachingSha2PasswordPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
+	p.state = cachingSha2Initial
 	return scrambleSHA256Password(authData, auth.Password()), nil
 }
 
@@ -60,16 +67,19 @@ func (p *CachingSha2PasswordPlugin) InitAuth(ctx context.Context, authData []byt
 //     - Request server's public key if not cached
 //     - Encrypt password with RSA public key
 //     - Send encrypted password
-func (p *CachingSha2PasswordPlugin) ContinuationAuth(ctx context.Context, packet, authData []byte, auth *AuthContext) ([]byte, error) {
+func (p *cachingSha2PasswordPlugin) ContinuationAuth(ctx context.Context, packet, authData []byte, auth *AuthContext) ([]byte, error) {
 	// Driver already checked for OK/ERR/EOF and stripped 0x01 continuation byte
 	// So we receive the payload directly
 
-	if len(packet) == 0 {
-		// Read the next packet; only a server OK completes authentication.
-		return nil, nil
-	}
-
-	if len(packet) == 1 {
+	switch p.state {
+	case cachingSha2Initial:
+		if len(packet) != 1 {
+			return nil, ErrMalformPkt
+		}
+		// After fast authentication or sending the password, only a driver-
+		// handled OK, ERR, or auth switch is valid. A public key is accepted
+		// only after we explicitly request one below.
+		p.state = cachingSha2Result
 		switch packet[0] {
 		case cachingSha2FastAuth:
 			// the password was found in the server's cache
@@ -87,6 +97,7 @@ func (p *CachingSha2PasswordPlugin) ContinuationAuth(ctx context.Context, packet
 			pubKey := auth.ServerPublicKey()
 			if pubKey == nil {
 				// Request public key from server
+				p.state = cachingSha2PublicKey
 				return []byte{cachingSha2RequestPublicKey}, nil
 			}
 
@@ -100,10 +111,14 @@ func (p *CachingSha2PasswordPlugin) ContinuationAuth(ctx context.Context, packet
 		default:
 			return nil, fmt.Errorf("%w: unknown auth state %d", ErrMalformPkt, packet[0])
 		}
+	case cachingSha2PublicKey:
+		p.state = cachingSha2Result
+	default:
+		return nil, ErrMalformPkt
 	}
 
-	// This might be a public key response (PEM data)
-	// Parse public key from PEM format
+	// Parse the public key we requested. Never replace a configured key with
+	// an unsolicited key supplied by the peer.
 	block, _ := pem.Decode(packet)
 	if block == nil {
 		return nil, fmt.Errorf("%w: invalid PEM data in auth response", ErrMalformPkt)
