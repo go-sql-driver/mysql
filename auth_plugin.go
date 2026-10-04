@@ -64,6 +64,9 @@ func newPluginRegistry() *pluginRegistry {
 
 // Register adds a plugin factory to the registry
 func (r *pluginRegistry) Register(name string, factory func() AuthPlugin) {
+	if factory == nil {
+		panic("auth plugin factory cannot be nil")
+	}
 	r.mu.Lock()
 	r.plugins[name] = factory
 	r.mu.Unlock()

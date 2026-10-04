@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+* Add a pluggable authentication system with the `AuthPlugin` interface,
+  `AuthContext`, and `RegisterAuthPlugin`. Custom plugins receive the connection
+  context and an immutable snapshot of the selected credentials, established
+  transport, and configured RSA public key. (#1696)
+
+* Refactor the built-in authentication methods to use the plugin system and
+  support multi-step authentication flows with multiple auth switch requests and
+  continuation packets. Authentication now validates plugin state, rejects
+  unsolicited public keys, preserves errors from plugins, and starts plugins
+  only after the TLS handshake has completed. (#1696)
+
 ## v1.10.1 (2026-09-02)
 
 * Fix `Config.FormatDSN()` dropping `Addr` when `Net` is empty.
