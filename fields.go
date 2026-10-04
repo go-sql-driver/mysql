@@ -147,7 +147,7 @@ type mysqlField struct {
 	flags     fieldFlag
 	fieldType fieldType
 	decimals  byte
-	charSet   uint8
+	charSet   uint16
 }
 
 func (mf *mysqlField) scanType() reflect.Type {

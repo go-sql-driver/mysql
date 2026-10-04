@@ -777,8 +777,8 @@ func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, err
 		// Filler [uint8]
 		pos++
 
-		// Charset [charset, collation uint8]
-		columns[i].charSet = data[pos]
+		// Charset (collation ID) [uint16]
+		columns[i].charSet = binary.LittleEndian.Uint16(data[pos : pos+2])
 		pos += 2
 
 		// Length [uint32]
