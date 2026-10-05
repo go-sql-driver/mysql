@@ -85,10 +85,12 @@ func (r *pluginRegistry) GetPlugin(name string) (AuthPlugin, bool) {
 }
 
 // RegisterAuthPlugin registers a factory for the server's authentication plugin
-// name, replacing any existing registration for that name. It does not call the
-// factory. The driver calls factory for each authentication exchange, possibly
-// concurrently for different connections. The factory must return a new, non-nil
-// AuthPlugin whose mutable state is not shared with other exchanges.
+// name, replacing any existing registration for that name, including built-in
+// plugins. Authentication-method permissions still apply to the registered name.
+// Registration does not call the factory. The driver calls factory for each
+// authentication exchange, possibly concurrently for different connections.
+// The factory must return a new, non-nil AuthPlugin whose mutable state is not
+// shared with other exchanges.
 func RegisterAuthPlugin(name string, factory func() AuthPlugin) {
 	globalPluginRegistry.Register(name, factory)
 }

@@ -14,6 +14,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"math/big"
+	"net"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -53,6 +54,62 @@ func TestRegisterAuthPluginFactoryLifetime(t *testing.T) {
 		t.Fatal("replacement was not registered")
 	} else if _, ok := plugin.(*nativePasswordPlugin); !ok {
 		t.Fatalf("replacement returned %T", plugin)
+	}
+}
+
+func TestRegisterAuthPluginOverridesBuiltins(t *testing.T) {
+	for _, name := range []string{
+		"mysql_native_password", "mysql_old_password", "mysql_clear_password",
+		"sha256_password", "caching_sha2_password", "client_ed25519",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, ok := globalPluginRegistry.GetPlugin(name); !ok {
+				t.Fatal("built-in plugin is not registered")
+			}
+			for _, stage := range []string{"greeting", "switch"} {
+				t.Run(stage, func(t *testing.T) {
+					want := errors.New("replacement plugin called")
+					calls := 0
+					registerTestAuthPlugin(t, name, func() AuthPlugin {
+						return &authTestPlugin{init: func(context.Context, []byte, *AuthContext) ([]byte, error) {
+							calls++
+							return nil, want
+						}}
+					})
+					greeting := name
+					wantWrites := 0
+					if stage == "switch" {
+						greeting = "mysql_native_password"
+						if name == greeting {
+							greeting = "caching_sha2_password"
+						}
+						wantWrites = 1
+					}
+					caps := clientMySQL | clientProtocol41 | clientSecureConn | clientPluginAuth | clientPluginAuthLenEncClientData
+					mock := &mockConn{
+						data:          authTestHandshake(greeting, caps),
+						queuedReplies: [][]byte{authFallbackSwitch(name)},
+						maxReads:      2,
+					}
+					cfg := NewConfig()
+					cfg.Passwd = "secret"
+					cfg.AllowOldPasswords = true
+					cfg.AllowCleartextPasswords = true
+					cfg.DialFunc = func(context.Context, string, string) (net.Conn, error) { return mock, nil }
+					c, err := NewConnector(cfg)
+					if err != nil {
+						t.Fatal(err)
+					}
+					conn, err := c.Connect(t.Context())
+					if conn != nil {
+						conn.Close()
+					}
+					if !errors.Is(err, want) || calls != 1 || mock.writes != wantWrites {
+						t.Fatalf("Connect = %v, calls = %d, writes = %d; want %v, 1, %d", err, calls, mock.writes, want, wantWrites)
+					}
+				})
+			}
+		})
 	}
 }
 

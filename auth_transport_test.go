@@ -34,10 +34,17 @@ func (p *authTestPlugin) ContinuationAuth(ctx context.Context, packet, seed []by
 
 func registerTestAuthPlugin(t *testing.T, name string, factory func() AuthPlugin) {
 	t.Helper()
+	globalPluginRegistry.mu.RLock()
+	previous, existed := globalPluginRegistry.plugins[name]
+	globalPluginRegistry.mu.RUnlock()
 	RegisterAuthPlugin(name, factory)
 	t.Cleanup(func() {
 		globalPluginRegistry.mu.Lock()
-		delete(globalPluginRegistry.plugins, name)
+		if existed {
+			globalPluginRegistry.plugins[name] = previous
+		} else {
+			delete(globalPluginRegistry.plugins, name)
+		}
 		globalPluginRegistry.mu.Unlock()
 	})
 }
