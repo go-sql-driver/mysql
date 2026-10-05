@@ -78,6 +78,17 @@ func getServerPubKey(name string) (pubKey *rsa.PublicKey) {
 	return
 }
 
+func readAuthPacket(mc *mysqlConn) ([]byte, error) {
+	pkt, err := mc.readPacket()
+	if err != nil {
+		return nil, err
+	}
+	if len(pkt) == 0 {
+		return nil, fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
+	}
+	return pkt, nil
+}
+
 // initAuth enforces the connection's authentication policy before invoking a
 // plugin. The same checks apply to the server greeting and every auth switch.
 func (mc *mysqlConn) initAuth(ctx context.Context, plugin string, authData []byte, auth *AuthContext) (AuthPlugin, []byte, error) {
@@ -113,12 +124,9 @@ func (mc *mysqlConn) initAuth(ctx context.Context, plugin string, authData []byt
 // authentication flow. It reads the first authentication packet and hands off processing
 // to the appropriate auth plugin.
 func (mc *mysqlConn) handleAuthResult(ctx context.Context, initialSeed []byte, authPlugin AuthPlugin, auth *AuthContext) error {
-	data, err := mc.readPacket()
+	data, err := readAuthPacket(mc)
 	if err != nil {
 		return err
-	}
-	if len(data) == 0 {
-		return fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
 	}
 
 	const maxSwitch = 5
@@ -165,12 +173,9 @@ func (mc *mysqlConn) handleAuthResult(ctx context.Context, initialSeed []byte, a
 			authPlugin = newPlugin
 			auth = &nextAuth
 			initialSeed = authData
-			data, err = mc.readPacket()
+			data, err = readAuthPacket(mc)
 			if err != nil {
 				return err
-			}
-			if len(data) == 0 {
-				return fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
 			}
 			continue
 		}
@@ -198,23 +203,17 @@ func (mc *mysqlConn) handleAuthResult(ctx context.Context, initialSeed []byte, a
 			if err := mc.writeAuthSwitchPacket(nextPacket); err != nil {
 				return err
 			}
-			data, err = mc.readPacket()
+			data, err = readAuthPacket(mc)
 			if err != nil {
 				return err
-			}
-			if len(data) == 0 {
-				return fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
 			}
 			continue
 		}
 
 		// Plugin wants to read the next packet
-		data, err = mc.readPacket()
+		data, err = readAuthPacket(mc)
 		if err != nil {
 			return err
-		}
-		if len(data) == 0 {
-			return fmt.Errorf("%w: empty auth response packet", ErrMalformPkt)
 		}
 	}
 }

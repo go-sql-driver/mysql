@@ -80,7 +80,8 @@ func (r *pluginRegistry) GetPlugin(name string) (AuthPlugin, bool) {
 	if !ok {
 		return nil, false
 	}
-	return factory(), true
+	p := factory()
+	return p, p != nil
 }
 
 // RegisterAuthPlugin registers a factory for the server's authentication plugin

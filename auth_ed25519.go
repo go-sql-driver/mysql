@@ -25,6 +25,9 @@ func init() {
 }
 
 func (p *clientEd25519Plugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
+	if len(authData) != 32 {
+		return nil, ErrMalformPkt
+	}
 	// Derived from https://github.com/MariaDB/server/blob/d8e6bb00888b1f82c031938f4c8ac5d97f6874c3/plugin/auth_ed25519/ref10/sign.c
 	// Code style is from https://cs.opensource.google/go/go/+/refs/tags/go1.21.5:src/crypto/ed25519/ed25519.go;l=207
 	h := sha512.Sum512([]byte(auth.Password()))
