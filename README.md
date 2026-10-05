@@ -607,6 +607,23 @@ See [context support in the database/sql package](https://golang.org/doc/go1.8#d
 > The `QueryContext`, `ExecContext`, etc. variants provided by `database/sql` will cause the connection to be closed if the provided context is cancelled or timed out before the result is received by the driver.
 
 
+### Authentication Plugin System
+
+The driver implements a pluggable authentication system that supports various authentication methods used by MySQL and MariaDB servers. The built-in authentication plugins include:
+
+* `mysql_native_password` - Legacy MySQL authentication and the driver's initial fallback
+* `caching_sha2_password` - Default authentication method in MySQL 8.0+
+* `mysql_clear_password` - Cleartext authentication (requires `allowCleartextPasswords=true`)
+* `mysql_old_password` - Old MySQL authentication (requires `allowOldPasswords=true`)
+* `sha256_password` - SHA256 authentication
+* `client_ed25519` - MariaDB Ed25519 authentication
+
+Custom plugins implement the two methods of `AuthPlugin`, `InitAuth` and `ContinuationAuth`, and are registered with `RegisterAuthPlugin(name, factory)`. Registration does not call the factory; the driver calls it to create an independent instance for each authentication exchange. Factories may run concurrently for different connections. All built-in plugins use the same registry: registering a built-in name replaces its factory for subsequent authentication exchanges, including the initial handshake and authentication switches. Authentication-method permissions such as `allowCleartextPasswords` still apply to that name. Built-in plugin implementations are internal to the driver.
+
+The driver passes the connection's `context.Context` for cancellation and an `AuthContext` snapshot containing the selected credentials, established transport information, and configured RSA public key. Plugins do not receive or modify the connection's `Config`; the driver checks authentication-method permissions before starting a plugin. Custom plugins that require a particular transport must check it in `InitAuth` before returning credentials.
+
+`AuthContext.TLS()` reports a completed MySQL TLS handshake, not merely a TLS configuration or an external tunnel. A continuation returning `nil, nil` waits for another server packet without sending; a non-nil empty slice sends an empty packet. Authentication succeeds only when the driver receives the server's OK packet.
+
 ### `LOAD DATA LOCAL INFILE` support
 For this feature you need direct access to the package. Therefore you must change the import path (no `_`):
 ```go
