@@ -93,6 +93,7 @@ func (rows *binaryRows) NextRow() error {
 func scanColumnValue[T any](ctx driver.ScanContext, dest any, value T) error {
 	if d, ok := dest.(*T); ok {
 		if d == nil {
+			// Match database/sql's errNilPtr message.
 			return errors.New("destination pointer is nil")
 		}
 		*d = value

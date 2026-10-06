@@ -170,6 +170,12 @@ func TestRowsColumnScannerBytesOwnership(t *testing.T) {
 }
 
 func TestRowsColumnScannerNilDestinations(t *testing.T) {
+	ctx := driver.ScanContext{}
+	nilPtrErr := sql.ConvertAssign(ctx, (*int64)(nil), int64(42))
+	if nilPtrErr == nil {
+		t.Fatal("ConvertAssign accepted a nil destination")
+	}
+
 	tests := []struct {
 		name   string
 		column mysqlField
@@ -200,19 +206,19 @@ func TestRowsColumnScannerNilDestinations(t *testing.T) {
 				if bp {
 					rows = &binaryRows{base}
 				}
-				want := "destination pointer is nil"
+				want := nilPtrErr.Error()
 				switch tt.value.(type) {
 				case bool, time.Time:
 					// ConvertAssign can panic for these typed-nil destinations.
 					// Reject them with an error instead of reproducing the panic.
 				default:
-					err := sql.ConvertAssign(driver.ScanContext{}, tt.dest, tt.value)
+					err := sql.ConvertAssign(ctx, tt.dest, tt.value)
 					if err == nil {
 						t.Fatal("ConvertAssign accepted a nil destination")
 					}
 					want = err.Error()
 				}
-				if err := rows.ScanColumn(driver.ScanContext{}, 0, tt.dest); err == nil || err.Error() != want {
+				if err := rows.ScanColumn(ctx, 0, tt.dest); err == nil || err.Error() != want {
 					t.Fatalf("ScanColumn error = %v, want %q", err, want)
 				}
 			})
