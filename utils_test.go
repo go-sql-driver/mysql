@@ -64,12 +64,11 @@ func TestFormatBinaryDateTime(t *testing.T) {
 	rawDate[6] = 23                                    // seconds
 	binary.LittleEndian.PutUint32(rawDate[7:], 987654) // microseconds
 	expect := func(expected string, inlen, outlen uint8) {
-		actual, _ := formatBinaryDateTime(rawDate[:inlen], outlen)
-		bytes, ok := actual.([]byte)
-		if !ok {
-			t.Errorf("formatBinaryDateTime must return []byte, was %T", actual)
+		actual, err := formatBinaryDateTime(rawDate[:inlen], outlen)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if string(bytes) != expected {
+		if string(actual) != expected {
 			t.Errorf(
 				"expected %q, got %q for length in %d, out %d",
 				expected, actual, inlen, outlen,
@@ -85,12 +84,11 @@ func TestFormatBinaryDateTime(t *testing.T) {
 
 func TestFormatBinaryTime(t *testing.T) {
 	expect := func(expected string, src []byte, outlen uint8) {
-		actual, _ := formatBinaryTime(src, outlen)
-		bytes, ok := actual.([]byte)
-		if !ok {
-			t.Errorf("formatBinaryDateTime must return []byte, was %T", actual)
+		actual, err := formatBinaryTime(src, outlen)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if string(bytes) != expected {
+		if string(actual) != expected {
 			t.Errorf(
 				"expected %q, got %q for src=%q and outlen=%d",
 				expected, actual, src, outlen)

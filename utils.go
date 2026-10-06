@@ -227,7 +227,7 @@ func bToi(b byte) (int, error) {
 	return int(b - '0'), nil
 }
 
-func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Value, error) {
+func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (time.Time, error) {
 	switch num {
 	case 0:
 		return time.Time{}, nil
@@ -262,7 +262,7 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 			loc,
 		), nil
 	}
-	return nil, fmt.Errorf("invalid DATETIME packet length %d", num)
+	return time.Time{}, fmt.Errorf("invalid DATETIME packet length %d", num)
 }
 
 func appendDateTime(buf []byte, t time.Time, timeTruncate time.Duration) ([]byte, error) {
@@ -330,7 +330,7 @@ func appendDateTime(buf []byte, t time.Time, timeTruncate time.Duration) ([]byte
 // zeroDateTime is used in formatBinaryDateTime to avoid an allocation
 // if the DATE or DATETIME has the zero value.
 // It must never be changed.
-// The current behavior depends on database/sql copying the result.
+// Callers must copy it before returning an owned byte slice.
 var zeroDateTime = []byte("0000-00-00 00:00:00.000000")
 
 const digits01 = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
@@ -385,7 +385,7 @@ func appendMicrosecs(dst, src []byte, decimals int) []byte {
 	}
 }
 
-func formatBinaryDateTime(src []byte, length uint8) (driver.Value, error) {
+func formatBinaryDateTime(src []byte, length uint8) ([]byte, error) {
 	// length expects the deterministic length of the zero value,
 	// negative time and 100+ hours are automatically added if needed
 	if len(src) == 0 {
@@ -444,7 +444,7 @@ func formatBinaryDateTime(src []byte, length uint8) (driver.Value, error) {
 	return appendMicrosecs(dst, src[2:], int(length)-20), nil
 }
 
-func formatBinaryTime(src []byte, length uint8) (driver.Value, error) {
+func formatBinaryTime(src []byte, length uint8) ([]byte, error) {
 	// length expects the deterministic length of the zero value,
 	// negative time and 100+ hours are automatically added if needed
 	if len(src) == 0 {

@@ -23,9 +23,10 @@ type resultSet struct {
 }
 
 type mysqlRows struct {
-	mc     *mysqlConn
-	rs     resultSet
-	finish func()
+	mc      *mysqlConn
+	rs      resultSet
+	finish  func()
+	rawCols [][]byte // buffered per-column raw bytes for RowsColumnScanner (Go 1.27+)
 }
 
 type binaryRows struct {
@@ -136,6 +137,7 @@ func (rows *mysqlRows) convertTinyInt1ToBool(dest []driver.Value) {
 }
 
 func (rows *mysqlRows) Close() (err error) {
+	rows.rawCols = nil
 	if f := rows.finish; f != nil {
 		f()
 		rows.finish = nil
@@ -172,6 +174,7 @@ func (rows *mysqlRows) HasNextResultSet() (b bool) {
 }
 
 func (rows *mysqlRows) nextResultSet() (int, error) {
+	rows.rawCols = rows.rawCols[:0]
 	if rows.mc == nil {
 		return 0, io.EOF
 	}
@@ -229,19 +232,11 @@ func (rows *binaryRows) NextResultSet() error {
 }
 
 func (rows *binaryRows) Next(dest []driver.Value) error {
-	if mc := rows.mc; mc != nil {
-		if err := mc.error(); err != nil {
-			return err
-		}
-
-		// Fetch next row from stream
-		if err := rows.readRow(dest); err != nil {
-			return err
-		}
-		rows.convertTinyInt1ToBool(dest)
-		return nil
+	if err := rows.readRow(dest); err != nil {
+		return err
 	}
-	return io.EOF
+	rows.convertTinyInt1ToBool(dest)
+	return nil
 }
 
 func (rows *textRows) NextResultSet() (err error) {
@@ -255,17 +250,9 @@ func (rows *textRows) NextResultSet() (err error) {
 }
 
 func (rows *textRows) Next(dest []driver.Value) error {
-	if mc := rows.mc; mc != nil {
-		if err := mc.error(); err != nil {
-			return err
-		}
-
-		// Fetch next row from stream
-		if err := rows.readRow(dest); err != nil {
-			return err
-		}
-		rows.convertTinyInt1ToBool(dest)
-		return nil
+	if err := rows.readRow(dest); err != nil {
+		return err
 	}
-	return io.EOF
+	rows.convertTinyInt1ToBool(dest)
+	return nil
 }
