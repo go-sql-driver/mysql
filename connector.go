@@ -77,6 +77,10 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		cfg.encodedAttributes = encodeConnectionAttributes(cfg)
 	}
 
+	if cfg.openIDToken != "" && cfg.TLS == nil {
+		return nil, ErrOpenIDConnectTLS
+	}
+
 	// New mysqlConn
 	mc := &mysqlConn{
 		maxAllowedPacket: maxPacketSize,
@@ -139,9 +143,17 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if plugin == "" {
 		plugin = defaultAuthPlugin
 	}
-	if mc.cfg.TLS != nil && serverCapabilities&clientSSL == 0 && !mc.cfg.AllowFallbackToPlaintext {
+	if mc.cfg.TLS != nil && serverCapabilities&clientSSL == 0 && (!mc.cfg.AllowFallbackToPlaintext || cfg.openIDToken != "") {
 		mc.cleanup()
 		return nil, ErrNoTLS
+	}
+
+	if cfg.openIDToken != "" {
+		plugin = openIDConnectPlugin
+		if serverCapabilities&(clientPluginAuth|clientPluginAuthLenEncClientData) != clientPluginAuth|clientPluginAuthLenEncClientData {
+			mc.cleanup()
+			return nil, ErrOpenIDConnectCapabilities
+		}
 	}
 
 	// Establish TLS before starting the authentication plugin, so its context
@@ -166,16 +178,23 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	auth := newAuthContext(mc.cfg, mc.cfg.Passwd, tlsEstablished)
-	authPlugin, authResp, err := mc.initAuth(ctx, plugin, authData, auth)
-	// The greeting names the server's default plugin, not necessarily the
-	// connecting account's plugin. If it is unavailable or disabled, advertise
-	// our default and let the server select the account's plugin with a switch.
-	// Do not hide cancellation or errors from a plugin that actually ran.
-	if err != nil && plugin != defaultAuthPlugin && ctx.Err() == nil && authPlugin == nil &&
-		(errors.Is(err, ErrUnknownPlugin) || errors.Is(err, ErrOldPassword) || errors.Is(err, ErrCleartextPassword)) {
-		mc.cfg.Logger.Print("could not use requested auth plugin '"+plugin+"': ", err.Error())
-		plugin = defaultAuthPlugin
+	var authPlugin AuthPlugin
+	var authResp []byte
+	if cfg.openIDToken != "" {
+		authPlugin = &openIDConnectAuthPlugin{token: cfg.openIDToken}
+		authResp, err = authPlugin.InitAuth(ctx, authData, auth)
+	} else {
 		authPlugin, authResp, err = mc.initAuth(ctx, plugin, authData, auth)
+		// The greeting names the server's default plugin, not necessarily the
+		// connecting account's plugin. If it is unavailable or disabled, advertise
+		// our default and let the server select the account's plugin with a switch.
+		// Do not hide cancellation or errors from a plugin that actually ran.
+		if err != nil && plugin != defaultAuthPlugin && ctx.Err() == nil && authPlugin == nil &&
+			(errors.Is(err, ErrUnknownPlugin) || errors.Is(err, ErrOldPassword) || errors.Is(err, ErrCleartextPassword)) {
+			mc.cfg.Logger.Print("could not use requested auth plugin '"+plugin+"': ", err.Error())
+			plugin = defaultAuthPlugin
+			authPlugin, authResp, err = mc.initAuth(ctx, plugin, authData, auth)
+		}
 	}
 	if err != nil {
 		mc.cleanup()

@@ -19,6 +19,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
       * [Parameters](#parameters)
       * [Examples](#examples)
     * [Verifying Server](#verifying-server)
+    * [OpenID Connect authentication](#openid-connect-authentication)
     * [Connection pool and timeouts](#connection-pool-and-timeouts)
     * [context.Context Support](#contextcontext-support)
     * [ColumnType Support](#columntype-support)
@@ -592,6 +593,42 @@ Pass `cfg` to `mysql.NewConnector` and `sql.OpenDB`. For DSNs, register the TLS
 configuration with `mysql.RegisterTLSConfig` and use its name in `tls`.
 Avoid `tls=skip-verify`, `tls=preferred`, and `AllowFallbackToPlaintext` when
 server authentication is required. See Go's [`tls.Config`](https://pkg.go.dev/crypto/tls#Config).
+
+### OpenID Connect authentication
+
+Use `cfg.Apply(mysql.OIDCToken(token))` with `mysql.NewConnector` and `sql.OpenDB`.
+The token is not included in `FormatDSN`; there is no OIDC DSN parameter.
+Configure TLS to authenticate the intended server. If using `InsecureSkipVerify`,
+provide proper replacement verification; the driver does not validate your policy.
+Plaintext fallback and TLS provided solely by a custom dialer are not supported.
+
+To obtain a fresh token for each new connection:
+
+```go
+cfg := mysql.NewConfig()
+cfg.User = "oidc_user"
+cfg.Addr = "database.example:3306"
+cfg.TLS = &tls.Config{ServerName: "database.example"}
+if err := cfg.Apply(mysql.BeforeConnect(func(ctx context.Context, cfg *mysql.Config) error {
+    token, err := tokenSource(ctx) // Application-provided, safe for concurrent calls.
+    if err != nil {
+        return err
+    }
+    return cfg.Apply(mysql.OIDCToken(token))
+})); err != nil {
+    return err
+}
+connector, err := mysql.NewConnector(cfg)
+if err != nil {
+    return err
+}
+db := sql.OpenDB(connector)
+defer db.Close()
+```
+
+An empty token makes `Apply` return `ErrOpenIDConnectToken` without changing the
+configuration. Return this error from `BeforeConnect` to abort the connection.
+Token refresh affects new connections, not existing pooled sessions.
 
 ### Connection pool and timeouts
 The connection pool is managed by Go's database/sql package. For details on how to configure the size of the pool and how long connections stay in the pool see `*DB.SetMaxOpenConns`, `*DB.SetMaxIdleConns`, and `*DB.SetConnMaxLifetime` in the [database/sql documentation](https://golang.org/pkg/database/sql/). The read, write, and dial timeouts for each individual connection are configured with the DSN parameters [`readTimeout`](#readtimeout), [`writeTimeout`](#writetimeout), and [`timeout`](#timeout), respectively.

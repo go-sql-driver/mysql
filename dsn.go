@@ -82,6 +82,7 @@ type Config struct {
 
 	beforeConnect     func(context.Context, *Config) error // Invoked before a connection is established
 	encodedAttributes string                               // Encoded connection attributes
+	openIDToken       string                               // OpenID Connect token; never included in the DSN
 	paramOrder        []string                             // Order of connection parameters parsed from the DSN
 	pubKey            *rsa.PublicKey                       // Server public key
 	timeTruncate      time.Duration                        // Truncate time.Time values to the specified duration
@@ -142,6 +143,21 @@ func AddParam(name, value string) Option {
 func TimeTruncate(d time.Duration) Option {
 	return func(cfg *Config) error {
 		cfg.timeTruncate = d
+		return nil
+	}
+}
+
+// OIDCToken sets the JWT for OpenID Connect authentication.
+// Empty tokens return ErrOpenIDConnectToken without changing the configuration.
+// Use [BeforeConnect] to refresh the token with cfg.Apply(OIDCToken(token)).
+// The token is omitted from [Config.FormatDSN]. OIDC requires driver-managed TLS
+// with application-configured server verification and rejects authentication switches.
+func OIDCToken(token string) Option {
+	return func(cfg *Config) error {
+		if token == "" {
+			return ErrOpenIDConnectToken
+		}
+		cfg.openIDToken = token
 		return nil
 	}
 }

@@ -30,6 +30,11 @@ var (
 	ErrPktTooLarge       = errors.New("packet for query is too large. Try adjusting the `Config.MaxAllowedPacket`")
 	ErrBusyBuffer        = errors.New("busy buffer")
 
+	ErrOpenIDConnectToken        = errors.New("OpenID Connect requires a non-empty token")
+	ErrOpenIDConnectTLS          = errors.New("OpenID Connect requires driver-managed TLS")
+	ErrOpenIDConnectSwitch       = errors.New("OpenID Connect does not allow authentication switches")
+	ErrOpenIDConnectCapabilities = errors.New("OpenID Connect requires plugin authentication and length-encoded authentication data")
+
 	// errBadConnNoWrite is used for connection errors where nothing was sent to the database yet.
 	// If this happens first in a function starting a database interaction, it should be replaced by driver.ErrBadConn
 	// to trigger a resend. Use mc.markBadConn(err) to do this.

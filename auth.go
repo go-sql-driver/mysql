@@ -13,6 +13,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -142,8 +143,18 @@ func (mc *mysqlConn) handleAuthResult(ctx context.Context, initialSeed []byte, a
 		case iOK:
 			return mc.resultUnchanged().handleOkPacket(data)
 		case iERR:
-			return mc.handleErrorPacket(data)
+			err := mc.handleErrorPacket(data)
+			if mc.cfg.openIDToken != "" {
+				// Preserve the server error code without exposing an echoed token.
+				if serverErr, ok := err.(*MySQLError); ok {
+					serverErr.Message = strings.ReplaceAll(serverErr.Message, mc.cfg.openIDToken, "[redacted]")
+				}
+			}
+			return err
 		case iEOF:
+			if mc.cfg.openIDToken != "" {
+				return ErrOpenIDConnectSwitch
+			}
 			// Auth switch request. Enforce the switch limit before doing any
 			// work.
 			if remainingSwitch == 0 {
