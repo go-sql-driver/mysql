@@ -54,6 +54,17 @@ var testDSNs = []struct {
 		}),
 	},
 	{
+		// percent-encoded ':' in the username (#1747)
+		in: "user%3Aname:p%40ss@protocol(address)/dbname",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.User = "user:name"
+			cfg.Passwd = "p@ss"
+			cfg.Net = "protocol"
+			cfg.Addr = "address"
+			cfg.DBName = "dbname"
+		}),
+	},
+	{
 		in: "username:password@protocol(address)/dbname?param=value&columnsWithAlias=true",
 		out: newTestConfig(func(cfg *Config) {
 			cfg.User = "username"
@@ -307,6 +318,37 @@ func TestDSNReformat(t *testing.T) {
 				t.Errorf("%d. %q does not match %q", i, dsn2, dsn3)
 			}
 		})
+	}
+}
+
+func TestParseDSNUsernameColon(t *testing.T) {
+	cfg, err := ParseDSN("user%3Aname:p%40ss@tcp(localhost:3306)/dbname")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.User != "user:name" {
+		t.Errorf("User = %q, want %q", cfg.User, "user:name")
+	}
+	if cfg.Passwd != "p@ss" {
+		t.Errorf("Passwd = %q, want %q", cfg.Passwd, "p@ss")
+	}
+
+	got := cfg.FormatDSN()
+	cfg2, err := ParseDSN(got)
+	if err != nil {
+		t.Fatalf("FormatDSN %q: %v", got, err)
+	}
+	if cfg2.User != cfg.User || cfg2.Passwd != cfg.Passwd {
+		t.Errorf("round-trip User/Passwd = %q/%q, want %q/%q", cfg2.User, cfg2.Passwd, cfg.User, cfg.Passwd)
+	}
+
+	// Unencoded colon in the username still splits as user:password (compat).
+	cfg3, err := ParseDSN("user:name@tcp(localhost:3306)/dbname")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg3.User != "user" || cfg3.Passwd != "name" {
+		t.Errorf("compat User/Passwd = %q/%q, want user/name", cfg3.User, cfg3.Passwd)
 	}
 }
 
