@@ -75,6 +75,8 @@ const (
 	clientDeprecateEOF
 )
 
+const clientZstdCompression capabilityFlag = 1 << 26
+
 // https://mariadb.com/kb/en/connection/#capabilities
 type extendedCapabilityFlag uint32
 

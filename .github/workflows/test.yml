@@ -89,8 +89,10 @@ jobs:
           mysql --user 'root' --host '127.0.0.1' -e 'create database gotest;'
 
       - name: test
+        env:
+          MYSQL_ZSTD_TEST_DSN: "${{ env.MYSQL_TEST_USER }}:${{ env.MYSQL_TEST_PASS }}@tcp(${{ env.MYSQL_TEST_ADDR }})/gotest?compress=true"
         run: |
-          go test -v '-race' '-covermode=atomic' '-coverprofile=coverage.out' -parallel 10
+          go test -v '-race' '-covermode=atomic' '-coverprofile=coverage.out' -parallel 10 ./...
 
       - name: benchmark
         run: |

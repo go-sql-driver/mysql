@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"io"
 	"sync"
+
+	"github.com/go-sql-driver/mysql/internal/compression"
 )
 
 var (
@@ -72,12 +74,17 @@ func zCompress(src []byte, dst io.Writer) error {
 type compIO struct {
 	mc   *mysqlConn
 	buff bytes.Buffer
+	zstd compression.Codec
 }
 
 func newCompIO(mc *mysqlConn) *compIO {
-	return &compIO{
+	c := &compIO{
 		mc: mc,
 	}
+	if mc.capabilities&clientZstdCompression != 0 {
+		c.zstd = compression.Zstd
+	}
+	return c
 }
 
 func (c *compIO) reset() {
@@ -133,7 +140,20 @@ func (c *compIO) readCompressedPacket() error {
 
 	// use existing capacity in bytesBuf if possible
 	c.buff.Grow(uncompressedLength)
-	nread, err := zDecompress(comprData, &c.buff)
+	var nread int
+	if c.zstd != nil {
+		// Limit the decoder to the announced size even when a previous
+		// packet left a larger buffer. Write only successfully decoded data.
+		dst := c.buff.AvailableBuffer()[:0:uncompressedLength]
+		var decoded []byte
+		decoded, err = c.zstd.Decode(comprData, dst)
+		if err == nil {
+			nread = len(decoded)
+			c.buff.Write(decoded)
+		}
+	} else {
+		nread, err = zDecompress(comprData, &c.buff)
+	}
 	if err != nil {
 		return err
 	}
@@ -167,7 +187,12 @@ func (c *compIO) writePackets(packets []byte) (int, error) {
 			buf.Write(payload)
 			uncompressedLen = 0
 		} else {
-			err := zCompress(payload, buf)
+			var err error
+			if c.zstd != nil {
+				buf.Write(c.zstd.Encode(payload, buf.AvailableBuffer()))
+			} else {
+				err = zCompress(payload, buf)
+			}
 			if debug && err != nil {
 				fmt.Printf("zCompress error: %v", err)
 			}

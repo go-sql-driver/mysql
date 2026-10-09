@@ -43,7 +43,7 @@ A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) pac
   * Secure `LOAD DATA LOCAL INFILE` support with file allowlisting and `io.Reader` support
   * Optional `time.Time` parsing
   * Optional placeholder interpolation
-  * Supports zlib compression.
+  * Supports zlib compression and optional zstd compression.
 
 ## Requirements
 
@@ -281,7 +281,22 @@ Valid Values:   true, false
 Default:        false
 ```
 
-Toggles zlib compression. false by default.
+Toggles compression. false by default. Connections use zlib unless the optional
+`github.com/go-sql-driver/mysql/zstd` package is imported:
+
+```go
+import _ "github.com/go-sql-driver/mysql/zstd"
+```
+
+This import also registers the MySQL driver. With `compress=true` (or
+`EnableCompression(true)`), connections automatically prefer zstd when the server
+supports it and fall back to zlib otherwise. The zstd compression level is fixed
+at level 3, balancing compression ratio and speed with a preference for speed.
+Importing the package does not enable compression by itself.
+
+Applications that do not import `mysql/zstd` do not compile or link
+`github.com/klauspost/compress`. The optional package's dependency is listed in the
+module's `go.mod`.
 
 ##### `interpolateParams`
 

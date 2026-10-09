@@ -19,6 +19,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/go-sql-driver/mysql/internal/compression"
 )
 
 // MySQL client/server protocol documentations.
@@ -287,7 +289,13 @@ func (mc *mysqlConn) initCapabilities(serverCapabilities capabilityFlag, serverE
 		clientCapabilities |= clientFoundRows
 	}
 	if mc.cfg.compress {
-		clientCapabilities |= clientCompress
+		if compression.Zstd != nil && serverCapabilities&clientZstdCompression != 0 {
+			// Advertising both selects zlib on MySQL. Advertise only zstd
+			// when it is available, otherwise use the existing zlib protocol.
+			clientCapabilities |= clientZstdCompression
+		} else {
+			clientCapabilities |= clientCompress
+		}
 	}
 	// To enable TLS / SSL
 	if mc.cfg.TLS != nil {
@@ -402,6 +410,9 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		data = append(data, mc.cfg.encodedAttributes...)
 	}
 
+	if mc.capabilities&clientZstdCompression != 0 {
+		data = append(data, compression.ZstdLevel)
+	}
 	// Send Auth packet
 	return mc.writePacket(data)
 }
