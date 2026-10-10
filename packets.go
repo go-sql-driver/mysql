@@ -619,6 +619,25 @@ func (mc *mysqlConn) clearResult() *okHandler {
 	return (*okHandler)(mc)
 }
 
+// hasLengthEncodedInteger reports whether b holds all bytes of the
+// length-encoded integer starting at b[0], so that readLengthEncodedInteger
+// will not read past the end of b. An empty b is accepted, as that function
+// handles it itself.
+func hasLengthEncodedInteger(b []byte) bool {
+	if len(b) == 0 {
+		return true
+	}
+	switch b[0] {
+	case 0xfc:
+		return len(b) >= 3
+	case 0xfd:
+		return len(b) >= 4
+	case 0xfe:
+		return len(b) >= 9
+	}
+	return true
+}
+
 // Ok Packet
 // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_ok_packet.html
 func (mc *okHandler) handleOkPacket(data []byte) error {
@@ -628,9 +647,15 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 	// 0x00 [1 byte]
 
 	// Affected rows [Length Coded Binary]
+	if !hasLengthEncodedInteger(data[1:]) {
+		return ErrMalformPkt
+	}
 	affectedRows, _, n = readLengthEncodedInteger(data[1:])
 
 	// Insert id [Length Coded Binary]
+	if 1+n > len(data) || !hasLengthEncodedInteger(data[1+n:]) {
+		return ErrMalformPkt
+	}
 	insertId, _, m = readLengthEncodedInteger(data[1+n:])
 
 	// Update for the current statement result (only used by
@@ -643,6 +668,9 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 	}
 
 	// server_status [2 bytes]
+	if 1+n+m+2 > len(data) {
+		return ErrMalformPkt
+	}
 	mc.status = readStatus(data[1+n+m : 1+n+m+2])
 	if mc.status&statusMoreResultsExists != 0 {
 		return nil
