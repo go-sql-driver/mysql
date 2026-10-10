@@ -4,16 +4,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Package mysql provides a MySQL driver for Go's database/sql package.
-//
-// The driver should be used via the database/sql package:
-//
-//	import "database/sql"
-//	import _ "github.com/go-sql-driver/mysql"
-//
-//	db, err := sql.Open("mysql", "user:password@/dbname")
-//
-// See https://github.com/go-sql-driver/mysql#usage for details
 package mysql
 
 import (
