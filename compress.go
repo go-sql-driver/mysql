@@ -149,7 +149,7 @@ func (c *compIO) readCompressedPacket() error {
 		decoded, err = c.zstd.Decode(comprData, dst)
 		if err == nil {
 			nread = len(decoded)
-			// Decode fills buff's spare capacity; Write commits the new bytes.
+			// decoded points into buff's spare capacity; Write only commits the length.
 			c.buff.Write(decoded)
 		}
 	} else {

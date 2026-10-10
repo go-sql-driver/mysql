@@ -29,6 +29,8 @@ const maxPacketSize = 1<<24 - 1
 var encoderPool = sync.Pool{New: func() any {
 	encoder, err := zstd.NewWriter(nil,
 		zstd.WithEncoderConcurrency(1),
+		// Fixed level 3 balances compression ratio and speed, favoring speed.
+		// Importing this package alone does not enable compression.
 		zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(compression.ZstdLevel)),
 	)
 	if err != nil {

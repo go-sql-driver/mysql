@@ -290,9 +290,7 @@ import _ "github.com/go-sql-driver/mysql/zstd"
 
 This import also registers the MySQL driver. With `compress=true` (or
 `EnableCompression(true)`), connections automatically prefer zstd when the server
-supports it and fall back to zlib otherwise. The zstd compression level is fixed
-at level 3, balancing compression ratio and speed with a preference for speed.
-Importing the package does not enable compression by itself.
+supports it and fall back to zlib otherwise.
 
 Applications that do not import `mysql/zstd` do not compile or link
 `github.com/klauspost/compress`. The optional package's dependency is listed in the

@@ -43,7 +43,11 @@ func TestCodecRoundtrip(t *testing.T) {
 }
 
 func TestDriverDependencyBoundary(t *testing.T) {
-	dependencies, err := exec.Command("go", "list", "-deps", "github.com/go-sql-driver/mysql").CombinedOutput()
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		t.Skipf("go toolchain unavailable: %v", err)
+	}
+	dependencies, err := exec.Command(goPath, "list", "-deps", "github.com/go-sql-driver/mysql").CombinedOutput()
 	if err != nil {
 		t.Fatalf("go list: %v\n%s", err, dependencies)
 	}
