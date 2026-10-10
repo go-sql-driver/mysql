@@ -19,7 +19,7 @@ type Codec interface {
 // that package is not imported. It must not be changed after initialization.
 var Zstd Codec
 
-// ZstdLevel is the fixed compression level sent in HandshakeResponse and used
-// by the encoder. Level 3 balances compression ratio and speed, favoring speed
-// over the higher-compression modes.
+// ZstdLevel is the fixed level used by the encoder and HandshakeResponse.
+// Level 3 targets better compression and faster encoding/decoding than zlib
+// on typical MySQL traffic, without requiring users to tune the level.
 const ZstdLevel = 3

@@ -149,6 +149,7 @@ func (c *compIO) readCompressedPacket() error {
 		decoded, err = c.zstd.Decode(comprData, dst)
 		if err == nil {
 			nread = len(decoded)
+			// Decode fills buff's spare capacity; Write commits the new bytes.
 			c.buff.Write(decoded)
 		}
 	} else {
@@ -189,6 +190,8 @@ func (c *compIO) writePackets(packets []byte) (int, error) {
 		} else {
 			var err error
 			if c.zstd != nil {
+				// Encode may grow dst. Write copies that result, or commits its
+				// length if it still aliases buf's spare capacity.
 				buf.Write(c.zstd.Encode(payload, buf.AvailableBuffer()))
 			} else {
 				err = zCompress(payload, buf)

@@ -290,8 +290,7 @@ func (mc *mysqlConn) initCapabilities(serverCapabilities capabilityFlag, serverE
 	}
 	if mc.cfg.compress {
 		if compression.Zstd != nil && serverCapabilities&clientZstdCompression != 0 {
-			// Advertising both selects zlib on MySQL. Advertise only zstd
-			// when it is available, otherwise use the existing zlib protocol.
+			// MySQL prefers zlib if both flags are set, so advertise only zstd.
 			clientCapabilities |= clientZstdCompression
 		} else {
 			clientCapabilities |= clientCompress
@@ -411,6 +410,8 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	}
 
 	if mc.capabilities&clientZstdCompression != 0 {
+		// The level follows the attributes in HandshakeResponse only;
+		// SSLRequest must remain the fixed 32-byte header.
 		data = append(data, compression.ZstdLevel)
 	}
 	// Send Auth packet
