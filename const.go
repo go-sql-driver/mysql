@@ -73,11 +73,9 @@ const (
 	clientCanHandleExpiredPasswords
 	clientSessionTrack
 	clientDeprecateEOF
+	clientOptionalResultsetMetadata
+	clientZstdCompression
 )
-
-// Bit 25 is CLIENT_OPTIONAL_RESULTSET_METADATA; zstd uses bit 26.
-// https://dev.mysql.com/doc/dev/mysql-server/latest/group__group__cs__capabilities__flags.html
-const clientZstdCompression capabilityFlag = 1 << 26
 
 // https://mariadb.com/kb/en/connection/#capabilities
 type extendedCapabilityFlag uint32
