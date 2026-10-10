@@ -1,3 +1,11 @@
+// Go MySQL Driver - A MySQL-Driver for Go's database/sql package
+//
+// Copyright 2026 The Go-MySQL-Driver Authors. All rights reserved.
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this file,
+// You can obtain one at http://mozilla.org/MPL/2.0/.
+
 package mysql
 
 import (
@@ -119,7 +127,7 @@ func TestCompressedPacketDecodeLimit(t *testing.T) {
 	if err := c.readCompressedPacket(); err != nil {
 		t.Fatal(err)
 	}
-	if string(c.buff.Bytes()) != "previous packetx" {
+	if c.buff.String() != "previous packetx" {
 		t.Fatal("decoding did not preserve pending bytes")
 	}
 }
