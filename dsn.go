@@ -77,7 +77,7 @@ type Config struct {
 	// unexported fields. new options should be come here.
 	// boolean first. alphabetical order.
 
-	compress       bool // Enable zlib compression
+	compress       bool // Enable compression
 	tinyInt1IsBool bool // Treat signed TINYINT(1) as boolean
 
 	beforeConnect     func(context.Context, *Config) error // Invoked before a connection is established
@@ -173,7 +173,8 @@ func BeforeConnect(fn func(context.Context, *Config) error) Option {
 	}
 }
 
-// EnableCompress sets the compression mode.
+// EnableCompression enables compression. Import mysql/zstd to prefer zstd when
+// supported by the server; otherwise connections use zlib when supported.
 func EnableCompression(yes bool) Option {
 	return func(cfg *Config) error {
 		cfg.compress = yes
