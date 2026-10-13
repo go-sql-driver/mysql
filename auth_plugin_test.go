@@ -273,14 +273,14 @@ func TestAuthSwitchContextSnapshot(t *testing.T) {
 	registerTestAuthPlugin(t, name, func() AuthPlugin {
 		return &authTestPlugin{
 			init: func(gotCtx context.Context, seed []byte, gotAuth *AuthContext) ([]byte, error) {
-				if gotCtx != ctx || gotAuth == auth || gotAuth.User() != "user" || gotAuth.Password() != "selected-password" || !gotAuth.TLS() || string(seed) != "challenge" {
+				if gotCtx != ctx || gotAuth == auth || gotAuth.User() != "user" || gotAuth.Password() != "selected-password" || !gotAuth.TLS() || string(seed) != "challenge\x00" {
 					return nil, errors.New("auth switch did not preserve the authentication snapshot")
 				}
 				switchedAuth = gotAuth
 				return []byte{42}, nil
 			},
 			next: func(gotCtx context.Context, packet, seed []byte, gotAuth *AuthContext) ([]byte, error) {
-				if gotCtx != ctx || gotAuth != switchedAuth || string(seed) != "challenge" {
+				if gotCtx != ctx || gotAuth != switchedAuth || string(seed) != "challenge\x00" {
 					return nil, errors.New("continuation did not retain the switched context")
 				}
 				continued = true
@@ -290,7 +290,7 @@ func TestAuthSwitchContextSnapshot(t *testing.T) {
 	})
 	payload := append([]byte{iEOF}, name...)
 	payload = append(payload, 0)
-	payload = append(payload, "challenge"...)
+	payload = append(payload, "challenge\x00"...)
 	conn.data = makePacket(2, payload)
 	conn.queuedReplies = [][]byte{append(
 		makePacket(4, []byte{iAuthMoreData, 7}),
