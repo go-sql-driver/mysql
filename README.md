@@ -667,6 +667,7 @@ The driver implements a pluggable authentication system that supports various au
 * `mysql_old_password` - Old MySQL authentication (requires `allowOldPasswords=true`)
 * `sha256_password` - SHA256 authentication
 * `client_ed25519` - MariaDB Ed25519 authentication
+* `parsec` - MariaDB parsec authentication
 
 Custom plugins implement the two methods of `AuthPlugin`, `InitAuth` and `ContinuationAuth`, and are registered with `RegisterAuthPlugin(name, factory)`. Registration does not call the factory; the driver calls it to create an independent instance for each authentication exchange. Factories may run concurrently for different connections. All built-in plugins use the same registry: registering a built-in name replaces its factory for subsequent authentication exchanges, including the initial handshake and authentication switches. Authentication-method permissions such as `allowCleartextPasswords` still apply to that name. Built-in plugin implementations are internal to the driver.
 
