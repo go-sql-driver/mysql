@@ -290,7 +290,7 @@ func TestAuthSwitchContextSnapshot(t *testing.T) {
 	})
 	payload := append([]byte{iEOF}, name...)
 	payload = append(payload, 0)
-	payload = append(payload, "challenge\x00"...)
+	payload = append(payload, "challenge"...)
 	conn.data = makePacket(2, payload)
 	conn.queuedReplies = [][]byte{append(
 		makePacket(4, []byte{iAuthMoreData, 7}),
