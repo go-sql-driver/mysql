@@ -7,6 +7,8 @@ version: 2
 updates:
   - package-ecosystem: "gomod"
     directory: "/"
+    # Disable version updates while allowing security updates.
+    open-pull-requests-limit: 0
     schedule:
       interval: "weekly"
     groups:
