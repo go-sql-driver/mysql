@@ -117,7 +117,7 @@ func (p *sha256PasswordPlugin) ContinuationAuth(ctx context.Context, packet, aut
 // encryptPassword encrypts the password using RSA-OAEP with SHA1 hash.
 //
 // The process:
-// 1. XORs the password with the auth seed to prevent replay attacks
+// 1. XORs the password with the 20-byte scramble to prevent replay attacks
 // 2. Encrypts the XORed password using RSA-OAEP with SHA1
 //
 // The encryption uses OAEP padding which is more secure than PKCS#1 v1.5 padding.
@@ -125,9 +125,10 @@ func encryptPassword(password string, seed []byte, pub *rsa.PublicKey) ([]byte, 
 	if pub == nil {
 		return nil, fmt.Errorf("public key is nil")
 	}
-	if len(seed) == 0 {
-		return nil, fmt.Errorf("%w: empty auth seed", ErrMalformPkt)
+	if len(seed) < 20 {
+		return nil, ErrMalformPkt
 	}
+	seed = seed[:20]
 
 	// Create the plaintext by XORing password with seed
 	plain := make([]byte, len(password)+1)
