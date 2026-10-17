@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+* Add the MariaDB `parsec` authentication plugin.
+
 * Add a pluggable authentication system with the `AuthPlugin` interface,
   `AuthContext`, and `RegisterAuthPlugin`. Custom plugins receive the connection
   context and an immutable snapshot of the selected credentials, established
