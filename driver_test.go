@@ -16,6 +16,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -1556,6 +1557,40 @@ func TestReuseClosedConnection(t *testing.T) {
 		t.Errorf("unexpected error '%s', expected '%s'",
 			err.Error(), driver.ErrBadConn.Error())
 	}
+}
+
+func TestPrepareWithOpenRows(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		tx, err := dbt.db.Begin()
+		if err != nil {
+			dbt.Fatal(err)
+		}
+		defer tx.Rollback()
+
+		rows, err := tx.Query("SELECT 1 UNION ALL SELECT 2")
+		if err != nil {
+			dbt.Fatal(err)
+		}
+		if !rows.Next() {
+			dbt.Fatalf("expected the first row, got %v", rows.Err())
+		}
+
+		_, err = tx.Prepare("SELECT 3")
+		if !errors.Is(err, ErrBusyBuffer) {
+			dbt.Fatalf("expected ErrBusyBuffer, got %#v", err)
+		}
+
+		if err := rows.Close(); err != nil {
+			dbt.Fatal(err)
+		}
+		stmt, err := tx.Prepare("SELECT 3")
+		if err != nil {
+			dbt.Fatalf("connection was not reusable after closing rows: %v", err)
+		}
+		if err := stmt.Close(); err != nil {
+			dbt.Fatal(err)
+		}
+	})
 }
 
 func TestCharset(t *testing.T) {
