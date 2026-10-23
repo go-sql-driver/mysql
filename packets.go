@@ -895,6 +895,23 @@ func (mc *mysqlConn) skipRows() error {
 func (stmt *mysqlStmt) readPrepareResultPacket() (uint16, error) {
 	data, err := stmt.mc.readPacket()
 	if err == nil {
+		switch l := len(data); {
+		case l == 0:
+			stmt.mc.log(fmt.Errorf("%w: readPrepareResultPacket received 0 bytes", ErrMalformPkt))
+			stmt.mc.close()
+			return 0, ErrInvalidConn
+
+		case data[0] == iOK && l < 12:
+			stmt.mc.log(fmt.Errorf("%w: COM_STMT_PREPARE_OK with %d < 12 bytes", ErrMalformPkt, l))
+			stmt.mc.close()
+			return 0, ErrInvalidConn
+
+		case data[0] == iERR && l < 9:
+			stmt.mc.log(fmt.Errorf("%w: ERR_Packet with %d < 9 bytes", ErrMalformPkt, l))
+			stmt.mc.close()
+			return 0, ErrInvalidConn
+		}
+
 		// packet indicator [1 byte]
 		if data[0] != iOK {
 			return 0, stmt.mc.handleErrorPacket(data)
