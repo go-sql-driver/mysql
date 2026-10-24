@@ -342,8 +342,9 @@ func (mc *mysqlConn) handshakeResponseHeader() ([]byte, error) {
 		colID, ok := collations[cname]
 		if ok {
 			data[12] = colID
-		} else if len(mc.cfg.charsets) > 0 {
-			// When cfg.charset is set, the collation is set by `SET NAMES <charset> COLLATE <collation>`.
+		} else if len(mc.cfg.charsets) == 0 {
+			// Without cfg.charset, the collation can only be set by this 1-byte ID.
+			// With cfg.charset, it is set by `SET NAMES <charset> COLLATE <collation>`.
 			return nil, fmt.Errorf("unknown collation: %q", cname)
 		}
 	}
