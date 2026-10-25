@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"bytes"
+	stdzlib "compress/zlib"
 	"crypto/rand"
 	"io"
 	"testing"
@@ -115,5 +116,41 @@ func TestRoundtrip(t *testing.T) {
 					cSend.compressSequence, cReceive.compressSequence)
 			}
 		})
+	}
+}
+
+// TestZlibInteroperability checks zlib data written by the driver against the standard library, in both directions.
+func TestZlibInteroperability(t *testing.T) {
+	for _, size := range []int{minCompressLength, 4096, 100000} {
+		src := bytes.Repeat([]byte("SELECT id, status FROM bet_slip WHERE user_id = 42; "), size/50+1)[:size]
+
+		var compressed bytes.Buffer
+		if err := zCompress(src, &compressed); err != nil {
+			t.Fatal(err)
+		}
+		r, err := stdzlib.NewReader(&compressed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := io.ReadAll(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, src) {
+			t.Errorf("size %d: the standard library read back different data", size)
+		}
+
+		var stdCompressed bytes.Buffer
+		w := stdzlib.NewWriter(&stdCompressed)
+		w.Write(src)
+		w.Close()
+		var out bytes.Buffer
+		n, err := zDecompress(stdCompressed.Bytes(), &out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n != size || !bytes.Equal(out.Bytes(), src) {
+			t.Errorf("size %d: the driver read back different data from the standard library", size)
+		}
 	}
 }

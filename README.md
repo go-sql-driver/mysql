@@ -292,9 +292,9 @@ This import also registers the MySQL driver. With `compress=true` (or
 `EnableCompression(true)`), connections automatically prefer zstd when the server
 supports it and fall back to zlib otherwise.
 
-Applications that do not import `mysql/zstd` do not compile or link
-`github.com/klauspost/compress`. The optional package's dependency is listed in the
-module's `go.mod`.
+zlib compression uses `github.com/klauspost/compress/zlib`, whose writers reset in
+constant time instead of clearing their hash tables for every packet. The zstd codec
+from the same module is linked only when `mysql/zstd` is imported.
 
 ##### `interpolateParams`
 

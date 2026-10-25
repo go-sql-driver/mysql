@@ -51,8 +51,8 @@ func TestDriverDependencyBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("go list: %v\n%s", err, dependencies)
 	}
-	if strings.Contains(string(dependencies), "github.com/klauspost/compress") {
-		t.Fatal("importing the driver alone must not build klauspost/compress")
+	if strings.Contains(string(dependencies), "github.com/klauspost/compress/zstd") {
+		t.Fatal("importing the driver alone must not build klauspost/compress/zstd")
 	}
 }
 
