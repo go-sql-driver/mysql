@@ -117,3 +117,26 @@ func TestRoundtrip(t *testing.T) {
 		})
 	}
 }
+
+func TestCompressThreshold(t *testing.T) {
+	for _, test := range []struct {
+		packetLen  int
+		compressed bool
+	}{
+		{minCompressLength - 1, false},
+		{minCompressLength, true},
+	} {
+		_, mc := newRWMockConn(0)
+		mc.compress = true
+		mc.compIO = newCompIO(mc)
+		payload := bytes.Repeat([]byte("SELECT 1; "), test.packetLen/10+1)[:test.packetLen-4]
+		written := compressHelper(t, mc, payload)
+		uncompressedLen := getUint24(written[4:7])
+		if test.compressed && uncompressedLen != test.packetLen {
+			t.Errorf("packet of %d bytes: uncompressed length in header is %d, want %d", test.packetLen, uncompressedLen, test.packetLen)
+		}
+		if !test.compressed && uncompressedLen != 0 {
+			t.Errorf("packet of %d bytes was compressed", test.packetLen)
+		}
+	}
+}
