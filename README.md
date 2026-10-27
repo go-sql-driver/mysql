@@ -308,6 +308,11 @@ If `interpolateParams` is true, placeholders (`?`) in calls to `db.Query()` and 
 
 *This can not be used together with the multibyte encodings BIG5, CP932, GB2312, GBK or SJIS. These are rejected as they may [introduce a SQL injection vulnerability](http://stackoverflow.com/a/12118602/3430118)!*
 
+> [!NOTE]
+> `interpolateParams` is designed to safely embed externally supplied parameter values into queries written by the application.
+> It does not fully replicate the MySQL server's parser: its handling of comments, quoting and escaping (e.g. executable comments `/*! ... */` or the `ANSI_QUOTES` SQL mode) may differ from the server's.
+> If you need to run arbitrary SQL with placeholders, use `Prepare()` (e.g. `db.Prepare()` or `conn.PrepareContext()`) so that the placeholders are processed by the server.
+
 ##### `loc`
 
 ```

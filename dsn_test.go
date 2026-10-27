@@ -478,6 +478,56 @@ func TestDSNUnsafeCollation(t *testing.T) {
 	}
 }
 
+func TestDSNUnsafeCharset(t *testing.T) {
+	tests := []struct {
+		params string
+		unsafe bool
+	}{
+		{"charset=sjis", true},
+		{"charset=cp932", true},
+		{"charset=big5", true},
+		{"charset=gbk", true},
+		{"charset=gb18030", true},
+		{"charset=SJIS", true},
+		// fallback charsets are checked too
+		{"charset=utf8mb4,sjis", true},
+		{"charset=utf8mb4, sjis", true},
+		// collations are matched case-insensitively and by charset prefix
+		{"collation=SJIS_JAPANESE_CI", true},
+		{"collation=sjis_japanese_nopad_ci", true},
+		{"charset=utf8mb4", false},
+		{"charset=utf8mb4,utf8", false},
+		{"charset=ujis", false},
+		{"collation=utf8mb4_bin", false},
+	}
+	for _, test := range tests {
+		dsn := "/dbname?interpolateParams=true&" + test.params
+		_, err := ParseDSN(dsn)
+		if test.unsafe && err != errInvalidDSNUnsafeCollation {
+			t.Errorf("%s: expected %v, got %v", dsn, errInvalidDSNUnsafeCollation, err)
+		}
+		if !test.unsafe && err != nil {
+			t.Errorf("%s: expected nil, got %v", dsn, err)
+		}
+
+		// Without interpolateParams, any charset is accepted.
+		dsn = "/dbname?" + test.params
+		if _, err := ParseDSN(dsn); err != nil {
+			t.Errorf("%s: expected nil, got %v", dsn, err)
+		}
+	}
+
+	// The Charset option goes through the same check in NewConnector.
+	cfg := NewConfig()
+	cfg.InterpolateParams = true
+	if err := cfg.Apply(Charset("sjis", "")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewConnector(cfg); err != errInvalidDSNUnsafeCollation {
+		t.Errorf("Charset(sjis): expected %v, got %v", errInvalidDSNUnsafeCollation, err)
+	}
+}
+
 func TestFormatDSN_NetWithoutAddr(t *testing.T) {
 	// An explicit non-default Net should still appear in the formatted
 	// DSN when Addr is empty, so the Config round-trips.

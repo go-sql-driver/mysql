@@ -8,6 +8,8 @@
 
 package mysql
 
+import "strings"
+
 const defaultCollationID = 45 // utf8mb4_general_ci
 const binaryCollationID = 63
 
@@ -263,4 +265,24 @@ var unsafeCollations = map[string]bool{
 	"gb18030_chinese_ci":     true,
 	"gb18030_bin":            true,
 	"gb18030_unicode_520_ci": true,
+}
+
+// A denylist of charsets which is unsafe to interpolate parameters.
+// These multibyte encodings may contain 0x5c (`\`) in their trailing bytes.
+var unsafeCharsets = map[string]bool{
+	"big5":    true,
+	"sjis":    true,
+	"gbk":     true,
+	"cp932":   true,
+	"gb18030": true,
+}
+
+// isUnsafeCollation reports whether the collation is unsafe to interpolate
+// parameters. Collation names are prefixed with their charset name, so this
+// also catches collations missing from unsafeCollations (e.g. MariaDB's
+// sjis_japanese_nopad_ci).
+func isUnsafeCollation(collation string) bool {
+	collation = strings.ToLower(collation)
+	charset, _, _ := strings.Cut(collation, "_")
+	return unsafeCollations[collation] || unsafeCharsets[charset]
 }

@@ -30,7 +30,7 @@ var (
 	errInvalidDSNUnescaped       = errors.New("invalid DSN: did you forget to escape a param value?")
 	errInvalidDSNAddr            = errors.New("invalid DSN: network address not terminated (missing closing brace)")
 	errInvalidDSNNoSlash         = errors.New("invalid DSN: missing the slash separating the database name")
-	errInvalidDSNUnsafeCollation = errors.New("invalid DSN: interpolateParams can not be used with unsafe collations")
+	errInvalidDSNUnsafeCollation = errors.New("invalid DSN: interpolateParams can not be used with unsafe charsets")
 )
 
 // Config is a configuration parsed from a DSN string.
@@ -225,8 +225,17 @@ func (cfg *Config) Clone() *Config {
 }
 
 func (cfg *Config) normalize() error {
-	if cfg.InterpolateParams && cfg.Collation != "" && unsafeCollations[cfg.Collation] {
-		return errInvalidDSNUnsafeCollation
+	if cfg.InterpolateParams {
+		if cfg.Collation != "" && isUnsafeCollation(cfg.Collation) {
+			return errInvalidDSNUnsafeCollation
+		}
+		// Every charset is checked, not only the first, because the fallbacks
+		// are used when the preceding ones fail.
+		for _, cs := range cfg.charsets {
+			if unsafeCharsets[strings.ToLower(strings.TrimSpace(cs))] {
+				return errInvalidDSNUnsafeCollation
+			}
+		}
 	}
 
 	// Set default network if empty

@@ -243,6 +243,14 @@ func TestInterpolateParamsWithComments(t *testing.T) {
 		{"SELECT ? -- comment ?\n, ? /* ? */ , ? # ?\n, ?", []driver.Value{int64(1), int64(2), int64(3)}, "SELECT 1 -- comment ?\n, 2 /* ? */ , 3 # ?\n, ?", true},
 		// 2--1: -- followed by digit is NOT a comment (it's the number 2 minus minus 1)
 		{"SELECT ?--1", []driver.Value{int64(2)}, "SELECT 2--1", false},
+		// -- followed by any control char or DEL starts a comment, as in the server
+		{"SELECT 1 --\v?\n, ?", []driver.Value{int64(42)}, "SELECT 1 --\v?\n, 42", false},
+		{"SELECT 1 --\f?\n, ?", []driver.Value{int64(42)}, "SELECT 1 --\f?\n, 42", false},
+		{"SELECT 1 --\x01?\n, ?", []driver.Value{int64(42)}, "SELECT 1 --\x01?\n, 42", false},
+		{"SELECT 1 --\x7f?\n, ?", []driver.Value{int64(42)}, "SELECT 1 --\x7f?\n, 42", false},
+		// A quote in such a comment must not start a string literal, otherwise
+		// the next '?' inside a real string literal would be replaced.
+		{"SELECT ? --\f don't\n, '?'", []driver.Value{int64(42)}, "SELECT 42 --\f don't\n, '?'", false},
 		// /* */*: After closing block comment, */* should NOT start a new comment
 		{"SELECT /* comment */* ?, ?", []driver.Value{int64(1), int64(2)}, "SELECT /* comment */* 1, 2", false},
 		// /* */*: More complex case with actual comment after

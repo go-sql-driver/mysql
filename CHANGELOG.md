@@ -13,6 +13,14 @@
   unsolicited public keys, preserves errors from plugins, and starts plugins
   only after the TLS handshake has completed. (#1696)
 
+* Reject `interpolateParams=true` combined with an unsafe multibyte charset
+  (`big5`, `sjis`, `gbk`, `cp932`, `gb18030`) given by `charset` or `Charset()`.
+  Previously only `collation` was checked. Collations are now matched
+  case-insensitively and by their charset prefix.
+
+* Fix `interpolateParams` not treating `--` followed by `\v`, `\f`, another
+  control character or DEL as a comment, unlike the server.
+
 ## v1.10.1 (2026-09-02)
 
 * Fix `Config.FormatDSN()` dropping `Addr` when `Net` is empty.
