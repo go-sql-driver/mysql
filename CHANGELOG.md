@@ -16,7 +16,8 @@
 * Reject `interpolateParams=true` combined with an unsafe multibyte charset
   (`big5`, `sjis`, `gbk`, `cp932`, `gb18030`) given by `charset` or `Charset()`.
   Previously only `collation` was checked. Collations are now matched
-  case-insensitively and by their charset prefix.
+  case-insensitively and by their charset prefix. The check also runs again
+  after a `BeforeConnect` callback has modified the config.
 
 * Fix `interpolateParams` not treating `--` followed by `\v`, `\f`, another
   control character or DEL as a comment, unlike the server.

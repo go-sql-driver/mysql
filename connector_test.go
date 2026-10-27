@@ -144,3 +144,24 @@ func TestBeforeConnectUsesEffectiveDialerAndAttributes(t *testing.T) {
 		t.Fatalf("handshake response does not contain callback server host: %q", mock.written)
 	}
 }
+
+func TestConnectorBeforeConnectUnsafeCharset(t *testing.T) {
+	cfg := NewConfig()
+	cfg.InterpolateParams = true
+	cfg.DialFunc = func(context.Context, string, string) (net.Conn, error) {
+		return nil, errors.New("must not dial with an unsafe charset")
+	}
+	if err := cfg.Apply(BeforeConnect(func(_ context.Context, cfg *Config) error {
+		return cfg.Apply(Charset("sjis", ""))
+	})); err != nil {
+		t.Fatal(err)
+	}
+
+	connector, err := NewConnector(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := connector.Connect(context.Background()); err != errInvalidDSNUnsafeCollation {
+		t.Fatalf("expected %v, got %v", errInvalidDSNUnsafeCollation, err)
+	}
+}

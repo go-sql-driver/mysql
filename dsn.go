@@ -224,18 +224,28 @@ func (cfg *Config) Clone() *Config {
 	return &cp
 }
 
-func (cfg *Config) normalize() error {
-	if cfg.InterpolateParams {
-		if cfg.Collation != "" && isUnsafeCollation(cfg.Collation) {
+// checkUnsafeCharset returns an error if interpolateParams is used with a
+// charset that is unsafe for backslash escaping.
+func (cfg *Config) checkUnsafeCharset() error {
+	if !cfg.InterpolateParams {
+		return nil
+	}
+	if cfg.Collation != "" && isUnsafeCollation(cfg.Collation) {
+		return errInvalidDSNUnsafeCollation
+	}
+	// Every charset is checked, not only the first, because the fallbacks
+	// are used when the preceding ones fail.
+	for _, cs := range cfg.charsets {
+		if unsafeCharsets[strings.ToLower(strings.TrimSpace(cs))] {
 			return errInvalidDSNUnsafeCollation
 		}
-		// Every charset is checked, not only the first, because the fallbacks
-		// are used when the preceding ones fail.
-		for _, cs := range cfg.charsets {
-			if unsafeCharsets[strings.ToLower(strings.TrimSpace(cs))] {
-				return errInvalidDSNUnsafeCollation
-			}
-		}
+	}
+	return nil
+}
+
+func (cfg *Config) normalize() error {
+	if err := cfg.checkUnsafeCharset(); err != nil {
+		return err
 	}
 
 	// Set default network if empty
