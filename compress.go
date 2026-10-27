@@ -165,7 +165,7 @@ func (c *compIO) readCompressedPacket() error {
 	return nil
 }
 
-const minCompressLength = 150
+const minCompressLength = 512
 const maxPayloadLen = maxPacketSize - 4
 
 // writePackets sends one or some packets with compression.
