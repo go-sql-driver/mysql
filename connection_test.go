@@ -247,6 +247,9 @@ func TestInterpolateParamsWithComments(t *testing.T) {
 		{"SELECT /* comment */* ?, ?", []driver.Value{int64(1), int64(2)}, "SELECT /* comment */* 1, 2", false},
 		// /* */*: More complex case with actual comment after
 		{"SELECT /* c1 */*/* c2 */ ?, ?", []driver.Value{int64(1), int64(2)}, "SELECT /* c1 */*/* c2 */ 1, 2", false},
+		// /*/: the '*' that opens a block comment must not also close it
+		{"SELECT /*/ ? */ ?", []driver.Value{int64(42)}, "SELECT /*/ ? */ 42", false},
+		{"SELECT /*/ ' */ ?, '?'", []driver.Value{int64(42)}, "SELECT /*/ ' */ 42, '?'", false},
 	}
 
 	for i, test := range tests {

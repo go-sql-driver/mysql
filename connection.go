@@ -300,6 +300,10 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 		case STAR_BYTE:
 			if state == stateNormal && lastChar == SLASH_BYTE {
 				state = stateSlashStarComment
+				// Clear lastChar so the '*' that opened the comment isn't
+				// reused to close it with a following '/'.
+				lastChar = 0
+				continue
 			}
 		case SLASH_BYTE:
 			if state == stateSlashStarComment && lastChar == STAR_BYTE {
