@@ -92,7 +92,7 @@ jobs:
       - uses: actions/setup-go@v7.0.0
         with:
           go-version: ${{ matrix.go }}
-      - uses: shogo82148/actions-setup-mysql@v1.54.2
+      - uses: shogo82148/actions-setup-mysql@v1.56.1
         with:
           mysql-version: ${{ matrix.mysql }}
           user: ${{ env.MYSQL_TEST_USER }}
@@ -119,7 +119,7 @@ jobs:
           go test -run '^$' -bench .
 
       - name: Send coverage
-        uses: shogo82148/actions-goveralls@v1.11.3
+        uses: shogo82148/actions-goveralls@v1.11.5
         with:
           path-to-profile: coverage.out
           flag-name: ${{ runner.os }}-Go-${{ matrix.go }}-DB-${{ matrix.mysql }}
@@ -131,6 +131,6 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: shogo82148/actions-goveralls@v1.11.3
+      - uses: shogo82148/actions-goveralls@v1.11.5
         with:
           parallel-finished: true
