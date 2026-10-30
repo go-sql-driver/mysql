@@ -502,3 +502,40 @@ func TestReadColumnsCollation(t *testing.T) {
 		})
 	}
 }
+
+// The handshake carries a one-byte collation ID. With a charset, a collation
+// missing from the collations map is set later by SET NAMES ... COLLATE.
+func TestHandshakeCollation(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		charsets  []string
+		collation string
+		want      byte
+		wantErr   bool
+	}{
+		{name: "default", want: defaultCollationID},
+		{name: "known", collation: "utf8mb4_unicode_ci", want: 224},
+		{name: "known with charset", charsets: []string{"utf8mb4"}, collation: "utf8mb4_unicode_ci", want: 224},
+		{name: "unknown with charset", charsets: []string{"utf8mb4"}, collation: "utf8mb4_0900_as_ci", want: defaultCollationID},
+		{name: "unknown", collation: "utf8mb4_0900_as_ci", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, mc := newRWMockConn(1)
+			mc.cfg.charsets = tc.charsets
+			mc.cfg.Collation = tc.collation
+			err := mc.writeHandshakeResponsePacket(nil, defaultAuthPlugin)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected an error for collation %q", tc.collation)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := conn.written[12]; got != tc.want {
+				t.Errorf("collation ID = %d; want %d", got, tc.want)
+			}
+		})
+	}
+}
