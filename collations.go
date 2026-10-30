@@ -262,6 +262,11 @@ var unsafeCharsets = map[string]bool{
 	"gb18030": true,
 }
 
+func isUnsafeCharset(charset string) bool {
+	charset = strings.Trim(strings.TrimSpace(charset), `'"`)
+	return unsafeCharsets[strings.ToLower(charset)]
+}
+
 // isUnsafeCollation reports whether the collation is unsafe to interpolate
 // parameters. Collation names are prefixed with their charset name, including
 // collations that are not known to this driver (e.g. MariaDB's
@@ -269,5 +274,5 @@ var unsafeCharsets = map[string]bool{
 func isUnsafeCollation(collation string) bool {
 	collation = strings.ToLower(collation)
 	charset, _, _ := strings.Cut(collation, "_")
-	return unsafeCharsets[charset]
+	return isUnsafeCharset(charset)
 }

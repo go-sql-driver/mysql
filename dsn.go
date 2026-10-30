@@ -236,7 +236,7 @@ func (cfg *Config) checkUnsafeCharset() error {
 	// Every charset is checked, not only the first, because the fallbacks
 	// are used when the preceding ones fail.
 	for _, cs := range cfg.charsets {
-		if unsafeCharsets[strings.ToLower(strings.TrimSpace(cs))] {
+		if isUnsafeCharset(cs) {
 			return errInvalidDSNUnsafeCollation
 		}
 	}

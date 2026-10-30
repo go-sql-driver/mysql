@@ -146,22 +146,66 @@ func TestBeforeConnectUsesEffectiveDialerAndAttributes(t *testing.T) {
 }
 
 func TestConnectorBeforeConnectUnsafeCharset(t *testing.T) {
-	cfg := NewConfig()
-	cfg.InterpolateParams = true
-	cfg.DialFunc = func(context.Context, string, string) (net.Conn, error) {
-		return nil, errors.New("must not dial with an unsafe charset")
-	}
-	if err := cfg.Apply(BeforeConnect(func(_ context.Context, cfg *Config) error {
-		return cfg.Apply(Charset("sjis", ""))
-	})); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name          string
+		setup         func(*Config) error
+		beforeConnect func(*Config) error
+	}{
+		{
+			name: "charset",
+			setup: func(cfg *Config) error {
+				cfg.InterpolateParams = true
+				return nil
+			},
+			beforeConnect: func(cfg *Config) error {
+				return cfg.Apply(Charset("sjis", ""))
+			},
+		},
+		{
+			name: "interpolateParams",
+			setup: func(cfg *Config) error {
+				return cfg.Apply(Charset("sjis", ""))
+			},
+			beforeConnect: func(cfg *Config) error {
+				cfg.InterpolateParams = true
+				return nil
+			},
+		},
+		{
+			name: "collation",
+			setup: func(cfg *Config) error {
+				cfg.InterpolateParams = true
+				return nil
+			},
+			beforeConnect: func(cfg *Config) error {
+				cfg.Collation = "sjis_japanese_ci"
+				return nil
+			},
+		},
 	}
 
-	connector, err := NewConnector(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := connector.Connect(context.Background()); err != errInvalidDSNUnsafeCollation {
-		t.Fatalf("expected %v, got %v", errInvalidDSNUnsafeCollation, err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := NewConfig()
+			if err := test.setup(cfg); err != nil {
+				t.Fatal(err)
+			}
+			cfg.DialFunc = func(context.Context, string, string) (net.Conn, error) {
+				return nil, errors.New("must not dial with an unsafe charset")
+			}
+			if err := cfg.Apply(BeforeConnect(func(_ context.Context, cfg *Config) error {
+				return test.beforeConnect(cfg)
+			})); err != nil {
+				t.Fatal(err)
+			}
+
+			connector, err := NewConnector(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := connector.Connect(context.Background()); err != errInvalidDSNUnsafeCollation {
+				t.Fatalf("expected %v, got %v", errInvalidDSNUnsafeCollation, err)
+			}
+		})
 	}
 }

@@ -489,9 +489,12 @@ func TestDSNUnsafeCharset(t *testing.T) {
 		{"charset=gbk", true},
 		{"charset=gb18030", true},
 		{"charset=SJIS", true},
+		{"charset='sjis'", true},
+		{`charset="sjis"`, true},
 		// fallback charsets are checked too
 		{"charset=utf8mb4,sjis", true},
 		{"charset=utf8mb4, sjis", true},
+		{"charset=utf8mb4, 'sjis'", true},
 		// collations are matched case-insensitively and by charset prefix
 		{"collation=SJIS_JAPANESE_CI", true},
 		{"collation=sjis_japanese_nopad_ci", true},
