@@ -13,6 +13,21 @@
   unsolicited public keys, preserves errors from plugins, and starts plugins
   only after the TLS handshake has completed. (#1696)
 
+* Reject `interpolateParams=true` combined with an unsafe multibyte charset
+  (`big5`, `sjis`, `gbk`, `cp932`, `gb18030`) given by `charset` or `Charset()`.
+  Previously only `collation` was checked. Collations are now matched
+  case-insensitively and by their charset prefix. The check also runs again
+  after a `BeforeConnect` callback has modified the config. Stop rejecting
+  `gb2312_bin`; GB2312 trailing bytes cannot contain a backslash. The error text
+  changed from `invalid DSN: interpolateParams can not be used with unsafe collations`
+  to `interpolateParams cannot be used with unsafe charsets`, because it may also
+  be returned by `NewConnector` or `Connector.Connect` after `BeforeConnect`.
+  Applications comparing the complete error string must update their comparison.
+
+* Fix `interpolateParams` not treating `--` followed by `\v`, `\f`, another
+  control character, DEL, or a raw `0xA0` byte as a comment. Other non-ASCII
+  bytes after `--` remain outside the supported interpolation grammar.
+
 ## v1.10.1 (2026-09-02)
 
 * Fix `Config.FormatDSN()` dropping `Addr` when `Net` is empty.

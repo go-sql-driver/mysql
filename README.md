@@ -306,7 +306,18 @@ Default:        false
 
 If `interpolateParams` is true, placeholders (`?`) in calls to `db.Query()` and `db.Exec()` are interpolated into a single query string with given parameters. This reduces the number of roundtrips, since the driver has to prepare a statement, execute it with given parameters and close the statement again with `interpolateParams=false`.
 
-*This can not be used together with the multibyte encodings BIG5, CP932, GB2312, GBK or SJIS. These are rejected as they may [introduce a SQL injection vulnerability](http://stackoverflow.com/a/12118602/3430118)!*
+*This can not be used together with the multibyte encodings BIG5, CP932, GB18030, GBK or SJIS. A `charset` or `collation` using one of these is rejected, as they may [introduce a SQL injection vulnerability](http://stackoverflow.com/a/12118602/3430118)!*
+
+> [!NOTE]
+> `interpolateParams` is designed to safely embed externally supplied parameter values into queries written by the application.
+> It does not fully replicate the MySQL server's parser: its handling of comments, quoting and escaping (e.g. executable comments `/*! ... */` or the `ANSI_QUOTES` SQL mode) may differ from the server's.
+> Queries using `interpolateParams` must not rely on character-set-specific recognition of `--` comments. When the byte immediately following `--` is non-ASCII, the driver's interpretation is not guaranteed to match the server's; use an ASCII space (`-- `) or server-side `Prepare()` instead. The driver recognizes a raw `0xA0` byte as a comment separator for latin1 compatibility. This is not U+00A0 encoded as UTF-8, whose bytes are `0xC2 0xA0`.
+> If you need to run arbitrary SQL with placeholders, use `Prepare()` (e.g. `db.Prepare()` or `conn.PrepareContext()`) so that the placeholders are processed by the server.
+
+> [!WARNING]
+> Unsafe-charset rejection is a fail-safe, not a complete safety mechanism. The driver checks the configured `charset` and `collation` but does not automatically select or enforce a safe effective charset on the server. Applications that enable `interpolateParams` are responsible for ensuring that `character_set_client` remains safe and for following the parser restrictions documented above.
+> Changes made through other paths, such as a `character_set_client=sjis` system variable in the DSN or `SET NAMES sjis` at runtime, are not detected and can make `interpolateParams` unsafe.
+> If the effective charset cannot be guaranteed, disable `interpolateParams` and let the server process the placeholders.
 
 ##### `loc`
 

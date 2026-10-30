@@ -74,6 +74,10 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
+		// beforeConnect may have changed the charset, collation, or InterpolateParams.
+		if err = cfg.checkUnsafeCharset(); err != nil {
+			return nil, err
+		}
 		cfg.encodedAttributes = encodeConnectionAttributes(cfg)
 	}
 
