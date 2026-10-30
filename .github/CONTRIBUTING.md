@@ -21,3 +21,19 @@ Before merging the Pull Request, at least one [team member](https://github.com/g
 ## Development Ideas
 
 If you are looking for ideas for code contributions, please check our [Development Ideas](https://github.com/go-sql-driver/mysql/wiki/Development-Ideas) Wiki page.
+
+## GitHub Actions dependencies
+
+Action versions and their transitive dependencies are pinned in
+`.github/workflows/actions.lock`. After adding a workflow or changing a `uses:`
+reference, regenerate and verify the lockfile with the official GitHub CLI extension:
+
+```sh
+gh extension install github/gh-actions-lock --pin v0.4.0
+gh actions-lock
+gh actions-lock --verify
+```
+
+Review and commit the workflow and lockfile changes together. Do not edit the
+lockfile manually. Dependabot updates existing workflow dependencies and their
+lockfile entries together.
