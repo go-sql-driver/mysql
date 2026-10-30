@@ -17,10 +17,12 @@
   (`big5`, `sjis`, `gbk`, `cp932`, `gb18030`) given by `charset` or `Charset()`.
   Previously only `collation` was checked. Collations are now matched
   case-insensitively and by their charset prefix. The check also runs again
-  after a `BeforeConnect` callback has modified the config.
+  after a `BeforeConnect` callback has modified the config. Stop rejecting
+  `gb2312_bin`; GB2312 trailing bytes cannot contain a backslash.
 
 * Fix `interpolateParams` not treating `--` followed by `\v`, `\f`, another
-  control character or DEL as a comment, unlike the server.
+  control character, DEL, or a raw `0xA0` byte as a comment. Other non-ASCII
+  bytes after `--` remain outside the supported interpolation grammar.
 
 ## v1.10.1 (2026-09-02)
 

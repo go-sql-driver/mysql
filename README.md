@@ -311,12 +311,13 @@ If `interpolateParams` is true, placeholders (`?`) in calls to `db.Query()` and 
 > [!NOTE]
 > `interpolateParams` is designed to safely embed externally supplied parameter values into queries written by the application.
 > It does not fully replicate the MySQL server's parser: its handling of comments, quoting and escaping (e.g. executable comments `/*! ... */` or the `ANSI_QUOTES` SQL mode) may differ from the server's.
+> Queries using `interpolateParams` must not rely on character-set-specific recognition of `--` comments. When the byte immediately following `--` is non-ASCII, the driver's interpretation is not guaranteed to match the server's; use an ASCII space (`-- `) or server-side `Prepare()` instead. The driver recognizes a raw `0xA0` byte as a comment separator for latin1 compatibility. This is not U+00A0 encoded as UTF-8, whose bytes are `0xC2 0xA0`.
 > If you need to run arbitrary SQL with placeholders, use `Prepare()` (e.g. `db.Prepare()` or `conn.PrepareContext()`) so that the placeholders are processed by the server.
 
 > [!WARNING]
-> Only the `charset` and `collation` parameters are checked for unsafe encodings.
-> Changing the connection charset in other ways, such as a `character_set_client=sjis` system variable in the DSN or `SET NAMES sjis` at runtime, is not detected and makes `interpolateParams` unsafe.
-> If you need such a charset, disable `interpolateParams` and let the server process the placeholders.
+> Unsafe-charset rejection is a fail-safe, not a complete safety mechanism. The driver checks the configured `charset` and `collation` but does not automatically select or enforce a safe effective charset on the server. Applications that enable `interpolateParams` are responsible for ensuring that `character_set_client` remains safe and for following the parser restrictions documented above.
+> Changes made through other paths, such as a `character_set_client=sjis` system variable in the DSN or `SET NAMES sjis` at runtime, are not detected and can make `interpolateParams` unsafe.
+> If the effective charset cannot be guaranteed, disable `interpolateParams` and let the server process the placeholders.
 
 ##### `loc`
 

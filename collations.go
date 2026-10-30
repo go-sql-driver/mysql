@@ -250,25 +250,10 @@ var collations = map[string]byte{
 	"utf8mb4_0900_ai_ci":       255,
 }
 
-// A denylist of collations which is unsafe to interpolate parameters.
-// These multibyte encodings may contains 0x5c (`\`) in their trailing bytes.
-var unsafeCollations = map[string]bool{
-	"big5_chinese_ci":        true,
-	"sjis_japanese_ci":       true,
-	"gbk_chinese_ci":         true,
-	"big5_bin":               true,
-	"gb2312_bin":             true,
-	"gbk_bin":                true,
-	"sjis_bin":               true,
-	"cp932_japanese_ci":      true,
-	"cp932_bin":              true,
-	"gb18030_chinese_ci":     true,
-	"gb18030_bin":            true,
-	"gb18030_unicode_520_ci": true,
-}
-
 // A denylist of charsets which is unsafe to interpolate parameters.
 // These multibyte encodings may contain 0x5c (`\`) in their trailing bytes.
+// This is the set of MySQL client charsets whose
+// CHARSET_INFO::escape_with_backslash_is_dangerous flag is true.
 var unsafeCharsets = map[string]bool{
 	"big5":    true,
 	"sjis":    true,
@@ -278,11 +263,11 @@ var unsafeCharsets = map[string]bool{
 }
 
 // isUnsafeCollation reports whether the collation is unsafe to interpolate
-// parameters. Collation names are prefixed with their charset name, so this
-// also catches collations missing from unsafeCollations (e.g. MariaDB's
+// parameters. Collation names are prefixed with their charset name, including
+// collations that are not known to this driver (e.g. MariaDB's
 // sjis_japanese_nopad_ci).
 func isUnsafeCollation(collation string) bool {
 	collation = strings.ToLower(collation)
 	charset, _, _ := strings.Cut(collation, "_")
-	return unsafeCollations[collation] || unsafeCharsets[charset]
+	return unsafeCharsets[charset]
 }

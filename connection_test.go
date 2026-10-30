@@ -248,6 +248,10 @@ func TestInterpolateParamsWithComments(t *testing.T) {
 		{"SELECT 1 --\f?\n, ?", []driver.Value{int64(42)}, "SELECT 1 --\f?\n, 42", false},
 		{"SELECT 1 --\x01?\n, ?", []driver.Value{int64(42)}, "SELECT 1 --\x01?\n, 42", false},
 		{"SELECT 1 --\x7f?\n, ?", []driver.Value{int64(42)}, "SELECT 1 --\x7f?\n, 42", false},
+		// Raw 0xa0 is whitespace in latin1.
+		{"SELECT 1 --\xa0?\n, ?", []driver.Value{int64(42)}, "SELECT 1 --\xa0?\n, 42", false},
+		// A quote after --\xa0 must not shift the interpolation state.
+		{"SELECT 1 --\xa0 don't\n, '?', ?", []driver.Value{int64(42)}, "SELECT 1 --\xa0 don't\n, '?', 42", false},
 		// A quote in such a comment must not start a string literal, otherwise
 		// the next '?' inside a real string literal would be replaced.
 		{"SELECT ? --\f don't\n, '?'", []driver.Value{int64(42)}, "SELECT 42 --\f don't\n, '?'", false},

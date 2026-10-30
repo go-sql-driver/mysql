@@ -497,7 +497,13 @@ func TestDSNUnsafeCharset(t *testing.T) {
 		{"collation=sjis_japanese_nopad_ci", true},
 		{"charset=utf8mb4", false},
 		{"charset=utf8mb4,utf8", false},
+		{"charset=gb2312", false},
 		{"charset=ujis", false},
+		{"charset=euckr", false},
+		{"charset=eucjpms", false},
+		// GB2312 trailing bytes are 0xa1-0xfe and cannot contain 0x5c.
+		{"collation=gb2312_chinese_ci", false},
+		{"collation=gb2312_bin", false},
 		{"collation=utf8mb4_bin", false},
 	}
 	for _, test := range tests {
