@@ -27,10 +27,10 @@ import (
 )
 
 var (
-	errInvalidDSNUnescaped       = errors.New("invalid DSN: did you forget to escape a param value?")
-	errInvalidDSNAddr            = errors.New("invalid DSN: network address not terminated (missing closing brace)")
-	errInvalidDSNNoSlash         = errors.New("invalid DSN: missing the slash separating the database name")
-	errInvalidDSNUnsafeCollation = errors.New("invalid DSN: interpolateParams can not be used with unsafe charsets")
+	errInvalidDSNUnescaped = errors.New("invalid DSN: did you forget to escape a param value?")
+	errInvalidDSNAddr      = errors.New("invalid DSN: network address not terminated (missing closing brace)")
+	errInvalidDSNNoSlash   = errors.New("invalid DSN: missing the slash separating the database name")
+	errUnsafeCharset       = errors.New("interpolateParams cannot be used with unsafe charsets")
 )
 
 // Config is a configuration parsed from a DSN string.
@@ -231,13 +231,13 @@ func (cfg *Config) checkUnsafeCharset() error {
 		return nil
 	}
 	if cfg.Collation != "" && isUnsafeCollation(cfg.Collation) {
-		return errInvalidDSNUnsafeCollation
+		return errUnsafeCharset
 	}
 	// Every charset is checked, not only the first, because the fallbacks
 	// are used when the preceding ones fail.
 	for _, cs := range cfg.charsets {
 		if isUnsafeCharset(cs) {
-			return errInvalidDSNUnsafeCollation
+			return errUnsafeCharset
 		}
 	}
 	return nil

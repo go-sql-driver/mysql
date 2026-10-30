@@ -203,8 +203,8 @@ func TestConnectorBeforeConnectUnsafeCharset(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := connector.Connect(context.Background()); err != errInvalidDSNUnsafeCollation {
-				t.Fatalf("expected %v, got %v", errInvalidDSNUnsafeCollation, err)
+			if _, err := connector.Connect(context.Background()); err != errUnsafeCharset {
+				t.Fatalf("expected %v, got %v", errUnsafeCharset, err)
 			}
 		})
 	}

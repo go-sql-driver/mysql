@@ -443,8 +443,8 @@ func TestDSNWithCustomTLSQueryEscape(t *testing.T) {
 
 func TestDSNUnsafeCollation(t *testing.T) {
 	_, err := ParseDSN("/dbname?collation=gbk_chinese_ci&interpolateParams=true")
-	if err != errInvalidDSNUnsafeCollation {
-		t.Errorf("expected %v, got %v", errInvalidDSNUnsafeCollation, err)
+	if err != errUnsafeCharset {
+		t.Errorf("expected %v, got %v", errUnsafeCharset, err)
 	}
 
 	_, err = ParseDSN("/dbname?collation=gbk_chinese_ci&interpolateParams=false")
@@ -512,8 +512,8 @@ func TestDSNUnsafeCharset(t *testing.T) {
 	for _, test := range tests {
 		dsn := "/dbname?interpolateParams=true&" + test.params
 		_, err := ParseDSN(dsn)
-		if test.unsafe && err != errInvalidDSNUnsafeCollation {
-			t.Errorf("%s: expected %v, got %v", dsn, errInvalidDSNUnsafeCollation, err)
+		if test.unsafe && err != errUnsafeCharset {
+			t.Errorf("%s: expected %v, got %v", dsn, errUnsafeCharset, err)
 		}
 		if !test.unsafe && err != nil {
 			t.Errorf("%s: expected nil, got %v", dsn, err)
@@ -532,8 +532,8 @@ func TestDSNUnsafeCharset(t *testing.T) {
 	if err := cfg.Apply(Charset("sjis", "")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := NewConnector(cfg); err != errInvalidDSNUnsafeCollation {
-		t.Errorf("Charset(sjis): expected %v, got %v", errInvalidDSNUnsafeCollation, err)
+	if _, err := NewConnector(cfg); err != errUnsafeCharset {
+		t.Errorf("Charset(sjis): expected %v, got %v", errUnsafeCharset, err)
 	}
 }
 
