@@ -16,6 +16,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -3663,4 +3664,69 @@ func TestIssue1567(t *testing.T) {
 			cancel()
 		}
 	})
+}
+
+// TestParsecAuthServer authenticates against a MariaDB server with the parsec
+// plugin. It is skipped on servers without the plugin.
+func TestParsecAuthServer(t *testing.T) {
+	if !available {
+		t.Skipf("MySQL server not running on %s", netAddr)
+	}
+	db, err := sql.Open(driverNameTest, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	var version string
+	if err := db.QueryRow("SELECT VERSION()").Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(version, "MariaDB") {
+		t.Skip("parsec authentication requires MariaDB")
+	}
+	db.Exec("INSTALL SONAME 'auth_parsec'") // may already be installed, or unavailable
+	var status string
+	if err := db.QueryRow("SELECT plugin_status FROM information_schema.plugins WHERE plugin_name = 'parsec'").Scan(&status); err != nil || status != "ACTIVE" {
+		t.Skip("parsec plugin is not available on this server")
+	}
+
+	// Create the account for the host the server sees for the test client.
+	// A wildcard host would lose against an anonymous ''@'localhost' account,
+	// which Unix installations create by default.
+	var host string
+	if err := db.QueryRow("SELECT SUBSTRING_INDEX(USER(), '@', -1)").Scan(&host); err != nil {
+		t.Fatal(err)
+	}
+	var buf [8]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		t.Fatal(err)
+	}
+	user := fmt.Sprintf("parsec_%x", buf[:])
+	account := fmt.Sprintf("'%s'@'%s'", user, strings.ReplaceAll(host, "'", "''"))
+	const password = "Pässw0rd€!"
+	if _, err := db.Exec("CREATE USER " + account + " IDENTIFIED VIA parsec USING PASSWORD('" + password + "')"); err != nil {
+		t.Fatal(err)
+	}
+	defer db.Exec("DROP USER " + account)
+	if _, err := db.Exec("GRANT SELECT ON `" + strings.ReplaceAll(dbname, "`", "``") + "`.* TO " + account); err != nil {
+		t.Fatal(err)
+	}
+
+	connect := func(pw string) error {
+		userDB, err := sql.Open(driverNameTest, fmt.Sprintf("%s:%s@%s/%s?timeout=30s", user, pw, netAddr, dbname))
+		if err != nil {
+			return err
+		}
+		defer userDB.Close()
+		var one int
+		return userDB.QueryRow("SELECT 1").Scan(&one)
+	}
+	if err := connect(password); err != nil {
+		t.Errorf("parsec authentication failed: %v", err)
+	}
+	var mysqlErr *MySQLError
+	if err := connect("wrong"); !errors.As(err, &mysqlErr) || mysqlErr.Number != 1045 {
+		t.Errorf("wrong password: got %v, want access denied", err)
+	}
 }
