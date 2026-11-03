@@ -672,6 +672,8 @@ Custom plugins implement the two methods of `AuthPlugin`, `InitAuth` and `Contin
 
 The driver passes the connection's `context.Context` for cancellation and an `AuthContext` snapshot containing the selected credentials, established transport information, and configured RSA public key. Plugins do not receive or modify the connection's `Config`; the driver checks authentication-method permissions before starting a plugin. Custom plugins that require a particular transport must check it in `InitAuth` before returning credentials.
 
+`InitAuth` receives the server challenge exactly as sent, including any trailing NUL byte; plugins interpret it themselves.
+
 `AuthContext.TLS()` reports a completed MySQL TLS handshake, not merely a TLS configuration or an external tunnel. A continuation returning `nil, nil` waits for another server packet without sending; a non-nil empty slice sends an empty packet. Authentication succeeds only when the driver receives the server's OK packet.
 
 ### `LOAD DATA LOCAL INFILE` support
