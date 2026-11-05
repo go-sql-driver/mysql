@@ -92,7 +92,7 @@ jobs:
       - uses: actions/setup-go@v7.0.0
         with:
           go-version: ${{ matrix.go }}
-      - uses: shogo82148/actions-setup-mysql@v1.56.1
+      - uses: shogo82148/actions-setup-mysql@v1.56.2
         with:
           mysql-version: ${{ matrix.mysql }}
           user: ${{ env.MYSQL_TEST_USER }}
