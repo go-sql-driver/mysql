@@ -539,3 +539,54 @@ func TestHandshakeCollation(t *testing.T) {
 		})
 	}
 }
+
+// https://github.com/go-sql-driver/mysql/issues/878
+// handleOkPacket must not panic on a truncated/malformed OK packet; it
+// should return ErrMalformPkt and close the connection instead. Reported
+// example: a server that sends an OK packet with just the 0x00 header byte
+// and nothing else.
+func TestRegression878(t *testing.T) {
+	// A well-formed minimal OK packet: header, affected_rows=5,
+	// insert_id=0, status_flags=statusInTrans (2 bytes).
+	full := []byte{iOK, 5, 0, byte(statusInTrans), 0}
+
+	malformed := [][]byte{
+		// Multi-byte length-encoded integers cut short.
+		{iOK, 0xfc, 1},
+		{iOK, 0xfd, 1, 0},
+		{iOK, 0xfe, 1, 0, 0, 0, 0, 0, 0},
+		{iOK, 0, 0xfc, 1},
+		{iOK, 0, 0xfd, 1, 0},
+		{iOK, 0, 0xfe, 1, 0, 0, 0, 0, 0, 0},
+		// 0xff is not a valid length-encoded integer.
+		{iOK, 0xff, 0, byte(statusInTrans), 0},
+		{iOK, 0, 0xff, byte(statusInTrans), 0},
+	}
+	// Every truncation of the packet before its end (keeping at least the
+	// header byte, which readPacket guarantees).
+	for n := 1; n < len(full); n++ {
+		malformed = append(malformed, full[:n])
+	}
+
+	for _, data := range malformed {
+		_, mc := newRWMockConn(0)
+		if err := mc.clearResult().handleOkPacket(data); err != ErrMalformPkt {
+			t.Errorf("data=%v: expected ErrMalformPkt, got %v", data, err)
+		}
+		if !mc.closed.Load() {
+			t.Errorf("data=%v: expected the connection to be closed", data)
+		}
+	}
+
+	// A complete, well-formed packet must still parse successfully.
+	_, mc := newRWMockConn(0)
+	if err := mc.clearResult().handleOkPacket(full); err != nil {
+		t.Fatalf("unexpected error for well-formed packet: %v", err)
+	}
+	if mc.status != statusInTrans {
+		t.Errorf("expected status %v, got %v", statusInTrans, mc.status)
+	}
+	if mc.closed.Load() {
+		t.Error("connection closed after a well-formed packet")
+	}
+}
