@@ -124,7 +124,7 @@ func runTestsWithMultiStatement(t *testing.T, dsn string, tests ...func(dbt *DBT
 
 	dsn += "&multiStatements=true"
 	var db *sql.DB
-	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
+	if _, err := ParseDSN(dsn); err != errUnsafeCharset {
 		db, err = sql.Open(driverNameTest, dsn)
 		if err != nil {
 			t.Fatalf("error connecting: %s", err.Error())
@@ -157,7 +157,7 @@ func runTests(t *testing.T, dsn string, tests ...func(dbt *DBTest)) {
 
 	dsn2 := dsn + "&interpolateParams=true"
 	var db2 *sql.DB
-	if _, err := ParseDSN(dsn2); err != errInvalidDSNUnsafeCollation {
+	if _, err := ParseDSN(dsn2); err != errUnsafeCharset {
 		db2, err = sql.Open(driverNameTest, dsn2)
 		if err != nil {
 			t.Fatalf("connecting %q: %s", dsn2, err)
@@ -238,7 +238,7 @@ func runTestsParallel(t *testing.T, dsn string, tests ...func(dbt *DBTest, table
 		})
 
 		dsn2 := dsn + "&interpolateParams=true"
-		if _, err := ParseDSN(dsn2); err == errInvalidDSNUnsafeCollation {
+		if _, err := ParseDSN(dsn2); err == errUnsafeCharset {
 			t.Run("interpolateParams", func(t *testing.T) {
 				t.Parallel()
 
@@ -3541,7 +3541,7 @@ func TestConnectionAttributes(t *testing.T) {
 	dsn += "&connectionAttributes=" + url.QueryEscape(strings.Join(customAttrStrs, ","))
 
 	var db *sql.DB
-	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
+	if _, err := ParseDSN(dsn); err != errUnsafeCharset {
 		db, err = sql.Open(driverNameTest, dsn)
 		if err != nil {
 			t.Fatalf("error connecting: %s", err.Error())
@@ -3586,7 +3586,7 @@ func TestErrorInMultiResult(t *testing.T) {
 	}
 	// https://github.com/go-sql-driver/mysql/issues/1361
 	var db *sql.DB
-	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
+	if _, err := ParseDSN(dsn); err != errUnsafeCharset {
 		db, err = sql.Open("mysql", dsn)
 		if err != nil {
 			t.Fatalf("error connecting: %s", err.Error())

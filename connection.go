@@ -319,13 +319,11 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 			}
 		case MINUS_BYTE:
 			if state == stateNormal && lastChar == MINUS_BYTE {
-				// -- only starts a comment if followed by whitespace or control char
-				if i+1 < lenQuery {
-					nextChar := query[i+1]
-					if nextChar == ' ' || nextChar == '\t' || nextChar == '\n' || nextChar == '\r' {
-						state = stateEOLComment
-					}
-				} else {
+				// -- starts a comment after ASCII whitespace or a control char.
+				// Non-ASCII classification is charset-dependent. Recognize raw
+				// 0xa0 for latin1 compatibility; other non-ASCII bytes are
+				// unsupported (see README).
+				if i+1 >= lenQuery || query[i+1] <= ' ' || query[i+1] == 0x7f || query[i+1] == 0xa0 {
 					state = stateEOLComment
 				}
 			}
