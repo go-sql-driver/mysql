@@ -8,7 +8,7 @@ workflows:
         - 'actions/setup-go@v7.0.0'
         - 'dominikh/staticcheck-action@v1.4.1'
         - 'shogo82148/actions-goveralls@v1.11.5'
-        - 'shogo82148/actions-setup-mysql@v1.56.1'
+        - 'shogo82148/actions-setup-mysql@v1.56.2'
 dependencies:
     'actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830':
         ref: 'v4.3.0'
@@ -43,8 +43,8 @@ dependencies:
         commit: 'sha1-548a2a7896df420c38df648845a5525a33f82585'
         owner_id: 1157344
         repo_id: 222089012
-    'shogo82148/actions-setup-mysql@v1.56.1':
-        ref: 'v1.56.1'
-        commit: 'sha1-fb8ae72ad9f2f8244e594d6d48a981e975aee78e'
+    'shogo82148/actions-setup-mysql@v1.56.2':
+        ref: 'v1.56.2'
+        commit: 'sha1-13a38f2af408e58a0c80168fc620a63a15357339'
         owner_id: 1157344
         repo_id: 306339666
