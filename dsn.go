@@ -244,7 +244,7 @@ func (cfg *Config) normalize() error {
 		default:
 			return errors.New("default addr for network '" + cfg.Net + "' unknown")
 		}
-	} else if cfg.Net == "tcp" {
+	} else if cfg.Net == "tcp" || cfg.Net == "tcp4" || cfg.Net == "tcp6" {
 		cfg.Addr = ensureHavePort(cfg.Addr)
 	}
 
@@ -796,6 +796,10 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 func ensureHavePort(addr string) string {
 	if _, _, err := net.SplitHostPort(addr); err != nil {
+		// JoinHostPort adds the brackets of an IPv6 literal itself.
+		if strings.HasPrefix(addr, "[") && strings.HasSuffix(addr, "]") {
+			addr = addr[1 : len(addr)-1]
+		}
 		return net.JoinHostPort(addr, "3306")
 	}
 	return addr
