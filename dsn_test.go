@@ -208,6 +208,28 @@ var testDSNs = []struct {
 		}),
 	},
 	{
+		in: "tcp([de:ad:be:ef::ca:fe])/dbname",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.Addr = "[de:ad:be:ef::ca:fe]:3306"
+			cfg.DBName = "dbname"
+		}),
+	},
+	{
+		in: "tcp4(127.0.0.1)/dbname",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.Net = "tcp4"
+			cfg.DBName = "dbname"
+		}),
+	},
+	{
+		in: "tcp6([de:ad:be:ef::ca:fe])/dbname",
+		out: newTestConfig(func(cfg *Config) {
+			cfg.Net = "tcp6"
+			cfg.Addr = "[de:ad:be:ef::ca:fe]:3306"
+			cfg.DBName = "dbname"
+		}),
+	},
+	{
 		in: "user:password@/dbname?loc=UTC&timeout=30s&parseTime=true&timeTruncate=1h",
 		out: newTestConfig(func(cfg *Config) {
 			cfg.User = "user"
