@@ -19,6 +19,12 @@ import "database/sql/driver"
 //
 //	res, err := rawConn.Exec(...)
 //	res.(mysql.Result).AllRowsAffected()
+//
+// When the server returns an error (*MySQLError), Exec on the driver
+// connection also returns a Result. It has one entry for each statement
+// result read, the failing statement last, so a multi-statement query tells
+// which statement failed: len(res.AllRowsAffected()) == 1 means the first
+// one. database/sql discards this Result; use [database/sql.Conn.Raw].
 type Result interface {
 	driver.Result
 	// AllRowsAffected returns a slice containing the affected rows for each
