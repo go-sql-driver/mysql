@@ -464,6 +464,14 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		copied := mc.result
 		return &copied, err
 	}
+	if _, ok := err.(*MySQLError); ok {
+		// The server returned an error packet and the connection is still
+		// usable. Return the results read so far with it: with
+		// multiStatements, one entry per statement that was executed, the
+		// failing one last, tells which statement failed.
+		copied := mc.result
+		return &copied, err
+	}
 	return nil, mc.markBadConn(err)
 }
 

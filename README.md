@@ -382,6 +382,8 @@ conn.Raw(func(conn any) error {
 })
 ```
 
+When the server returns an error (`*MySQLError`), `Exec` on the raw connection also returns a `mysql.Result` holding one entry for each statement that was executed, the failing statement last. `len(res.(mysql.Result).AllRowsAffected())` then tells which statement failed. `database/sql` discards this result, so it is only available through `sql.Conn.Raw()`.
+
 ##### `parseTime`
 
 ```

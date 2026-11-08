@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -383,5 +384,45 @@ func TestGetSystemVarBufferReuse(t *testing.T) {
 	const expected = "67108864"
 	if val != expected {
 		t.Fatalf("getSystemVar(max_allowed_packet) = %q, want %q", val, expected)
+	}
+}
+
+func TestExecErrorResult(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		data []byte
+		want []int64
+	}{{
+		name: "first",
+		data: []byte{
+			// ERR 1062
+			0x09, 0x00, 0x00, 0x01, 0xff, 0x26, 0x04, '#', '2', '3', '0', '0', '0',
+		},
+		want: []int64{0},
+	}, {
+		name: "second",
+		data: []byte{
+			// OK, 1 row affected, SERVER_MORE_RESULTS_EXISTS
+			0x07, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x08, 0x00, 0x00, 0x00,
+			// ERR 1062
+			0x09, 0x00, 0x00, 0x02, 0xff, 0x26, 0x04, '#', '2', '3', '0', '0', '0',
+		},
+		want: []int64{1, 0},
+	}} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, mc := newRWMockConn(0)
+			conn.data = tc.data
+			res, err := mc.Exec("UPDATE t SET a=1;INSERT INTO t VALUES (1)", nil)
+			var me *MySQLError
+			if !errors.As(err, &me) || me.Number != 1062 {
+				t.Fatalf("want error 1062, got %v", err)
+			}
+			if res == nil {
+				t.Fatal("no result with the server error")
+			}
+			if got := res.(Result).AllRowsAffected(); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("AllRowsAffected: got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
