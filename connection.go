@@ -443,6 +443,11 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 	return string(buf), nil
 }
 
+// Exec executes query and returns its Result. With multiStatements, the
+// Result has one entry per executed statement (see [Result]). When the
+// server returns an error (*MySQLError), Exec returns the Result read so
+// far with it, the failing statement last; database/sql discards it, so it
+// is only visible through sql.Conn.Raw().
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
 	if mc.closed.Load() {
 		return nil, driver.ErrBadConn

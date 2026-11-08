@@ -2628,6 +2628,10 @@ func TestExecMultipleResults(t *testing.T) {
 	})
 }
 
+// TestExecMultipleResultsError checks against a server that Exec with
+// multiStatements returns the partial Result with *MySQLError when the
+// first, second or third statement fails, that the statements after the
+// failing one do not run, and that the connection stays usable.
 func TestExecMultipleResultsError(t *testing.T) {
 	ctx := context.Background()
 	runTestsWithMultiStatement(t, dsn, func(dbt *DBTest) {

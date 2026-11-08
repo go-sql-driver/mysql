@@ -387,6 +387,8 @@ func TestGetSystemVarBufferReuse(t *testing.T) {
 	}
 }
 
+// TestExecErrorResult checks that Exec returns the partial Result with a
+// server error: one entry per statement result read, the failing one last.
 func TestExecErrorResult(t *testing.T) {
 	for _, tc := range []struct {
 		name string
