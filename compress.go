@@ -107,7 +107,7 @@ func (c *compIO) readNext(need int) ([]byte, error) {
 
 func (c *compIO) readNextLimit(need, limit int) ([]byte, error) {
 	for c.buff.Len() < need {
-		if err := c.readCompressedPacketLimit(limit); err != nil {
+		if err := c.readCompressedPacket(limit); err != nil {
 			return nil, err
 		}
 	}
@@ -115,11 +115,7 @@ func (c *compIO) readNextLimit(need, limit int) ([]byte, error) {
 	return data[:need:need], nil // prevent caller writes into c.buff
 }
 
-func (c *compIO) readCompressedPacket() error {
-	return c.readCompressedPacketLimit(0)
-}
-
-func (c *compIO) readCompressedPacketLimit(limit int) error {
+func (c *compIO) readCompressedPacket(limit int) error {
 	header, err := c.mc.readNext(7)
 	if err != nil {
 		return err

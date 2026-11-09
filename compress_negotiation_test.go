@@ -124,7 +124,7 @@ func TestCompressedPacketDecodeLimit(t *testing.T) {
 	// A larger retained buffer must not relax the packet's decode limit.
 	c.buff.Grow(4096)
 	c.buff.WriteString("previous packet")
-	if err := c.readCompressedPacket(); err != nil {
+	if err := c.readCompressedPacket(0); err != nil {
 		t.Fatal(err)
 	}
 	if c.buff.String() != "previous packetx" {
