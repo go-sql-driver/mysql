@@ -39,6 +39,11 @@ func connCheck(conn net.Conn) error {
 			sysErr = errUnexpectedRead
 		case err == syscall.EAGAIN || err == syscall.EWOULDBLOCK:
 			sysErr = nil
+		case err == syscall.ENOTSOCK:
+			// A custom dialer may expose a pipe through syscall.Conn.
+			// Skip unsupported checks, just as for connections without
+			// SyscallConn. Falling back to Read would consume its data.
+			sysErr = nil
 		default:
 			sysErr = err
 		}

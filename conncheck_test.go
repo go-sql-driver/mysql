@@ -12,8 +12,12 @@ package mysql
 
 import (
 	"bytes"
+	"database/sql/driver"
+	"errors"
 	"io"
 	"net"
+	"os"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -128,5 +132,96 @@ func TestConnCheckNoSyscallConn(t *testing.T) {
 	defer server.Close()
 	if err := connCheck(client); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// pipeConn models a custom dialer backed by a subprocess's stdin/stdout.
+// Unlike net.Pipe, os.Pipe exposes a real, non-socket syscall.Conn.
+type pipeConn struct {
+	*os.File
+	writer *os.File
+}
+
+func (c *pipeConn) Write(p []byte) (int, error)        { return c.writer.Write(p) }
+func (c *pipeConn) Close() error                       { return errors.Join(c.File.Close(), c.writer.Close()) }
+func (c *pipeConn) LocalAddr() net.Addr                { return &net.UnixAddr{Name: "pipe", Net: "pipe"} }
+func (c *pipeConn) RemoteAddr() net.Addr               { return c.LocalAddr() }
+func (c *pipeConn) SetWriteDeadline(t time.Time) error { return c.writer.SetWriteDeadline(t) }
+func (c *pipeConn) SetDeadline(t time.Time) error {
+	return errors.Join(c.SetReadDeadline(t), c.SetWriteDeadline(t))
+}
+
+func TestConnCheckPipe(t *testing.T) {
+	reader, peerWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { reader.Close(); peerWriter.Close() })
+	peerReader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { peerReader.Close(); writer.Close() })
+	conn := &pipeConn{File: reader, writer: writer}
+	var _ net.Conn = conn
+	var _ syscall.Conn = conn
+	deadline := time.Now().Add(5 * time.Second)
+	for _, f := range []*os.File{reader, peerWriter, peerReader, writer} {
+		if err := f.SetDeadline(deadline); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg := NewConfig()
+	cfg.Logger = &NopLogger{}
+	cfg.ReadTimeout = time.Second
+	mc := &mysqlConn{netConn: conn, rawConn: conn, cfg: cfg, buf: newBuffer(), closech: make(chan struct{})}
+	t.Cleanup(mc.close)
+	check := func() {
+		t.Helper()
+		for range 2 {
+			if err := connCheck(conn); err != nil {
+				t.Errorf("connCheck(pipe) = %v, want nil", err)
+			}
+			if err := mc.ResetSession(t.Context()); err != nil {
+				t.Errorf("ResetSession(pipe) = %v, want nil", err)
+			}
+		}
+		if mc.closed.Load() {
+			t.Fatal("connection was closed")
+		}
+	}
+	check() // An idle pipe must not be rejected on reuse.
+	payload := []byte("server response")
+	if _, err := peerWriter.Write(payload); err != nil {
+		t.Fatal(err)
+	}
+	check() // Skipping an unsupported check must not consume pending bytes.
+	got := make([]byte, len(payload))
+	if _, err := io.ReadFull(conn, got); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, payload) {
+		t.Fatalf("read %q, want %q", got, payload)
+	}
+	if _, err := conn.Write(payload); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.ReadFull(peerReader, got); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, payload) {
+		t.Fatalf("peer read %q, want %q", got, payload)
+	}
+	check()
+	// Only ENOTSOCK is unsupported. A genuinely unusable descriptor must
+	// still fail the check and tell database/sql to discard the connection.
+	if err := reader.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := connCheck(conn); err == nil {
+		t.Error("connCheck(closed pipe) = nil")
+	}
+	if err := mc.ResetSession(t.Context()); err != driver.ErrBadConn {
+		t.Errorf("ResetSession(closed pipe) = %v, want ErrBadConn", err)
 	}
 }
