@@ -131,3 +131,40 @@ func TestCompressedPacketDecodeLimit(t *testing.T) {
 		t.Fatal("decoding did not preserve pending bytes")
 	}
 }
+
+func TestCompressedPacketDiagnosticBounds(t *testing.T) {
+	for _, tc := range []struct {
+		name                                 string
+		buffered, compressed, decoded, limit int
+		want                                 error
+	}{
+		{"compressed input", 0, 65, 1, 64, ErrPktTooLarge},
+		{"decoded output", 60, 1, 5, 64, ErrPktTooLarge},
+		{"uncompressed output", 60, 5, 0, 64, ErrPktTooLarge},
+		{"uncompressed at limit", 60, 4, 0, 64, nil},
+		{"unlimited normal path", 60, 5, 0, 0, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, mc := newRWMockConn(1)
+			conn.data = make([]byte, 7)
+			putUint24(conn.data[:3], tc.compressed)
+			putUint24(conn.data[4:], tc.decoded)
+			if tc.want == nil {
+				conn.data = append(conn.data, bytes.Repeat([]byte{'x'}, tc.compressed)...)
+			}
+			c := newCompIO(mc)
+			c.buff.Write(bytes.Repeat([]byte{'a'}, tc.buffered))
+			err := c.readCompressedPacket(tc.limit)
+			if err != tc.want {
+				t.Fatalf("readCompressedPacket = %v, want %v", err, tc.want)
+			}
+			wantLen := tc.buffered
+			if tc.want == nil {
+				wantLen += tc.compressed
+			}
+			if c.buff.Len() != wantLen {
+				t.Fatalf("decoded buffer = %d, want %d", c.buff.Len(), wantLen)
+			}
+		})
+	}
+}

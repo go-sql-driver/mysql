@@ -126,9 +126,15 @@ func (c *compIO) readCompressedPacket(limit int) error {
 	comprLength := getUint24(header[0:3])
 	compressionSequence := header[3]
 	uncompressedLength := getUint24(header[4:7])
-	if limit > 0 && (comprLength > limit || uncompressedLength > limit ||
-		c.buff.Len()+max(comprLength, uncompressedLength) > limit) {
-		return ErrPktTooLarge
+	if limit > 0 {
+		decodedLength := uncompressedLength
+		if decodedLength == 0 {
+			decodedLength = comprLength
+		}
+		// Bound wire input separately from accumulated decoded output.
+		if comprLength > limit || c.buff.Len()+decodedLength > limit {
+			return ErrPktTooLarge
+		}
 	}
 	if debug {
 		fmt.Printf("uncompress cmplen=%v uncomplen=%v pkt_cmp_seq=%v expected_cmp_seq=%v\n",

@@ -367,3 +367,28 @@ func TestIdleErrorCompressionFrames(t *testing.T) {
 		}
 	}
 }
+
+func TestIdleErrorSplitCompressionAtLimit(t *testing.T) {
+	for _, codec := range []string{"zlib", "zstd"} {
+		t.Run(codec, func(t *testing.T) {
+			mc, server, _, _ := idleTestConn(t, 0, codec)
+			message := strings.Repeat("a", maxIdleErrorPacketSize-9-16) + "abcdefghijklmnop"
+			packet := idleTestPacket(idleTestError(4031, message))
+			first := idleTestFrame(t, mc, packet[:len(packet)-16])
+			last := idleTestFrame(t, mc, packet[len(packet)-16:])
+			first[3], last[3] = 0, 1
+			// The last frame expands on compression. Adding its wire length
+			// to decoded bytes would exceed the limit, although the ERR fits.
+			buffered := len(packet) - 16 - 4
+			if buffered+getUint24(last[:3]) <= maxIdleErrorPacketSize+4 {
+				t.Fatal("test frame does not exercise compressed-size overhead")
+			}
+			idleTestWrite(t, server, append(first, last...))
+			err := mc.idleError()
+			var serverErr *MySQLError
+			if !errors.As(err, &serverErr) || serverErr.Number != 4031 || serverErr.Message != message {
+				t.Fatalf("idleError did not recover complete ERR: %v", err)
+			}
+		})
+	}
+}
