@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	zrPool *sync.Pool // Do not use directly. Use zDecompress() instead.
+	zrPool *sync.Pool // Do not use directly. Use zDecompressLimit() instead.
 	zwPool *sync.Pool // Do not use directly. Use zCompress() instead.
 )
 
@@ -36,10 +36,6 @@ func init() {
 			return zw
 		},
 	}
-}
-
-func zDecompress(src []byte, dst *bytes.Buffer) (int, error) {
-	return zDecompressLimit(src, dst, 0)
 }
 
 func zDecompressLimit(src []byte, dst *bytes.Buffer, limit int) (int, error) {
