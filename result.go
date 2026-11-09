@@ -21,13 +21,16 @@ import "database/sql/driver"
 //	res.(mysql.Result).AllRowsAffected()
 //
 // When the server returns an error (*MySQLError), Exec on the driver
-// connection also returns the Result read so far, the failing statement's
-// entry last. Each statement that returns one result (INSERT, UPDATE,
-// DELETE, a SELECT) has one entry, so with only such statements
+// connection also returns the Result read so far. When a statement fails,
+// its entry is last. Each statement that returns one result (INSERT,
+// UPDATE, DELETE, a SELECT) has one entry, so with only such statements
 // len(res.AllRowsAffected()) == n means statement n failed. A statement
 // that returns several results, such as a CALL, has several entries, and
-// the count then does not identify the failing statement. database/sql
-// discards this Result; use [database/sql.Conn.Raw].
+// the count then does not identify the failing statement. Neither does an
+// error the server returns before running any statement, such as 1153 (the
+// query exceeds max_allowed_packet): the Result then has one entry although
+// nothing ran. database/sql discards this Result; use
+// [database/sql.Conn.Raw] or the driver connection directly.
 type Result interface {
 	driver.Result
 	// AllRowsAffected returns a slice containing the affected rows for each
