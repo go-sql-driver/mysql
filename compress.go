@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	zrPool *sync.Pool // Do not use directly. Use zDecompressLimit() instead.
+	zrPool *sync.Pool // Do not use directly. Use zDecompress() instead.
 	zwPool *sync.Pool // Do not use directly. Use zCompress() instead.
 )
 
@@ -38,7 +38,7 @@ func init() {
 	}
 }
 
-func zDecompressLimit(src []byte, dst *bytes.Buffer, limit int) (int, error) {
+func zDecompress(src []byte, dst *bytes.Buffer, limit int) (int, error) {
 	br := bytes.NewReader(src)
 	var zr io.ReadCloser
 	var err error
@@ -179,7 +179,7 @@ func (c *compIO) readCompressedPacketLimit(limit int) error {
 		if decodeLimit > 0 {
 			decodeLimit -= c.buff.Len()
 		}
-		nread, err = zDecompressLimit(comprData, &c.buff, decodeLimit)
+		nread, err = zDecompress(comprData, &c.buff, decodeLimit)
 	}
 	if err != nil {
 		return err
