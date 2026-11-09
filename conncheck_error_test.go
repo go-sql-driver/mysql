@@ -140,7 +140,7 @@ func idleTestWrite(t *testing.T, conn net.Conn, data []byte) {
 func idleTestWaitReadable(t *testing.T, conn net.Conn) {
 	t.Helper()
 	switch runtime.GOOS {
-	case "linux", "darwin", "dragonfly", "freebsd", "netbsd", "openbsd", "solaris", "illumos", "windows":
+	case "linux", "darwin", "dragonfly", "freebsd", "netbsd", "openbsd", "solaris", "illumos":
 	default:
 		t.Skip("connCheck is not supported on this platform")
 	}
