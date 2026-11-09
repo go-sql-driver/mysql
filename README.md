@@ -382,7 +382,7 @@ conn.Raw(func(conn any) error {
 })
 ```
 
-When the server returns an error (`*MySQLError`), `Exec` on the raw connection also returns a `mysql.Result` holding the results read so far, the failing statement's entry last. A statement that returns one result (`INSERT`, `UPDATE`, `DELETE`, a `SELECT`) has one entry, so with only such statements `len(res.(mysql.Result).AllRowsAffected())` tells which statement failed. A statement that returns several results, such as a `CALL`, has several entries, and the count then does not identify the failing statement. `database/sql` discards this result, so it is only available through `sql.Conn.Raw()`.
+When the server returns an error (`*MySQLError`), `Exec` on the raw connection also returns a `mysql.Result` holding the results read so far. When a statement fails, its entry is last. A statement that returns one result (`INSERT`, `UPDATE`, `DELETE`, a `SELECT`) has one entry, so with only such statements `len(res.(mysql.Result).AllRowsAffected())` tells which statement failed. A statement that returns several results, such as a `CALL`, has several entries, and the count then does not identify the failing statement. Neither does an error the server returns before running any statement, such as 1153 (the query exceeds `max_allowed_packet`): the result then has one entry although nothing ran. `database/sql` discards this result, so it is only available through `sql.Conn.Raw()` or the driver connection directly.
 
 ##### `parseTime`
 
