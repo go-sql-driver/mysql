@@ -443,8 +443,8 @@ func TestDSNWithCustomTLSQueryEscape(t *testing.T) {
 
 func TestDSNUnsafeCollation(t *testing.T) {
 	_, err := ParseDSN("/dbname?collation=gbk_chinese_ci&interpolateParams=true")
-	if err != errInvalidDSNUnsafeCollation {
-		t.Errorf("expected %v, got %v", errInvalidDSNUnsafeCollation, err)
+	if err != errUnsafeCharset {
+		t.Errorf("expected %v, got %v", errUnsafeCharset, err)
 	}
 
 	_, err = ParseDSN("/dbname?collation=gbk_chinese_ci&interpolateParams=false")
@@ -475,6 +475,65 @@ func TestDSNUnsafeCollation(t *testing.T) {
 	_, err = ParseDSN("/dbname?collation=utf8mb4_general_ci&interpolateParams=true")
 	if err != nil {
 		t.Errorf("expected %v, got %v", nil, err)
+	}
+}
+
+func TestDSNUnsafeCharset(t *testing.T) {
+	tests := []struct {
+		params string
+		unsafe bool
+	}{
+		{"charset=sjis", true},
+		{"charset=cp932", true},
+		{"charset=big5", true},
+		{"charset=gbk", true},
+		{"charset=gb18030", true},
+		{"charset=SJIS", true},
+		{"charset='sjis'", true},
+		{`charset="sjis"`, true},
+		// fallback charsets are checked too
+		{"charset=utf8mb4,sjis", true},
+		{"charset=utf8mb4, sjis", true},
+		{"charset=utf8mb4, 'sjis'", true},
+		// collations are matched case-insensitively and by charset prefix
+		{"collation=SJIS_JAPANESE_CI", true},
+		{"collation=sjis_japanese_nopad_ci", true},
+		{"charset=utf8mb4", false},
+		{"charset=utf8mb4,utf8", false},
+		{"charset=gb2312", false},
+		{"charset=ujis", false},
+		{"charset=euckr", false},
+		{"charset=eucjpms", false},
+		// GB2312 trailing bytes are 0xa1-0xfe and cannot contain 0x5c.
+		{"collation=gb2312_chinese_ci", false},
+		{"collation=gb2312_bin", false},
+		{"collation=utf8mb4_bin", false},
+	}
+	for _, test := range tests {
+		dsn := "/dbname?interpolateParams=true&" + test.params
+		_, err := ParseDSN(dsn)
+		if test.unsafe && err != errUnsafeCharset {
+			t.Errorf("%s: expected %v, got %v", dsn, errUnsafeCharset, err)
+		}
+		if !test.unsafe && err != nil {
+			t.Errorf("%s: expected nil, got %v", dsn, err)
+		}
+
+		// Without interpolateParams, any charset is accepted.
+		dsn = "/dbname?" + test.params
+		if _, err := ParseDSN(dsn); err != nil {
+			t.Errorf("%s: expected nil, got %v", dsn, err)
+		}
+	}
+
+	// The Charset option goes through the same check in NewConnector.
+	cfg := NewConfig()
+	cfg.InterpolateParams = true
+	if err := cfg.Apply(Charset("sjis", "")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewConnector(cfg); err != errUnsafeCharset {
+		t.Errorf("Charset(sjis): expected %v, got %v", errUnsafeCharset, err)
 	}
 }
 
