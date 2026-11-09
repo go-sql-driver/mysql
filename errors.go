@@ -40,6 +40,7 @@ var (
 	// to trigger a resend. Use mc.markBadConn(err) to do this.
 	// See https://github.com/go-sql-driver/mysql/pull/302
 	errBadConnNoWrite = errors.New("bad connection")
+	errUnexpectedRead = errors.New("unexpected read from socket")
 )
 
 var defaultLogger = Logger(log.New(os.Stderr, "[mysql] ", log.Ldate|log.Ltime))

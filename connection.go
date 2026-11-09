@@ -809,6 +809,9 @@ func (mc *mysqlConn) ResetSession(ctx context.Context) error {
 			err = connCheck(conn)
 		}
 		if err != nil {
+			if err == errUnexpectedRead {
+				err = mc.idleError()
+			}
 			mc.log("closing bad idle connection: ", err)
 			return driver.ErrBadConn
 		}
