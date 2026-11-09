@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -151,7 +152,8 @@ func (c *pipeConn) SetDeadline(t time.Time) error {
 	return errors.Join(c.SetReadDeadline(t), c.SetWriteDeadline(t))
 }
 
-func TestConnCheckPipe(t *testing.T) {
+func newPipeTestConn(t *testing.T) (*mysqlConn, *os.File, *os.File) {
+	t.Helper()
 	reader, peerWriter, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -174,8 +176,14 @@ func TestConnCheckPipe(t *testing.T) {
 	cfg := NewConfig()
 	cfg.Logger = &NopLogger{}
 	cfg.ReadTimeout = time.Second
-	mc := &mysqlConn{netConn: conn, rawConn: conn, cfg: cfg, buf: newBuffer(), closech: make(chan struct{})}
+	mc := &mysqlConn{netConn: conn, rawConn: conn, cfg: cfg, buf: newBuffer(), closech: make(chan struct{}), maxAllowedPacket: maxPacketSize}
 	t.Cleanup(mc.close)
+	return mc, peerReader, peerWriter
+}
+
+func TestConnCheckPipe(t *testing.T) {
+	mc, peerReader, peerWriter := newPipeTestConn(t)
+	conn := mc.netConn
 	check := func() {
 		t.Helper()
 		for range 2 {
@@ -195,7 +203,6 @@ func TestConnCheckPipe(t *testing.T) {
 	if _, err := peerWriter.Write(payload); err != nil {
 		t.Fatal(err)
 	}
-	check() // Skipping an unsupported check must not consume pending bytes.
 	got := make([]byte, len(payload))
 	if _, err := io.ReadFull(conn, got); err != nil {
 		t.Fatal(err)
@@ -213,9 +220,8 @@ func TestConnCheckPipe(t *testing.T) {
 		t.Fatalf("peer read %q, want %q", got, payload)
 	}
 	check()
-	// Only ENOTSOCK is unsupported. A genuinely unusable descriptor must
-	// still fail the check and tell database/sql to discard the connection.
-	if err := reader.Close(); err != nil {
+	// A genuinely unusable descriptor must still fail the check.
+	if err := conn.(*pipeConn).File.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if err := connCheck(conn); err == nil {
@@ -223,5 +229,63 @@ func TestConnCheckPipe(t *testing.T) {
 	}
 	if err := mc.ResetSession(t.Context()); err != driver.ErrBadConn {
 		t.Errorf("ResetSession(closed pipe) = %v, want ErrBadConn", err)
+	}
+}
+
+func TestConnCheckPipePeerEOF(t *testing.T) {
+	mc, peerReader, peerWriter := newPipeTestConn(t)
+	// Leave the peer's input open: a query write could otherwise succeed.
+	if err := peerWriter.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := connCheck(mc.netConn); err != io.EOF {
+		t.Errorf("connCheck(half-closed pipe) = %v, want EOF", err)
+	}
+	resetErr := mc.ResetSession(t.Context())
+	if resetErr == nil {
+		// Reproduce the lost safe retry: writing succeeds, then reading fails.
+		_, err := mc.Exec("SELECT 1", nil)
+		t.Errorf("ResetSession accepted half-closed pipe; Exec returned %v", err)
+	}
+	if resetErr != driver.ErrBadConn {
+		t.Errorf("ResetSession(half-closed pipe) = %v, want ErrBadConn", resetErr)
+	}
+	mc.close()
+	sent, err := io.ReadAll(peerReader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sent) != 0 {
+		t.Errorf("sent %d bytes before rejecting half-closed pipe", len(sent))
+	}
+}
+
+func TestConnCheckPipePendingData(t *testing.T) {
+	for _, reset := range []bool{false, true} {
+		t.Run(fmt.Sprint("ResetSession=", reset), func(t *testing.T) {
+			mc, _, peerWriter := newPipeTestConn(t)
+			payload := []byte("unsolicited data")
+			if _, err := peerWriter.Write(payload); err != nil {
+				t.Fatal(err)
+			}
+			if reset {
+				if err := mc.ResetSession(t.Context()); err != driver.ErrBadConn {
+					t.Fatalf("ResetSession = %v, want ErrBadConn", err)
+				}
+			} else {
+				if err := connCheck(mc.netConn); err != errUnexpectedReadNonSocket {
+					t.Fatalf("connCheck = %v, want non-peek unexpected-data error", err)
+				}
+			}
+			// The old pipe check consumes one byte before rejecting the
+			// connection. Do not run the peek-only diagnostic on its remainder.
+			got := make([]byte, len(payload)-1)
+			if _, err := io.ReadFull(mc.netConn, got); err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got, payload[1:]) {
+				t.Fatalf("remaining data = %q", got)
+			}
+		})
 	}
 }
