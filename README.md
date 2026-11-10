@@ -353,8 +353,6 @@ Valid Values:   true, false
 Default:        false
 ```
 
-The default `false` preserves numeric `TINYINT` behavior for signed `TINYINT(1)` columns.
-
 When `tinyInt1IsBool=true`, signed `TINYINT(1)` columns are treated as boolean values. Zero is returned as `false`, and non-zero values are returned as `true`. Their database type name is reported as `BOOLEAN`, and their scan type is `bool` for non-nullable columns or `sql.NullBool` for nullable columns.
 
 This conversion affects `Scan` destinations as well as column metadata. For non-NULL values:
