@@ -421,8 +421,8 @@ func TestNumbersToAny(t *testing.T) {
 		if err != nil {
 			dbt.Fatal(err)
 		}
-		if b != true {
-			dbt.Errorf("b = %#v; want true", b)
+		if b != int64(1) {
+			dbt.Errorf("b = %#v; want int64(1)", b)
 		}
 		if i8.(int64) != 127 {
 			dbt.Errorf("i8 != 127")
@@ -3157,7 +3157,7 @@ func TestRowsColumnTypes(t *testing.T) {
 	values2 = values2[:len(values2)-2]
 	values3 = values3[:len(values3)-2]
 
-	runTests(t, dsn+"&parseTime=true", func(dbt *DBTest) {
+	runTests(t, dsn+"&parseTime=true&tinyInt1IsBool=true", func(dbt *DBTest) {
 		dbt.mustExec("CREATE TABLE test (" + schema + ")")
 		dbt.mustExec("INSERT INTO test VALUES (" + values1 + "), (" + values2 + "), (" + values3 + ")")
 

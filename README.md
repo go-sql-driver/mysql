@@ -350,8 +350,10 @@ Default:        0
 ```
 Type:           bool
 Valid Values:   true, false
-Default:        true
+Default:        false
 ```
+
+The default `false` preserves numeric `TINYINT` behavior for signed `TINYINT(1)` columns.
 
 When `tinyInt1IsBool=true`, signed `TINYINT(1)` columns are treated as boolean values. Zero is returned as `false`, and non-zero values are returned as `true`. Their database type name is reported as `BOOLEAN`, and their scan type is `bool` for non-nullable columns or `sql.NullBool` for nullable columns.
 
@@ -364,16 +366,13 @@ This conversion affects `Scan` destinations as well as column metadata. For non-
 
 These behaviors apply to both text-protocol queries and prepared statements. SQL `NULL` values remain `NULL`. Unsigned and `ZEROFILL` columns are not converted.
 
-> [!IMPORTANT]
-> This option is enabled by default. When upgrading from v1.10.1, applications that scan signed `TINYINT(1)` columns into integers or rely on numeric strings must set `tinyInt1IsBool=false` to preserve the previous behavior.
-
-For example:
+To enable boolean conversion explicitly:
 
 ```text
-user:password@tcp(localhost:3306)/dbname?tinyInt1IsBool=false
+user:password@tcp(localhost:3306)/dbname?tinyInt1IsBool=true
 ```
 
-When configuring connections programmatically, use `cfg.Apply(mysql.TinyInt1IsBool(false))`.
+When configuring connections programmatically, use `cfg.Apply(mysql.TinyInt1IsBool(true))`.
 
 ##### `maxAllowedPacket`
 ```

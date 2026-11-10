@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* Add the `tinyInt1IsBool` DSN parameter and `TinyInt1IsBool` functional option,
+  disabled by default to preserve numeric `TINYINT` behavior. When enabled,
+  signed, non-`ZEROFILL` `TINYINT(1)` columns report `BOOLEAN` and scan types
+  `bool` or `sql.NullBool`; zero is returned as `false` and non-zero values as
+  `true`. This applies to both text-protocol queries and prepared statements.
+  For non-NULL values, enabling the option makes integer scans fail and string
+  scans return `"false"` or `"true"` instead of numeric strings. (#1453, #1844)
+
 * Add a pluggable authentication system with the `AuthPlugin` interface,
   `AuthContext`, and `RegisterAuthPlugin`. Custom plugins receive the connection
   context and an immutable snapshot of the selected credentials, established

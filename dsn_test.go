@@ -28,7 +28,6 @@ func newTestConfig(update func(*Config)) *Config {
 		Logger:               defaultLogger,
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
-		tinyInt1IsBool:       true,
 	}
 	if update != nil {
 		update(cfg)

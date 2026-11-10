@@ -95,7 +95,8 @@ func TestRowsDecodedValues(t *testing.T) {
 						want[i] = date
 					}
 				}
-				rows, _, _ := rowsTestPacket(bp, fields, payload, parseTime)
+				rows, _, mc := rowsTestPacket(bp, fields, payload, parseTime)
+				mc.cfg.tinyInt1IsBool = true
 				got := make([]driver.Value, len(columns))
 				if err := rows.Next(got); err != nil {
 					t.Fatal(err)
