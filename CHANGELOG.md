@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+* Export the driver's argument converter as `MySQLConverter`, so wrappers
+  implementing `driver.NamedValueChecker` without a connection, such as
+  connection-routing proxies and mock drivers, can apply the same conversion,
+  including `uint64` values with the high bit set. (#1637)
+
 * Add a pluggable authentication system with the `AuthPlugin` interface,
   `AuthContext`, and `RegisterAuthPlugin`. Custom plugins receive the connection
   context and an immutable snapshot of the selected credentials, established
