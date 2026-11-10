@@ -18,7 +18,7 @@ import (
 func TestConvertDerivedString(t *testing.T) {
 	type derived string
 
-	output, err := converter{}.ConvertValue(derived("value"))
+	output, err := MySQLConverter{}.ConvertValue(derived("value"))
 	if err != nil {
 		t.Fatal("Derived string type not convertible", err)
 	}
@@ -31,7 +31,7 @@ func TestConvertDerivedString(t *testing.T) {
 func TestConvertDerivedByteSlice(t *testing.T) {
 	type derived []uint8
 
-	output, err := converter{}.ConvertValue(derived("value"))
+	output, err := MySQLConverter{}.ConvertValue(derived("value"))
 	if err != nil {
 		t.Fatal("Byte slice not convertible", err)
 	}
@@ -44,7 +44,7 @@ func TestConvertDerivedByteSlice(t *testing.T) {
 func TestConvertDerivedUnsupportedSlice(t *testing.T) {
 	type derived []int
 
-	_, err := converter{}.ConvertValue(derived{1})
+	_, err := MySQLConverter{}.ConvertValue(derived{1})
 	if err == nil || err.Error() != "unsupported type mysql.derived, a slice of int" {
 		t.Fatal("Unexpected error", err)
 	}
@@ -53,7 +53,7 @@ func TestConvertDerivedUnsupportedSlice(t *testing.T) {
 func TestConvertDerivedBool(t *testing.T) {
 	type derived bool
 
-	output, err := converter{}.ConvertValue(derived(true))
+	output, err := MySQLConverter{}.ConvertValue(derived(true))
 	if err != nil {
 		t.Fatal("Derived bool type not convertible", err)
 	}
@@ -66,7 +66,7 @@ func TestConvertDerivedBool(t *testing.T) {
 func TestConvertPointer(t *testing.T) {
 	str := "value"
 
-	output, err := converter{}.ConvertValue(&str)
+	output, err := MySQLConverter{}.ConvertValue(&str)
 	if err != nil {
 		t.Fatal("Pointer type not convertible", err)
 	}
@@ -86,7 +86,7 @@ func TestConvertSignedIntegers(t *testing.T) {
 	}
 
 	for _, value := range values {
-		output, err := converter{}.ConvertValue(value)
+		output, err := MySQLConverter{}.ConvertValue(value)
 		if err != nil {
 			t.Fatalf("%T type not convertible %s", value, err)
 		}
@@ -116,7 +116,7 @@ func TestConvertUnsignedIntegers(t *testing.T) {
 	}
 
 	for _, value := range values {
-		output, err := converter{}.ConvertValue(value)
+		output, err := MySQLConverter{}.ConvertValue(value)
 		if err != nil {
 			t.Fatalf("%T type not convertible %s", value, err)
 		}
@@ -126,7 +126,7 @@ func TestConvertUnsignedIntegers(t *testing.T) {
 		}
 	}
 
-	output, err := converter{}.ConvertValue(^uint64(0))
+	output, err := MySQLConverter{}.ConvertValue(^uint64(0))
 	if err != nil {
 		t.Fatal("uint64 high-bit not convertible", err)
 	}
@@ -139,7 +139,7 @@ func TestConvertUnsignedIntegers(t *testing.T) {
 func TestConvertJSON(t *testing.T) {
 	raw := json.RawMessage("{}")
 
-	out, err := converter{}.ConvertValue(raw)
+	out, err := MySQLConverter{}.ConvertValue(raw)
 
 	if err != nil {
 		t.Fatal("json.RawMessage was failed in convert", err)
