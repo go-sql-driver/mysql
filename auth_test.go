@@ -1321,51 +1321,64 @@ func TestAuthSwitchSHA256PasswordSecure(t *testing.T) {
 	}
 }
 
-// Derived from https://github.com/MariaDB/server/blob/6b2287fff23fbdc362499501c562f01d0d2db52e/plugin/auth_ed25519/ed25519-t.c
+// The first vector is derived from
+// https://github.com/MariaDB/server/blob/6b2287fff23fbdc362499501c562f01d0d2db52e/plugin/auth_ed25519/ed25519-t.c
+// The second one uses a nonce ending with 0x00, which the auth switch parser
+// must not strip.
 func TestEd25519Auth(t *testing.T) {
-	conn, mc := newRWMockConn(1)
-	mc.cfg.User = "root"
-	mc.cfg.Passwd = "foobar"
+	for _, tc := range []struct {
+		name      string
+		nonce     []byte
+		signature []byte
+	}{
+		{
+			name:  "nonce",
+			nonce: []byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+			signature: []byte{
+				232, 61, 201, 63, 67, 63, 51, 53, 86, 73, 238, 35, 170, 117, 146,
+				214, 26, 17, 35, 9, 8, 132, 245, 141, 48, 99, 66, 58, 36, 228, 48,
+				84, 115, 254, 187, 168, 88, 162, 249, 57, 35, 85, 79, 238, 167, 106,
+				68, 117, 56, 135, 171, 47, 20, 14, 133, 79, 15, 229, 124, 160, 176,
+				100, 138, 14,
+			},
+		},
+		{
+			name:  "nonce ending with 0x00",
+			nonce: append([]byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"), 0),
+			signature: []byte{
+				96, 74, 190, 202, 77, 225, 185, 115, 213, 135, 190, 172, 250, 219,
+				249, 233, 156, 237, 180, 231, 14, 9, 197, 137, 203, 189, 212, 102,
+				147, 147, 132, 170, 249, 40, 142, 200, 35, 232, 195, 99, 207, 92, 96,
+				223, 252, 165, 109, 83, 127, 33, 227, 29, 169, 192, 249, 171, 239,
+				206, 228, 32, 153, 209, 214, 7,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, mc := newRWMockConn(2)
+			mc.cfg.User = "root"
+			mc.cfg.Passwd = "foobar"
 
-	authData := []byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
-	plugin := "client_ed25519"
+			// auth switch request: client_ed25519 with a 32-byte nonce
+			payload := append([]byte{iEOF}, "client_ed25519"...)
+			payload = append(payload, 0)
+			payload = append(payload, tc.nonce...)
+			conn.data = makePacket(2, payload)
 
-	// Send Client Authentication Packet
-	auth := newAuthContext(mc.cfg, mc.cfg.Passwd, false)
-	authPlugin, _ := globalPluginRegistry.GetPlugin(plugin)
-	authResp, err := authPlugin.InitAuth(context.Background(), authData, auth)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = mc.writeHandshakeResponsePacket(authResp, plugin)
-	if err != nil {
-		t.Fatal(err)
-	}
+			// auth response
+			conn.queuedReplies = [][]byte{{7, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0}}
+			conn.maxReads = 2
 
-	expectedAuthResp := []byte{
-		232, 61, 201, 63, 67, 63, 51, 53, 86, 73, 238, 35, 170, 117, 146,
-		214, 26, 17, 35, 9, 8, 132, 245, 141, 48, 99, 66, 58, 36, 228, 48,
-		84, 115, 254, 187, 168, 88, 162, 249, 57, 35, 85, 79, 238, 167, 106,
-		68, 117, 56, 135, 171, 47, 20, 14, 133, 79, 15, 229, 124, 160, 176,
-		100, 138, 14,
-	}
-	if len(authResp) != 64 {
-		t.Fatalf("expected 64 bytes from client, got %d", len(authResp))
-	}
-	if !bytes.Equal(authResp, expectedAuthResp) {
-		t.Fatalf("auth response did not match expected value:\n%v\n%v", authResp, expectedAuthResp)
-	}
-	conn.written = nil
+			auth := newAuthContext(mc.cfg, mc.cfg.Passwd, false)
+			if err := mc.handleAuthResult(context.Background(), nil, &nativePasswordPlugin{}, auth); err != nil {
+				t.Fatalf("got error: %v", err)
+			}
 
-	// auth response
-	conn.data = []byte{
-		7, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, // OK
-	}
-	conn.maxReads = 1
-
-	// Handle response to auth packet
-	if err = mc.handleAuthResult(context.Background(), []byte{}, authPlugin, auth); err != nil {
-		t.Errorf("got error: %v", err)
+			expectedReply := append([]byte{64, 0, 0, 3}, tc.signature...)
+			if !bytes.Equal(conn.written, expectedReply) {
+				t.Fatalf("auth response did not match expected value:\n%v\n%v", conn.written, expectedReply)
+			}
+		})
 	}
 }
 

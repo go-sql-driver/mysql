@@ -19,8 +19,9 @@ import (
 // while a method is running. Plugins should use it to cancel blocking work.
 type AuthPlugin interface {
 	// InitAuth initializes the authentication process and returns the initial response.
-	// authData is the challenge data from the server. It must not be modified
-	// and must be copied if retained after the call.
+	// authData is the challenge data exactly as sent by the server, including
+	// any trailing NUL. It must not be modified and must be copied if retained
+	// after the call.
 	// auth is the snapshot for this exchange, shared with ContinuationAuth.
 	// A nil or empty response sends an empty authentication response.
 	// Plugins must check any transport requirements here before returning credentials.
