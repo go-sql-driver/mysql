@@ -134,7 +134,7 @@ func TestAuthSwitchRejectsShortChallenge(t *testing.T) {
 			payload := append([]byte{iEOF}, tc.plugin...)
 			payload = append(payload, 0)
 			payload = append(payload, bytes.Repeat([]byte{'x'}, tc.length)...)
-			conn.data = makePacket(2, append(payload, 0))
+			conn.data = makePacket(2, payload)
 			conn.maxReads = 1
 			err := mc.handleAuthResult(t.Context(), []byte("0123456789abcdefghij"), &nativePasswordPlugin{}, newAuthContext(mc.cfg, mc.cfg.Passwd, false))
 			if !errors.Is(err, ErrMalformPkt) || conn.writes != 0 {
