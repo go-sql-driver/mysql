@@ -553,14 +553,11 @@ func (mc *okHandler) readResultSetHeaderPacket() (int, bool, error) {
 // Error Packet
 // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_err_packet.html
 func (mc *mysqlConn) handleErrorPacket(data []byte) error {
-	if data[0] != iERR {
-		return ErrMalformPkt
+	me, err := decodeErrorPacket(data)
+	if err != nil {
+		return err
 	}
-
-	// 0xff [1 byte]
-
-	// Error Number [16 bit uint]
-	errno := binary.LittleEndian.Uint16(data[1:3])
+	errno := me.Number
 
 	// 1792: ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
 	// 1290: ER_OPTION_PREVENTS_STATEMENT (returned by Aurora during failover)
@@ -579,20 +576,26 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 		return driver.ErrBadConn
 	}
 
-	me := &MySQLError{Number: errno}
+	return me
+}
 
+// decodeErrorPacket has no connection side effects, so it can also be used
+// to report the original server error on a connection we are discarding.
+func decodeErrorPacket(data []byte) (*MySQLError, error) {
+	if len(data) < 3 || data[0] != iERR {
+		return nil, ErrMalformPkt
+	}
+	me := &MySQLError{Number: binary.LittleEndian.Uint16(data[1:3])}
 	pos := 3
-
-	// SQL State [optional: # + 5bytes string]
-	if data[3] == 0x23 {
-		copy(me.SQLState[:], data[4:4+5])
+	if len(data) > pos && data[pos] == '#' {
+		if len(data) < 9 {
+			return nil, ErrMalformPkt
+		}
+		copy(me.SQLState[:], data[4:9])
 		pos = 9
 	}
-
-	// Error Message [string]
 	me.Message = string(data[pos:])
-
-	return me
+	return me, nil
 }
 
 func readStatus(b []byte) statusFlag {

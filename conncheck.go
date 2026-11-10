@@ -11,13 +11,10 @@
 package mysql
 
 import (
-	"errors"
 	"io"
 	"net"
 	"syscall"
 )
-
-var errUnexpectedRead = errors.New("unexpected read from socket")
 
 func connCheck(conn net.Conn) error {
 	var sysErr error
@@ -33,7 +30,18 @@ func connCheck(conn net.Conn) error {
 
 	err = rawConn.Read(func(fd uintptr) bool {
 		var buf [1]byte
-		n, err := syscall.Read(int(fd), buf[:])
+		// Leave the bytes for the TLS/compression layers to decode.
+		n, _, err := syscall.Recvfrom(int(fd), buf[:], syscall.MSG_PEEK)
+		if err == syscall.ENOTSOCK {
+			// Preserve the original liveness check for pipe-backed dialers.
+			// If Read consumes data, reject the connection without attempting
+			// the diagnostic, which requires an intact (peeked) packet.
+			n, err = syscall.Read(int(fd), buf[:])
+			if n > 0 {
+				sysErr = errUnexpectedReadNonSocket
+				return true
+			}
+		}
 		switch {
 		case n == 0 && err == nil:
 			sysErr = io.EOF
