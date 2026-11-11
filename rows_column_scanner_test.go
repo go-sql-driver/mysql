@@ -405,6 +405,9 @@ func TestRowsColumnScannerAllocations(t *testing.T) {
 		{name: "binary int32", col: mysqlField{fieldType: fieldTypeLong}, raw: binary.LittleEndian.AppendUint32(nil, 1<<31), dest: new(int32), binary: true},
 		{name: "binary uint64", col: mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, raw: binary.LittleEndian.AppendUint64(nil, math.MaxUint64), dest: new(uint64), binary: true},
 		{name: "binary time", col: mysqlField{fieldType: fieldTypeDateTime}, raw: []byte{0xea, 7, 9, 30, 12, 34, 56}, dest: new(time.Time), binary: true, parseTime: true},
+		{name: "text empty any", col: mysqlField{fieldType: fieldTypeString}, raw: []byte{}, dest: new(any)},
+		{name: "binary empty any", col: mysqlField{fieldType: fieldTypeBLOB}, raw: []byte{}, dest: new(any), binary: true},
+		{name: "text empty NullString", col: mysqlField{fieldType: fieldTypeString}, raw: []byte{}, dest: new(sql.NullString)},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {

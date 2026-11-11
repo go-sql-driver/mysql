@@ -115,9 +115,10 @@ func readColumnBytes(data []byte) (raw, rest []byte, err error) {
 // through, so all empty values can share it.
 var emptyBytesValue driver.Value = []byte{}
 
-// bytesValue boxes a non-NULL column value without an allocation when empty.
+// bytesValue boxes b. An empty value uses emptyBytesValue, so it does not
+// allocate. A nil b stays a nil []byte, so it is not a NULL value.
 func bytesValue(b []byte) driver.Value {
-	if len(b) == 0 {
+	if len(b) == 0 && b != nil {
 		return emptyBytesValue
 	}
 	return b

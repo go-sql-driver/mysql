@@ -126,7 +126,7 @@ func scanColumnBytes(ctx driver.ScanContext, dest any, raw []byte) error {
 		}
 	case *any:
 		if d != nil {
-			*d = bytes.Clone(raw)
+			*d = bytesValue(bytes.Clone(raw))
 			return nil
 		}
 	case *sql.RawBytes:
@@ -135,7 +135,7 @@ func scanColumnBytes(ctx driver.ScanContext, dest any, raw []byte) error {
 			return nil
 		}
 	}
-	return sql.ConvertAssign(ctx, dest, raw)
+	return sql.ConvertAssign(ctx, dest, bytesValue(raw))
 }
 
 func (rows *mysqlRows) scanColumnInt64(ctx driver.ScanContext, i int, dest any, value int64) error {
