@@ -552,20 +552,31 @@ func TestReadHandshakePacketTruncated(t *testing.T) {
 	full = append(full, 0xff, 0xff)
 	full = append(full, 45, 2, 0)
 	full = append(full, 0xff, 0xff)
-	full = append(full, 21, 0, 0, 0, 0, 0, 0, 0)
+	full = append(full, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 	full = append(full, "ijklmnopqrst\x00"...)
 	full = append(full, "mysql_native_password\x00"...)
 
-	read := func(payload []byte) error {
+	readFull := func(payload []byte) ([]byte, string, error) {
 		conn, mc := newRWMockConn(0)
 		pkt := append([]byte{byte(len(payload)), byte(len(payload) >> 8), byte(len(payload) >> 16), 0}, payload...)
 		conn.data = pkt
-		_, _, _, _, err := mc.readHandshakePacket()
+		authData, _, _, plugin, err := mc.readHandshakePacket()
+		return authData, plugin, err
+	}
+	read := func(payload []byte) error {
+		_, _, err := readFull(payload)
 		return err
 	}
 
-	if err := read(full); err != nil {
+	authData, plugin, err := readFull(full)
+	if err != nil {
 		t.Fatalf("complete handshake: unexpected error: %v", err)
+	}
+	if string(authData) != "abcdefghijklmnopqrst" {
+		t.Errorf("complete handshake: got cipher %q, want %q", authData, "abcdefghijklmnopqrst")
+	}
+	if plugin != "mysql_native_password" {
+		t.Errorf("complete handshake: got plugin %q, want %q", plugin, "mysql_native_password")
 	}
 
 	// Every strict prefix that is cut inside the mandatory fields must be
@@ -573,16 +584,17 @@ func TestReadHandshakePacketTruncated(t *testing.T) {
 	// valid (old style handshake), and so are those that only miss the
 	// trailing plugin name.
 	minValid := 1 + len("8.0.0\x00") + 4 + 8 + 1 + 2
+	minExtended := minValid + 3 + 2 + 7 + 4 + 12
 	for n := 2; n < len(full); n++ {
 		err := read(full[:n])
 		switch {
-		case n < minValid:
+		case n < minValid, n > minValid && n < minExtended:
 			if err != ErrMalformPkt {
 				t.Errorf("prefix of %d bytes: got %v, want ErrMalformPkt", n, err)
 			}
-		case n > minValid && n < minValid+3+2+7+12:
-			if err != ErrMalformPkt {
-				t.Errorf("prefix of %d bytes: got %v, want ErrMalformPkt", n, err)
+		default:
+			if err != nil {
+				t.Errorf("prefix of %d bytes: unexpected error: %v", n, err)
 			}
 		}
 	}
