@@ -67,7 +67,7 @@ func TestRowsColumnScannerConversions(t *testing.T) {
 	}
 	destinations := []func() any{
 		func() any { return new(any) }, func() any { return new(string) }, func() any { return new([]byte) },
-		func() any { return new(int) }, func() any { return new(int8) }, func() any { return new(int64) },
+		func() any { return new(int) }, func() any { return new(int8) }, func() any { return new(int32) }, func() any { return new(int64) },
 		func() any { return new(uint64) }, func() any { return new(float32) }, func() any { return new(float64) },
 		func() any { return new(bool) }, func() any { return new(time.Time) }, func() any { return new(sql.NullString) },
 		func() any { return new(sql.NullInt64) }, func() any { return new(columnScannerCapture) },
@@ -186,6 +186,7 @@ func TestRowsColumnScannerNilDestinations(t *testing.T) {
 	}{
 		{"int", mysqlField{fieldType: fieldTypeLong}, []byte("42"), binary.LittleEndian.AppendUint32(nil, 42), int64(42), (*int)(nil)},
 		{"int64", mysqlField{fieldType: fieldTypeLongLong}, []byte("42"), binary.LittleEndian.AppendUint64(nil, 42), int64(42), (*int64)(nil)},
+		{"int32", mysqlField{fieldType: fieldTypeLong}, []byte("42"), binary.LittleEndian.AppendUint32(nil, 42), int64(42), (*int32)(nil)},
 		{"uint64", mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("42"), binary.LittleEndian.AppendUint64(nil, 42), uint64(42), (*uint64)(nil)},
 		{"float32", mysqlField{fieldType: fieldTypeFloat}, []byte("1.25"), binary.LittleEndian.AppendUint32(nil, math.Float32bits(1.25)), float32(1.25), (*float32)(nil)},
 		{"float64", mysqlField{fieldType: fieldTypeDouble}, []byte("1.25"), binary.LittleEndian.AppendUint64(nil, math.Float64bits(1.25)), float64(1.25), (*float64)(nil)},
@@ -364,7 +365,9 @@ func TestRowsColumnScannerAllocations(t *testing.T) {
 		{name: "text double", col: mysqlField{fieldType: fieldTypeDouble}, raw: []byte("1.2345"), dest: new(float64)},
 		{name: "text time", col: mysqlField{fieldType: fieldTypeDateTime}, raw: []byte("2026-09-30 12:34:56"), dest: new(time.Time), parseTime: true},
 		{name: "text raw", col: mysqlField{fieldType: fieldTypeString}, raw: []byte("hello"), dest: new(sql.RawBytes)},
+		{name: "text int32", col: mysqlField{fieldType: fieldTypeLong}, raw: []byte("-2147483648"), dest: new(int32)},
 		{name: "binary int", col: mysqlField{fieldType: fieldTypeLong}, raw: binary.LittleEndian.AppendUint32(nil, 123456789), dest: new(int), binary: true},
+		{name: "binary int32", col: mysqlField{fieldType: fieldTypeLong}, raw: binary.LittleEndian.AppendUint32(nil, 1<<31), dest: new(int32), binary: true},
 		{name: "binary uint64", col: mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, raw: binary.LittleEndian.AppendUint64(nil, math.MaxUint64), dest: new(uint64), binary: true},
 		{name: "binary time", col: mysqlField{fieldType: fieldTypeDateTime}, raw: []byte{0xea, 7, 9, 30, 12, 34, 56}, dest: new(time.Time), binary: true, parseTime: true},
 	}

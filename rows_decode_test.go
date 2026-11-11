@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"bytes"
 	"database/sql/driver"
 	"encoding/binary"
 	"errors"
@@ -57,6 +58,10 @@ func TestRowsDecodedValues(t *testing.T) {
 		{mysqlField{fieldType: fieldTypeNewDecimal}, []byte("123.4500"), []byte("123.4500"), []byte("123.4500"), []byte("123.4500")},
 		{mysqlField{fieldType: fieldTypeString}, []byte{}, []byte{}, []byte{}, []byte{}},
 		{mysqlField{fieldType: fieldTypeBLOB}, []byte{0, 255}, []byte{0, 255}, []byte{0, 255}, []byte{0, 255}},
+		{mysqlField{fieldType: fieldTypeBLOB}, bytes.Repeat([]byte{'x'}, 250), bytes.Repeat([]byte{'x'}, 250), bytes.Repeat([]byte{'x'}, 250), bytes.Repeat([]byte{'x'}, 250)},
+		{mysqlField{fieldType: fieldTypeBLOB}, bytes.Repeat([]byte{'x'}, 251), bytes.Repeat([]byte{'x'}, 251), bytes.Repeat([]byte{'x'}, 251), bytes.Repeat([]byte{'x'}, 251)},
+		{mysqlField{fieldType: fieldTypeBLOB}, bytes.Repeat([]byte{'x'}, 65535), bytes.Repeat([]byte{'x'}, 65535), bytes.Repeat([]byte{'x'}, 65535), bytes.Repeat([]byte{'x'}, 65535)},
+		{mysqlField{fieldType: fieldTypeBLOB}, bytes.Repeat([]byte{'x'}, 65536), bytes.Repeat([]byte{'x'}, 65536), bytes.Repeat([]byte{'x'}, 65536), bytes.Repeat([]byte{'x'}, 65536)},
 		{mysqlField{fieldType: fieldTypeNULL}, nil, nil, nil, nil},
 		{mysqlField{fieldType: fieldTypeDate}, []byte("2026-09-30"), []byte{0xea, 7, 9, 30}, []byte("2026-09-30"), []byte("2026-09-30")},
 		{mysqlField{fieldType: fieldTypeNewDate}, []byte("2026-09-30"), []byte{0xea, 7, 9, 30}, []byte("2026-09-30"), []byte("2026-09-30")},
@@ -112,7 +117,7 @@ func TestRowsDecodedValues(t *testing.T) {
 
 func TestRowsMalformedPackets(t *testing.T) {
 	for _, bp := range []bool{false, true} {
-		for _, payload := range [][]byte{{0xfc}, {0xfd, 1}, {5, 'a'}, {1, 'a', 0}} {
+		for _, payload := range [][]byte{{0xfc}, {0xfd, 1}, {5, 'a'}, {1, 'a', 0}, {0xfc, 251, 0, 'a'}, {0xfd, 0, 0, 1, 'a'}} {
 			if bp {
 				payload = append([]byte{0, 0}, payload...)
 			}
@@ -151,6 +156,34 @@ func TestRowsRepeatedEOF(t *testing.T) {
 			}
 			if conn.reads != reads || !rows.(driver.RowsNextResultSet).HasNextResultSet() {
 				t.Fatal("read beyond EOF or lost next result set status")
+			}
+		}
+	}
+}
+
+func TestRowsNextEmptyColumnsAllocations(t *testing.T) {
+	for _, bp := range []bool{false, true} {
+		payload := []byte{0, 0, 0}
+		if bp {
+			payload = append([]byte{0, 0}, payload...)
+		}
+		fields := []mysqlField{{fieldType: fieldTypeString}, {fieldType: fieldTypeVarString}, {fieldType: fieldTypeBLOB}}
+		rows, conn, mc := rowsTestPacket(bp, fields, payload, false)
+		packet := bytes.Clone(conn.data)
+		values := make([]driver.Value, len(fields))
+		allocs := testing.AllocsPerRun(100, func() {
+			conn.data = packet
+			mc.sequence = 0
+			if err := rows.Next(values); err != nil {
+				panic(err)
+			}
+		})
+		if allocs != 0 {
+			t.Fatalf("binary=%v: Next allocations = %v, want 0", bp, allocs)
+		}
+		for i, v := range values {
+			if b, ok := v.([]byte); !ok || len(b) != 0 {
+				t.Fatalf("binary=%v column %d: got %T(%v), want empty []byte", bp, i, v, v)
 			}
 		}
 	}
