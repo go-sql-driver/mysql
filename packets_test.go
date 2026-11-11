@@ -539,3 +539,60 @@ func TestHandshakeCollation(t *testing.T) {
 		})
 	}
 }
+
+// A truncated initial handshake packet must result in ErrMalformPkt
+// instead of a panic.
+func TestReadHandshakePacketTruncated(t *testing.T) {
+	// A well-formed protocol 10 handshake with MySQL 8.0 style layout.
+	full := []byte{10}
+	full = append(full, "8.0.0\x00"...)
+	full = append(full, 1, 0, 0, 0)
+	full = append(full, "abcdefgh"...)
+	full = append(full, 0)
+	full = append(full, 0xff, 0xff)
+	full = append(full, 45, 2, 0)
+	full = append(full, 0xff, 0xff)
+	full = append(full, 21, 0, 0, 0, 0, 0, 0, 0)
+	full = append(full, "ijklmnopqrst\x00"...)
+	full = append(full, "mysql_native_password\x00"...)
+
+	read := func(payload []byte) error {
+		conn, mc := newRWMockConn(0)
+		pkt := append([]byte{byte(len(payload)), byte(len(payload) >> 8), byte(len(payload) >> 16), 0}, payload...)
+		conn.data = pkt
+		_, _, _, _, err := mc.readHandshakePacket()
+		return err
+	}
+
+	if err := read(full); err != nil {
+		t.Fatalf("complete handshake: unexpected error: %v", err)
+	}
+
+	// Every strict prefix that is cut inside the mandatory fields must be
+	// rejected. Prefixes ending right after the lower capability flags are
+	// valid (old style handshake), and so are those that only miss the
+	// trailing plugin name.
+	minValid := 1 + len("8.0.0\x00") + 4 + 8 + 1 + 2
+	for n := 2; n < len(full); n++ {
+		err := read(full[:n])
+		switch {
+		case n < minValid:
+			if err != ErrMalformPkt {
+				t.Errorf("prefix of %d bytes: got %v, want ErrMalformPkt", n, err)
+			}
+		case n > minValid && n < minValid+3+2+7+12:
+			if err != ErrMalformPkt {
+				t.Errorf("prefix of %d bytes: got %v, want ErrMalformPkt", n, err)
+			}
+		}
+	}
+
+	// Protocol version followed by NUL only.
+	if err := read([]byte{10, 0}); err != ErrMalformPkt {
+		t.Errorf("got %v, want ErrMalformPkt", err)
+	}
+	// No NUL terminator after the server version.
+	if err := read([]byte{10, 'a', 'b'}); err != ErrMalformPkt {
+		t.Errorf("got %v, want ErrMalformPkt", err)
+	}
+}
