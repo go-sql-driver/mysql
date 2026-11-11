@@ -133,6 +133,65 @@ func TestRowsMalformedPackets(t *testing.T) {
 			t.Fatalf("truncated binary packet %x: %v", payload, err)
 		}
 	}
+	rows, _, _ := rowsTestPacket(true, []mysqlField{{fieldType: fieldTypeLong}}, []byte{0, 0, 1, 'a'}, false)
+	if err := rows.Next(make([]driver.Value, 1)); !errors.Is(err, ErrMalformPkt) {
+		t.Fatalf("truncated binary integer: %v", err)
+	}
+	rows, _, _ = rowsTestPacket(true, []mysqlField{{fieldType: 100}}, []byte{0, 0, 1, 'a'}, false)
+	if err := rows.Next(make([]driver.Value, 1)); err == nil || err.Error() != "unknown field type 100" {
+		t.Fatalf("unknown binary field type: %v", err)
+	}
+}
+
+// Each payload holds two string columns. A nil want means ErrMalformPkt.
+var rowsLengthPrefixTests = []struct {
+	payload  []byte
+	want     []driver.Value
+	textOnly bool // binary rows send NULL in the bitmap
+}{
+	{payload: []byte{1, 'a', 0xfd, 1, 0, 0, 'b'}, want: []driver.Value{[]byte("a"), []byte("b")}},
+	{payload: []byte{1, 'a', 0xfe, 2, 0, 0, 0, 0, 0, 0, 0, 'b', 'c'}, want: []driver.Value{[]byte("a"), []byte("bc")}},
+	{payload: append([]byte{0xfc, 251, 0}, append(bytes.Repeat([]byte{'x'}, 251), 0)...), want: []driver.Value{bytes.Repeat([]byte{'x'}, 251), []byte{}}},
+	{payload: append([]byte{0xfb, 250}, bytes.Repeat([]byte{'x'}, 250)...), want: []driver.Value{nil, bytes.Repeat([]byte{'x'}, 250)}, textOnly: true},
+	{payload: []byte{1, 'a', 2, 'b'}},
+	{payload: []byte{1, 'a', 0xfc, 1}},
+	{payload: []byte{1, 'a', 0xfd, 1, 0}},
+	{payload: []byte{1, 'a', 0xfe, 2, 0, 0, 0, 0, 0, 0, 0, 'b'}},
+	{payload: []byte{1, 'a', 0xfe, 2, 0, 0, 0, 0, 0, 0}},
+	{payload: []byte{1, 'a', 0xfe, 0, 0, 0, 0, 1, 0, 0, 0}},
+	{payload: []byte{1, 'a', 0xfe, 0, 0, 0, 0, 0, 0, 0, 1}},
+}
+
+func TestRowsLengthPrefixes(t *testing.T) {
+	fields := []mysqlField{{fieldType: fieldTypeString}, {fieldType: fieldTypeString}}
+	for _, bp := range []bool{false, true} {
+		for _, tt := range rowsLengthPrefixTests {
+			if bp && tt.textOnly {
+				continue
+			}
+			payload := tt.payload
+			if bp {
+				payload = append([]byte{0, 0}, payload...)
+			}
+			rows, _, _ := rowsTestPacket(bp, fields, payload, false)
+			got := make([]driver.Value, len(fields))
+			err := rows.Next(got)
+			if tt.want == nil {
+				if !errors.Is(err, ErrMalformPkt) {
+					t.Fatalf("binary=%v packet=%x: %v", bp, payload, err)
+				}
+				continue
+			}
+			if err != nil || !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("binary=%v packet=%x: got %q, %v", bp, payload, got, err)
+			}
+			for i, v := range got {
+				if b, ok := v.([]byte); ok && cap(b) != len(b) {
+					t.Fatalf("binary=%v column %d: cap %d, want %d", bp, i, cap(b), len(b))
+				}
+			}
+		}
+	}
 }
 
 func TestRowsRepeatedEOF(t *testing.T) {

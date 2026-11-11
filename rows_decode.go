@@ -150,8 +150,9 @@ var binaryFieldSizes = [256]uint8{
 	fieldTypeLongLong: 8, fieldTypeDouble: 8,
 }
 
-// Keep fixed-width columns inlineable. On false, readVariableColumn decodes a
-// variable-width value or reports a truncated or unknown fixed-width column.
+// Keep fixed-width columns inlineable. On false, readShortColumn and then
+// readVariableColumn decode a variable-width value or report a truncated or
+// unknown fixed-width column.
 func (r *binaryRowReader) readFixedColumn(fieldType fieldType) ([]byte, bool) {
 	size := int(binaryFieldSizes[fieldType])
 	if size == 0 || len(r.data) < size {

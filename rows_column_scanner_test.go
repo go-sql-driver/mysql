@@ -351,6 +351,41 @@ func TestRowsColumnScannerPackets(t *testing.T) {
 	}
 }
 
+func TestRowsColumnScannerLengthPrefixes(t *testing.T) {
+	fields := []mysqlField{{fieldType: fieldTypeString}, {fieldType: fieldTypeString}}
+	for _, bp := range []bool{false, true} {
+		for _, tt := range rowsLengthPrefixTests {
+			if bp && tt.textOnly {
+				continue
+			}
+			payload := tt.payload
+			if bp {
+				payload = append([]byte{0, 0}, payload...)
+			}
+			rows, _, _ := scannerTestRows(bp, fields, payload, false)
+			err := rows.NextRow()
+			if tt.want == nil {
+				if !errors.Is(err, ErrMalformPkt) {
+					t.Fatalf("binary=%v packet=%x: %v", bp, payload, err)
+				}
+				continue
+			}
+			if err != nil {
+				t.Fatalf("binary=%v packet=%x: %v", bp, payload, err)
+			}
+			for i, want := range tt.want {
+				var raw sql.RawBytes
+				if err := rows.ScanColumn(driver.ScanContext{}, i, &raw); err != nil {
+					t.Fatal(err)
+				}
+				if (want == nil) != (raw == nil) || want != nil && !bytes.Equal(raw, want.([]byte)) || cap(raw) != len(raw) {
+					t.Fatalf("binary=%v packet=%x column %d: got %q (cap %d), want %q", bp, payload, i, raw, cap(raw), want)
+				}
+			}
+		}
+	}
+}
+
 func TestRowsColumnScannerAllocations(t *testing.T) {
 	cases := []struct {
 		name      string
