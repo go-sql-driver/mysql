@@ -182,7 +182,7 @@ func TestRowsNextEmptyColumnsAllocations(t *testing.T) {
 			t.Fatalf("binary=%v: Next allocations = %v, want 0", bp, allocs)
 		}
 		for i, v := range values {
-			if b, ok := v.([]byte); !ok || len(b) != 0 {
+			if b, ok := v.([]byte); !ok || b == nil || len(b) != 0 {
 				t.Fatalf("binary=%v column %d: got %T(%v), want empty []byte", bp, i, v, v)
 			}
 		}
