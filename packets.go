@@ -147,17 +147,24 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 
 		n, err := writeFunc(data[:4+size])
 		if err != nil {
-			mc.cleanup()
 			if cerr := mc.canceled.Value(); cerr != nil {
+				mc.cleanup()
 				return cerr
 			}
 			if n == 0 && pktLen == len(data)-4 {
 				// only for the first loop iteration when nothing was written yet
+				mc.cleanup()
 				mc.log(err)
 				return errBadConnNoWrite
-			} else {
-				return err
 			}
+			// Part of the command was sent. The server may have rejected it
+			// with an error packet before closing the connection, as it does
+			// with 1153 when the packet exceeds its max_allowed_packet:
+			// return that error instead of the write error.
+			if serverErr := mc.pendingError(); serverErr != nil {
+				return serverErr
+			}
+			return err
 		}
 		if n != 4+size {
 			// io.Writer(b) must return a non-nil error if it cannot write len(b) bytes.
@@ -574,6 +581,16 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 		// connection and initiates a new one for next statement next time.
 		mc.Close()
 		return driver.ErrBadConn
+	}
+
+	// SQLSTATE class 08 is a connection exception, such as 1153
+	// (ER_NET_PACKET_TOO_LARGE): the server closes the connection after
+	// sending it. Close ours too, so database/sql does not reuse it, but keep
+	// the result read so far and return the server error. 1047
+	// (ER_UNKNOWN_COM_ERROR) is also in class 08, but the server keeps the
+	// connection open after it.
+	if me.SQLState[0] == '0' && me.SQLState[1] == '8' && errno != 1047 {
+		mc.cleanup()
 	}
 
 	return me
