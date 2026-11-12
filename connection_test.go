@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -395,5 +396,74 @@ func TestGetSystemVarBufferReuse(t *testing.T) {
 	const expected = "67108864"
 	if val != expected {
 		t.Fatalf("getSystemVar(max_allowed_packet) = %q, want %q", val, expected)
+	}
+}
+
+// TestExecErrorResult checks that Exec returns the partial Result with a
+// server error: one entry per result read, the failing statement's last.
+func TestExecErrorResult(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		data    []byte
+		errno   uint16
+		want    []int64
+		wantIDs []int64
+	}{{
+		name: "first",
+		data: []byte{
+			// ERR 1062
+			0x09, 0x00, 0x00, 0x01, 0xff, 0x26, 0x04, '#', '2', '3', '0', '0', '0',
+		},
+		errno:   1062,
+		want:    []int64{0},
+		wantIDs: []int64{0},
+	}, {
+		name: "second",
+		data: []byte{
+			// OK, 1 row affected, last insert ID 5, SERVER_MORE_RESULTS_EXISTS
+			0x07, 0x00, 0x00, 0x01, 0x00, 0x01, 0x05, 0x08, 0x00, 0x00, 0x00,
+			// ERR 1062
+			0x09, 0x00, 0x00, 0x02, 0xff, 0x26, 0x04, '#', '2', '3', '0', '0', '0',
+		},
+		errno:   1062,
+		want:    []int64{1, 0},
+		wantIDs: []int64{5, 0},
+	}, {
+		name: "select rows",
+		data: []byte{
+			// column count 1
+			0x01, 0x00, 0x00, 0x01, 0x01,
+			// column definition
+			0x17, 0x00, 0x00, 0x02, 0x03, 'd', 'e', 'f', 0x00, 0x00, 0x00, 0x01, 'a', 0x00,
+			0x0c, 0x3f, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00,
+			// EOF
+			0x05, 0x00, 0x00, 0x03, 0xfe, 0x00, 0x00, 0x02, 0x00,
+			// row "1"
+			0x02, 0x00, 0x00, 0x04, 0x01, '1',
+			// ERR 1317 (query interrupted) during row delivery
+			0x09, 0x00, 0x00, 0x05, 0xff, 0x25, 0x05, '#', '7', '0', '1', '0', '0',
+		},
+		errno:   1317,
+		want:    []int64{0},
+		wantIDs: []int64{0},
+	}} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, mc := newRWMockConn(0)
+			conn.data = tc.data
+			res, err := mc.Exec("UPDATE t SET a=1;INSERT INTO t VALUES (1)", nil)
+			var me *MySQLError
+			if !errors.As(err, &me) || me.Number != tc.errno {
+				t.Fatalf("want error %d, got %v", tc.errno, err)
+			}
+			if res == nil {
+				t.Fatal("no result with the server error")
+			}
+			if got := res.(Result).AllRowsAffected(); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("AllRowsAffected: got %v, want %v", got, tc.want)
+			}
+			if got := res.(Result).AllLastInsertIds(); !reflect.DeepEqual(got, tc.wantIDs) {
+				t.Errorf("AllLastInsertIds: got %v, want %v", got, tc.wantIDs)
+			}
+		})
 	}
 }

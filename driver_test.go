@@ -2628,6 +2628,53 @@ func TestExecMultipleResults(t *testing.T) {
 	})
 }
 
+// TestExecMultipleResultsError checks against a server that Exec with
+// multiStatements returns the partial Result with *MySQLError when the
+// first, second or third statement fails, that the statements after the
+// failing one do not run, and that the connection stays usable.
+func TestExecMultipleResultsError(t *testing.T) {
+	ctx := context.Background()
+	runTestsWithMultiStatement(t, dsn, func(dbt *DBTest) {
+		dbt.mustExec(`CREATE TABLE test (id INT NOT NULL, PRIMARY KEY (id))`)
+		dbt.mustExec(`INSERT INTO test VALUES (1)`)
+		conn, err := dbt.db.Conn(ctx)
+		if err != nil {
+			t.Fatalf("failed to connect: %v", err)
+		}
+		defer conn.Close()
+		for _, tc := range []struct {
+			query string
+			want  []int64
+		}{
+			{"INSERT INTO test VALUES (1); INSERT INTO test VALUES (10)", []int64{0}},
+			{"INSERT INTO test VALUES (2), (3); INSERT INTO test VALUES (1); INSERT INTO test VALUES (11)", []int64{2, 0}},
+			{"UPDATE test SET id = id + 10 WHERE id > 1; INSERT INTO test VALUES (4); INSERT INTO test VALUES (1)", []int64{2, 1, 0}},
+		} {
+			conn.Raw(func(conn any) error {
+				//lint:ignore SA1019 this is a test
+				ex := conn.(driver.Execer)
+				res, err := ex.Exec(tc.query, nil)
+				if me, ok := err.(*MySQLError); !ok || me.Number != 1062 {
+					t.Fatalf("%s: want error 1062, got %v", tc.query, err)
+				}
+				if res == nil {
+					t.Fatalf("%s: no result with the error", tc.query)
+				}
+				if got := res.(Result).AllRowsAffected(); !reflect.DeepEqual(got, tc.want) {
+					t.Errorf("%s: bad AllRowsAffected: got %v, want %v", tc.query, got, tc.want)
+				}
+				return nil
+			})
+			// The statements after the failing one did not run, and the
+			// connection is still usable.
+			var n int
+			if err := conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM test WHERE id IN (10, 11)").Scan(&n); err != nil || n != 0 {
+				t.Fatalf("%s: after the error: %d rows, %v", tc.query, n, err)
+			}
+		}
+	})
+}
+
 // tests if rows are set in a proper state if some results were ignored before
 // calling rows.NextResultSet.
 func TestSkipResults(t *testing.T) {

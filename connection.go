@@ -441,6 +441,10 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 	return string(buf), nil
 }
 
+// Exec executes query and returns its Result, which has one entry per result
+// read (see [Result]). When the server returns an error (*MySQLError), Exec
+// returns the Result read so far with it. database/sql discards that Result;
+// use sql.Conn.Raw() or the driver connection directly.
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
 	if mc.closed.Load() {
 		return nil, driver.ErrBadConn
@@ -459,6 +463,12 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 
 	err := mc.exec(query)
 	if err == nil {
+		copied := mc.result
+		return &copied, err
+	}
+	if _, ok := err.(*MySQLError); ok {
+		// The server returned an error packet. Return the results read so
+		// far with it; see [Result] for what they tell.
 		copied := mc.result
 		return &copied, err
 	}
