@@ -42,6 +42,12 @@ func (rows *textRows) NextRow() error {
 	}
 	rows.prepareRawColumns()
 	for i := range rows.rawCols {
+		if n := uint(len(data)); n != 0 && data[0] < 0xfb && uint(data[0]) < n {
+			// Inline the common one-byte length prefix.
+			n = uint(data[0]) + 1
+			rows.rawCols[i], data = data[1:n:n], data[n:]
+			continue
+		}
 		rows.rawCols[i], data, err = readColumnBytes(data)
 		if err != nil {
 			rows.rawCols = rows.rawCols[:0]
@@ -72,6 +78,9 @@ func (rows *binaryRows) NextRow() error {
 			continue
 		}
 		raw, fixed := reader.readFixedColumn(fieldType)
+		if !fixed {
+			raw, fixed = reader.readShortColumn(fieldType)
+		}
 		if !fixed {
 			raw, err = reader.readVariableColumn(fieldType)
 			if err != nil {
@@ -117,7 +126,7 @@ func scanColumnBytes(ctx driver.ScanContext, dest any, raw []byte) error {
 		}
 	case *any:
 		if d != nil {
-			*d = bytes.Clone(raw)
+			*d = bytesValue(bytes.Clone(raw))
 			return nil
 		}
 	case *sql.RawBytes:
@@ -126,16 +135,29 @@ func scanColumnBytes(ctx driver.ScanContext, dest any, raw []byte) error {
 			return nil
 		}
 	}
-	return sql.ConvertAssign(ctx, dest, raw)
+	return sql.ConvertAssign(ctx, dest, bytesValue(raw))
 }
 
 func (rows *mysqlRows) scanColumnInt64(ctx driver.ScanContext, i int, dest any, value int64) error {
 	if rows.tinyInt1IsBool(i) {
 		return scanColumnValue(ctx, dest, value != 0)
 	}
-	if d, ok := dest.(*int); ok && d != nil && int64(int(value)) == value {
-		*d = int(value)
-		return nil
+	switch d := dest.(type) {
+	case *int:
+		if d != nil && int64(int(value)) == value {
+			*d = int(value)
+			return nil
+		}
+	case *int64:
+		if d != nil {
+			*d = value
+			return nil
+		}
+	case *int32:
+		if d != nil && int64(int32(value)) == value {
+			*d = int32(value)
+			return nil
+		}
 	}
 	return scanColumnValue(ctx, dest, value)
 }

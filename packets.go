@@ -783,8 +783,11 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 	}
 	for i := range dest {
 		var buf []byte
-		buf, data, err = readColumnBytes(data)
-		if err != nil {
+		if n := uint(len(data)); n != 0 && data[0] < 0xfb && uint(data[0]) < n {
+			// Inline the common one-byte length prefix.
+			n = uint(data[0]) + 1
+			buf, data = data[1:n:n], data[n:]
+		} else if buf, data, err = readColumnBytes(data); err != nil {
 			return err
 		}
 		if buf == nil {
@@ -799,7 +802,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 			if rows.mc.parseTime {
 				dest[i], err = parseDateTime(buf, rows.mc.cfg.Loc)
 			} else {
-				dest[i] = buf
+				dest[i] = bytesValue(buf)
 			}
 
 		case fieldTypeTiny, fieldTypeShort, fieldTypeInt24, fieldTypeYear, fieldTypeLong:
@@ -821,7 +824,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 			dest[i], err = strconv.ParseFloat(string(buf), 64)
 
 		default:
-			dest[i] = buf
+			dest[i] = bytesValue(buf)
 		}
 		if err != nil {
 			return err
@@ -1239,6 +1242,9 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 		}
 		raw, fixed := reader.readFixedColumn(col.fieldType)
 		if !fixed {
+			raw, fixed = reader.readShortColumn(col.fieldType)
+		}
+		if !fixed {
 			raw, err = reader.readVariableColumn(col.fieldType)
 			if err != nil {
 				return err
@@ -1291,7 +1297,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 			}
 		default:
 			// The reader rejects unknown types; the remaining types are bytes.
-			dest[i] = raw
+			dest[i] = bytesValue(raw)
 		}
 	}
 	if len(reader.data) != 0 {

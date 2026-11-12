@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"database/sql/driver"
+	"encoding/binary"
 	"fmt"
 	"io"
 )
@@ -79,29 +80,48 @@ func readColumnBytes(data []byte) (raw, rest []byte, err error) {
 	if len(data) == 0 {
 		return nil, nil, ErrMalformPkt
 	}
-	prefix := 1
+	// Decode the length prefix once, after its bounds check.
+	var n uint64
 	switch data[0] {
+	case 0xfb:
+		return nil, data[1:], nil
 	case 0xfc:
-		prefix = 3
+		if len(data) < 3 {
+			return nil, nil, ErrMalformPkt
+		}
+		n, data = uint64(binary.LittleEndian.Uint16(data[1:])), data[3:]
 	case 0xfd:
-		prefix = 4
+		if len(data) < 4 {
+			return nil, nil, ErrMalformPkt
+		}
+		n, data = uint64(getUint24(data[1:])), data[4:]
 	case 0xfe:
-		prefix = 9
+		if len(data) < 9 {
+			return nil, nil, ErrMalformPkt
+		}
+		n, data = binary.LittleEndian.Uint64(data[1:]), data[9:]
 	case 0xff:
 		return nil, nil, ErrMalformPkt
-	}
-	if len(data) < prefix {
-		return nil, nil, ErrMalformPkt
-	}
-	n, null, _ := readLengthEncodedInteger(data)
-	data = data[prefix:]
-	if null {
-		return nil, data, nil
+	default:
+		n, data = uint64(data[0]), data[1:]
 	}
 	if n > uint64(len(data)) {
 		return nil, nil, ErrMalformPkt
 	}
 	return data[:int(n):int(n)], data[int(n):], nil
+}
+
+// emptyBytesValue is boxed once. A zero-capacity slice cannot be written
+// through, so all empty values can share it.
+var emptyBytesValue driver.Value = []byte{}
+
+// bytesValue boxes b. An empty value uses emptyBytesValue, so it does not
+// allocate. A nil b stays a nil []byte, so it is not a NULL value.
+func bytesValue(b []byte) driver.Value {
+	if len(b) == 0 && b != nil {
+		return emptyBytesValue
+	}
+	return b
 }
 
 // binaryRowReader borrows the current packet. It is used by both Next and
@@ -131,8 +151,9 @@ var binaryFieldSizes = [256]uint8{
 	fieldTypeLongLong: 8, fieldTypeDouble: 8,
 }
 
-// Keep fixed-width columns inlineable. On false, readVariableColumn decodes a
-// variable-width value or reports a truncated or unknown fixed-width column.
+// Keep fixed-width columns inlineable. On false, readShortColumn and then
+// readVariableColumn decode a variable-width value or report a truncated or
+// unknown fixed-width column.
 func (r *binaryRowReader) readFixedColumn(fieldType fieldType) ([]byte, bool) {
 	size := int(binaryFieldSizes[fieldType])
 	if size == 0 || len(r.data) < size {
@@ -143,23 +164,38 @@ func (r *binaryRowReader) readFixedColumn(fieldType fieldType) ([]byte, bool) {
 	return raw, true
 }
 
+// Variable-width types carry a length-encoded value.
+var binaryVariableTypes = [256]bool{
+	fieldTypeDecimal: true, fieldTypeNewDecimal: true, fieldTypeVarChar: true,
+	fieldTypeBit: true, fieldTypeEnum: true, fieldTypeSet: true, fieldTypeTinyBLOB: true,
+	fieldTypeMediumBLOB: true, fieldTypeLongBLOB: true, fieldTypeBLOB: true,
+	fieldTypeVarString: true, fieldTypeString: true, fieldTypeGeometry: true, fieldTypeJSON: true,
+	fieldTypeVector: true, fieldTypeDate: true, fieldTypeNewDate: true, fieldTypeTime: true,
+	fieldTypeTimestamp: true, fieldTypeDateTime: true,
+}
+
+// readShortColumn reads a variable-width value with a one-byte length prefix.
+// On false, readVariableColumn handles the value.
+func (r *binaryRowReader) readShortColumn(fieldType fieldType) ([]byte, bool) {
+	data := r.data
+	if n := uint(len(data)); n == 0 || data[0] >= 0xfb || uint(data[0]) >= n || !binaryVariableTypes[fieldType] {
+		return nil, false
+	}
+	n := uint(data[0]) + 1
+	r.data = data[n:]
+	return data[1:n:n], true
+}
+
 func (r *binaryRowReader) readVariableColumn(fieldType fieldType) ([]byte, error) {
 	if binaryFieldSizes[fieldType] != 0 {
 		return nil, ErrMalformPkt
 	}
-	switch fieldType {
-	case fieldTypeDecimal, fieldTypeNewDecimal, fieldTypeVarChar,
-		fieldTypeBit, fieldTypeEnum, fieldTypeSet, fieldTypeTinyBLOB,
-		fieldTypeMediumBLOB, fieldTypeLongBLOB, fieldTypeBLOB,
-		fieldTypeVarString, fieldTypeString, fieldTypeGeometry, fieldTypeJSON,
-		fieldTypeVector, fieldTypeDate, fieldTypeNewDate, fieldTypeTime,
-		fieldTypeTimestamp, fieldTypeDateTime:
-		raw, rest, err := readColumnBytes(r.data)
-		r.data = rest
-		return raw, err
-	default:
+	if !binaryVariableTypes[fieldType] {
 		return nil, fmt.Errorf("unknown field type %d", fieldType)
 	}
+	raw, rest, err := readColumnBytes(r.data)
+	r.data = rest
+	return raw, err
 }
 
 // The legacy Next path needs a boxed value, or an untyped nil on error.
