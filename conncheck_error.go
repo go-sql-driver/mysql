@@ -17,6 +17,16 @@ const maxIdleErrorPacketSize = 64 * 1024
 // idle connection. It never makes a connection reusable, even if the pending
 // bytes turn out to be TLS control traffic rather than a MySQL packet.
 func (mc *mysqlConn) idleError() error {
+	if serverErr := mc.pendingError(); serverErr != nil {
+		return serverErr
+	}
+	return errUnexpectedRead
+}
+
+// pendingError reads an ERR packet the server has already sent, bounded by
+// idleErrorTimeout and maxIdleErrorPacketSize, and closes the connection. It
+// returns nil when no complete ERR packet can be read in time.
+func (mc *mysqlConn) pendingError() *MySQLError {
 	conn := mc.rawConn
 	if conn == nil {
 		conn = mc.netConn
@@ -28,7 +38,7 @@ func (mc *mysqlConn) idleError() error {
 	defer timer.Stop()
 	defer mc.close()
 	if err := mc.netConn.SetDeadline(time.Now().Add(idleErrorTimeout)); err != nil {
-		return errUnexpectedRead
+		return nil
 	}
 
 	readNext := mc.readNext
@@ -41,19 +51,19 @@ func (mc *mysqlConn) idleError() error {
 	// packets, or apply RejectReadOnly to the original server error.
 	header, err := readNext(4)
 	if err != nil {
-		return errUnexpectedRead
+		return nil
 	}
 	n := getUint24(header[:3])
 	if n < 3 || n > maxIdleErrorPacketSize {
-		return errUnexpectedRead
+		return nil
 	}
 	data, err := readNext(n)
 	if err != nil {
-		return errUnexpectedRead
+		return nil
 	}
 	serverErr, err := decodeErrorPacket(data)
 	if err != nil {
-		return errUnexpectedRead
+		return nil
 	}
 	return serverErr
 }
