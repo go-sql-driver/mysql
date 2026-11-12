@@ -188,6 +188,10 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 		return
 	}
 
+	if len(data) == 0 {
+		return nil, 0, 0, "", ErrMalformPkt
+	}
+
 	if data[0] == iERR {
 		err = mc.handleErrorPacket(data)
 		return
@@ -204,15 +208,25 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 
 	// server version [null terminated string]
 	// connection id [4 bytes]
-	pos := 1 + bytes.IndexByte(data[1:], 0x00) + 1 + 4
+	nul := bytes.IndexByte(data[1:], 0x00)
+	if nul == -1 {
+		return nil, 0, 0, "", ErrMalformPkt
+	}
+	pos := 1 + nul + 1 + 4
 
 	// first part of the password cipher [8 bytes]
+	if len(data) < pos+8 {
+		return nil, 0, 0, "", ErrMalformPkt
+	}
 	authData := data[pos : pos+8]
 
 	// (filler) always 0x00 [1 byte]
 	pos += 8 + 1
 
 	// capability flags (lower 2 bytes) [2 bytes]
+	if len(data) < pos+2 {
+		return nil, 0, 0, "", ErrMalformPkt
+	}
 	capabilities = capabilityFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
 	if capabilities&clientProtocol41 == 0 {
 		return nil, capabilities, 0, "", ErrOldProtocol
@@ -222,12 +236,18 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 	if len(data) > pos {
 		// character set [1 byte]
 		// status flags [2 bytes]
-		pos += 3
 		// capability flags (upper 2 bytes) [2 bytes]
+		if len(data) < pos+5 {
+			return nil, 0, 0, "", ErrMalformPkt
+		}
+		pos += 3
 		capabilities |= capabilityFlag(binary.LittleEndian.Uint16(data[pos:pos+2])) << 16
 		pos += 2
 		// length of auth-plugin-data [1 byte]
 		// reserved (all [00]) [6 bytes]
+		if len(data) < pos+7+4 {
+			return nil, 0, 0, "", ErrMalformPkt
+		}
 		pos += 7
 		if capabilities&clientMySQL == 0 {
 			// MariaDB server extended flag
@@ -247,6 +267,9 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 		//
 		// The official Python library uses the fixed length 12
 		// which seems to work but technically could have a hidden bug.
+		if len(data) < pos+13 {
+			return nil, 0, 0, "", ErrMalformPkt
+		}
 		authData = append(authData, data[pos:pos+12]...)
 		pos += 13
 
