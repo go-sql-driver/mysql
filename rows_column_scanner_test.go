@@ -26,6 +26,7 @@ import (
 
 func scannerTestRows(binaryProtocol bool, columns []mysqlField, payload []byte, parseTime bool) (driver.RowsColumnScanner, *mockConn, *mysqlConn) {
 	rows, conn, mc := rowsTestPacket(binaryProtocol, columns, payload, parseTime)
+	mc.cfg.tinyInt1IsBool = true
 	return rows.(driver.RowsColumnScanner), conn, mc
 }
 
@@ -197,6 +198,7 @@ func TestRowsColumnScannerNilDestinations(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/binary=%v", tt.name, bp), func(t *testing.T) {
 				_, mc := newRWMockConn(0)
 				mc.parseTime = true
+				mc.cfg.tinyInt1IsBool = true
 				raw := tt.text
 				if bp {
 					raw = tt.binary
