@@ -16,11 +16,38 @@ import (
 	"reflect"
 )
 
+// StmtMetadata is an interface that provides access to prepared statement metadata.
+// It can be used via type assertion on the driver.Stmt returned by Conn.Prepare.
+//
+// Example usage with database/sql:
+//
+//	conn, _ := db.Conn(ctx)
+//	conn.Raw(func(driverConn any) error {
+//	    if preparer, ok := driverConn.(driver.ConnPrepareContext); ok {
+//	        stmt, _ := preparer.PrepareContext(ctx, query)
+//	        if meta, ok := stmt.(mysql.StmtMetadata); ok {
+//	            columns := meta.ColumnMetadata()
+//	            params := meta.ParamMetadata()
+//	        }
+//	    }
+//	    return nil
+//	})
+type StmtMetadata interface {
+	// ColumnMetadata returns metadata about result columns
+	ColumnMetadata() []FieldMetadata
+	// ParamMetadata returns metadata about query parameters
+	ParamMetadata() []FieldMetadata
+}
+
+// Verify that mysqlStmt implements StmtMetadata
+var _ StmtMetadata = (*mysqlStmt)(nil)
+
 type mysqlStmt struct {
 	mc         *mysqlConn
 	id         uint32
 	paramCount int
 	columns    []mysqlField
+	params     []mysqlField
 }
 
 func (stmt *mysqlStmt) Close() error {
@@ -40,6 +67,27 @@ func (stmt *mysqlStmt) Close() error {
 
 func (stmt *mysqlStmt) NumInput() int {
 	return stmt.paramCount
+}
+
+// ColumnMetadata returns metadata about the columns that will be returned by this prepared statement.
+// This information is obtained from the MySQL server during the PREPARE phase.
+func (stmt *mysqlStmt) ColumnMetadata() []FieldMetadata {
+	result := make([]FieldMetadata, len(stmt.columns))
+	for i, col := range stmt.columns {
+		result[i] = col.toFieldMetadata()
+	}
+	return result
+}
+
+// ParamMetadata returns metadata about the parameters expected by this prepared statement.
+// This information is obtained from the MySQL server during the PREPARE phase.
+// Note: MySQL may return limited parameter metadata depending on the query structure.
+func (stmt *mysqlStmt) ParamMetadata() []FieldMetadata {
+	result := make([]FieldMetadata, len(stmt.params))
+	for i, param := range stmt.params {
+		result[i] = param.toFieldMetadata()
+	}
+	return result
 }
 
 func (stmt *mysqlStmt) ColumnConverter(idx int) driver.ValueConverter {
