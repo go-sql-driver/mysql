@@ -635,8 +635,32 @@ func (mc *mysqlConn) clearResult() *okHandler {
 	return (*okHandler)(mc)
 }
 
+// hasLengthEncodedInteger reports whether b holds all bytes of the
+// length-encoded integer starting at b[0], so that readLengthEncodedInteger
+// will not read past the end of b. An empty b is accepted, as that function
+// handles it itself. 0xff is not a valid first byte and is rejected.
+func hasLengthEncodedInteger(b []byte) bool {
+	if len(b) == 0 {
+		return true
+	}
+	switch b[0] {
+	case 0xfc:
+		return len(b) >= 3
+	case 0xfd:
+		return len(b) >= 4
+	case 0xfe:
+		return len(b) >= 9
+	case 0xff:
+		return false
+	}
+	return true
+}
+
 // Ok Packet
 // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_ok_packet.html
+//
+// A malformed packet closes the connection: the server status, and so whether
+// more results follow, is unknown, so the connection must not be reused.
 func (mc *okHandler) handleOkPacket(data []byte) error {
 	var n, m int
 	var affectedRows, insertId uint64
@@ -644,9 +668,17 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 	// 0x00 [1 byte]
 
 	// Affected rows [Length Coded Binary]
+	if !hasLengthEncodedInteger(data[1:]) {
+		mc.conn().close()
+		return ErrMalformPkt
+	}
 	affectedRows, _, n = readLengthEncodedInteger(data[1:])
 
 	// Insert id [Length Coded Binary]
+	if 1+n > len(data) || !hasLengthEncodedInteger(data[1+n:]) {
+		mc.conn().close()
+		return ErrMalformPkt
+	}
 	insertId, _, m = readLengthEncodedInteger(data[1+n:])
 
 	// Update for the current statement result (only used by
@@ -659,6 +691,10 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 	}
 
 	// server_status [2 bytes]
+	if 1+n+m+2 > len(data) {
+		mc.conn().close()
+		return ErrMalformPkt
+	}
 	mc.status = readStatus(data[1+n+m : 1+n+m+2])
 	if mc.status&statusMoreResultsExists != 0 {
 		return nil
