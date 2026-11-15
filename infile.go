@@ -98,7 +98,7 @@ func (mc *okHandler) handleInFileRequest(name string) (err error) {
 	packetSize := min(mc.maxWriteSize, defaultPacketSize)
 
 	if idx := strings.Index(name, "Reader::"); idx == 0 || (idx > 0 && name[idx-1] == '/') { // io.Reader
-		// The server might return an an absolute path. See issue #355.
+		// The server might return an absolute path. See issue #355.
 		name = name[idx+8:]
 
 		readerRegisterLock.RLock()
