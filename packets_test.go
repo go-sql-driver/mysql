@@ -539,3 +539,65 @@ func TestHandshakeCollation(t *testing.T) {
 		})
 	}
 }
+
+func TestReadStatusShort(t *testing.T) {
+	for _, b := range [][]byte{nil, {}, {0x01}} {
+		if got := readStatus(b); got != 0 {
+			t.Errorf("readStatus(%x) = %d, want 0", b, got)
+		}
+	}
+}
+
+func TestReadColumnsShort(t *testing.T) {
+	// Negative column count should return ErrMalformPkt
+	_, mc := newRWMockConn(0)
+	if _, err := mc.readColumns(-1, nil); err != ErrMalformPkt {
+		t.Fatalf("expected ErrMalformPkt for negative count, got %v", err)
+	}
+
+	// Truncated column definition payload
+	conn, mc := newRWMockConn(0)
+	shortCol := []byte{3, 'd', 'e', 'f'} // only catalog, missing rest of field definition
+	conn.data = append([]byte{byte(len(shortCol)), 0, 0, 0}, shortCol...)
+	if _, err := mc.readColumns(1, nil); err == nil {
+		t.Fatal("expected error for truncated column definition, got nil")
+	}
+}
+
+func TestReadResultSetHeaderShort(t *testing.T) {
+	conn, mc := newRWMockConn(0)
+	// Truncated length-encoded integer (0xfc with only 1 byte)
+	conn.data = []byte{2, 0, 0, 0, 0xfc, 0x01}
+	handler := mc.clearResult()
+	if _, _, err := handler.readResultSetHeaderPacket(); !errors.Is(err, ErrMalformPkt) {
+		t.Fatalf("expected ErrMalformPkt, got %v", err)
+	}
+}
+
+func TestReadPrepareResultPacketShort(t *testing.T) {
+	conn, mc := newRWMockConn(0)
+	// Truncated COM_STMT_PREPARE_OK (0x00 header but only 4 bytes total instead of 9+)
+	conn.data = []byte{4, 0, 0, 0, iOK, 1, 2, 3}
+	stmt := &mysqlStmt{mc: mc}
+	if _, err := stmt.readPrepareResultPacket(); !errors.Is(err, ErrMalformPkt) {
+		t.Fatalf("expected ErrMalformPkt, got %v", err)
+	}
+}
+
+func TestSkipRowsShort(t *testing.T) {
+	// Classic EOF branch: truncated EOF packet (only 2 bytes instead of 5)
+	conn, mc := newRWMockConn(0)
+	mc.capabilities &^= clientDeprecateEOF
+	conn.data = []byte{2, 0, 0, 0, iEOF, 1}
+	if err := mc.skipRows(); !errors.Is(err, ErrMalformPkt) {
+		t.Fatalf("expected ErrMalformPkt for truncated EOF packet, got %v", err)
+	}
+
+	// Deprecate EOF branch: truncated OK packet with 0xfe header
+	conn, mc = newRWMockConn(0)
+	mc.capabilities |= clientDeprecateEOF
+	conn.data = []byte{2, 0, 0, 0, iEOF, 0xfc}
+	if err := mc.skipRows(); !errors.Is(err, ErrMalformPkt) {
+		t.Fatalf("expected ErrMalformPkt for truncated 0xFE OK packet, got %v", err)
+	}
+}

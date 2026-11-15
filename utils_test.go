@@ -54,6 +54,43 @@ func TestLengthEncodedInteger(t *testing.T) {
 	}
 }
 
+func TestLengthEncodedIntegerShort(t *testing.T) {
+	shortCases := [][]byte{
+		{0xfc},
+		{0xfc, 0x01},
+		{0xfd},
+		{0xfd, 0x01},
+		{0xfd, 0x01, 0x02},
+		{0xfe},
+		{0xfe, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07},
+	}
+	for _, b := range shortCases {
+		_, _, n := readLengthEncodedInteger(b)
+		if n != 0 {
+			t.Errorf("expected n == 0 for short buffer %x, got %d", b, n)
+		}
+	}
+}
+
+func TestLengthEncodedStringShort(t *testing.T) {
+	shortCases := [][]byte{
+		{0xfc},
+		{0xfc, 0x01},
+		{0xfd, 0x01},
+		{0xfe, 0x01},
+	}
+	for _, b := range shortCases {
+		_, _, _, err := readLengthEncodedString(b)
+		if err == nil {
+			t.Errorf("expected error for readLengthEncodedString(%x), got nil", b)
+		}
+		_, err = skipLengthEncodedString(b)
+		if err == nil {
+			t.Errorf("expected error for skipLengthEncodedString(%x), got nil", b)
+		}
+	}
+}
+
 func TestFormatBinaryDateTime(t *testing.T) {
 	rawDate := [11]byte{}
 	binary.LittleEndian.PutUint16(rawDate[:2], 1978)   // years

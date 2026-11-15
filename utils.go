@@ -528,8 +528,14 @@ func uint64ToString(n uint64) []byte {
 // the number of bytes read and an error, in case the string is longer than
 // the input slice
 func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
+	if len(b) == 0 {
+		return nil, false, 0, io.EOF
+	}
 	// Get length
 	num, isNull, n := readLengthEncodedInteger(b)
+	if n == 0 {
+		return nil, false, 0, io.EOF
+	}
 	if num < 1 {
 		return b[n:n], isNull, n, nil
 	}
@@ -546,8 +552,14 @@ func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
 // returns the number of bytes skipped and an error, in case the string is
 // longer than the input slice
 func skipLengthEncodedString(b []byte) (int, error) {
+	if len(b) == 0 {
+		return 0, io.EOF
+	}
 	// Get length
 	num, _, n := readLengthEncodedInteger(b)
+	if n == 0 {
+		return 0, io.EOF
+	}
 	if num < 1 {
 		return n, nil
 	}
@@ -575,14 +587,23 @@ func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
 
 	// 252: value of following 2
 	case 0xfc:
+		if len(b) < 3 {
+			return 0, true, 0
+		}
 		return uint64(binary.LittleEndian.Uint16(b[1:])), false, 3
 
 	// 253: value of following 3
 	case 0xfd:
+		if len(b) < 4 {
+			return 0, true, 0
+		}
 		return uint64(getUint24(b[1:])), false, 4
 
 	// 254: value of following 8
 	case 0xfe:
+		if len(b) < 9 {
+			return 0, true, 0
+		}
 		return uint64(binary.LittleEndian.Uint64(b[1:])), false, 9
 	}
 
