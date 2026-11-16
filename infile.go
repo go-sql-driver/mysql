@@ -94,6 +94,20 @@ func deferredClose(err *error, closer io.Closer) {
 const defaultPacketSize = 16 * 1024 // 16KB is small enough for disk readahead and large enough for TCP
 
 func (mc *okHandler) handleInFileRequest(name string) (err error) {
+	// Run after the deferred reader/file Close, which can turn a successful
+	// upload into an error. The rest of a multi-statement batch may still be
+	// pending, even when no bytes have arrived in our read buffers yet.
+	defer func() {
+		if err != nil {
+			mc.conn().close()
+			// The query has already been sent. A failed upload write must not
+			// cause database/sql to retry the whole batch.
+			if err == errBadConnNoWrite {
+				err = ErrInvalidConn
+			}
+		}
+	}()
+
 	var rdr io.Reader
 	packetSize := min(mc.maxWriteSize, defaultPacketSize)
 
@@ -171,11 +185,10 @@ func (mc *okHandler) handleInFileRequest(name string) (err error) {
 	}
 	mc.conn().syncSequence()
 
-	// read OK packet
-	if err == nil {
-		return mc.readResultOK()
+	// Process the response even after a local error so status flags, including
+	// SERVER_MORE_RESULTS_EXISTS, are not lost. Preserve the upload error.
+	if readErr := mc.readResultOK(); err == nil {
+		err = readErr
 	}
-
-	mc.conn().readPacket()
 	return err
 }
