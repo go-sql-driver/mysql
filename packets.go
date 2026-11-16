@@ -204,15 +204,22 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 
 	// server version [null terminated string]
 	// connection id [4 bytes]
-	pos := 1 + bytes.IndexByte(data[1:], 0x00) + 1 + 4
+	versionEnd := bytes.IndexByte(data[1:], 0x00)
+	if versionEnd < 0 {
+		return nil, 0, 0, "", ErrMalformPkt
+	}
+	pos := 1 + versionEnd + 1 + 4
 
 	// first part of the password cipher [8 bytes]
+	// (filler) always 0x00 [1 byte]
+	// capability flags (lower 2 bytes) [2 bytes]
+	if len(data) < pos+8+1+2 {
+		return nil, 0, 0, "", ErrMalformPkt
+	}
 	authData := data[pos : pos+8]
 
-	// (filler) always 0x00 [1 byte]
 	pos += 8 + 1
 
-	// capability flags (lower 2 bytes) [2 bytes]
 	capabilities = capabilityFlag(binary.LittleEndian.Uint16(data[pos : pos+2]))
 	if capabilities&clientProtocol41 == 0 {
 		return nil, capabilities, 0, "", ErrOldProtocol
@@ -222,12 +229,17 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 	if len(data) > pos {
 		// character set [1 byte]
 		// status flags [2 bytes]
-		pos += 3
 		// capability flags (upper 2 bytes) [2 bytes]
-		capabilities |= capabilityFlag(binary.LittleEndian.Uint16(data[pos:pos+2])) << 16
-		pos += 2
 		// length of auth-plugin-data [1 byte]
 		// reserved (all [00]) [6 bytes]
+		// MariaDB extended capabilities / reserved [4 bytes]
+		// second part of the password cipher [12 bytes, see below]
+		if len(data) < pos+3+2+7+4+12 {
+			return nil, 0, 0, "", ErrMalformPkt
+		}
+		pos += 3
+		capabilities |= capabilityFlag(binary.LittleEndian.Uint16(data[pos:pos+2])) << 16
+		pos += 2
 		pos += 7
 		if capabilities&clientMySQL == 0 {
 			// MariaDB server extended flag
@@ -248,7 +260,8 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 		// The official Python library uses the fixed length 12
 		// which seems to work but technically could have a hidden bug.
 		authData = append(authData, data[pos:pos+12]...)
-		pos += 13
+		// The terminating NUL may be missing from a truncated packet.
+		pos = min(pos+13, len(data))
 
 		// EOF if version (>= 5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
 		// \NUL otherwise

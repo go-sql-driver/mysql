@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -535,6 +536,35 @@ func TestHandshakeCollation(t *testing.T) {
 			}
 			if got := conn.written[12]; got != tc.want {
 				t.Errorf("collation ID = %d; want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// A truncated initial handshake packet must produce an error, not a panic.
+func TestReadHandshakePacketTruncated(t *testing.T) {
+	full := []byte{10, 53, 46, 53, 46, 56, 0, 165, 0, 0, 0,
+		60, 70, 63, 58, 68, 104, 34, 97, 0, 223, 247, 33, 2, 0, 15, 128, 21, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 98, 120, 114, 47, 85, 75, 109, 99, 51, 77,
+		50, 64, 0, 109, 121, 115, 113, 108, 95, 110, 97, 116, 105, 118, 101, 95,
+		112, 97, 115, 115, 119, 111, 114, 100}
+
+	for n := 1; n <= len(full); n++ {
+		t.Run(fmt.Sprintf("len=%d", n), func(t *testing.T) {
+			conn := new(mockConn)
+			mc := &mysqlConn{
+				netConn:  conn,
+				buf:      newBuffer(),
+				cfg:      new(Config),
+				sequence: 42,
+				closech:  make(chan struct{}),
+			}
+			conn.data = append([]byte{byte(n), 0, 0, 42}, full[:n]...)
+			conn.maxReads = 1
+
+			_, _, _, _, err := mc.readHandshakePacket()
+			if err != nil && !errors.Is(err, ErrMalformPkt) && !errors.Is(err, ErrOldProtocol) {
+				t.Fatalf("expected nil, ErrMalformPkt or ErrOldProtocol, got %v", err)
 			}
 		})
 	}
