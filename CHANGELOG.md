@@ -17,6 +17,26 @@
   control character, DEL, or a raw `0xA0` byte as a comment. Other non-ASCII
   bytes after `--` remain outside the supported interpolation grammar.
 
+* Fix `interpolateParams` treating the `*` that opens `/*/` as closing the
+  comment. (#1835)
+
+* Honor `BeforeConnect` changes to the timeout, dialer, logger, and connection
+  attributes without modifying the shared connector. (#1809)
+
+* Validate prepared statement arguments and packet size before sending long
+  data, and reset the statement if a long-data write fails. (#1810)
+
+* Fix the reported precision of unsigned DECIMAL columns. (#1813)
+
+* Preserve full two-byte column collation IDs, and allow collations outside
+  the handshake's one-byte map when a charset is supplied. (#1818, #1832)
+
+* Preserve and log idle server error packets before discarding a connection,
+  with bounded diagnostics over plain, TLS, and zlib connections. (#1843)
+
+* Update CI actions, add a workflow dependency lockfile, and test Go 1.27 and
+  MySQL 9.7 while retaining Go 1.24 and the existing database compatibility jobs.
+
 ## v1.10.1 (2026-09-02)
 
 * Fix `Config.FormatDSN()` dropping `Addr` when `Net` is empty.
