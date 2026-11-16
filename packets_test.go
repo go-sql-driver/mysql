@@ -564,6 +564,35 @@ func TestReadColumnsShort(t *testing.T) {
 	}
 }
 
+func TestReadColumnsCountAboveLimit(t *testing.T) {
+	_, mc := newRWMockConn(0)
+	// A count larger than any real result set must be rejected before
+	// allocating a slice of that size.
+	if _, err := mc.readColumns(int(^uint(0)>>1), nil); !errors.Is(err, ErrMalformPkt) {
+		t.Fatalf("expected ErrMalformPkt for oversized count, got %v", err)
+	}
+}
+
+func TestHandleOkPacketShort(t *testing.T) {
+	for _, payload := range [][]byte{
+		{iOK, 0xfc},             // truncated affected rows
+		{iOK, 0x00, 0xfc},       // truncated insert id
+		{iOK, 0x00, 0x00, 0x02}, // truncated server status
+	} {
+		_, mc := newRWMockConn(0)
+		handler := mc.clearResult()
+		if err := handler.handleOkPacket(payload); !errors.Is(err, ErrMalformPkt) {
+			t.Errorf("handleOkPacket(%x) = %v, want ErrMalformPkt", payload, err)
+		}
+	}
+
+	_, mc := newRWMockConn(0)
+	handler := mc.clearResult()
+	if err := handler.handleOkPacket([]byte{iOK, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00}); err != nil {
+		t.Fatalf("valid OK packet returned %v", err)
+	}
+}
+
 func TestReadResultSetHeaderShort(t *testing.T) {
 	conn, mc := newRWMockConn(0)
 	// Truncated length-encoded integer (0xfc with only 1 byte)
@@ -571,6 +600,23 @@ func TestReadResultSetHeaderShort(t *testing.T) {
 	handler := mc.clearResult()
 	if _, _, err := handler.readResultSetHeaderPacket(); !errors.Is(err, ErrMalformPkt) {
 		t.Fatalf("expected ErrMalformPkt, got %v", err)
+	}
+	if !mc.closed.Load() {
+		t.Fatal("expected connection to be closed after a malformed header")
+	}
+}
+
+func TestReadResultSetHeaderMissingMetadataFlag(t *testing.T) {
+	conn, mc := newRWMockConn(0)
+	mc.extCapabilities |= clientCacheMetadata
+	// Column count packet without the metadata-follows flag byte.
+	conn.data = []byte{1, 0, 0, 0, 0x01}
+	handler := mc.clearResult()
+	if _, _, err := handler.readResultSetHeaderPacket(); !errors.Is(err, ErrMalformPkt) {
+		t.Fatalf("expected ErrMalformPkt, got %v", err)
+	}
+	if !mc.closed.Load() {
+		t.Fatal("expected connection to be closed after a malformed header")
 	}
 }
 

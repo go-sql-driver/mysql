@@ -542,13 +542,15 @@ func (mc *okHandler) readResultSetHeaderPacket() (int, bool, error) {
 	// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response_text_resultset.html
 	// https://mariadb.com/kb/en/result-set-packets/#column-count-packet
 	num, isNull, numLen := readLengthEncodedInteger(data)
-	if numLen == 0 || isNull || int(num) < 0 {
-		return 0, false, mc.conn().markBadConn(ErrMalformPkt)
+	if numLen == 0 || isNull || num > maxColumns {
+		mc.conn().close()
+		return 0, false, ErrMalformPkt
 	}
 
 	if mc.extCapabilities&clientCacheMetadata != 0 {
 		if numLen >= len(data) {
-			return 0, false, mc.conn().markBadConn(ErrMalformPkt)
+			mc.conn().close()
+			return 0, false, ErrMalformPkt
 		}
 		return int(num), data[numLen] == 0x01, nil
 	}
@@ -654,9 +656,15 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 
 	// Affected rows [Length Coded Binary]
 	affectedRows, _, n = readLengthEncodedInteger(data[1:])
+	if n == 0 {
+		return ErrMalformPkt
+	}
 
 	// Insert id [Length Coded Binary]
 	insertId, _, m = readLengthEncodedInteger(data[1+n:])
+	if m == 0 || len(data) < 1+n+m+2 {
+		return ErrMalformPkt
+	}
 
 	// Update for the current statement result (only used by
 	// readResultSetHeaderPacket).
@@ -678,10 +686,14 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 	return nil
 }
 
+// maxColumns is the maximum number of columns MySQL and MariaDB allow in a
+// result set. It bounds the allocation based on the server-provided count.
+const maxColumns = 4096
+
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response_text_resultset_column_definition.html#sect_protocol_com_query_response_text_resultset_column_definition_41
 func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, error) {
-	if count < 0 {
+	if count < 0 || count > maxColumns {
 		return nil, ErrMalformPkt
 	}
 	columns := make([]mysqlField, count)
