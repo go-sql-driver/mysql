@@ -13,6 +13,7 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -681,6 +682,14 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 	return nil
 }
 
+// malformedIfEOF reports a truncated length-encoded string as ErrMalformPkt.
+func malformedIfEOF(err error) error {
+	if errors.Is(err, io.EOF) {
+		return ErrMalformPkt
+	}
+	return err
+}
+
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response_text_resultset_column_definition.html#sect_protocol_com_query_response_text_resultset_column_definition_41
 func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, error) {
@@ -698,13 +707,13 @@ func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, err
 		// Catalog
 		pos, err := skipLengthEncodedString(data)
 		if err != nil {
-			return nil, err
+			return nil, malformedIfEOF(err)
 		}
 
 		// Database [len coded string]
 		n, err := skipLengthEncodedString(data[pos:])
 		if err != nil {
-			return nil, err
+			return nil, malformedIfEOF(err)
 		}
 		pos += n
 
@@ -712,7 +721,7 @@ func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, err
 		if mc.cfg.ColumnsWithAlias {
 			tableName, _, n, err := readLengthEncodedString(data[pos:])
 			if err != nil {
-				return nil, err
+				return nil, malformedIfEOF(err)
 			}
 			pos += n
 			if old != nil && old[i].tableName == string(tableName) {
@@ -724,7 +733,7 @@ func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, err
 		} else {
 			n, err = skipLengthEncodedString(data[pos:])
 			if err != nil {
-				return nil, err
+				return nil, malformedIfEOF(err)
 			}
 			pos += n
 		}
@@ -732,14 +741,14 @@ func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, err
 		// Original table [len coded string]
 		n, err = skipLengthEncodedString(data[pos:])
 		if err != nil {
-			return nil, err
+			return nil, malformedIfEOF(err)
 		}
 		pos += n
 
 		// Name [len coded string]
 		name, _, n, err := readLengthEncodedString(data[pos:])
 		if err != nil {
-			return nil, err
+			return nil, malformedIfEOF(err)
 		}
 		if old != nil && old[i].name == string(name) {
 			// avoid allocating new string
@@ -752,7 +761,7 @@ func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, err
 		// Original name [len coded string]
 		n, err = skipLengthEncodedString(data[pos:])
 		if err != nil {
-			return nil, err
+			return nil, malformedIfEOF(err)
 		}
 		pos += n
 

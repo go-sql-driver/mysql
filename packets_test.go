@@ -558,6 +558,14 @@ func TestReadLengthEncodedIntegerTruncated(t *testing.T) {
 			t.Errorf("skipLengthEncodedString(%x): no error", b)
 		}
 	}
+	for _, fn := range []func([]byte) error{
+		func(b []byte) error { _, _, _, err := readLengthEncodedString(b); return err },
+		func(b []byte) error { _, err := skipLengthEncodedString(b); return err },
+	} {
+		if err := fn(nil); err == nil {
+			t.Error("empty input: no error")
+		}
+	}
 	for b, want := range map[string]struct {
 		v uint64
 		n int
@@ -623,6 +631,9 @@ func TestMalformedServerPackets(t *testing.T) {
 			_, err := mc.readColumns(1, nil)
 			return err
 		}, [][]byte{
+			{0xfc},             // truncated length prefix in the catalog
+			{0x00},             // catalog consumed, nothing left for the schema
+			{0, 0, 0xfd},       // truncated length prefix in the table
 			{0, 0, 0, 0, 0, 0}, // empty catalog, schema, table, org_table, name, org_name; nothing after
 			{0, 0, 0, 0, 0, 0, 0, 0, 0},
 		}},

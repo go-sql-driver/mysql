@@ -529,6 +529,9 @@ func uint64ToString(n uint64) []byte {
 // the input slice
 func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
 	// Get length
+	if len(b) == 0 {
+		return nil, false, 0, io.EOF
+	}
 	num, isNull, n := readLengthEncodedInteger(b)
 	if n == 0 {
 		// truncated length prefix
@@ -551,6 +554,9 @@ func readLengthEncodedString(b []byte) ([]byte, bool, int, error) {
 // longer than the input slice
 func skipLengthEncodedString(b []byte) (int, error) {
 	// Get length
+	if len(b) == 0 {
+		return 0, io.EOF
+	}
 	num, _, n := readLengthEncodedInteger(b)
 	if n == 0 {
 		// truncated length prefix
