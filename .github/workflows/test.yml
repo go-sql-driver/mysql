@@ -49,13 +49,14 @@ jobs:
           import os
           go = [
               # Keep the most recent production release at the top
-              '1.26',
+              '1.27',
               # Older production releases
+              '1.26',
               '1.25',
               '1.24',
           ]
           mysql = [
-              '9.0',
+              '9.7',
               '8.4', # LTS
               '8.0',
               '5.7',
@@ -101,7 +102,6 @@ jobs:
           user: ${{ env.MYSQL_TEST_USER }}
           password: ${{ env.MYSQL_TEST_PASS }}
           my-cnf: |
-            innodb_log_file_size=256MB
             innodb_buffer_pool_size=512MB
             max_allowed_packet=48MB
             ; TestConcurrent fails if max_connections is too large
