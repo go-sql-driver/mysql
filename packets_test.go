@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -537,5 +538,124 @@ func TestHandshakeCollation(t *testing.T) {
 				t.Errorf("collation ID = %d; want %d", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestReadLengthEncodedIntegerTruncated(t *testing.T) {
+	// A truncated length prefix is reported with n == 0.
+	for _, b := range [][]byte{
+		{0xfc}, {0xfc, 1},
+		{0xfd}, {0xfd, 1, 2},
+		{0xfe}, {0xfe, 1, 2, 3, 4, 5, 6, 7},
+	} {
+		if _, _, n := readLengthEncodedInteger(b); n != 0 {
+			t.Errorf("readLengthEncodedInteger(%x): n = %d, want 0", b, n)
+		}
+		if _, _, _, err := readLengthEncodedString(b); err == nil {
+			t.Errorf("readLengthEncodedString(%x): no error", b)
+		}
+		if _, err := skipLengthEncodedString(b); err == nil {
+			t.Errorf("skipLengthEncodedString(%x): no error", b)
+		}
+	}
+	for b, want := range map[string]struct {
+		v uint64
+		n int
+	}{
+		"\xfc\x01\x02":                         {0x0201, 3},
+		"\xfd\x01\x02\x03":                     {0x030201, 4},
+		"\xfe\x01\x02\x03\x04\x05\x06\x07\x08": {0x0807060504030201, 9},
+	} {
+		if v, _, n := readLengthEncodedInteger([]byte(b)); v != want.v || n != want.n {
+			t.Errorf("readLengthEncodedInteger(%x) = %d, %d; want %d, %d", b, v, n, want.v, want.n)
+		}
+	}
+}
+
+// Malformed packets from the server must produce ErrMalformPkt, not a panic.
+func TestMalformedServerPackets(t *testing.T) {
+	newConn := func(payload []byte) *mysqlConn {
+		conn, mc := newRWMockConn(0)
+		conn.data = makePacket(0, payload)
+		conn.maxReads = 1
+		return mc
+	}
+
+	tests := []struct {
+		name string
+		run  func(payload []byte) error
+		pkts [][]byte
+	}{
+		{"OK packet", func(p []byte) error {
+			mc := newConn(p)
+			data, err := mc.readPacket()
+			if err != nil {
+				return err
+			}
+			return mc.resultUnchanged().handleOkPacket(data)
+		}, [][]byte{
+			{iOK},
+			{iOK, 0xfc},
+			{iOK, 0x00},
+			{iOK, 0x00, 0x00},
+			{iOK, 0x00, 0x00, 0x02},
+		}},
+		{"result set header", func(p []byte) error {
+			mc := newConn(p)
+			mc.extCapabilities |= clientCacheMetadata
+			_, _, err := mc.resultUnchanged().readResultSetHeaderPacket()
+			return err
+		}, [][]byte{
+			{0xfc},
+			{0xfe, 1, 2},
+			{0x01}, // column count without the metadata flag byte
+		}},
+		{"prepare result", func(p []byte) error {
+			mc := newConn(p)
+			_, err := (&mysqlStmt{mc: mc}).readPrepareResultPacket()
+			return err
+		}, [][]byte{
+			{iOK},
+			{iOK, 1, 0, 0, 0, 1, 0, 1},
+		}},
+		{"column definition", func(p []byte) error {
+			mc := newConn(p)
+			_, err := mc.readColumns(1, nil)
+			return err
+		}, [][]byte{
+			{0, 0, 0, 0, 0, 0}, // empty catalog, schema, table, org_table, name, org_name; nothing after
+			{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		}},
+		{"skip rows (EOF)", func(p []byte) error {
+			mc := newConn(p)
+			return mc.skipRows()
+		}, [][]byte{
+			{iEOF},
+			{iEOF, 0, 0},
+		}},
+		{"skip rows (OK with EOF header)", func(p []byte) error {
+			mc := newConn(p)
+			mc.capabilities |= clientDeprecateEOF
+			return mc.skipRows()
+		}, [][]byte{
+			{iEOF},
+			{iEOF, 0xfc},
+			{iEOF, 0, 0},
+			{iEOF, 0, 0, 0},
+		}},
+	}
+	for _, tt := range tests {
+		for _, p := range tt.pkts {
+			t.Run(fmt.Sprintf("%s/%x", tt.name, p), func(t *testing.T) {
+				defer func() {
+					if r := recover(); r != nil {
+						t.Fatalf("panic: %v", r)
+					}
+				}()
+				if err := tt.run(p); !errors.Is(err, ErrMalformPkt) {
+					t.Fatalf("got %v, want ErrMalformPkt", err)
+				}
+			})
+		}
 	}
 }

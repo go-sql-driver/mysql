@@ -541,10 +541,16 @@ func (mc *okHandler) readResultSetHeaderPacket() (int, bool, error) {
 	// column count
 	// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response_text_resultset.html
 	// https://mariadb.com/kb/en/result-set-packets/#column-count-packet
-	num, _, len := readLengthEncodedInteger(data)
+	num, _, n := readLengthEncodedInteger(data)
+	if n == 0 {
+		return 0, false, ErrMalformPkt
+	}
 
 	if mc.extCapabilities&clientCacheMetadata != 0 {
-		return int(num), data[len] == 0x01, nil
+		if n >= len(data) {
+			return 0, false, ErrMalformPkt
+		}
+		return int(num), data[n] == 0x01, nil
 	}
 	// ignore remaining data in the packet. see #1478.
 	return int(num), true, nil
@@ -645,9 +651,15 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 
 	// Affected rows [Length Coded Binary]
 	affectedRows, _, n = readLengthEncodedInteger(data[1:])
+	if n == 0 || 1+n > len(data) {
+		return ErrMalformPkt
+	}
 
 	// Insert id [Length Coded Binary]
 	insertId, _, m = readLengthEncodedInteger(data[1+n:])
+	if m == 0 || len(data) < 1+n+m+2 {
+		return ErrMalformPkt
+	}
 
 	// Update for the current statement result (only used by
 	// readResultSetHeaderPacket).
@@ -743,6 +755,11 @@ func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, err
 			return nil, err
 		}
 		pos += n
+
+		// filler [1], charset [2], length [4], type [1], flags [2], decimals [1]
+		if len(data) < pos+1+2+4+1+2+1 {
+			return nil, ErrMalformPkt
+		}
 
 		// Filler [uint8]
 		pos++
@@ -880,11 +897,20 @@ func (mc *mysqlConn) skipRows() error {
 			if len(data) <= 0xffffff {
 				if mc.capabilities&clientDeprecateEOF == 0 {
 					// EOF packet
+					if len(data) < 3+2 {
+						return ErrMalformPkt
+					}
 					mc.status = readStatus(data[3:])
 				} else {
 					// OK packet with an 0xFE header
-					_, _, n := readLengthEncodedInteger(data[1:])   // affected_rows
+					_, _, n := readLengthEncodedInteger(data[1:]) // affected_rows
+					if n == 0 || 1+n > len(data) {
+						return ErrMalformPkt
+					}
 					_, _, m := readLengthEncodedInteger(data[1+n:]) // last_insert_id
+					if m == 0 || len(data) < 1+n+m+2 {
+						return ErrMalformPkt
+					}
 					mc.status = readStatus(data[1+n+m:])
 				}
 				return nil
@@ -908,6 +934,11 @@ func (stmt *mysqlStmt) readPrepareResultPacket() (uint16, error) {
 		}
 
 		// statement id [4 bytes]
+		// column count [2 bytes]
+		// param count [2 bytes]
+		if len(data) < 9 {
+			return 0, ErrMalformPkt
+		}
 		stmt.id = binary.LittleEndian.Uint32(data[1:5])
 
 		// Column count [16 bit uint]
