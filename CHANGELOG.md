@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## v1.10.2 (unreleased)
+
+Changes since v1.10.1.
+
+### Security fixes
 
 * Reject `interpolateParams=true` combined with an unsafe multibyte charset
   (`big5`, `sjis`, `gbk`, `cp932`, `gb18030`) given by `charset` or `Charset()`.
@@ -11,14 +15,16 @@
   changed from `invalid DSN: interpolateParams can not be used with unsafe collations`
   to `interpolateParams cannot be used with unsafe charsets`, because it may also
   be returned by `NewConnector` or `Connector.Connect` after `BeforeConnect`.
-  Applications comparing the complete error string must update their comparison.
+  Applications comparing the complete error string must update their comparison. (#1836)
 
 * Fix `interpolateParams` not treating `--` followed by `\v`, `\f`, another
   control character, DEL, or a raw `0xA0` byte as a comment. Other non-ASCII
-  bytes after `--` remain outside the supported interpolation grammar.
+  bytes after `--` remain outside the supported interpolation grammar. (#1836)
 
 * Fix `interpolateParams` treating the `*` that opens `/*/` as closing the
   comment. (#1835)
+
+### Bugfixes
 
 * Honor `BeforeConnect` changes to the timeout, dialer, logger, and connection
   attributes without modifying the shared connector. (#1809)
@@ -28,14 +34,27 @@
 
 * Fix the reported precision of unsigned DECIMAL columns. (#1813)
 
-* Preserve full two-byte column collation IDs, and allow collations outside
-  the handshake's one-byte map when a charset is supplied. (#1818, #1832)
+* Preserve full two-byte column collation IDs so IDs above 255 do not cause
+  text columns to be reported as binary columns. (#1818)
+
+* Fix the inverted check for collations outside the handshake's one-byte map.
+  Accept them when a charset is supplied, using `SET NAMES ... COLLATE`;
+  reject them when no charset is supplied instead of silently using the
+  default collation. (#1832)
 
 * Preserve and log idle server error packets before discarding a connection,
   with bounded diagnostics over plain, TLS, and zlib connections. (#1843)
 
-* Update CI actions, add a workflow dependency lockfile, and test Go 1.27 and
-  MySQL 9.7 while retaining Go 1.24 and the existing database compatibility jobs.
+### CI
+
+* Update GitHub Actions dependencies and add a workflow dependency lockfile. (#1838)
+
+* Pin the lint job to Go 1.26 and Staticcheck v0.8.1 for compatibility. (#1824)
+
+* Limit Go module Dependabot pull requests to security updates. (#1829)
+
+* Test Go 1.27 and MySQL 9.7 while retaining Go 1.24 and the existing database
+  compatibility jobs.
 
 ## v1.10.1 (2026-09-02)
 
