@@ -21,6 +21,10 @@
   unsolicited public keys, preserves errors from plugins, and starts plugins
   only after the TLS handshake has completed. (#1696)
 
+* Return `ErrMalformPkt` instead of panicking on truncated initial handshake
+  packets, including the greeting received before TLS negotiation.
+  (GHSA-9qjq-77h9-895w, #1850)
+
 * Discard connections after a failed `LOAD DATA LOCAL INFILE`, including reader
   `Close()` errors, so unread results from a multi-statement batch cannot be
   returned to a later caller. Preserve the server's response status and avoid
