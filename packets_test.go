@@ -11,6 +11,7 @@ package mysql
 import (
 	"bytes"
 	"database/sql/driver"
+	"encoding/binary"
 	"errors"
 	"net"
 	"testing"
@@ -538,9 +539,7 @@ func TestHandshakeCollation(t *testing.T) {
 	}
 }
 
-// A truncated initial handshake packet must result in ErrMalformPkt
-// instead of a panic.
-func TestReadHandshakePacketTruncated(t *testing.T) {
+func testHandshakePacket() []byte {
 	// A well-formed protocol 10 handshake with MySQL 8.0 style layout.
 	full := []byte{10}
 	full = append(full, "8.0.0\x00"...)
@@ -553,20 +552,25 @@ func TestReadHandshakePacketTruncated(t *testing.T) {
 	full = append(full, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 	full = append(full, "ijklmnopqrst\x00"...)
 	full = append(full, "mysql_native_password\x00"...)
+	return full
+}
 
-	readFull := func(payload []byte) ([]byte, string, error) {
+// A truncated initial handshake packet must result in ErrMalformPkt
+// instead of a panic.
+func TestReadHandshakePacketTruncated(t *testing.T) {
+	full := testHandshakePacket()
+
+	readFull := func(payload []byte) ([]byte, capabilityFlag, extendedCapabilityFlag, string, error) {
 		conn, mc := newRWMockConn(0)
-		pkt := append([]byte{byte(len(payload)), byte(len(payload) >> 8), byte(len(payload) >> 16), 0}, payload...)
-		conn.data = pkt
-		authData, _, _, plugin, err := mc.readHandshakePacket()
-		return authData, plugin, err
+		conn.data = makePacket(0, payload)
+		return mc.readHandshakePacket()
 	}
 	read := func(payload []byte) error {
-		_, _, err := readFull(payload)
+		_, _, _, _, err := readFull(payload)
 		return err
 	}
 
-	authData, plugin, err := readFull(full)
+	authData, capabilities, extendedCapabilities, plugin, err := readFull(full)
 	if err != nil {
 		t.Fatalf("complete handshake: unexpected error: %v", err)
 	}
@@ -576,6 +580,9 @@ func TestReadHandshakePacketTruncated(t *testing.T) {
 	if plugin != "mysql_native_password" {
 		t.Errorf("complete handshake: got plugin %q, want %q", plugin, "mysql_native_password")
 	}
+	if capabilities != 0xffffffff || extendedCapabilities != 0 {
+		t.Errorf("complete handshake: unexpected capabilities %x / %x", capabilities, extendedCapabilities)
+	}
 
 	// Every strict prefix that is cut inside the mandatory fields must be
 	// rejected. Prefixes ending right after the lower capability flags are
@@ -583,18 +590,33 @@ func TestReadHandshakePacketTruncated(t *testing.T) {
 	// trailing plugin name.
 	minValid := 1 + len("8.0.0\x00") + 4 + 8 + 1 + 2
 	minExtended := minValid + 3 + 2 + 7 + 4 + 12
-	for n := 2; n < len(full); n++ {
-		err := read(full[:n])
-		switch {
-		case n < minValid, n > minValid && n < minExtended:
-			if err != ErrMalformPkt {
-				t.Errorf("prefix of %d bytes: got %v, want ErrMalformPkt", n, err)
+	mariaDB := bytes.Clone(full)
+	mariaDB[minValid-2] &^= byte(clientMySQL)
+	binary.LittleEndian.PutUint32(mariaDB[minValid+12:minValid+16], uint32(clientCacheMetadata))
+	for name, payload := range map[string][]byte{"MySQL": full, "MariaDB": mariaDB} {
+		t.Run(name, func(t *testing.T) {
+			for n := 1; n <= len(payload); n++ {
+				err := read(payload[:n])
+				switch {
+				case n < minValid, n > minValid && n < minExtended:
+					if err != ErrMalformPkt {
+						t.Errorf("prefix of %d bytes: got %v, want ErrMalformPkt", n, err)
+					}
+				default:
+					if err != nil {
+						t.Errorf("prefix of %d bytes: unexpected error: %v", n, err)
+					}
+				}
 			}
-		default:
-			if err != nil {
-				t.Errorf("prefix of %d bytes: unexpected error: %v", n, err)
-			}
-		}
+		})
+	}
+	authData, capabilities, extendedCapabilities, plugin, err = readFull(full[:minValid])
+	if err != nil || string(authData) != "abcdefgh" || capabilities != 0xffff || extendedCapabilities != 0 || plugin != "" {
+		t.Errorf("old-style handshake: got %q, %x, %x, %q, %v", authData, capabilities, extendedCapabilities, plugin, err)
+	}
+	authData, capabilities, extendedCapabilities, plugin, err = readFull(mariaDB)
+	if err != nil || string(authData) != "abcdefghijklmnopqrst" || capabilities != 0xffffffff&^clientMySQL || extendedCapabilities != clientCacheMetadata || plugin != "mysql_native_password" {
+		t.Errorf("MariaDB handshake: got %q, %x, %x, %q, %v", authData, capabilities, extendedCapabilities, plugin, err)
 	}
 
 	// Protocol version followed by NUL only.
