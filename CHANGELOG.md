@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.10.2 (unreleased)
+## v1.10.2 (2026-11-17)
 
 Changes since v1.10.1.
 
@@ -13,7 +13,7 @@ Changes since v1.10.1.
 * Discard connections after a failed `LOAD DATA LOCAL INFILE`, including reader
   `Close()` errors, so unread results from a multi-statement batch cannot be
   returned to a later caller. Preserve the server's response status and avoid
-  retrying the batch after an upload write failure.
+  retrying the batch after an upload write failure. (GHSA-4v5x-9mc8-gr98)
 
 * Reject `interpolateParams=true` combined with an unsafe multibyte charset
   (`big5`, `sjis`, `gbk`, `cp932`, `gb18030`) given by `charset` or `Charset()`.
