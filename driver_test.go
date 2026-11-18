@@ -1264,6 +1264,14 @@ func TestUint64(t *testing.T) {
 			sd != sall:
 			dbt.Fatal("unexpected result value")
 		}
+
+		// Query without parameters uses the text protocol.
+		if err := dbt.db.QueryRow("SELECT CAST('18446744073709551615' AS UNSIGNED)").Scan(&ud); err != nil {
+			dbt.Fatal(err)
+		}
+		if ud != uall {
+			dbt.Fatalf("text protocol uint64: got %d, want %d", ud, uall)
+		}
 	})
 }
 

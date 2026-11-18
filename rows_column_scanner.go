@@ -192,7 +192,14 @@ func (rows *textRows) ScanColumn(ctx driver.ScanContext, i int, dest any) error 
 			if err != nil {
 				return err
 			}
-			return scanColumnValue(ctx, dest, value)
+			if d, ok := dest.(*uint64); ok && d != nil {
+				*d = value
+				return nil
+			}
+			if value > math.MaxInt64 {
+				return scanColumnBytes(ctx, dest, raw)
+			}
+			return rows.scanColumnInt64(ctx, i, dest, int64(value))
 		}
 		value, err := strconv.ParseInt(string(raw), 10, 64)
 		if err != nil {
