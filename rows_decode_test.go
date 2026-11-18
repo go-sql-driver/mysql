@@ -32,8 +32,8 @@ func rowsTestPacket(bp bool, columns []mysqlField, payload []byte, parseTime boo
 	return &textRows{rows}, conn, mc
 }
 
-// These expectations are independent of either scanning path. In particular,
-// preserve the different driver.Value types used for unsigned BIGINT columns.
+// These expectations are independent of either scanning path. Both protocols
+// return int64 for unsigned BIGINTs within range and []byte otherwise.
 func TestRowsDecodedValues(t *testing.T) {
 	date := time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)
 	columns := []struct {
@@ -51,8 +51,10 @@ func TestRowsDecodedValues(t *testing.T) {
 		{mysqlField{fieldType: fieldTypeLong, flags: flagUnsigned}, []byte("4294967295"), []byte{255, 255, 255, 255}, int64(4294967295), int64(4294967295)},
 		{mysqlField{fieldType: fieldTypeInt24}, []byte("-42"), binary.LittleEndian.AppendUint32(nil, 0xffffffd6), int64(-42), int64(-42)},
 		{mysqlField{fieldType: fieldTypeLongLong}, []byte("-9223372036854775808"), binary.LittleEndian.AppendUint64(nil, 1<<63), int64(math.MinInt64), int64(math.MinInt64)},
-		{mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("42"), binary.LittleEndian.AppendUint64(nil, 42), uint64(42), int64(42)},
-		{mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("18446744073709551615"), binary.LittleEndian.AppendUint64(nil, math.MaxUint64), uint64(math.MaxUint64), []byte("18446744073709551615")},
+		{mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("42"), binary.LittleEndian.AppendUint64(nil, 42), int64(42), int64(42)},
+		{mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("9223372036854775807"), binary.LittleEndian.AppendUint64(nil, math.MaxInt64), int64(math.MaxInt64), int64(math.MaxInt64)},
+		{mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("9223372036854775808"), binary.LittleEndian.AppendUint64(nil, uint64(math.MaxInt64)+1), []byte("9223372036854775808"), []byte("9223372036854775808")},
+		{mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("18446744073709551615"), binary.LittleEndian.AppendUint64(nil, math.MaxUint64), []byte("18446744073709551615"), []byte("18446744073709551615")},
 		{mysqlField{fieldType: fieldTypeFloat}, []byte("1.25"), binary.LittleEndian.AppendUint32(nil, math.Float32bits(1.25)), float32(1.25), float32(1.25)},
 		{mysqlField{fieldType: fieldTypeDouble}, []byte("-2.5"), binary.LittleEndian.AppendUint64(nil, math.Float64bits(-2.5)), float64(-2.5), float64(-2.5)},
 		{mysqlField{fieldType: fieldTypeNewDecimal}, []byte("123.4500"), []byte("123.4500"), []byte("123.4500"), []byte("123.4500")},

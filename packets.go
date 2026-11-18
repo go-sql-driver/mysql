@@ -828,7 +828,15 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 
 		case fieldTypeLongLong:
 			if rows.rs.columns[i].flags&flagUnsigned != 0 {
-				dest[i], err = strconv.ParseUint(string(buf), 10, 64)
+				n, err := strconv.ParseUint(string(buf), 10, 64)
+				if err != nil {
+					return err
+				}
+				if n > math.MaxInt64 {
+					dest[i] = bytesValue(buf)
+				} else {
+					dest[i] = int64(n)
+				}
 			} else {
 				dest[i], err = strconv.ParseInt(string(buf), 10, 64)
 			}
