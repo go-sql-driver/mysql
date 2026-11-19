@@ -101,7 +101,6 @@ func NewConfig() *Config {
 		Logger:               defaultLogger,
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
-		tinyInt1IsBool:       true,
 	}
 	return cfg
 }
@@ -183,6 +182,7 @@ func EnableCompression(yes bool) Option {
 }
 
 // TinyInt1IsBool controls whether signed TINYINT(1) columns are treated as boolean.
+// It is disabled by default.
 func TinyInt1IsBool(yes bool) Option {
 	return func(cfg *Config) error {
 		cfg.tinyInt1IsBool = yes
@@ -430,8 +430,8 @@ func (cfg *Config) FormatDSN() string {
 		writeDSNParam(&buf, &hasParam, "timeTruncate", cfg.timeTruncate.String())
 	}
 
-	if !cfg.tinyInt1IsBool {
-		writeDSNParam(&buf, &hasParam, "tinyInt1IsBool", "false")
+	if cfg.tinyInt1IsBool {
+		writeDSNParam(&buf, &hasParam, "tinyInt1IsBool", "true")
 	}
 
 	if cfg.ReadTimeout > 0 {

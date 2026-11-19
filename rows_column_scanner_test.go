@@ -26,6 +26,7 @@ import (
 
 func scannerTestRows(binaryProtocol bool, columns []mysqlField, payload []byte, parseTime bool) (driver.RowsColumnScanner, *mockConn, *mysqlConn) {
 	rows, conn, mc := rowsTestPacket(binaryProtocol, columns, payload, parseTime)
+	mc.cfg.tinyInt1IsBool = true
 	return rows.(driver.RowsColumnScanner), conn, mc
 }
 
@@ -55,6 +56,7 @@ func TestRowsColumnScannerConversions(t *testing.T) {
 		{name: "short", column: mysqlField{fieldType: fieldTypeShort}, text: []byte("-1234"), binary: binary.LittleEndian.AppendUint16(nil, 65536-1234)},
 		{name: "long", column: mysqlField{fieldType: fieldTypeLong}, text: []byte("1234567"), binary: binary.LittleEndian.AppendUint32(nil, 1234567)},
 		{name: "longlong", column: mysqlField{fieldType: fieldTypeLongLong}, text: []byte("-9223372036854775808"), binary: binary.LittleEndian.AppendUint64(nil, 1<<63)},
+		{name: "uint64 small", column: mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, text: []byte("42"), binary: binary.LittleEndian.AppendUint64(nil, 42)},
 		{name: "uint64", column: mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, text: []byte("18446744073709551615"), binary: binary.LittleEndian.AppendUint64(nil, math.MaxUint64)},
 		{name: "float", column: mysqlField{fieldType: fieldTypeFloat}, text: []byte("1.23456789"), binary: binary.LittleEndian.AppendUint32(nil, math.Float32bits(1.23456789))},
 		{name: "double", column: mysqlField{fieldType: fieldTypeDouble}, text: []byte("1.23456789"), binary: binary.LittleEndian.AppendUint64(nil, math.Float64bits(1.23456789))},
@@ -67,8 +69,8 @@ func TestRowsColumnScannerConversions(t *testing.T) {
 	}
 	destinations := []func() any{
 		func() any { return new(any) }, func() any { return new(string) }, func() any { return new([]byte) },
-		func() any { return new(int) }, func() any { return new(int8) }, func() any { return new(int64) },
-		func() any { return new(uint64) }, func() any { return new(float32) }, func() any { return new(float64) },
+		func() any { return new(int) }, func() any { return new(int8) }, func() any { return new(int32) }, func() any { return new(int64) },
+		func() any { return new(uint64) }, func() any { return new(sql.Null[uint64]) }, func() any { return new(float32) }, func() any { return new(float64) },
 		func() any { return new(bool) }, func() any { return new(time.Time) }, func() any { return new(sql.NullString) },
 		func() any { return new(sql.NullInt64) }, func() any { return new(columnScannerCapture) },
 		func() any { return new(columnScannerInt) }, func() any { return new(*int64) },
@@ -186,6 +188,7 @@ func TestRowsColumnScannerNilDestinations(t *testing.T) {
 	}{
 		{"int", mysqlField{fieldType: fieldTypeLong}, []byte("42"), binary.LittleEndian.AppendUint32(nil, 42), int64(42), (*int)(nil)},
 		{"int64", mysqlField{fieldType: fieldTypeLongLong}, []byte("42"), binary.LittleEndian.AppendUint64(nil, 42), int64(42), (*int64)(nil)},
+		{"int32", mysqlField{fieldType: fieldTypeLong}, []byte("42"), binary.LittleEndian.AppendUint32(nil, 42), int64(42), (*int32)(nil)},
 		{"uint64", mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("42"), binary.LittleEndian.AppendUint64(nil, 42), uint64(42), (*uint64)(nil)},
 		{"float32", mysqlField{fieldType: fieldTypeFloat}, []byte("1.25"), binary.LittleEndian.AppendUint32(nil, math.Float32bits(1.25)), float32(1.25), (*float32)(nil)},
 		{"float64", mysqlField{fieldType: fieldTypeDouble}, []byte("1.25"), binary.LittleEndian.AppendUint64(nil, math.Float64bits(1.25)), float64(1.25), (*float64)(nil)},
@@ -197,6 +200,7 @@ func TestRowsColumnScannerNilDestinations(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/binary=%v", tt.name, bp), func(t *testing.T) {
 				_, mc := newRWMockConn(0)
 				mc.parseTime = true
+				mc.cfg.tinyInt1IsBool = true
 				raw := tt.text
 				if bp {
 					raw = tt.binary
@@ -350,6 +354,41 @@ func TestRowsColumnScannerPackets(t *testing.T) {
 	}
 }
 
+func TestRowsColumnScannerLengthPrefixes(t *testing.T) {
+	fields := []mysqlField{{fieldType: fieldTypeString}, {fieldType: fieldTypeString}}
+	for _, bp := range []bool{false, true} {
+		for _, tt := range rowsLengthPrefixTests {
+			if bp && tt.textOnly {
+				continue
+			}
+			payload := tt.payload
+			if bp {
+				payload = append([]byte{0, 0}, payload...)
+			}
+			rows, _, _ := scannerTestRows(bp, fields, payload, false)
+			err := rows.NextRow()
+			if tt.want == nil {
+				if !errors.Is(err, ErrMalformPkt) {
+					t.Fatalf("binary=%v packet=%x: %v", bp, payload, err)
+				}
+				continue
+			}
+			if err != nil {
+				t.Fatalf("binary=%v packet=%x: %v", bp, payload, err)
+			}
+			for i, want := range tt.want {
+				var raw sql.RawBytes
+				if err := rows.ScanColumn(driver.ScanContext{}, i, &raw); err != nil {
+					t.Fatal(err)
+				}
+				if (want == nil) != (raw == nil) || want != nil && !bytes.Equal(raw, want.([]byte)) || cap(raw) != len(raw) {
+					t.Fatalf("binary=%v packet=%x column %d: got %q (cap %d), want %q", bp, payload, i, raw, cap(raw), want)
+				}
+			}
+		}
+	}
+}
+
 func TestRowsColumnScannerAllocations(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -364,9 +403,15 @@ func TestRowsColumnScannerAllocations(t *testing.T) {
 		{name: "text double", col: mysqlField{fieldType: fieldTypeDouble}, raw: []byte("1.2345"), dest: new(float64)},
 		{name: "text time", col: mysqlField{fieldType: fieldTypeDateTime}, raw: []byte("2026-09-30 12:34:56"), dest: new(time.Time), parseTime: true},
 		{name: "text raw", col: mysqlField{fieldType: fieldTypeString}, raw: []byte("hello"), dest: new(sql.RawBytes)},
+		{name: "text int32", col: mysqlField{fieldType: fieldTypeLong}, raw: []byte("-2147483648"), dest: new(int32)},
 		{name: "binary int", col: mysqlField{fieldType: fieldTypeLong}, raw: binary.LittleEndian.AppendUint32(nil, 123456789), dest: new(int), binary: true},
+		{name: "binary int32", col: mysqlField{fieldType: fieldTypeLong}, raw: binary.LittleEndian.AppendUint32(nil, 1<<31), dest: new(int32), binary: true},
+		{name: "text uint64", col: mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, raw: []byte("18446744073709551615"), dest: new(uint64)},
 		{name: "binary uint64", col: mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, raw: binary.LittleEndian.AppendUint64(nil, math.MaxUint64), dest: new(uint64), binary: true},
 		{name: "binary time", col: mysqlField{fieldType: fieldTypeDateTime}, raw: []byte{0xea, 7, 9, 30, 12, 34, 56}, dest: new(time.Time), binary: true, parseTime: true},
+		{name: "text empty any", col: mysqlField{fieldType: fieldTypeString}, raw: []byte{}, dest: new(any)},
+		{name: "binary empty any", col: mysqlField{fieldType: fieldTypeBLOB}, raw: []byte{}, dest: new(any), binary: true},
+		{name: "text empty NullString", col: mysqlField{fieldType: fieldTypeString}, raw: []byte{}, dest: new(sql.NullString)},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {

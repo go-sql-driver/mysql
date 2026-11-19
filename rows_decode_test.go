@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"bytes"
 	"database/sql/driver"
 	"encoding/binary"
 	"errors"
@@ -31,8 +32,8 @@ func rowsTestPacket(bp bool, columns []mysqlField, payload []byte, parseTime boo
 	return &textRows{rows}, conn, mc
 }
 
-// These expectations are independent of either scanning path. In particular,
-// preserve the different driver.Value types used for unsigned BIGINT columns.
+// These expectations are independent of either scanning path. Both protocols
+// return int64 for unsigned BIGINTs within range and []byte otherwise.
 func TestRowsDecodedValues(t *testing.T) {
 	date := time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)
 	columns := []struct {
@@ -50,13 +51,19 @@ func TestRowsDecodedValues(t *testing.T) {
 		{mysqlField{fieldType: fieldTypeLong, flags: flagUnsigned}, []byte("4294967295"), []byte{255, 255, 255, 255}, int64(4294967295), int64(4294967295)},
 		{mysqlField{fieldType: fieldTypeInt24}, []byte("-42"), binary.LittleEndian.AppendUint32(nil, 0xffffffd6), int64(-42), int64(-42)},
 		{mysqlField{fieldType: fieldTypeLongLong}, []byte("-9223372036854775808"), binary.LittleEndian.AppendUint64(nil, 1<<63), int64(math.MinInt64), int64(math.MinInt64)},
-		{mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("42"), binary.LittleEndian.AppendUint64(nil, 42), uint64(42), int64(42)},
-		{mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("18446744073709551615"), binary.LittleEndian.AppendUint64(nil, math.MaxUint64), uint64(math.MaxUint64), []byte("18446744073709551615")},
+		{mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("42"), binary.LittleEndian.AppendUint64(nil, 42), int64(42), int64(42)},
+		{mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("9223372036854775807"), binary.LittleEndian.AppendUint64(nil, math.MaxInt64), int64(math.MaxInt64), int64(math.MaxInt64)},
+		{mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("9223372036854775808"), binary.LittleEndian.AppendUint64(nil, uint64(math.MaxInt64)+1), []byte("9223372036854775808"), []byte("9223372036854775808")},
+		{mysqlField{fieldType: fieldTypeLongLong, flags: flagUnsigned}, []byte("18446744073709551615"), binary.LittleEndian.AppendUint64(nil, math.MaxUint64), []byte("18446744073709551615"), []byte("18446744073709551615")},
 		{mysqlField{fieldType: fieldTypeFloat}, []byte("1.25"), binary.LittleEndian.AppendUint32(nil, math.Float32bits(1.25)), float32(1.25), float32(1.25)},
 		{mysqlField{fieldType: fieldTypeDouble}, []byte("-2.5"), binary.LittleEndian.AppendUint64(nil, math.Float64bits(-2.5)), float64(-2.5), float64(-2.5)},
 		{mysqlField{fieldType: fieldTypeNewDecimal}, []byte("123.4500"), []byte("123.4500"), []byte("123.4500"), []byte("123.4500")},
 		{mysqlField{fieldType: fieldTypeString}, []byte{}, []byte{}, []byte{}, []byte{}},
 		{mysqlField{fieldType: fieldTypeBLOB}, []byte{0, 255}, []byte{0, 255}, []byte{0, 255}, []byte{0, 255}},
+		{mysqlField{fieldType: fieldTypeBLOB}, bytes.Repeat([]byte{'x'}, 250), bytes.Repeat([]byte{'x'}, 250), bytes.Repeat([]byte{'x'}, 250), bytes.Repeat([]byte{'x'}, 250)},
+		{mysqlField{fieldType: fieldTypeBLOB}, bytes.Repeat([]byte{'x'}, 251), bytes.Repeat([]byte{'x'}, 251), bytes.Repeat([]byte{'x'}, 251), bytes.Repeat([]byte{'x'}, 251)},
+		{mysqlField{fieldType: fieldTypeBLOB}, bytes.Repeat([]byte{'x'}, 65535), bytes.Repeat([]byte{'x'}, 65535), bytes.Repeat([]byte{'x'}, 65535), bytes.Repeat([]byte{'x'}, 65535)},
+		{mysqlField{fieldType: fieldTypeBLOB}, bytes.Repeat([]byte{'x'}, 65536), bytes.Repeat([]byte{'x'}, 65536), bytes.Repeat([]byte{'x'}, 65536), bytes.Repeat([]byte{'x'}, 65536)},
 		{mysqlField{fieldType: fieldTypeNULL}, nil, nil, nil, nil},
 		{mysqlField{fieldType: fieldTypeDate}, []byte("2026-09-30"), []byte{0xea, 7, 9, 30}, []byte("2026-09-30"), []byte("2026-09-30")},
 		{mysqlField{fieldType: fieldTypeNewDate}, []byte("2026-09-30"), []byte{0xea, 7, 9, 30}, []byte("2026-09-30"), []byte("2026-09-30")},
@@ -95,7 +102,8 @@ func TestRowsDecodedValues(t *testing.T) {
 						want[i] = date
 					}
 				}
-				rows, _, _ := rowsTestPacket(bp, fields, payload, parseTime)
+				rows, _, mc := rowsTestPacket(bp, fields, payload, parseTime)
+				mc.cfg.tinyInt1IsBool = true
 				got := make([]driver.Value, len(columns))
 				if err := rows.Next(got); err != nil {
 					t.Fatal(err)
@@ -112,7 +120,7 @@ func TestRowsDecodedValues(t *testing.T) {
 
 func TestRowsMalformedPackets(t *testing.T) {
 	for _, bp := range []bool{false, true} {
-		for _, payload := range [][]byte{{0xfc}, {0xfd, 1}, {5, 'a'}, {1, 'a', 0}} {
+		for _, payload := range [][]byte{{0xfc}, {0xfd, 1}, {5, 'a'}, {1, 'a', 0}, {0xfc, 251, 0, 'a'}, {0xfd, 0, 0, 1, 'a'}} {
 			if bp {
 				payload = append([]byte{0, 0}, payload...)
 			}
@@ -126,6 +134,65 @@ func TestRowsMalformedPackets(t *testing.T) {
 		rows, _, _ := rowsTestPacket(true, []mysqlField{{fieldType: fieldTypeLongLong}}, payload, false)
 		if err := rows.Next(make([]driver.Value, 1)); !errors.Is(err, ErrMalformPkt) {
 			t.Fatalf("truncated binary packet %x: %v", payload, err)
+		}
+	}
+	rows, _, _ := rowsTestPacket(true, []mysqlField{{fieldType: fieldTypeLong}}, []byte{0, 0, 1, 'a'}, false)
+	if err := rows.Next(make([]driver.Value, 1)); !errors.Is(err, ErrMalformPkt) {
+		t.Fatalf("truncated binary integer: %v", err)
+	}
+	rows, _, _ = rowsTestPacket(true, []mysqlField{{fieldType: 100}}, []byte{0, 0, 1, 'a'}, false)
+	if err := rows.Next(make([]driver.Value, 1)); err == nil || err.Error() != "unknown field type 100" {
+		t.Fatalf("unknown binary field type: %v", err)
+	}
+}
+
+// Each payload holds two string columns. A nil want means ErrMalformPkt.
+var rowsLengthPrefixTests = []struct {
+	payload  []byte
+	want     []driver.Value
+	textOnly bool // binary rows send NULL in the bitmap
+}{
+	{payload: []byte{1, 'a', 0xfd, 1, 0, 0, 'b'}, want: []driver.Value{[]byte("a"), []byte("b")}},
+	{payload: []byte{1, 'a', 0xfe, 2, 0, 0, 0, 0, 0, 0, 0, 'b', 'c'}, want: []driver.Value{[]byte("a"), []byte("bc")}},
+	{payload: append([]byte{0xfc, 251, 0}, append(bytes.Repeat([]byte{'x'}, 251), 0)...), want: []driver.Value{bytes.Repeat([]byte{'x'}, 251), []byte{}}},
+	{payload: append([]byte{0xfb, 250}, bytes.Repeat([]byte{'x'}, 250)...), want: []driver.Value{nil, bytes.Repeat([]byte{'x'}, 250)}, textOnly: true},
+	{payload: []byte{1, 'a', 2, 'b'}},
+	{payload: []byte{1, 'a', 0xfc, 1}},
+	{payload: []byte{1, 'a', 0xfd, 1, 0}},
+	{payload: []byte{1, 'a', 0xfe, 2, 0, 0, 0, 0, 0, 0, 0, 'b'}},
+	{payload: []byte{1, 'a', 0xfe, 2, 0, 0, 0, 0, 0, 0}},
+	{payload: []byte{1, 'a', 0xfe, 0, 0, 0, 0, 1, 0, 0, 0}},
+	{payload: []byte{1, 'a', 0xfe, 0, 0, 0, 0, 0, 0, 0, 1}},
+}
+
+func TestRowsLengthPrefixes(t *testing.T) {
+	fields := []mysqlField{{fieldType: fieldTypeString}, {fieldType: fieldTypeString}}
+	for _, bp := range []bool{false, true} {
+		for _, tt := range rowsLengthPrefixTests {
+			if bp && tt.textOnly {
+				continue
+			}
+			payload := tt.payload
+			if bp {
+				payload = append([]byte{0, 0}, payload...)
+			}
+			rows, _, _ := rowsTestPacket(bp, fields, payload, false)
+			got := make([]driver.Value, len(fields))
+			err := rows.Next(got)
+			if tt.want == nil {
+				if !errors.Is(err, ErrMalformPkt) {
+					t.Fatalf("binary=%v packet=%x: %v", bp, payload, err)
+				}
+				continue
+			}
+			if err != nil || !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("binary=%v packet=%x: got %q, %v", bp, payload, got, err)
+			}
+			for i, v := range got {
+				if b, ok := v.([]byte); ok && cap(b) != len(b) {
+					t.Fatalf("binary=%v column %d: cap %d, want %d", bp, i, cap(b), len(b))
+				}
+			}
 		}
 	}
 }
@@ -151,6 +218,34 @@ func TestRowsRepeatedEOF(t *testing.T) {
 			}
 			if conn.reads != reads || !rows.(driver.RowsNextResultSet).HasNextResultSet() {
 				t.Fatal("read beyond EOF or lost next result set status")
+			}
+		}
+	}
+}
+
+func TestRowsNextEmptyColumnsAllocations(t *testing.T) {
+	for _, bp := range []bool{false, true} {
+		payload := []byte{0, 0, 0}
+		if bp {
+			payload = append([]byte{0, 0}, payload...)
+		}
+		fields := []mysqlField{{fieldType: fieldTypeString}, {fieldType: fieldTypeVarString}, {fieldType: fieldTypeBLOB}}
+		rows, conn, mc := rowsTestPacket(bp, fields, payload, false)
+		packet := bytes.Clone(conn.data)
+		values := make([]driver.Value, len(fields))
+		allocs := testing.AllocsPerRun(100, func() {
+			conn.data = packet
+			mc.sequence = 0
+			if err := rows.Next(values); err != nil {
+				panic(err)
+			}
+		})
+		if allocs != 0 {
+			t.Fatalf("binary=%v: Next allocations = %v, want 0", bp, allocs)
+		}
+		for i, v := range values {
+			if b, ok := v.([]byte); !ok || b == nil || len(b) != 0 {
+				t.Fatalf("binary=%v column %d: got %T(%v), want empty []byte", bp, i, v, v)
 			}
 		}
 	}
