@@ -779,7 +779,7 @@ func (mc *mysqlConn) startWatcher() {
 }
 
 func (mc *mysqlConn) CheckNamedValue(nv *driver.NamedValue) (err error) {
-	nv.Value, err = converter{}.ConvertValue(nv.Value)
+	nv.Value, err = MySQLConverter{}.ConvertValue(nv.Value)
 	return
 }
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Export the driver's argument converter as `MySQLConverter`, so wrappers
+  implementing `driver.NamedValueChecker` without a connection, such as
+  connection-routing proxies and mock drivers, can apply the same conversion,
+  including `uint64` values with the high bit set. (#1637)
 * Add the `tinyInt1IsBool` DSN parameter and `TinyInt1IsBool` functional option,
   disabled by default to preserve numeric `TINYINT` behavior. When enabled,
   signed, non-`ZEROFILL` `TINYINT(1)` columns report `BOOLEAN` and scan types

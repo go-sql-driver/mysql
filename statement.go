@@ -43,11 +43,11 @@ func (stmt *mysqlStmt) NumInput() int {
 }
 
 func (stmt *mysqlStmt) ColumnConverter(idx int) driver.ValueConverter {
-	return converter{}
+	return MySQLConverter{}
 }
 
 func (stmt *mysqlStmt) CheckNamedValue(nv *driver.NamedValue) (err error) {
-	nv.Value, err = converter{}.ConvertValue(nv.Value)
+	nv.Value, err = MySQLConverter{}.ConvertValue(nv.Value)
 	return
 }
 
@@ -151,14 +151,24 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 
 var jsonType = reflect.TypeFor[json.RawMessage]()
 
-type converter struct{}
+// MySQLConverter is the driver's argument converter. It mirrors the
+// reference/default converter in database/sql/driver with _one_ exception: it
+// supports uint64 with their high bit set, which the default implementation
+// does not, because MySQL has an unsigned BIGINT type.
+//
+// The database/sql package consults the driver's NamedValueChecker, which lives
+// on a connection, for every parameterised query. Wrappers that implement
+// driver.NamedValueChecker without owning a connection, such as
+// connection-routing proxies and mock drivers, can use this type to apply the
+// same conversion.
+type MySQLConverter struct{}
 
 // ConvertValue mirrors the reference/default converter in database/sql/driver
 // with _one_ exception.  We support uint64 with their high bit and the default
 // implementation does not.  This function should be kept in sync with
 // database/sql/driver defaultConverter.ConvertValue() except for that
 // deliberate difference.
-func (c converter) ConvertValue(v any) (driver.Value, error) {
+func (c MySQLConverter) ConvertValue(v any) (driver.Value, error) {
 	if driver.IsValue(v) {
 		return v, nil
 	}
