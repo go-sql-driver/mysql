@@ -10,11 +10,11 @@ package mysql
 
 import (
 	"bytes"
-	"context"
 	"crypto/ed25519"
-	"crypto/pbkdf2"
-	"crypto/sha512"
+	"database/sql"
+	"encoding/hex"
 	"errors"
+	"os"
 	"testing"
 )
 
@@ -31,7 +31,7 @@ func TestParsecAuth(t *testing.T) {
 
 	// extended salt (prefixed with 0x01), then OK
 	salt := []byte("0123456789abcdefgh")
-	extSalt := append([]byte{iAuthMoreData, 'P', 2}, salt...)
+	extSalt := append([]byte{iAuthMoreData, 'P', 3}, salt...)
 	conn.queuedReplies = [][]byte{
 		makePacket(4, extSalt),
 		{7, 0, 0, 6, 0, 0, 0, 2, 0, 0, 0},
@@ -39,7 +39,7 @@ func TestParsecAuth(t *testing.T) {
 	conn.maxReads = 3
 
 	auth := newAuthContext(mc.cfg, mc.cfg.Passwd, false)
-	if err := mc.handleAuthResult(context.Background(), nil, &nativePasswordPlugin{}, auth); err != nil {
+	if err := mc.handleAuthResult(t.Context(), nil, &nativePasswordPlugin{}, auth); err != nil {
 		t.Fatalf("got error: %v", err)
 	}
 
@@ -50,28 +50,30 @@ func TestParsecAuth(t *testing.T) {
 	resp := conn.written[8:]
 	clientNonce, signature := resp[:32], resp[32:]
 
-	seed, err := pbkdf2.Key(sha512.New, "secret", salt, 1024<<2, ed25519.SeedSize)
+	// Ed25519 public key for password "secret", the salt above and 8192 rounds.
+	pub, err := hex.DecodeString("8ee83e3378590a471e45106351302b09aa23e35a3c932e5233033336a05431c2")
 	if err != nil {
 		t.Fatal(err)
 	}
-	pub := ed25519.NewKeyFromSeed(seed).Public().(ed25519.PublicKey)
-	msg := append(append([]byte{}, serverNonce...), clientNonce...)
+	msg := append(bytes.Clone(serverNonce), clientNonce...)
 	if !ed25519.Verify(pub, msg, signature) {
 		t.Error("signature does not verify against the PBKDF2-derived key")
 	}
 }
 
 func TestParsecAuthRejectsMalformed(t *testing.T) {
-	cfg := NewConfig()
-	cfg.Passwd = "secret"
-	auth := newAuthContext(cfg, cfg.Passwd, false)
-	ctx := context.Background()
-	nonce := bytes.Repeat([]byte{'n'}, 32)
+	auth := newAuthContext(NewConfig(), "secret", false)
+	ctx := t.Context()
+	nonce := make([]byte, 32)
+	saltPacket := append([]byte{'P', 0}, "0123456789abcdefgh"...)
 
-	if _, err := (&parsecPlugin{}).InitAuth(ctx, nonce[:31], auth); !errors.Is(err, ErrMalformPkt) {
-		t.Errorf("31-byte nonce: got %v, want ErrMalformPkt", err)
+	p := &parsecPlugin{}
+	for _, size := range []int{31, 33} {
+		if _, err := p.InitAuth(ctx, make([]byte, size), auth); !errors.Is(err, ErrMalformPkt) {
+			t.Errorf("%d-byte nonce: got %v, want ErrMalformPkt", size, err)
+		}
 	}
-	if _, err := (&parsecPlugin{}).ContinuationAuth(ctx, []byte{'P', 0, 's'}, nonce, auth); !errors.Is(err, ErrMalformPkt) {
+	if _, err := p.ContinuationAuth(ctx, saltPacket, nonce, auth); !errors.Is(err, ErrMalformPkt) {
 		t.Errorf("continuation before init: got %v, want ErrMalformPkt", err)
 	}
 
@@ -79,11 +81,11 @@ func TestParsecAuthRejectsMalformed(t *testing.T) {
 		name   string
 		packet []byte
 	}{
-		{"wrong KDF", []byte{'Q', 0, 's', 'a', 'l', 't'}},
-		{"no salt", []byte{'P', 0}},
 		{"empty", nil},
+		{"short salt", saltPacket[:len(saltPacket)-1]},
+		{"long salt", append(bytes.Clone(saltPacket), 0)},
+		{"wrong KDF", append([]byte{'Q'}, saltPacket[1:]...)},
 	} {
-		p := &parsecPlugin{}
 		if _, err := p.InitAuth(ctx, nonce, auth); err != nil {
 			t.Fatal(err)
 		}
@@ -92,43 +94,48 @@ func TestParsecAuthRejectsMalformed(t *testing.T) {
 		}
 	}
 
-	// iteration factor above the limit is refused before any hashing
-	p := &parsecPlugin{}
 	if _, err := p.InitAuth(ctx, nonce, auth); err != nil {
 		t.Fatal(err)
 	}
-	_, err := p.ContinuationAuth(ctx, []byte{'P', parsecMaxIterationFactor + 1, 's', 'a', 'l', 't'}, nonce, auth)
-	if err == nil || errors.Is(err, ErrMalformPkt) {
-		t.Errorf("factor %d: got %v, want iteration factor error", parsecMaxIterationFactor+1, err)
+	if _, err := p.ContinuationAuth(ctx, saltPacket, nonce, auth); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.ContinuationAuth(ctx, saltPacket, nonce, auth); !errors.Is(err, ErrMalformPkt) {
+		t.Errorf("second continuation: got %v, want ErrMalformPkt", err)
 	}
 
-	// a second continuation after the response is unexpected
-	p = &parsecPlugin{}
 	if _, err := p.InitAuth(ctx, nonce, auth); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.ContinuationAuth(ctx, []byte{'P', 0, 's', 'a', 'l', 't'}, nonce, auth); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := p.ContinuationAuth(ctx, []byte{'P', 0, 's', 'a', 'l', 't'}, nonce, auth); !errors.Is(err, ErrMalformPkt) {
-		t.Errorf("second continuation: got %v, want ErrMalformPkt", err)
+	saltPacket[1] = 4
+	if _, err := p.ContinuationAuth(ctx, saltPacket, nonce, auth); err == nil {
+		t.Error("accepted unsupported iteration factor 4")
 	}
 }
 
-func TestParsecAuthMaxIterationFactor(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping PBKDF2 at the maximum iteration factor in short mode")
+func TestParsecAuthServer(t *testing.T) {
+	dsn := os.Getenv("MYSQL_PARSEC_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set MYSQL_PARSEC_TEST_DSN to test a MariaDB PARSEC account")
 	}
-	cfg := NewConfig()
-	cfg.Passwd = "secret"
-	auth := newAuthContext(cfg, cfg.Passwd, false)
-	nonce := bytes.Repeat([]byte{'n'}, 32)
-	p := &parsecPlugin{}
-	if _, err := p.InitAuth(context.Background(), nonce, auth); err != nil {
+	cfg, err := ParseDSN(dsn)
+	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err := p.ContinuationAuth(context.Background(), []byte{'P', parsecMaxIterationFactor, 's', 'a', 'l', 't'}, nonce, auth)
-	if err != nil || len(resp) != 96 {
-		t.Fatalf("factor %d: got %d bytes, %v", parsecMaxIterationFactor, len(resp), err)
+	connect := func() error {
+		db, err := sql.Open(driverNameTest, cfg.FormatDSN())
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		return db.PingContext(t.Context())
+	}
+	if err := connect(); err != nil {
+		t.Fatalf("parsec authentication failed: %v", err)
+	}
+	cfg.Passwd += "!"
+	var mysqlErr *MySQLError
+	if err := connect(); !errors.As(err, &mysqlErr) || mysqlErr.Number != 1045 {
+		t.Errorf("wrong password: got %v, want access denied", err)
 	}
 }

@@ -17,17 +17,16 @@ import (
 	"fmt"
 )
 
-// parsecMaxIterationFactor bounds the PBKDF2 cost a server may request.
-// The number of rounds is 1024 << factor, so 10 allows up to 1,048,576 rounds.
-const parsecMaxIterationFactor = 10
+const (
+	parsecNonceSize = 32
+	parsecSaltSize  = 18
+	// MariaDB accepts factors 0 through 3 in stored PARSEC credentials.
+	// Check the factor before deriving the key to bound the work per exchange.
+	parsecMaxIterationFactor = 3
+)
 
-// parsecPlugin implements the MariaDB parsec authentication.
-//
-// The server sends a 32-byte nonce. The client requests the extended salt
-// with an empty packet, derives an Ed25519 key from the password with
-// PBKDF2-HMAC-SHA512, and signs the server nonce followed by a client nonce.
-//
-// See: https://mariadb.com/kb/en/connection/#parsec-plugin
+// parsecPlugin implements MariaDB PARSEC authentication.
+// https://mariadb.com/docs/server/reference/clientserver-protocol/1-connecting/connection#parsec-plugin
 type parsecPlugin struct {
 	saltRequested bool
 }
@@ -37,7 +36,7 @@ func init() {
 }
 
 func (p *parsecPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
-	if len(authData) != 32 {
+	if len(authData) != parsecNonceSize {
 		return nil, ErrMalformPkt
 	}
 	p.saltRequested = true
@@ -45,20 +44,15 @@ func (p *parsecPlugin) InitAuth(ctx context.Context, authData []byte, auth *Auth
 	return []byte{}, nil
 }
 
-// ContinuationAuth processes the extended salt:
-//
-//	string<1>  'P' (KDF algorithm = PBKDF2)
-//	int<1>     iteration factor, rounds = 1024 << factor
-//	byte<EOF>  salt
-//
-// and responds with the 32-byte client nonce followed by the 64-byte signature.
+// ContinuationAuth receives the KDF identifier, iteration factor and 18-byte salt.
+// The client signs the server nonce followed by a fresh client nonce.
 func (p *parsecPlugin) ContinuationAuth(ctx context.Context, packet, authData []byte, auth *AuthContext) ([]byte, error) {
 	if !p.saltRequested {
 		return nil, ErrMalformPkt
 	}
 	p.saltRequested = false
 
-	if len(packet) < 3 || packet[0] != 'P' {
+	if len(packet) != 2+parsecSaltSize || packet[0] != 'P' {
 		return nil, fmt.Errorf("%w: unexpected parsec extended salt", ErrMalformPkt)
 	}
 	factor := int(packet[1])
@@ -73,14 +67,9 @@ func (p *parsecPlugin) ContinuationAuth(ctx context.Context, packet, authData []
 	}
 	priv := ed25519.NewKeyFromSeed(seed)
 
-	resp := make([]byte, 32+ed25519.SignatureSize)
-	if _, err := rand.Read(resp[:32]); err != nil {
-		return nil, err
-	}
-	// sign server nonce + client nonce
-	msg := make([]byte, 0, len(authData)+32)
-	msg = append(msg, authData...)
-	msg = append(msg, resp[:32]...)
-	copy(resp[32:], ed25519.Sign(priv, msg))
-	return resp, nil
+	var message [2 * parsecNonceSize]byte
+	copy(message[:parsecNonceSize], authData)
+	clientNonce := message[parsecNonceSize:]
+	rand.Read(clientNonce)
+	return append(clientNonce, ed25519.Sign(priv, message[:])...), nil
 }
