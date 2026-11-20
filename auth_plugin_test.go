@@ -60,7 +60,7 @@ func TestRegisterAuthPluginFactoryLifetime(t *testing.T) {
 func TestRegisterAuthPluginOverridesBuiltins(t *testing.T) {
 	for _, name := range []string{
 		"mysql_native_password", "mysql_old_password", "mysql_clear_password",
-		"sha256_password", "caching_sha2_password", "client_ed25519",
+		"sha256_password", "caching_sha2_password", "client_ed25519", "parsec",
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, ok := globalPluginRegistry.GetPlugin(name); !ok {

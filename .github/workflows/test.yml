@@ -108,6 +108,16 @@ jobs:
         run: |
           mysql --user 'root' --host '127.0.0.1' -e 'create database gotest;'
 
+      - name: Set up PARSEC test account
+        if: matrix.mysql == 'mariadb-11.8' || matrix.mysql == 'mariadb-12.3'
+        shell: bash
+        run: |
+          mysql --user root --host 127.0.0.1 --default-character-set=utf8mb4 <<'SQL'
+          INSTALL PLUGIN IF NOT EXISTS parsec SONAME 'auth_parsec';
+          CREATE USER 'parsec_test'@'127.0.0.1' IDENTIFIED VIA parsec USING PASSWORD('Pässw0rd€!');
+          SQL
+          echo 'MYSQL_PARSEC_TEST_DSN=parsec_test:Pässw0rd€!@tcp(127.0.0.1:3306)/?timeout=30s' >> "$GITHUB_ENV"
+
       - name: test
         env:
           MYSQL_ZSTD_TEST_DSN: "${{ env.MYSQL_TEST_USER }}:${{ env.MYSQL_TEST_PASS }}@tcp(${{ env.MYSQL_TEST_ADDR }})/gotest?compress=true"

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+* Add support for MariaDB PARSEC authentication. (#1827)
+
 * Add the `tinyInt1IsBool` DSN parameter and `TinyInt1IsBool` functional option,
   disabled by default to preserve numeric `TINYINT` behavior. When enabled,
   signed, non-`ZEROFILL` `TINYINT(1)` columns report `BOOLEAN` and scan types
