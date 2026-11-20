@@ -54,7 +54,11 @@ func init() {
 // 3. XOR(SHA256(password), SHA256(SHA256(SHA256(password)), scramble))
 func (p *cachingSha2PasswordPlugin) InitAuth(ctx context.Context, authData []byte, auth *AuthContext) ([]byte, error) {
 	p.state = cachingSha2Initial
-	return scrambleSHA256Password(authData, auth.Password()), nil
+	// Accept the 20-byte scramble with or without its trailing NUL.
+	if len(authData) != 20 && (len(authData) != 21 || authData[20] != 0) {
+		return nil, ErrMalformPkt
+	}
+	return scrambleSHA256Password(authData[:20], auth.Password()), nil
 }
 
 // ContinuationAuth processes the server's response to our authentication attempt.
