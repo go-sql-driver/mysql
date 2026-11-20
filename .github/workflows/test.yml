@@ -4,6 +4,8 @@ on:
   push:
   workflow_dispatch:
 
+permissions: {}
+
 env:
   MYSQL_TEST_USER: gotest
   MYSQL_TEST_PASS: secret
@@ -26,6 +28,8 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7.0.1
       # Staticcheck v0.8.1 cannot read Go 1.27 export data.
@@ -84,6 +88,8 @@ jobs:
   test:
     needs: list
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.list.outputs.matrix) }}
