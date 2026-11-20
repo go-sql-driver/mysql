@@ -306,7 +306,18 @@ Default:        false
 
 If `interpolateParams` is true, placeholders (`?`) in calls to `db.Query()` and `db.Exec()` are interpolated into a single query string with given parameters. This reduces the number of roundtrips, since the driver has to prepare a statement, execute it with given parameters and close the statement again with `interpolateParams=false`.
 
-*This can not be used together with the multibyte encodings BIG5, CP932, GB2312, GBK or SJIS. These are rejected as they may [introduce a SQL injection vulnerability](http://stackoverflow.com/a/12118602/3430118)!*
+*This can not be used together with the multibyte encodings BIG5, CP932, GB18030, GBK or SJIS. A `charset` or `collation` using one of these is rejected, as they may [introduce a SQL injection vulnerability](http://stackoverflow.com/a/12118602/3430118)!*
+
+> [!NOTE]
+> `interpolateParams` is designed to safely embed externally supplied parameter values into queries written by the application.
+> It does not fully replicate the MySQL server's parser: its handling of comments, quoting and escaping (e.g. executable comments `/*! ... */` or the `ANSI_QUOTES` SQL mode) may differ from the server's.
+> Queries using `interpolateParams` must not rely on character-set-specific recognition of `--` comments. When the byte immediately following `--` is non-ASCII, the driver's interpretation is not guaranteed to match the server's; use an ASCII space (`-- `) or server-side `Prepare()` instead. The driver recognizes a raw `0xA0` byte as a comment separator for latin1 compatibility. This is not U+00A0 encoded as UTF-8, whose bytes are `0xC2 0xA0`.
+> If you need to run arbitrary SQL with placeholders, use `Prepare()` (e.g. `db.Prepare()` or `conn.PrepareContext()`) so that the placeholders are processed by the server.
+
+> [!WARNING]
+> Unsafe-charset rejection is a fail-safe, not a complete safety mechanism. The driver checks the configured `charset` and `collation` but does not automatically select or enforce a safe effective charset on the server. Applications that enable `interpolateParams` are responsible for ensuring that `character_set_client` remains safe and for following the parser restrictions documented above.
+> Changes made through other paths, such as a `character_set_client=sjis` system variable in the DSN or `SET NAMES sjis` at runtime, are not detected and can make `interpolateParams` unsafe.
+> If the effective charset cannot be guaranteed, disable `interpolateParams` and let the server process the placeholders.
 
 ##### `loc`
 
@@ -339,12 +350,27 @@ Default:        0
 ```
 Type:           bool
 Valid Values:   true, false
-Default:        true
+Default:        false
 ```
 
 When `tinyInt1IsBool=true`, signed `TINYINT(1)` columns are treated as boolean values. Zero is returned as `false`, and non-zero values are returned as `true`. Their database type name is reported as `BOOLEAN`, and their scan type is `bool` for non-nullable columns or `sql.NullBool` for nullable columns.
 
-Unsigned and `ZEROFILL` columns are not converted. Set `tinyInt1IsBool=false` to preserve the numeric `TINYINT` behavior.
+This conversion affects `Scan` destinations as well as column metadata. For non-NULL values:
+
+- Scanning into `*any` returns a `bool`.
+- Scanning into integer destinations such as `*int`, `*int8`, `*int64`, or `*sql.NullInt64` fails with a conversion error, even when the stored value is 0 or 1.
+- Scanning into `*string` returns `"false"` or `"true"` instead of a numeric string.
+- Non-zero values such as 1 and 5 both become `true`; their original numeric values are not preserved in the result.
+
+These behaviors apply to both text-protocol queries and prepared statements. SQL `NULL` values remain `NULL`. Unsigned and `ZEROFILL` columns are not converted.
+
+To enable boolean conversion explicitly:
+
+```text
+user:password@tcp(localhost:3306)/dbname?tinyInt1IsBool=true
+```
+
+When configuring connections programmatically, use `cfg.Apply(mysql.TinyInt1IsBool(true))`.
 
 ##### `maxAllowedPacket`
 ```
@@ -667,13 +693,11 @@ The driver implements a pluggable authentication system that supports various au
 * `mysql_old_password` - Old MySQL authentication (requires `allowOldPasswords=true`)
 * `sha256_password` - SHA256 authentication
 * `client_ed25519` - MariaDB Ed25519 authentication
-* `parsec` - MariaDB parsec authentication
+* `parsec` - MariaDB PARSEC authentication (MariaDB 11.6+)
 
 Custom plugins implement the two methods of `AuthPlugin`, `InitAuth` and `ContinuationAuth`, and are registered with `RegisterAuthPlugin(name, factory)`. Registration does not call the factory; the driver calls it to create an independent instance for each authentication exchange. Factories may run concurrently for different connections. All built-in plugins use the same registry: registering a built-in name replaces its factory for subsequent authentication exchanges, including the initial handshake and authentication switches. Authentication-method permissions such as `allowCleartextPasswords` still apply to that name. Built-in plugin implementations are internal to the driver.
 
 The driver passes the connection's `context.Context` for cancellation and an `AuthContext` snapshot containing the selected credentials, established transport information, and configured RSA public key. Plugins do not receive or modify the connection's `Config`; the driver checks authentication-method permissions before starting a plugin. Custom plugins that require a particular transport must check it in `InitAuth` before returning credentials.
-
-`InitAuth` receives the server challenge exactly as sent, including any trailing NUL byte; plugins interpret it themselves.
 
 `AuthContext.TLS()` reports a completed MySQL TLS handshake, not merely a TLS configuration or an external tunnel. A continuation returning `nil, nil` waits for another server packet without sending; a non-nil empty slice sends an empty packet. Authentication succeeds only when the driver receives the server's OK packet.
 

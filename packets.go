@@ -13,6 +13,7 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -204,9 +205,17 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 
 	// server version [null terminated string]
 	// connection id [4 bytes]
-	pos := 1 + bytes.IndexByte(data[1:], 0x00) + 1 + 4
+	end := bytes.IndexByte(data[1:], 0x00)
+	if end < 0 {
+		return nil, 0, 0, "", ErrMalformPkt
+	}
+	pos := 1 + end + 1 + 4
 
-	// first part of the password cipher [8 bytes]
+	// first part of the password cipher [8 bytes],
+	// filler [1 byte] and capability flags (lower 2 bytes) [2 bytes]
+	if len(data) < pos+8+1+2 {
+		return nil, 0, 0, "", ErrMalformPkt
+	}
 	authData := data[pos : pos+8]
 
 	// (filler) always 0x00 [1 byte]
@@ -222,6 +231,13 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 	if len(data) > pos {
 		// character set [1 byte]
 		// status flags [2 bytes]
+		// capability flags (upper 2 bytes) [2 bytes]
+		// length of auth-plugin-data [1 byte]
+		// reserved [10 bytes] (MariaDB uses the last 4 for extended capabilities)
+		// the first 12 bytes of the second part of the cipher
+		if len(data) < pos+3+2+7+4+12 {
+			return nil, 0, 0, "", ErrMalformPkt
+		}
 		pos += 3
 		// capability flags (upper 2 bytes) [2 bytes]
 		capabilities |= capabilityFlag(binary.LittleEndian.Uint16(data[pos:pos+2])) << 16
@@ -249,6 +265,9 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 		// which seems to work but technically could have a hidden bug.
 		authData = append(authData, data[pos:pos+12]...)
 		pos += 13
+		if pos > len(data) {
+			pos = len(data)
+		}
 
 		// EOF if version (>= 5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
 		// \NUL otherwise
@@ -342,8 +361,9 @@ func (mc *mysqlConn) handshakeResponseHeader() ([]byte, error) {
 		colID, ok := collations[cname]
 		if ok {
 			data[12] = colID
-		} else if len(mc.cfg.charsets) > 0 {
-			// When cfg.charset is set, the collation is set by `SET NAMES <charset> COLLATE <collation>`.
+		} else if len(mc.cfg.charsets) == 0 {
+			// Without cfg.charset, the collation can only be set by this 1-byte ID.
+			// With cfg.charset, it is set by `SET NAMES <charset> COLLATE <collation>`.
 			return nil, fmt.Errorf("unknown collation: %q", cname)
 		}
 	}
@@ -540,10 +560,16 @@ func (mc *okHandler) readResultSetHeaderPacket() (int, bool, error) {
 	// column count
 	// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response_text_resultset.html
 	// https://mariadb.com/kb/en/result-set-packets/#column-count-packet
-	num, _, len := readLengthEncodedInteger(data)
+	num, _, n := readLengthEncodedInteger(data)
+	if n == 0 {
+		return 0, false, ErrMalformPkt
+	}
 
 	if mc.extCapabilities&clientCacheMetadata != 0 {
-		return int(num), data[len] == 0x01, nil
+		if n >= len(data) {
+			return 0, false, ErrMalformPkt
+		}
+		return int(num), data[n] == 0x01, nil
 	}
 	// ignore remaining data in the packet. see #1478.
 	return int(num), true, nil
@@ -552,14 +578,11 @@ func (mc *okHandler) readResultSetHeaderPacket() (int, bool, error) {
 // Error Packet
 // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_err_packet.html
 func (mc *mysqlConn) handleErrorPacket(data []byte) error {
-	if data[0] != iERR {
-		return ErrMalformPkt
+	me, err := decodeErrorPacket(data)
+	if err != nil {
+		return err
 	}
-
-	// 0xff [1 byte]
-
-	// Error Number [16 bit uint]
-	errno := binary.LittleEndian.Uint16(data[1:3])
+	errno := me.Number
 
 	// 1792: ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
 	// 1290: ER_OPTION_PREVENTS_STATEMENT (returned by Aurora during failover)
@@ -578,20 +601,26 @@ func (mc *mysqlConn) handleErrorPacket(data []byte) error {
 		return driver.ErrBadConn
 	}
 
-	me := &MySQLError{Number: errno}
+	return me
+}
 
+// decodeErrorPacket has no connection side effects, so it can also be used
+// to report the original server error on a connection we are discarding.
+func decodeErrorPacket(data []byte) (*MySQLError, error) {
+	if len(data) < 3 || data[0] != iERR {
+		return nil, ErrMalformPkt
+	}
+	me := &MySQLError{Number: binary.LittleEndian.Uint16(data[1:3])}
 	pos := 3
-
-	// SQL State [optional: # + 5bytes string]
-	if data[3] == 0x23 {
-		copy(me.SQLState[:], data[4:4+5])
+	if len(data) > pos && data[pos] == '#' {
+		if len(data) < 9 {
+			return nil, ErrMalformPkt
+		}
+		copy(me.SQLState[:], data[4:9])
 		pos = 9
 	}
-
-	// Error Message [string]
 	me.Message = string(data[pos:])
-
-	return me
+	return me, nil
 }
 
 func readStatus(b []byte) statusFlag {
@@ -641,9 +670,15 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 
 	// Affected rows [Length Coded Binary]
 	affectedRows, _, n = readLengthEncodedInteger(data[1:])
+	if n == 0 || 1+n > len(data) {
+		return ErrMalformPkt
+	}
 
 	// Insert id [Length Coded Binary]
 	insertId, _, m = readLengthEncodedInteger(data[1+n:])
+	if m == 0 || len(data) < 1+n+m+2 {
+		return ErrMalformPkt
+	}
 
 	// Update for the current statement result (only used by
 	// readResultSetHeaderPacket).
@@ -665,6 +700,14 @@ func (mc *okHandler) handleOkPacket(data []byte) error {
 	return nil
 }
 
+// malformedIfEOF reports a truncated length-encoded string as ErrMalformPkt.
+func malformedIfEOF(err error) error {
+	if errors.Is(err, io.EOF) {
+		return ErrMalformPkt
+	}
+	return err
+}
+
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response_text_resultset_column_definition.html#sect_protocol_com_query_response_text_resultset_column_definition_41
 func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, error) {
@@ -682,13 +725,13 @@ func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, err
 		// Catalog
 		pos, err := skipLengthEncodedString(data)
 		if err != nil {
-			return nil, err
+			return nil, malformedIfEOF(err)
 		}
 
 		// Database [len coded string]
 		n, err := skipLengthEncodedString(data[pos:])
 		if err != nil {
-			return nil, err
+			return nil, malformedIfEOF(err)
 		}
 		pos += n
 
@@ -696,7 +739,7 @@ func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, err
 		if mc.cfg.ColumnsWithAlias {
 			tableName, _, n, err := readLengthEncodedString(data[pos:])
 			if err != nil {
-				return nil, err
+				return nil, malformedIfEOF(err)
 			}
 			pos += n
 			if old != nil && old[i].tableName == string(tableName) {
@@ -708,7 +751,7 @@ func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, err
 		} else {
 			n, err = skipLengthEncodedString(data[pos:])
 			if err != nil {
-				return nil, err
+				return nil, malformedIfEOF(err)
 			}
 			pos += n
 		}
@@ -716,14 +759,14 @@ func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, err
 		// Original table [len coded string]
 		n, err = skipLengthEncodedString(data[pos:])
 		if err != nil {
-			return nil, err
+			return nil, malformedIfEOF(err)
 		}
 		pos += n
 
 		// Name [len coded string]
 		name, _, n, err := readLengthEncodedString(data[pos:])
 		if err != nil {
-			return nil, err
+			return nil, malformedIfEOF(err)
 		}
 		if old != nil && old[i].name == string(name) {
 			// avoid allocating new string
@@ -736,9 +779,14 @@ func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, err
 		// Original name [len coded string]
 		n, err = skipLengthEncodedString(data[pos:])
 		if err != nil {
-			return nil, err
+			return nil, malformedIfEOF(err)
 		}
 		pos += n
+
+		// filler [1], charset [2], length [4], type [1], flags [2], decimals [1]
+		if len(data) < pos+1+2+4+1+2+1 {
+			return nil, ErrMalformPkt
+		}
 
 		// Filler [uint8]
 		pos++
@@ -779,8 +827,11 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 	}
 	for i := range dest {
 		var buf []byte
-		buf, data, err = readColumnBytes(data)
-		if err != nil {
+		if n := uint(len(data)); n != 0 && data[0] < 0xfb && uint(data[0]) < n {
+			// Inline the common one-byte length prefix.
+			n = uint(data[0]) + 1
+			buf, data = data[1:n:n], data[n:]
+		} else if buf, data, err = readColumnBytes(data); err != nil {
 			return err
 		}
 		if buf == nil {
@@ -795,7 +846,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 			if rows.mc.parseTime {
 				dest[i], err = parseDateTime(buf, rows.mc.cfg.Loc)
 			} else {
-				dest[i] = buf
+				dest[i] = bytesValue(buf)
 			}
 
 		case fieldTypeTiny, fieldTypeShort, fieldTypeInt24, fieldTypeYear, fieldTypeLong:
@@ -803,7 +854,15 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 
 		case fieldTypeLongLong:
 			if rows.rs.columns[i].flags&flagUnsigned != 0 {
-				dest[i], err = strconv.ParseUint(string(buf), 10, 64)
+				n, err := strconv.ParseUint(string(buf), 10, 64)
+				if err != nil {
+					return err
+				}
+				if n > math.MaxInt64 {
+					dest[i] = bytesValue(buf)
+				} else {
+					dest[i] = int64(n)
+				}
 			} else {
 				dest[i], err = strconv.ParseInt(string(buf), 10, 64)
 			}
@@ -817,7 +876,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 			dest[i], err = strconv.ParseFloat(string(buf), 64)
 
 		default:
-			dest[i] = buf
+			dest[i] = bytesValue(buf)
 		}
 		if err != nil {
 			return err
@@ -873,11 +932,20 @@ func (mc *mysqlConn) skipRows() error {
 			if len(data) <= 0xffffff {
 				if mc.capabilities&clientDeprecateEOF == 0 {
 					// EOF packet
+					if len(data) < 3+2 {
+						return ErrMalformPkt
+					}
 					mc.status = readStatus(data[3:])
 				} else {
 					// OK packet with an 0xFE header
-					_, _, n := readLengthEncodedInteger(data[1:])   // affected_rows
+					_, _, n := readLengthEncodedInteger(data[1:]) // affected_rows
+					if n == 0 || 1+n > len(data) {
+						return ErrMalformPkt
+					}
 					_, _, m := readLengthEncodedInteger(data[1+n:]) // last_insert_id
+					if m == 0 || len(data) < 1+n+m+2 {
+						return ErrMalformPkt
+					}
 					mc.status = readStatus(data[1+n+m:])
 				}
 				return nil
@@ -901,6 +969,11 @@ func (stmt *mysqlStmt) readPrepareResultPacket() (uint16, error) {
 		}
 
 		// statement id [4 bytes]
+		// column count [2 bytes]
+		// param count [2 bytes]
+		if len(data) < 9 {
+			return 0, ErrMalformPkt
+		}
 		stmt.id = binary.LittleEndian.Uint32(data[1:5])
 
 		// Column count [16 bit uint]
@@ -1235,6 +1308,9 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 		}
 		raw, fixed := reader.readFixedColumn(col.fieldType)
 		if !fixed {
+			raw, fixed = reader.readShortColumn(col.fieldType)
+		}
+		if !fixed {
 			raw, err = reader.readVariableColumn(col.fieldType)
 			if err != nil {
 				return err
@@ -1287,7 +1363,7 @@ func (rows *binaryRows) readRow(dest []driver.Value) error {
 			}
 		default:
 			// The reader rejects unknown types; the remaining types are bytes.
-			dest[i] = raw
+			dest[i] = bytesValue(raw)
 		}
 	}
 	if len(reader.data) != 0 {

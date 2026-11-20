@@ -27,10 +27,10 @@ import (
 )
 
 var (
-	errInvalidDSNUnescaped       = errors.New("invalid DSN: did you forget to escape a param value?")
-	errInvalidDSNAddr            = errors.New("invalid DSN: network address not terminated (missing closing brace)")
-	errInvalidDSNNoSlash         = errors.New("invalid DSN: missing the slash separating the database name")
-	errInvalidDSNUnsafeCollation = errors.New("invalid DSN: interpolateParams can not be used with unsafe collations")
+	errInvalidDSNUnescaped = errors.New("invalid DSN: did you forget to escape a param value?")
+	errInvalidDSNAddr      = errors.New("invalid DSN: network address not terminated (missing closing brace)")
+	errInvalidDSNNoSlash   = errors.New("invalid DSN: missing the slash separating the database name")
+	errUnsafeCharset       = errors.New("interpolateParams cannot be used with unsafe charsets")
 )
 
 // Config is a configuration parsed from a DSN string.
@@ -101,7 +101,6 @@ func NewConfig() *Config {
 		Logger:               defaultLogger,
 		AllowNativePasswords: true,
 		CheckConnLiveness:    true,
-		tinyInt1IsBool:       true,
 	}
 	return cfg
 }
@@ -183,6 +182,7 @@ func EnableCompression(yes bool) Option {
 }
 
 // TinyInt1IsBool controls whether signed TINYINT(1) columns are treated as boolean.
+// It is disabled by default.
 func TinyInt1IsBool(yes bool) Option {
 	return func(cfg *Config) error {
 		cfg.tinyInt1IsBool = yes
@@ -224,9 +224,28 @@ func (cfg *Config) Clone() *Config {
 	return &cp
 }
 
+// checkUnsafeCharset returns an error if interpolateParams is used with a
+// charset that is unsafe for backslash escaping.
+func (cfg *Config) checkUnsafeCharset() error {
+	if !cfg.InterpolateParams {
+		return nil
+	}
+	if cfg.Collation != "" && isUnsafeCollation(cfg.Collation) {
+		return errUnsafeCharset
+	}
+	// Every charset is checked, not only the first, because the fallbacks
+	// are used when the preceding ones fail.
+	for _, cs := range cfg.charsets {
+		if isUnsafeCharset(cs) {
+			return errUnsafeCharset
+		}
+	}
+	return nil
+}
+
 func (cfg *Config) normalize() error {
-	if cfg.InterpolateParams && cfg.Collation != "" && unsafeCollations[cfg.Collation] {
-		return errInvalidDSNUnsafeCollation
+	if err := cfg.checkUnsafeCharset(); err != nil {
+		return err
 	}
 
 	// Set default network if empty
@@ -411,8 +430,8 @@ func (cfg *Config) FormatDSN() string {
 		writeDSNParam(&buf, &hasParam, "timeTruncate", cfg.timeTruncate.String())
 	}
 
-	if !cfg.tinyInt1IsBool {
-		writeDSNParam(&buf, &hasParam, "tinyInt1IsBool", "false")
+	if cfg.tinyInt1IsBool {
+		writeDSNParam(&buf, &hasParam, "tinyInt1IsBool", "true")
 	}
 
 	if cfg.ReadTimeout > 0 {

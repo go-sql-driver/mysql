@@ -118,6 +118,16 @@ func BenchmarkExec(b *testing.B) {
 	db.SetMaxIdleConns(concurrencyLevel)
 	defer db.Close()
 
+	// Open the worker connections sequentially before timing. Concurrent dials
+	// to a local MySQL server can time out on Windows.
+	func() {
+		for range min(b.N, concurrencyLevel) {
+			conn, err := db.Conn(context.Background())
+			tb.check(err)
+			defer conn.Close()
+		}
+	}()
+
 	stmt := tb.checkStmt(db.Prepare("DO 1"))
 	defer stmt.Close()
 

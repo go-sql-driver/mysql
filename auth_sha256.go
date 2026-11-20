@@ -125,7 +125,8 @@ func encryptPassword(password string, seed []byte, pub *rsa.PublicKey) ([]byte, 
 	if pub == nil {
 		return nil, fmt.Errorf("public key is nil")
 	}
-	if len(seed) < 20 {
+	// Accept the 20-byte scramble with or without its trailing NUL.
+	if len(seed) != 20 && (len(seed) != 21 || seed[20] != 0) {
 		return nil, ErrMalformPkt
 	}
 	seed = seed[:20]

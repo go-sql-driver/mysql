@@ -11,35 +11,74 @@ package mysql
 import (
 	"database/sql"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
 
 func TestTinyInt1IsBoolConfig(t *testing.T) {
 	cfg := NewConfig()
-	if !cfg.tinyInt1IsBool {
-		t.Fatal("tinyInt1IsBool should be enabled by default")
+	if cfg.tinyInt1IsBool {
+		t.Fatal("tinyInt1IsBool should be disabled by default")
 	}
 	if got := cfg.FormatDSN(); strings.Contains(got, "tinyInt1IsBool") {
 		t.Fatalf("FormatDSN() = %q; default option should be omitted", got)
 	}
 
+	if err := cfg.Apply(TinyInt1IsBool(true)); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.tinyInt1IsBool {
+		t.Fatal("TinyInt1IsBool(true) did not enable the option")
+	}
+	if got := cfg.FormatDSN(); !strings.Contains(got, "tinyInt1IsBool=true") {
+		t.Fatalf("FormatDSN() = %q; want tinyInt1IsBool=true", got)
+	}
+	parsed, err := ParseDSN(cfg.FormatDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !parsed.tinyInt1IsBool {
+		t.Fatal("FormatDSN did not preserve TinyInt1IsBool(true)")
+	}
 	if err := cfg.Apply(TinyInt1IsBool(false)); err != nil {
 		t.Fatal(err)
 	}
 	if cfg.tinyInt1IsBool {
 		t.Fatal("TinyInt1IsBool(false) did not disable the option")
 	}
-	if got := cfg.FormatDSN(); !strings.Contains(got, "tinyInt1IsBool=false") {
-		t.Fatalf("FormatDSN() = %q; want tinyInt1IsBool=false", got)
+	if got := cfg.FormatDSN(); strings.Contains(got, "tinyInt1IsBool") {
+		t.Fatalf("FormatDSN() = %q; disabled option should be omitted", got)
 	}
 
-	cfg, err := ParseDSN("/?tinyInt1IsBool=false")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.tinyInt1IsBool {
-		t.Fatal("ParseDSN did not disable tinyInt1IsBool")
+	for _, tt := range []struct {
+		dsn  string
+		want bool
+	}{
+		{"/", false},
+		{"/?tinyInt1IsBool=false", false},
+		{"/?tinyInt1IsBool=true", true},
+	} {
+		t.Run(tt.dsn, func(t *testing.T) {
+			cfg, err := ParseDSN(tt.dsn)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.tinyInt1IsBool != tt.want {
+				t.Fatalf("ParseDSN() tinyInt1IsBool = %v; want %v", cfg.tinyInt1IsBool, tt.want)
+			}
+			formatted := cfg.FormatDSN()
+			if strings.Contains(formatted, "tinyInt1IsBool") != tt.want {
+				t.Fatalf("FormatDSN() = %q; option should be present only when enabled", formatted)
+			}
+			roundTrip, err := ParseDSN(formatted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if roundTrip.tinyInt1IsBool != tt.want {
+				t.Fatalf("DSN round trip tinyInt1IsBool = %v; want %v", roundTrip.tinyInt1IsBool, tt.want)
+			}
+		})
 	}
 
 	if _, err := ParseDSN("/?tinyInt1IsBool=invalid"); err == nil {
@@ -48,7 +87,7 @@ func TestTinyInt1IsBoolConfig(t *testing.T) {
 }
 
 func TestTinyInt1IsBool(t *testing.T) {
-	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
+	runTestsParallel(t, dsn+"&tinyInt1IsBool=true", func(dbt *DBTest, tbl string) {
 		dbt.mustExec("CREATE TABLE " + tbl + " (" +
 			"id INT PRIMARY KEY, " +
 			"b TINYINT(1) NOT NULL, " +
@@ -130,22 +169,70 @@ func TestTinyInt1IsBool(t *testing.T) {
 }
 
 func TestTinyInt1IsBoolDisabled(t *testing.T) {
-	runTestsParallel(t, dsn+"&tinyInt1IsBool=false", func(dbt *DBTest, tbl string) {
-		dbt.mustExec("CREATE TABLE " + tbl + " (b TINYINT(1) NOT NULL)")
-		dbt.mustExec("INSERT INTO " + tbl + " VALUES (2)")
-
-		stmt, err := dbt.db.Prepare("SELECT b FROM " + tbl + " WHERE b = ?")
-		if err != nil {
-			dbt.Fatal(err)
-		}
-		defer stmt.Close()
-
-		var got any
-		if err := stmt.QueryRow(2).Scan(&got); err != nil {
-			dbt.Fatal(err)
-		}
-		if got != int64(2) {
-			dbt.Fatalf("Scan(&any) = %#v; want int64(2)", got)
-		}
-	})
+	for _, tt := range []struct{ name, params string }{
+		{"default", ""},
+		{"explicit false", "&tinyInt1IsBool=false"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			runTestsParallel(t, dsn+tt.params, func(dbt *DBTest, tbl string) {
+				dbt.mustExec("CREATE TABLE " + tbl + " (b TINYINT(1) NOT NULL, bn TINYINT(1))")
+				dbt.mustExec("INSERT INTO " + tbl + " (b) VALUES (-128), (-1), (0), (1), (5), (127)")
+				query := "SELECT b, b, b, b, b, b, bn FROM " + tbl + " ORDER BY b"
+				stmt, err := dbt.db.Prepare(query)
+				if err != nil {
+					dbt.Fatal(err)
+				}
+				defer stmt.Close()
+				for _, prepared := range []bool{false, true} {
+					var rows *sql.Rows
+					if prepared {
+						rows, err = stmt.Query()
+					} else {
+						rows, err = dbt.db.Query(query)
+					}
+					if err != nil {
+						dbt.Fatal(err)
+					}
+					defer rows.Close()
+					types, err := rows.ColumnTypes()
+					if err != nil {
+						dbt.Fatal(err)
+					}
+					for i, column := range types {
+						wantType := scanTypeInt8
+						if i == 6 {
+							wantType = scanTypeNullInt
+						}
+						if column.DatabaseTypeName() != "TINYINT" || column.ScanType() != wantType {
+							dbt.Fatalf("prepared=%v column=%d: got %s/%v; want TINYINT/%v", prepared, i, column.DatabaseTypeName(), column.ScanType(), wantType)
+						}
+					}
+					for _, want := range []int64{-128, -1, 0, 1, 5, 127} {
+						if !rows.Next() {
+							dbt.Fatalf("prepared=%v: missing row for %d: %v", prepared, want, rows.Err())
+						}
+						var n int
+						var n8 int8
+						var n64 int64
+						var nullable sql.NullInt64
+						var anyValue any
+						var text string
+						null := sql.NullInt64{Int64: 5, Valid: true}
+						if err := rows.Scan(&n, &n8, &n64, &nullable, &anyValue, &text, &null); err != nil {
+							dbt.Fatal(err)
+						}
+						if int64(n) != want || int64(n8) != want || n64 != want || nullable != (sql.NullInt64{Int64: want, Valid: true}) || anyValue != want || text != strconv.FormatInt(want, 10) || null != (sql.NullInt64{}) {
+							dbt.Fatalf("prepared=%v: got %d, %d, %d, %+v, %#v, %q, %+v; want numeric %d and NULL", prepared, n, n8, n64, nullable, anyValue, text, null, want)
+						}
+					}
+					if rows.Next() {
+						dbt.Fatal("unexpected extra row")
+					}
+					if err := rows.Err(); err != nil {
+						dbt.Fatal(err)
+					}
+				}
+			})
+		})
+	}
 }

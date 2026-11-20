@@ -115,11 +115,17 @@ func TestAuthContinuationStates(t *testing.T) {
 	}
 }
 
-func TestAuthSwitchRejectsShortChallenge(t *testing.T) {
+func TestAuthSwitchRejectsMalformedChallenge(t *testing.T) {
 	for _, tc := range []struct {
 		plugin string
 		length int
 	}{
+		{"caching_sha2_password", 19},
+		{"caching_sha2_password", 21}, // No NUL terminator.
+		{"caching_sha2_password", 22},
+		{"sha256_password", 19},
+		{"sha256_password", 21}, // No NUL terminator.
+		{"sha256_password", 22},
 		{"mysql_native_password", 0},
 		{"mysql_native_password", 1},
 		{"mysql_native_password", 19},
@@ -130,6 +136,7 @@ func TestAuthSwitchRejectsShortChallenge(t *testing.T) {
 		t.Run(fmt.Sprintf("%s/%d", tc.plugin, tc.length), func(t *testing.T) {
 			conn, mc := newRWMockConn(2)
 			mc.cfg.Passwd = "secret"
+			mc.cfg.pubKey = testPubKeyRSA
 			mc.cfg.AllowOldPasswords = true
 			payload := append([]byte{iEOF}, tc.plugin...)
 			payload = append(payload, 0)

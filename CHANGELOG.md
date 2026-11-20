@@ -2,7 +2,15 @@
 
 ## Unreleased
 
-* Add the MariaDB `parsec` authentication plugin.
+* Add support for MariaDB PARSEC authentication. (#1827)
+
+* Add the `tinyInt1IsBool` DSN parameter and `TinyInt1IsBool` functional option,
+  disabled by default to preserve numeric `TINYINT` behavior. When enabled,
+  signed, non-`ZEROFILL` `TINYINT(1)` columns report `BOOLEAN` and scan types
+  `bool` or `sql.NullBool`; zero is returned as `false` and non-zero values as
+  `true`. This applies to both text-protocol queries and prepared statements.
+  For non-NULL values, enabling the option makes integer scans fail and string
+  scans return `"false"` or `"true"` instead of numeric strings. (#1453, #1844)
 
 * Add a pluggable authentication system with the `AuthPlugin` interface,
   `AuthContext`, and `RegisterAuthPlugin`. Custom plugins receive the connection
@@ -14,6 +22,71 @@
   continuation packets. Authentication now validates plugin state, rejects
   unsolicited public keys, preserves errors from plugins, and starts plugins
   only after the TLS handshake has completed. (#1696)
+
+## v1.10.2 (2026-11-17)
+
+Changes since v1.10.1.
+
+### Security fixes
+
+* Return `ErrMalformPkt` instead of panicking on truncated initial handshake
+  packets, including the greeting received before TLS negotiation.
+  (GHSA-9qjq-77h9-895w, #1850)
+
+* Discard connections after a failed `LOAD DATA LOCAL INFILE`, including reader
+  `Close()` errors, so unread results from a multi-statement batch cannot be
+  returned to a later caller. Preserve the server's response status and avoid
+  retrying the batch after an upload write failure. (GHSA-4v5x-9mc8-gr98)
+
+* Reject `interpolateParams=true` combined with an unsafe multibyte charset
+  (`big5`, `sjis`, `gbk`, `cp932`, `gb18030`) given by `charset` or `Charset()`.
+  Previously only `collation` was checked. Collations are now matched
+  case-insensitively and by their charset prefix. The check also runs again
+  after a `BeforeConnect` callback has modified the config. Stop rejecting
+  `gb2312_bin`; GB2312 trailing bytes cannot contain a backslash. The error text
+  changed from `invalid DSN: interpolateParams can not be used with unsafe collations`
+  to `interpolateParams cannot be used with unsafe charsets`, because it may also
+  be returned by `NewConnector` or `Connector.Connect` after `BeforeConnect`.
+  Applications comparing the complete error string must update their comparison. (#1836)
+
+* Fix `interpolateParams` not treating `--` followed by `\v`, `\f`, another
+  control character, DEL, or a raw `0xA0` byte as a comment. Other non-ASCII
+  bytes after `--` remain outside the supported interpolation grammar. (#1836)
+
+* Fix `interpolateParams` treating the `*` that opens `/*/` as closing the
+  comment. (#1835)
+
+### Bugfixes
+
+* Honor `BeforeConnect` changes to the timeout, dialer, logger, and connection
+  attributes without modifying the shared connector. (#1809)
+
+* Validate prepared statement arguments and packet size before sending long
+  data, and reset the statement if a long-data write fails. (#1810)
+
+* Fix the reported precision of unsigned DECIMAL columns. (#1813)
+
+* Preserve full two-byte column collation IDs so IDs above 255 do not cause
+  text columns to be reported as binary columns. (#1818)
+
+* Fix the inverted check for collations outside the handshake's one-byte map.
+  Accept them when a charset is supplied, using `SET NAMES ... COLLATE`;
+  reject them when no charset is supplied instead of silently using the
+  default collation. (#1832)
+
+* Preserve and log idle server error packets before discarding a connection,
+  with bounded diagnostics over plain, TLS, and zlib connections. (#1843)
+
+### CI
+
+* Update GitHub Actions dependencies and add a workflow dependency lockfile. (#1838)
+
+* Pin the lint job to Go 1.26 and Staticcheck v0.8.1 for compatibility. (#1824)
+
+* Limit Go module Dependabot pull requests to security updates. (#1829)
+
+* Test Go 1.27 and MySQL 9.7 while retaining Go 1.24 and the existing database
+  compatibility jobs.
 
 ## v1.10.1 (2026-09-02)
 

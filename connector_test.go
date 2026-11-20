@@ -3,11 +3,51 @@ package mysql
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"net"
 	"testing"
 	"time"
 )
+
+func TestConnectorTruncatedHandshake(t *testing.T) {
+	for _, tlsMode := range []string{"false", "true"} {
+		t.Run("tls="+tlsMode, func(t *testing.T) {
+			cfg, err := ParseDSN("user:pass@tcp(localhost:3306)/?tls=" + tlsMode)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var conns []*mockConn
+			cfg.DialFunc = func(context.Context, string, string) (net.Conn, error) {
+				conn := &mockConn{data: makePacket(0, []byte{10}), maxReads: 1}
+				conns = append(conns, conn)
+				return conn, nil
+			}
+			connector, err := NewConnector(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			db := sql.OpenDB(connector)
+			defer db.Close()
+			db.SetMaxOpenConns(1)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			for range 2 {
+				if err := db.PingContext(ctx); !errors.Is(err, ErrMalformPkt) {
+					t.Fatalf("PingContext() = %v, want ErrMalformPkt", err)
+				}
+				if open := db.Stats().OpenConnections; open != 0 {
+					t.Fatalf("failed handshake leaked %d connections", open)
+				}
+			}
+			for _, conn := range conns {
+				if !conn.closed || conn.writes != 0 {
+					t.Errorf("failed handshake: closed=%t, writes=%d", conn.closed, conn.writes)
+				}
+			}
+		})
+	}
+}
 
 func TestConnectorReturnsTimeout(t *testing.T) {
 	connector := newConnector(&Config{
@@ -142,5 +182,70 @@ func TestBeforeConnectUsesEffectiveDialerAndAttributes(t *testing.T) {
 	}
 	if !bytes.Contains(mock.written, []byte("callback.example")) {
 		t.Fatalf("handshake response does not contain callback server host: %q", mock.written)
+	}
+}
+
+func TestConnectorBeforeConnectUnsafeCharset(t *testing.T) {
+	tests := []struct {
+		name          string
+		setup         func(*Config) error
+		beforeConnect func(*Config) error
+	}{
+		{
+			name: "charset",
+			setup: func(cfg *Config) error {
+				cfg.InterpolateParams = true
+				return nil
+			},
+			beforeConnect: func(cfg *Config) error {
+				return cfg.Apply(Charset("sjis", ""))
+			},
+		},
+		{
+			name: "interpolateParams",
+			setup: func(cfg *Config) error {
+				return cfg.Apply(Charset("sjis", ""))
+			},
+			beforeConnect: func(cfg *Config) error {
+				cfg.InterpolateParams = true
+				return nil
+			},
+		},
+		{
+			name: "collation",
+			setup: func(cfg *Config) error {
+				cfg.InterpolateParams = true
+				return nil
+			},
+			beforeConnect: func(cfg *Config) error {
+				cfg.Collation = "sjis_japanese_ci"
+				return nil
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := NewConfig()
+			if err := test.setup(cfg); err != nil {
+				t.Fatal(err)
+			}
+			cfg.DialFunc = func(context.Context, string, string) (net.Conn, error) {
+				return nil, errors.New("must not dial with an unsafe charset")
+			}
+			if err := cfg.Apply(BeforeConnect(func(_ context.Context, cfg *Config) error {
+				return test.beforeConnect(cfg)
+			})); err != nil {
+				t.Fatal(err)
+			}
+
+			connector, err := NewConnector(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := connector.Connect(context.Background()); err != errUnsafeCharset {
+				t.Fatalf("expected %v, got %v", errUnsafeCharset, err)
+			}
+		})
 	}
 }

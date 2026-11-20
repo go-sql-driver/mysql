@@ -11,7 +11,9 @@ package mysql
 import (
 	"bytes"
 	"database/sql/driver"
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -500,5 +502,262 @@ func TestReadColumnsCollation(t *testing.T) {
 				t.Errorf("DatabaseTypeName = %s; want %s", got, tc.databaseType)
 			}
 		})
+	}
+}
+
+// The handshake carries a one-byte collation ID. With a charset, a collation
+// missing from the collations map is set later by SET NAMES ... COLLATE.
+func TestHandshakeCollation(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		charsets  []string
+		collation string
+		want      byte
+		wantErr   bool
+	}{
+		{name: "default", want: defaultCollationID},
+		{name: "known", collation: "utf8mb4_unicode_ci", want: 224},
+		{name: "known with charset", charsets: []string{"utf8mb4"}, collation: "utf8mb4_unicode_ci", want: 224},
+		{name: "unknown with charset", charsets: []string{"utf8mb4"}, collation: "utf8mb4_0900_as_ci", want: defaultCollationID},
+		{name: "unknown", collation: "utf8mb4_0900_as_ci", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, mc := newRWMockConn(1)
+			mc.cfg.charsets = tc.charsets
+			mc.cfg.Collation = tc.collation
+			err := mc.writeHandshakeResponsePacket(nil, defaultAuthPlugin)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected an error for collation %q", tc.collation)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := conn.written[12]; got != tc.want {
+				t.Errorf("collation ID = %d; want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+func testHandshakePacket() []byte {
+	// A well-formed protocol 10 handshake with MySQL 8.0 style layout.
+	full := []byte{10}
+	full = append(full, "8.0.0\x00"...)
+	full = append(full, 1, 0, 0, 0)
+	full = append(full, "abcdefgh"...)
+	full = append(full, 0)
+	full = append(full, 0xff, 0xff)
+	full = append(full, 45, 2, 0)
+	full = append(full, 0xff, 0xff)
+	full = append(full, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+	full = append(full, "ijklmnopqrst\x00"...)
+	full = append(full, "mysql_native_password\x00"...)
+	return full
+}
+
+// A truncated initial handshake packet must result in ErrMalformPkt
+// instead of a panic.
+func TestReadHandshakePacketTruncated(t *testing.T) {
+	full := testHandshakePacket()
+
+	readFull := func(payload []byte) ([]byte, capabilityFlag, extendedCapabilityFlag, string, error) {
+		conn, mc := newRWMockConn(0)
+		conn.data = makePacket(0, payload)
+		return mc.readHandshakePacket()
+	}
+	read := func(payload []byte) error {
+		_, _, _, _, err := readFull(payload)
+		return err
+	}
+
+	authData, capabilities, extendedCapabilities, plugin, err := readFull(full)
+	if err != nil {
+		t.Fatalf("complete handshake: unexpected error: %v", err)
+	}
+	if string(authData) != "abcdefghijklmnopqrst" {
+		t.Errorf("complete handshake: got cipher %q, want %q", authData, "abcdefghijklmnopqrst")
+	}
+	if plugin != "mysql_native_password" {
+		t.Errorf("complete handshake: got plugin %q, want %q", plugin, "mysql_native_password")
+	}
+	if capabilities != 0xffffffff || extendedCapabilities != 0 {
+		t.Errorf("complete handshake: unexpected capabilities %x / %x", capabilities, extendedCapabilities)
+	}
+
+	// Every strict prefix that is cut inside the mandatory fields must be
+	// rejected. Prefixes ending right after the lower capability flags are
+	// valid (old style handshake), and so are those that only miss the
+	// trailing plugin name.
+	minValid := 1 + len("8.0.0\x00") + 4 + 8 + 1 + 2
+	minExtended := minValid + 3 + 2 + 7 + 4 + 12
+	mariaDB := bytes.Clone(full)
+	mariaDB[minValid-2] &^= byte(clientMySQL)
+	binary.LittleEndian.PutUint32(mariaDB[minValid+12:minValid+16], uint32(clientCacheMetadata))
+	for name, payload := range map[string][]byte{"MySQL": full, "MariaDB": mariaDB} {
+		t.Run(name, func(t *testing.T) {
+			for n := 1; n <= len(payload); n++ {
+				err := read(payload[:n])
+				switch {
+				case n < minValid, n > minValid && n < minExtended:
+					if err != ErrMalformPkt {
+						t.Errorf("prefix of %d bytes: got %v, want ErrMalformPkt", n, err)
+					}
+				default:
+					if err != nil {
+						t.Errorf("prefix of %d bytes: unexpected error: %v", n, err)
+					}
+				}
+			}
+		})
+	}
+	authData, capabilities, extendedCapabilities, plugin, err = readFull(full[:minValid])
+	if err != nil || string(authData) != "abcdefgh" || capabilities != 0xffff || extendedCapabilities != 0 || plugin != "" {
+		t.Errorf("old-style handshake: got %q, %x, %x, %q, %v", authData, capabilities, extendedCapabilities, plugin, err)
+	}
+	authData, capabilities, extendedCapabilities, plugin, err = readFull(mariaDB)
+	if err != nil || string(authData) != "abcdefghijklmnopqrst" || capabilities != 0xffffffff&^clientMySQL || extendedCapabilities != clientCacheMetadata || plugin != "mysql_native_password" {
+		t.Errorf("MariaDB handshake: got %q, %x, %x, %q, %v", authData, capabilities, extendedCapabilities, plugin, err)
+	}
+
+	// Protocol version followed by NUL only.
+	if err := read([]byte{10, 0}); err != ErrMalformPkt {
+		t.Errorf("got %v, want ErrMalformPkt", err)
+	}
+	// No NUL terminator after the server version.
+	if err := read([]byte{10, 'a', 'b'}); err != ErrMalformPkt {
+		t.Errorf("got %v, want ErrMalformPkt", err)
+	}
+}
+
+func TestReadLengthEncodedIntegerTruncated(t *testing.T) {
+	// A truncated length prefix is reported with n == 0.
+	for _, b := range [][]byte{
+		{0xfc}, {0xfc, 1},
+		{0xfd}, {0xfd, 1, 2},
+		{0xfe}, {0xfe, 1, 2, 3, 4, 5, 6, 7},
+	} {
+		if _, _, n := readLengthEncodedInteger(b); n != 0 {
+			t.Errorf("readLengthEncodedInteger(%x): n = %d, want 0", b, n)
+		}
+		if _, _, _, err := readLengthEncodedString(b); err == nil {
+			t.Errorf("readLengthEncodedString(%x): no error", b)
+		}
+		if _, err := skipLengthEncodedString(b); err == nil {
+			t.Errorf("skipLengthEncodedString(%x): no error", b)
+		}
+	}
+	for _, fn := range []func([]byte) error{
+		func(b []byte) error { _, _, _, err := readLengthEncodedString(b); return err },
+		func(b []byte) error { _, err := skipLengthEncodedString(b); return err },
+	} {
+		if err := fn(nil); err == nil {
+			t.Error("empty input: no error")
+		}
+	}
+	for b, want := range map[string]struct {
+		v uint64
+		n int
+	}{
+		"\xfc\x01\x02":                         {0x0201, 3},
+		"\xfd\x01\x02\x03":                     {0x030201, 4},
+		"\xfe\x01\x02\x03\x04\x05\x06\x07\x08": {0x0807060504030201, 9},
+	} {
+		if v, _, n := readLengthEncodedInteger([]byte(b)); v != want.v || n != want.n {
+			t.Errorf("readLengthEncodedInteger(%x) = %d, %d; want %d, %d", b, v, n, want.v, want.n)
+		}
+	}
+}
+
+// Malformed packets from the server must produce ErrMalformPkt, not a panic.
+func TestMalformedServerPackets(t *testing.T) {
+	newConn := func(payload []byte) *mysqlConn {
+		conn, mc := newRWMockConn(0)
+		conn.data = makePacket(0, payload)
+		conn.maxReads = 1
+		return mc
+	}
+
+	tests := []struct {
+		name string
+		run  func(payload []byte) error
+		pkts [][]byte
+	}{
+		{"OK packet", func(p []byte) error {
+			mc := newConn(p)
+			data, err := mc.readPacket()
+			if err != nil {
+				return err
+			}
+			return mc.resultUnchanged().handleOkPacket(data)
+		}, [][]byte{
+			{iOK},
+			{iOK, 0xfc},
+			{iOK, 0x00},
+			{iOK, 0x00, 0x00},
+			{iOK, 0x00, 0x00, 0x02},
+		}},
+		{"result set header", func(p []byte) error {
+			mc := newConn(p)
+			mc.extCapabilities |= clientCacheMetadata
+			_, _, err := mc.resultUnchanged().readResultSetHeaderPacket()
+			return err
+		}, [][]byte{
+			{0xfc},
+			{0xfe, 1, 2},
+			{0x01}, // column count without the metadata flag byte
+		}},
+		{"prepare result", func(p []byte) error {
+			mc := newConn(p)
+			_, err := (&mysqlStmt{mc: mc}).readPrepareResultPacket()
+			return err
+		}, [][]byte{
+			{iOK},
+			{iOK, 1, 0, 0, 0, 1, 0, 1},
+		}},
+		{"column definition", func(p []byte) error {
+			mc := newConn(p)
+			_, err := mc.readColumns(1, nil)
+			return err
+		}, [][]byte{
+			{0xfc},             // truncated length prefix in the catalog
+			{0x00},             // catalog consumed, nothing left for the schema
+			{0, 0, 0xfd},       // truncated length prefix in the table
+			{0, 0, 0, 0, 0, 0}, // empty catalog, schema, table, org_table, name, org_name; nothing after
+			{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		}},
+		{"skip rows (EOF)", func(p []byte) error {
+			mc := newConn(p)
+			return mc.skipRows()
+		}, [][]byte{
+			{iEOF},
+			{iEOF, 0, 0},
+		}},
+		{"skip rows (OK with EOF header)", func(p []byte) error {
+			mc := newConn(p)
+			mc.capabilities |= clientDeprecateEOF
+			return mc.skipRows()
+		}, [][]byte{
+			{iEOF},
+			{iEOF, 0xfc},
+			{iEOF, 0, 0},
+			{iEOF, 0, 0, 0},
+		}},
+	}
+	for _, tt := range tests {
+		for _, p := range tt.pkts {
+			t.Run(fmt.Sprintf("%s/%x", tt.name, p), func(t *testing.T) {
+				defer func() {
+					if r := recover(); r != nil {
+						t.Fatalf("panic: %v", r)
+					}
+				}()
+				if err := tt.run(p); !errors.Is(err, ErrMalformPkt) {
+					t.Fatalf("got %v, want ErrMalformPkt", err)
+				}
+			})
+		}
 	}
 }
