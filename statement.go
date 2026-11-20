@@ -51,6 +51,18 @@ func (stmt *mysqlStmt) CheckNamedValue(nv *driver.NamedValue) (err error) {
 	return
 }
 
+// readColumns updates the statement's cached columns when the server sends them.
+func (stmt *mysqlStmt) readColumns(count int, metadataFollows bool) error {
+	if !metadataFollows {
+		return stmt.mc.skipEof()
+	}
+	columns, err := stmt.mc.readColumns(count, stmt.columns)
+	if err == nil {
+		stmt.columns = columns
+	}
+	return err
+}
+
 func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	if stmt.mc.closed.Load() {
 		return nil, driver.ErrBadConn
@@ -72,15 +84,14 @@ func (stmt *mysqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 
 	if resLen > 0 {
 		// Columns
-		if metadataFollows && stmt.mc.extCapabilities&clientCacheMetadata != 0 {
-			// we can not skip column metadata because next stmt.Query() may use it.
-			if stmt.columns, err = mc.readColumns(resLen, stmt.columns); err != nil {
-				return nil, err
-			}
+		if mc.extCapabilities&clientCacheMetadata != 0 {
+			// A subsequent Query may need the cached columns.
+			err = stmt.readColumns(resLen, metadataFollows)
 		} else {
-			if err = mc.skipColumns(resLen); err != nil {
-				return nil, err
-			}
+			err = mc.skipColumns(resLen)
+		}
+		if err != nil {
+			return nil, err
 		}
 
 		// Rows
@@ -124,17 +135,10 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 
 	if resLen > 0 {
 		rows.mc = mc
-		if metadataFollows {
-			if rows.rs.columns, err = mc.readColumns(resLen, stmt.columns); err != nil {
-				return nil, err
-			}
-			stmt.columns = rows.rs.columns
-		} else {
-			if err = mc.skipEof(); err != nil {
-				return nil, err
-			}
-			rows.rs.columns = stmt.columns
+		if err := stmt.readColumns(resLen, metadataFollows); err != nil {
+			return nil, err
 		}
+		rows.rs.columns = stmt.columns
 	} else {
 		rows.rs.done = true
 

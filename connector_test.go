@@ -3,11 +3,51 @@ package mysql
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"net"
 	"testing"
 	"time"
 )
+
+func TestConnectorTruncatedHandshake(t *testing.T) {
+	for _, tlsMode := range []string{"false", "true"} {
+		t.Run("tls="+tlsMode, func(t *testing.T) {
+			cfg, err := ParseDSN("user:pass@tcp(localhost:3306)/?tls=" + tlsMode)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var conns []*mockConn
+			cfg.DialFunc = func(context.Context, string, string) (net.Conn, error) {
+				conn := &mockConn{data: makePacket(0, []byte{10}), maxReads: 1}
+				conns = append(conns, conn)
+				return conn, nil
+			}
+			connector, err := NewConnector(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			db := sql.OpenDB(connector)
+			defer db.Close()
+			db.SetMaxOpenConns(1)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			for range 2 {
+				if err := db.PingContext(ctx); !errors.Is(err, ErrMalformPkt) {
+					t.Fatalf("PingContext() = %v, want ErrMalformPkt", err)
+				}
+				if open := db.Stats().OpenConnections; open != 0 {
+					t.Fatalf("failed handshake leaked %d connections", open)
+				}
+			}
+			for _, conn := range conns {
+				if !conn.closed || conn.writes != 0 {
+					t.Errorf("failed handshake: closed=%t, writes=%d", conn.closed, conn.writes)
+				}
+			}
+		})
+	}
+}
 
 func TestConnectorReturnsTimeout(t *testing.T) {
 	connector := newConnector(&Config{

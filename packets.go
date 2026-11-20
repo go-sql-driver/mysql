@@ -205,9 +205,17 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 
 	// server version [null terminated string]
 	// connection id [4 bytes]
-	pos := 1 + bytes.IndexByte(data[1:], 0x00) + 1 + 4
+	end := bytes.IndexByte(data[1:], 0x00)
+	if end < 0 {
+		return nil, 0, 0, "", ErrMalformPkt
+	}
+	pos := 1 + end + 1 + 4
 
-	// first part of the password cipher [8 bytes]
+	// first part of the password cipher [8 bytes],
+	// filler [1 byte] and capability flags (lower 2 bytes) [2 bytes]
+	if len(data) < pos+8+1+2 {
+		return nil, 0, 0, "", ErrMalformPkt
+	}
 	authData := data[pos : pos+8]
 
 	// (filler) always 0x00 [1 byte]
@@ -223,6 +231,13 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 	if len(data) > pos {
 		// character set [1 byte]
 		// status flags [2 bytes]
+		// capability flags (upper 2 bytes) [2 bytes]
+		// length of auth-plugin-data [1 byte]
+		// reserved [10 bytes] (MariaDB uses the last 4 for extended capabilities)
+		// the first 12 bytes of the second part of the cipher
+		if len(data) < pos+3+2+7+4+12 {
+			return nil, 0, 0, "", ErrMalformPkt
+		}
 		pos += 3
 		// capability flags (upper 2 bytes) [2 bytes]
 		capabilities |= capabilityFlag(binary.LittleEndian.Uint16(data[pos:pos+2])) << 16
@@ -250,6 +265,9 @@ func (mc *mysqlConn) readHandshakePacket() (data []byte, capabilities capability
 		// which seems to work but technically could have a hidden bug.
 		authData = append(authData, data[pos:pos+12]...)
 		pos += 13
+		if pos > len(data) {
+			pos = len(data)
+		}
 
 		// EOF if version (>= 5.5.7 and < 5.5.10) or (>= 5.6.0 and < 5.6.2)
 		// \NUL otherwise
@@ -836,7 +854,15 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 
 		case fieldTypeLongLong:
 			if rows.rs.columns[i].flags&flagUnsigned != 0 {
-				dest[i], err = strconv.ParseUint(string(buf), 10, 64)
+				n, err := strconv.ParseUint(string(buf), 10, 64)
+				if err != nil {
+					return err
+				}
+				if n > math.MaxInt64 {
+					dest[i] = bytesValue(buf)
+				} else {
+					dest[i] = int64(n)
+				}
 			} else {
 				dest[i], err = strconv.ParseInt(string(buf), 10, 64)
 			}
