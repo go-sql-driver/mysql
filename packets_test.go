@@ -765,16 +765,26 @@ func TestMalformedServerPackets(t *testing.T) {
 	}
 }
 
-// brokenPipeConn accepts part of the first write, then fails it, as a socket
+// brokenPipeConn accepts okWrites writes, then fails the next one, as a socket
 // does when the server closes the connection while a command is being sent.
+// The failing write sends half of its bytes if partial is set, none otherwise.
 // Reads return pending, then io.EOF.
 type brokenPipeConn struct {
 	*mockConn
-	pending []byte
+	pending  []byte
+	okWrites int
+	partial  bool
 }
 
 func (c *brokenPipeConn) Write(b []byte) (int, error) {
-	return len(b) / 2, syscall.EPIPE
+	if c.okWrites > 0 {
+		c.okWrites--
+		return len(b), nil
+	}
+	if c.partial {
+		return len(b) / 2, syscall.EPIPE
+	}
+	return 0, syscall.EPIPE
 }
 
 func (c *brokenPipeConn) Read(b []byte) (int, error) {
@@ -790,40 +800,72 @@ func (c *brokenPipeConn) Read(b []byte) (int, error) {
 // packet the server sent before closing the connection, if there is one, and
 // the write error otherwise. The connection is closed either way.
 func TestWritePacketPendingError(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		pending []byte
-		want    func(error) bool
+	// ERR 1153 (08S01) Got a packet bigger than 'max_allowed_packet' bytes
+	errPacket := append([]byte{0x3a, 0x00, 0x00, 0x01, 0xff, 0x81, 0x04, '#', '0', '8', 'S', '0', '1'},
+		"Got a packet bigger than 'max_allowed_packet' bytes"...)
+	isServerErr := func(err error) bool {
+		var me *MySQLError
+		return errors.As(err, &me) && me.Number == 1153 && string(me.SQLState[:]) == "08S01"
+	}
+	isWriteErr := func(err error) bool { return errors.Is(err, syscall.EPIPE) }
+
+	for _, write := range []struct {
+		name     string
+		query    string
+		okWrites int
+		partial  bool
 	}{{
-		name: "server error",
-		// ERR 1153 (08S01) Got a packet bigger than 'max_allowed_packet' bytes
-		pending: append([]byte{0x3a, 0x00, 0x00, 0x01, 0xff, 0x81, 0x04, '#', '0', '8', 'S', '0', '1'},
-			"Got a packet bigger than 'max_allowed_packet' bytes"...),
-		want: func(err error) bool {
-			var me *MySQLError
-			return errors.As(err, &me) && me.Number == 1153 && string(me.SQLState[:]) == "08S01"
-		},
+		name:    "first packet partially sent",
+		query:   "INSERT INTO t VALUES ('" + strings.Repeat("a", 4096) + "')",
+		partial: true,
 	}, {
-		name: "no server error",
-		want: func(err error) bool { return errors.Is(err, syscall.EPIPE) },
+		// The first 16 MiB packet is sent, the next one is not sent at all.
+		name:     "later packet not sent",
+		query:    "INSERT INTO t VALUES ('" + strings.Repeat("a", maxPacketSize) + "')",
+		okWrites: 1,
 	}} {
-		t.Run(tc.name, func(t *testing.T) {
-			conn := &brokenPipeConn{mockConn: new(mockConn), pending: tc.pending}
-			mc := &mysqlConn{
-				buf:              newBuffer(),
-				cfg:              NewConfig(),
-				netConn:          conn,
-				closech:          make(chan struct{}),
-				maxAllowedPacket: defaultMaxAllowedPacket,
+		for _, compress := range []bool{false, true} {
+			for _, tc := range []struct {
+				name    string
+				pending []byte
+				want    func(error) bool
+			}{
+				{"server error", errPacket, isServerErr},
+				{"no server error", nil, isWriteErr},
+			} {
+				t.Run(fmt.Sprintf("%s/compress=%t/%s", write.name, compress, tc.name), func(t *testing.T) {
+					pending := tc.pending
+					if compress && pending != nil {
+						// uncompressed payload in a compressed packet
+						pending = append([]byte{byte(len(pending)), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, pending...)
+					}
+					conn := &brokenPipeConn{
+						mockConn: new(mockConn),
+						pending:  pending,
+						okWrites: write.okWrites,
+						partial:  write.partial,
+					}
+					mc := &mysqlConn{
+						buf:              newBuffer(),
+						cfg:              NewConfig(),
+						netConn:          conn,
+						closech:          make(chan struct{}),
+						maxAllowedPacket: defaultMaxAllowedPacket,
+						compress:         compress,
+					}
+					if compress {
+						mc.compIO = newCompIO(mc)
+					}
+					err := mc.writeCommandPacketStr(comQuery, write.query)
+					if !tc.want(err) {
+						t.Fatalf("writeCommandPacketStr = %v", err)
+					}
+					if mc.IsValid() {
+						t.Error("connection is still valid")
+					}
+				})
 			}
-			err := mc.writeCommandPacketStr(comQuery, "INSERT INTO t VALUES ('"+strings.Repeat("a", 4096)+"')")
-			if !tc.want(err) {
-				t.Fatalf("writeCommandPacketStr = %v", err)
-			}
-			if mc.IsValid() {
-				t.Error("connection is still valid")
-			}
-		})
+		}
 	}
 }
 

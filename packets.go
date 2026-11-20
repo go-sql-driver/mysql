@@ -136,6 +136,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		writeFunc = mc.compIO.writePackets
 	}
 
+	sent := false
 	for {
 		size := min(maxPacketSize, pktLen)
 		putUint24(data[:3], size)
@@ -152,8 +153,8 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 				mc.cleanup()
 				return cerr
 			}
-			if n == 0 && pktLen == len(data)-4 {
-				// only for the first loop iteration when nothing was written yet
+			if n == 0 && !sent {
+				// nothing of the command was written yet
 				mc.cleanup()
 				mc.log(err)
 				return errBadConnNoWrite
@@ -162,6 +163,11 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			// with an error packet before closing the connection, as it does
 			// with 1153 when the packet exceeds its max_allowed_packet:
 			// return that error instead of the write error.
+			if mc.compress {
+				// compIO.buff still holds the outgoing frame: discard it
+				// so that only bytes from the server are read.
+				mc.compIO.reset()
+			}
 			if serverErr := mc.pendingError(); serverErr != nil {
 				return serverErr
 			}
@@ -174,6 +180,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 			return io.ErrShortWrite
 		}
 
+		sent = true
 		mc.sequence++
 		if size != maxPacketSize {
 			return nil
