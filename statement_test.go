@@ -15,6 +15,43 @@ import (
 	"testing"
 )
 
+func TestStmtReadCachedColumns(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		caps capabilityFlag
+	}{
+		{"EOF", 0},
+		{"DeprecateEOF", clientDeprecateEOF},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, mc := newRWMockConn(1)
+			mc.extCapabilities = clientCacheMetadata
+			mc.capabilities = tc.caps
+			stmt := mysqlStmt{mc: mc, columns: []mysqlField{{name: "n", fieldType: fieldTypeTiny}}}
+
+			seq := byte(1)
+			if tc.caps&clientDeprecateEOF == 0 {
+				conn.data = makePacket(seq, []byte{iEOF, 0, 0, 0, 0})
+				seq++
+			}
+			row := []byte{0, 0, 42}
+			conn.data = append(conn.data, makePacket(seq, row)...)
+			conn.maxReads = 1
+
+			if err := stmt.readColumns(1, false); err != nil {
+				t.Fatal(err)
+			}
+			if len(stmt.columns) != 1 || stmt.columns[0].name != "n" {
+				t.Fatalf("unexpected cached columns: %+v", stmt.columns)
+			}
+			got, err := mc.readPacket()
+			if err != nil || !bytes.Equal(got, row) {
+				t.Fatalf("first row = %x, %v; want %x", got, err, row)
+			}
+		})
+	}
+}
+
 func TestConvertDerivedString(t *testing.T) {
 	type derived string
 
