@@ -13,6 +13,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -207,6 +208,15 @@ func (bc badConnection) Write(b []byte) (n int, err error) {
 }
 
 func (bc badConnection) Close() error {
+	return nil
+}
+
+// Read and SetDeadline let a failed write look for a pending server error.
+func (bc badConnection) Read(b []byte) (n int, err error) {
+	return 0, io.EOF
+}
+
+func (bc badConnection) SetDeadline(time.Time) error {
 	return nil
 }
 
