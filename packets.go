@@ -732,10 +732,19 @@ func malformedIfEOF(err error) error {
 	return err
 }
 
+// maxColumnsPrealloc caps the capacity reserved before any column packet has been
+// read (a table holds at most 4096 columns, so ordinary result sets are sized
+// exactly); wider ones grow the slice as their column packets arrive.
+const maxColumnsPrealloc = 4096
+
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response_text_resultset_column_definition.html#sect_protocol_com_query_response_text_resultset_column_definition_41
 func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, error) {
-	columns := make([]mysqlField, count)
+	// count comes from the server, so do not size the slice from it up front: a
+	// header that announces millions of columns would allocate all of them before
+	// the first column packet arrives. Grow as the packets are actually read, so
+	// memory stays proportional to what the server really sent.
+	columns := make([]mysqlField, min(count, maxColumnsPrealloc))
 	if len(old) != count {
 		old = nil
 	}
@@ -744,6 +753,9 @@ func (mc *mysqlConn) readColumns(count int, old []mysqlField) ([]mysqlField, err
 		data, err := mc.readPacket()
 		if err != nil {
 			return nil, err
+		}
+		if i == len(columns) {
+			columns = append(columns, mysqlField{})
 		}
 
 		// Catalog
