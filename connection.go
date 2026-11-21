@@ -441,6 +441,10 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 	return string(buf), nil
 }
 
+// Exec executes query and returns its Result, which has one entry per result
+// read (see [Result]). When the server returns an error (*MySQLError), Exec
+// returns the Result read so far with it. database/sql discards that Result;
+// use sql.Conn.Raw() or the driver connection directly.
 func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, error) {
 	if mc.closed.Load() {
 		return nil, driver.ErrBadConn
@@ -462,6 +466,12 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 		copied := mc.result
 		return &copied, err
 	}
+	if _, ok := err.(*MySQLError); ok {
+		// The server returned an error packet. Return the results read so
+		// far with it; see [Result] for what they tell.
+		copied := mc.result
+		return &copied, err
+	}
 	return nil, mc.markBadConn(err)
 }
 
@@ -470,6 +480,13 @@ func (mc *mysqlConn) exec(query string) error {
 	handleOk := mc.clearResult()
 	// Send command
 	if err := mc.writeCommandPacketStr(comQuery, query); err != nil {
+		if _, ok := err.(*MySQLError); ok {
+			// The server rejected the command while it was being sent, as
+			// with 1153. Give the error an entry, as when it is read in place
+			// of the result set header, so that the Result is never empty.
+			handleOk.result.affectedRows = append(handleOk.result.affectedRows, 0)
+			handleOk.result.insertIds = append(handleOk.result.insertIds, 0)
+		}
 		return mc.markBadConn(err)
 	}
 
