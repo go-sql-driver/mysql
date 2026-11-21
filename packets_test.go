@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -897,5 +898,61 @@ func TestHandleErrorPacketConnectionException(t *testing.T) {
 				t.Errorf("connection closed = %t, want %t", closed, tc.closed)
 			}
 		})
+	}
+}
+
+// A result set header may announce far more columns than the server then sends.
+// readColumns must not size its result from the announced count: memory has to
+// follow the packets actually read, and the short read must still be an error.
+func TestReadColumnsDoesNotTrustAnnouncedCount(t *testing.T) {
+	const announced = 2_000_000
+
+	_, mc := newRWMockConn(0)
+	conn := mc.netConn.(*mockConn)
+	conn.data = makePacket(0, []byte{0x03, 'd', 'e', 'f', 0, 0, 0, 0, 0})
+	conn.maxReads = 1
+
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	cols, err := mc.readColumns(announced, nil)
+	runtime.ReadMemStats(&after)
+
+	if err == nil || cols != nil {
+		t.Fatalf("readColumns = (%d columns, %v), want an error and no columns", len(cols), err)
+	}
+	// Sizing from the announced count costs hundreds of MiB; reading what arrived
+	// costs a few KiB.
+	if grew := after.TotalAlloc - before.TotalAlloc; grew > 4<<20 {
+		t.Fatalf("readColumns allocated %d MiB for one column packet", grew>>20)
+	}
+}
+
+// Wider result sets than the preallocated capacity must still come back whole.
+func TestReadColumnsWiderThanPrealloc(t *testing.T) {
+	count := maxColumnsPrealloc + 37
+
+	_, mc := newRWMockConn(0)
+	conn := mc.netConn.(*mockConn)
+	mc.capabilities |= clientDeprecateEOF
+	// catalog "def", empty schema/table/original table, name "c", empty original
+	// name, then filler, charset, length, type, flags and decimals (11 bytes).
+	colDef := []byte{3, 'd', 'e', 'f', 0, 0, 0, 1, 'c', 0}
+	colDef = append(colDef, 0x0c, 0x3f, 0x00, 0x0a, 0x00, 0x00, 0x00, byte(fieldTypeLong), 0x00, 0x00, 0x00)
+	var stream []byte
+	for i := 0; i < count; i++ {
+		stream = append(stream, makePacket(byte(i), colDef)...)
+	}
+	conn.data = stream
+
+	cols, err := mc.readColumns(count, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cols) != count {
+		t.Fatalf("got %d columns, want %d", len(cols), count)
+	}
+	if cols[count-1].name != "c" || cols[count-1].fieldType != fieldTypeLong {
+		t.Fatalf("last column = %+v", cols[count-1])
 	}
 }
