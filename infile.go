@@ -99,7 +99,8 @@ func (mc *okHandler) handleInFileRequest(name string) (err error) {
 	// pending, even when no bytes have arrived in our read buffers yet.
 	defer func() {
 		if err != nil {
-			mc.conn().close()
+			// Keep mc.result: Exec returns it with a server error.
+			mc.conn().cleanup()
 			// The query has already been sent. A failed upload write must not
 			// cause database/sql to retry the whole batch.
 			if err == errBadConnNoWrite {

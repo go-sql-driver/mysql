@@ -480,6 +480,13 @@ func (mc *mysqlConn) exec(query string) error {
 	handleOk := mc.clearResult()
 	// Send command
 	if err := mc.writeCommandPacketStr(comQuery, query); err != nil {
+		if _, ok := err.(*MySQLError); ok {
+			// The server rejected the command while it was being sent, as
+			// with 1153. Give the error an entry, as when it is read in place
+			// of the result set header, so that the Result is never empty.
+			handleOk.result.affectedRows = append(handleOk.result.affectedRows, 0)
+			handleOk.result.insertIds = append(handleOk.result.insertIds, 0)
+		}
 		return mc.markBadConn(err)
 	}
 
