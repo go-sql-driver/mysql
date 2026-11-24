@@ -516,6 +516,24 @@ func TestExecErrorResultClosed(t *testing.T) {
 		want:    []int64{0},
 		wantIDs: []int64{0},
 	}, {
+		// readPacket accepts an ERR packet with a wrong sequence number, but
+		// closes the connection.
+		name:    "error out of sequence",
+		query:   "INSERT INTO t VALUES (1)",
+		reply:   func(string) []byte { return errPacket(0, 1062, "23000") },
+		partial: -1,
+		errno:   1062,
+		want:    []int64{0},
+		wantIDs: []int64{0},
+	}, {
+		name:    "second error out of sequence",
+		query:   "INSERT INTO t VALUES (1);INSERT INTO t VALUES (2)",
+		reply:   func(string) []byte { return slices.Concat(okMore(1), errPacket(0, 1062, "23000")) },
+		partial: -1,
+		errno:   1062,
+		want:    []int64{1, 0},
+		wantIDs: []int64{5, 0},
+	}, {
 		name:  "infile response",
 		query: "INSERT INTO t VALUES (1);LOAD DATA LOCAL INFILE 'x' INTO TABLE t",
 		reply: func(name string) []byte {
@@ -574,6 +592,9 @@ func TestExecErrorResultClosed(t *testing.T) {
 			}
 			if n, err := res.RowsAffected(); n != 0 || err != nil {
 				t.Errorf("RowsAffected: got %d, %v", n, err)
+			}
+			if id, err := res.LastInsertId(); id != 0 || err != nil {
+				t.Errorf("LastInsertId: got %d, %v", id, err)
 			}
 			if mc.IsValid() {
 				t.Error("connection is still valid")

@@ -110,7 +110,9 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 				data = append(prevData, data...)
 			}
 			if invalidSequence {
-				mc.close()
+				// cleanup, not close: keep the result read so far, which
+				// Exec returns with the server error below.
+				mc.cleanup()
 				// return sync error only for regular packet.
 				// error packets may have wrong sequence number.
 				if data[0] != iERR {
