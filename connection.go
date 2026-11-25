@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"runtime"
 	"strconv"
@@ -374,6 +375,12 @@ func (mc *mysqlConn) interpolateParams(query string, args []driver.Value) (strin
 				case uint64:
 					buf = strconv.AppendUint(buf, v, 10)
 				case float64:
+					// NaN and ±Inf have no SQL literal; AppendFloat would write
+					// them as identifiers. A server-side prepared statement
+					// sends them as binary DOUBLE instead.
+					if math.IsNaN(v) || math.IsInf(v, 0) {
+						return "", driver.ErrSkip
+					}
 					buf = strconv.AppendFloat(buf, v, 'g', -1, 64)
 				case bool:
 					if v {

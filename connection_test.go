@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net"
 	"testing"
 	"time"
@@ -118,6 +119,37 @@ func TestInterpolateParamsUint64(t *testing.T) {
 	}
 	if q != "SELECT 42" {
 		t.Errorf("Expected uint64 interpolation to work, got q=%#v", q)
+	}
+}
+
+func TestInterpolateParamsFloat(t *testing.T) {
+	mc := &mysqlConn{
+		buf:              newBuffer(),
+		maxAllowedPacket: maxPacketSize,
+		cfg: &Config{
+			InterpolateParams: true,
+		},
+	}
+
+	q, err := mc.interpolateParams("SELECT ?", []driver.Value{1.5})
+	if err != nil || q != "SELECT 1.5" {
+		t.Errorf("Expected q=%q, err=nil, got q=%q, err=%#v", "SELECT 1.5", q, err)
+	}
+
+	for _, tc := range []struct {
+		name string
+		arg  float64
+	}{
+		{"NaN", math.NaN()},
+		{"positive infinity", math.Inf(1)},
+		{"negative infinity", math.Inf(-1)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			q, err := mc.interpolateParams("SELECT ?, ?", []driver.Value{int64(1), tc.arg})
+			if err != driver.ErrSkip {
+				t.Errorf("Expected err=driver.ErrSkip, got err=%#v, q=%#v", err, q)
+			}
+		})
 	}
 }
 
