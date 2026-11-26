@@ -5,7 +5,7 @@ version: 'v0.0.3'
 workflows:
     '.github/workflows/test.yml':
         - 'actions/checkout@v7.0.1'
-        - 'actions/setup-go@v7.0.0'
+        - 'actions/setup-go@v7.1.0'
         - 'dominikh/staticcheck-action@v1.4.1'
         - 'shogo82148/actions-goveralls@v1.11.5'
         - 'shogo82148/actions-setup-mysql@v1.56.2'
@@ -25,9 +25,9 @@ dependencies:
         commit: 'sha1-4b73464bb391d4059bd26b0524d20df3927bd417'
         owner_id: 44036562
         repo_id: 192624594
-    'actions/setup-go@v7.0.0':
-        ref: 'v7.0.0'
-        commit: 'sha1-b7ad1dad31e06c5925ef5d2fc7ad053ef454303e'
+    'actions/setup-go@v7.1.0':
+        ref: 'v7.1.0'
+        commit: 'sha1-d8cbb8045d7f43706b9177cceb36c1f91a6644d5'
         owner_id: 44036562
         repo_id: 192624594
     'dominikh/staticcheck-action@v1.4.1':
