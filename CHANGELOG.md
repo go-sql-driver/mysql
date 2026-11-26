@@ -23,6 +23,10 @@
   unsolicited public keys, preserves errors from plugins, and starts plugins
   only after the TLS handshake has completed. (#1696)
 
+* Fix `interpolateParams` writing NaN and ±Inf `float64` arguments as the
+  identifiers `NaN`, `+Inf` and `-Inf`. These values now fall back to a
+  server-side prepared statement, as with `interpolateParams=false`.
+
 ## v1.10.2 (2026-11-17)
 
 Changes since v1.10.1.

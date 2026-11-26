@@ -614,6 +614,26 @@ func TestFloat64Placeholder(t *testing.T) {
 	})
 }
 
+func TestFloat64NonFinitePlaceholder(t *testing.T) {
+	runTests(t, dsn, func(dbt *DBTest) {
+		dbt.mustExec("CREATE TABLE test (`NaN` DOUBLE, `Inf` DOUBLE, value DOUBLE)")
+		dbt.mustExec("INSERT INTO test VALUES (1, 2, 0)")
+		for _, v := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+			// Depending on sql_mode the server rejects, clamps or nulls the
+			// value; only check that no column was read instead.
+			dbt.db.Exec("UPDATE test SET value = ?", v)
+
+			var out sql.NullFloat64
+			if err := dbt.db.QueryRow("SELECT value FROM test").Scan(&out); err != nil {
+				dbt.Fatal(err)
+			}
+			if out.Valid && (out.Float64 == 1 || math.Abs(out.Float64) == 2) {
+				dbt.Errorf("UPDATE with %v copied a column: value = %g", v, out.Float64)
+			}
+		}
+	})
+}
+
 func TestString(t *testing.T) {
 	runTestsParallel(t, dsn, func(dbt *DBTest, tbl string) {
 		types := [6]string{"CHAR(255)", "VARCHAR(255)", "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT"}
