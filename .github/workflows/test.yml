@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       # Staticcheck v0.8.1 cannot read Go 1.27 export data.
-      - uses: actions/setup-go@v7.0.0
+      - uses: actions/setup-go@v7.1.0
         with:
           go-version: '1.26'
       - uses: dominikh/staticcheck-action@v1.4.1
@@ -95,7 +95,7 @@ jobs:
       matrix: ${{ fromJSON(needs.list.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-go@v7.0.0
+      - uses: actions/setup-go@v7.1.0
         with:
           go-version: ${{ matrix.go }}
       - uses: shogo82148/actions-setup-mysql@v1.56.2
