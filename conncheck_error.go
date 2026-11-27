@@ -36,7 +36,9 @@ func (mc *mysqlConn) pendingError() *MySQLError {
 	// and any deadlines reset by the normal packet reader.
 	timer := time.AfterFunc(idleErrorTimeout, func() { conn.Close() })
 	defer timer.Stop()
-	defer mc.close()
+	// cleanup, not close: a failed write in Exec returns mc.result with the
+	// error read here.
+	defer mc.cleanup()
 	if err := mc.netConn.SetDeadline(time.Now().Add(idleErrorTimeout)); err != nil {
 		return nil
 	}
