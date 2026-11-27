@@ -1,8 +1,15 @@
 # Changelog
 
-## Unreleased
+## v1.11.0 (2026-11-27)
 
-* Add support for MariaDB PARSEC authentication. (#1827)
+Changes since v1.10.2.
+
+### Requirements
+
+* The driver now requires Go 1.25 or later. The minimum supported server
+  versions are MySQL 8.0 and MariaDB 10.11. (#1803)
+
+### New features
 
 * Add the `tinyInt1IsBool` DSN parameter and `TinyInt1IsBool` functional option,
   disabled by default to preserve numeric `TINYINT` behavior. When enabled,
@@ -10,7 +17,7 @@
   `bool` or `sql.NullBool`; zero is returned as `false` and non-zero values as
   `true`. This applies to both text-protocol queries and prepared statements.
   For non-NULL values, enabling the option makes integer scans fail and string
-  scans return `"false"` or `"true"` instead of numeric strings. (#1453, #1844)
+  scans return `"false"` or `"true"` instead of numeric strings. (#1805, #1845)
 
 * Add a pluggable authentication system with the `AuthPlugin` interface,
   `AuthContext`, and `RegisterAuthPlugin`. Custom plugins receive the connection
@@ -22,6 +29,44 @@
   continuation packets. Authentication now validates plugin state, rejects
   unsolicited public keys, preserves errors from plugins, and starts plugins
   only after the TLS handshake has completed. (#1696)
+
+* Add OpenID Connect authentication with the `OIDCToken` option. The driver
+  sends the token over TLS. (#1820)
+
+* Add support for MariaDB PARSEC authentication. (#1827)
+
+* Add optional zstd protocol compression. Import
+  `github.com/go-sql-driver/mysql/zstd` for side effects and enable
+  `compress=true` to use zstd when the server supports it, with zlib as a
+  fallback. (#1823)
+
+* Preserve the order of DSN system variables when setting them on the server
+  and when calling `FormatDSN`. Use `AddParam` to specify that order when
+  configuring a connection programmatically. (#1807)
+
+### Bugfixes
+
+* For text queries, return `BIGINT UNSIGNED` values to `sql.Scanner` as
+  `int64` when they fit and as decimal bytes for larger values. (#1860)
+
+* Handle omitted column metadata in prepared statement `Exec` calls on
+  MariaDB. (#1862)
+
+* Return `ErrMalformPkt` for truncated OK, EOF, column definition, and
+  statement prepare response packets. (#1858)
+
+* Pass authentication switch data to plugins unchanged. (#1864)
+
+* Return the server error when available after a partial write. Discard the
+  connection on SQLSTATE class 08 errors except error 1047. (#1852)
+
+### Performance
+
+* Implement `driver.RowsColumnScanner` on Go 1.27 and later for both text
+  queries and prepared statements. Reduce allocations when decoding short
+  and empty column values. (#1816, #1846)
+
+* Skip compression for outgoing payloads smaller than 512 bytes. (#1834)
 
 ## v1.10.2 (2026-11-17)
 
